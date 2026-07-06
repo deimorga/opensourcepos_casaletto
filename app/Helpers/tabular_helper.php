@@ -422,7 +422,7 @@ function get_items_manage_table_headers(): string
     $headers[] = ['item_pic' => lang('Items.image'), 'sortable' => false];
 
     foreach ($definitionsWithTypes as $definition_id => $definitionInfo) {
-        $headers[] = [$definition_id => $definitionInfo['name'], 'sortable' => false];
+        $headers[] = [$definition_id => esc($definitionInfo['name']), 'sortable' => false];
     }
 
     $headers[] = ['inventory' => '', 'escape' => false];
