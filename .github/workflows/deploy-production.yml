@@ -34,6 +34,20 @@ jobs:
             git reset --hard origin/master
             git clean -fd
 
+            echo "Instalando dependencias PHP/JS y compilando assets (el Dockerfile solo copia, no compila)..."
+            docker run --rm -v "$PWD":/app -w /app php:8.2-cli bash -c "
+              set -e
+              apt-get update -qq
+              apt-get install -y -qq --no-install-recommends unzip libicu-dev git curl ca-certificates gnupg > /dev/null
+              docker-php-ext-install intl > /dev/null 2>&1
+              curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+              curl -fsSL https://deb.nodesource.com/setup_20.x | bash - > /dev/null 2>&1
+              apt-get install -y -qq nodejs > /dev/null
+              composer install --no-dev --optimize-autoloader
+              npm ci
+              npm run build
+            "
+
             echo "Reconstruyendo y levantando contenedores..."
             docker compose -f docker-compose.prod.yml up -d --build
 
