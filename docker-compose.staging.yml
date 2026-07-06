@@ -4,6 +4,14 @@
 # Requiere en el VPS:
 #   - Red externa `micronuba_public` (creada por micronuba-infra)
 #   - DNS: staging.pos-casaletto.micronuba.net -> IP del VPS (pendiente de crear)
+#   - Un archivo `.env` (NO versionado, chmod 600) junto a este compose con:
+#       MYSQL_ROOT_PASSWORD=...
+#       MYSQL_USERNAME=admin
+#       MYSQL_PASSWORD=...
+#       MYSQL_DB_NAME=ospos
+#       ENCRYPTION_KEY=hex2bin:...
+#     docker compose lo carga automáticamente para sustituir las ${VARIABLES}
+#     de abajo -- no hay secretos en este archivo.
 
 include:
     - docker/docker-mysql.yml
@@ -11,6 +19,11 @@ include:
 services:
     mysql:
         container_name: mysql-casaletto-staging
+        environment:
+            - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+            - MYSQL_DATABASE=${MYSQL_DB_NAME}
+            - MYSQL_USER=${MYSQL_USERNAME}
+            - MYSQL_PASSWORD=${MYSQL_PASSWORD}
 
     ospos:
         build:
@@ -30,15 +43,15 @@ services:
             - CI_ENVIRONMENT=production
             - FORCE_HTTPS=true
             - PHP_TIMEZONE=America/Bogota
-            - MYSQL_USERNAME=admin
-            - MYSQL_PASSWORD=pointofsale
-            - MYSQL_DB_NAME=ospos
+            - MYSQL_USERNAME=${MYSQL_USERNAME}
+            - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+            - MYSQL_DB_NAME=${MYSQL_DB_NAME}
             - MYSQL_HOST_NAME=mysql
             - ALLOWED_HOSTNAMES=staging.pos-casaletto.micronuba.net
-            # Ver NOTA de encryption_key en docker-compose.local.yml: Sales.php
-            # crashea sin esto (Email_lib -> Services::encrypter()). Clave única
-            # de este ambiente, no reutilizar la de prod/local.
-            - encryption_key=hex2bin:c926387f27cac4db3b81c5abd8cdad7ff9cc0d08bab94e79e19d5a59624ac63f
+            # Ver NOTA en docker/docker-mysql.yml comment above: Sales.php
+            # crashea sin esto (Email_lib -> Services::encrypter()). Clave
+            # única por ambiente, definida en el .env del VPS, nunca en git.
+            - encryption_key=${ENCRYPTION_KEY}
         labels:
             - "traefik.enable=true"
             - "traefik.http.routers.pos-casaletto-staging.rule=Host(`staging.pos-casaletto.micronuba.net`)"
