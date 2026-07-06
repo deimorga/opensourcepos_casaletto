@@ -1,0 +1,52 @@
+# Producción — VPS micronuba (srv1269581), detrás del gateway Traefik existente.
+# Uso en el VPS (carpeta /root/POS_Casaletto): docker compose -f docker-compose.prod.yml up -d --build
+#
+# Requiere en el VPS:
+#   - Red externa `micronuba_public` (creada por micronuba-infra)
+#   - DNS: pos-casaletto.micronuba.net -> IP del VPS (pendiente de crear)
+
+include:
+    - docker/docker-mysql.yml
+
+services:
+    mysql:
+        container_name: mysql-casaletto-prod
+
+    ospos:
+        build:
+            context: .
+            target: ospos
+        image: casaletto-ospos:prod
+        restart: always
+        depends_on:
+            - mysql
+        networks:
+            - app_net
+            - micronuba_public
+        volumes:
+            - uploads:/app/public/uploads
+            - logs:/app/writable/logs
+        environment:
+            - CI_ENVIRONMENT=production
+            - FORCE_HTTPS=true
+            - PHP_TIMEZONE=America/Bogota
+            - MYSQL_USERNAME=admin
+            - MYSQL_PASSWORD=pointofsale
+            - MYSQL_DB_NAME=ospos
+            - MYSQL_HOST_NAME=mysql
+            - ALLOWED_HOSTNAMES=pos-casaletto.micronuba.net
+            # Ver NOTA de encryption_key en docker-compose.local.yml: Sales.php
+            # crashea sin esto (Email_lib -> Services::encrypter()). Clave única
+            # de este ambiente, no reutilizar la de staging/local.
+            - encryption_key=hex2bin:bd811780e70b7dc1ec1ed6d8aca102bf7eb131452dc14ff729767e07d54e4634
+        labels:
+            - "traefik.enable=true"
+            - "traefik.http.routers.pos-casaletto.rule=Host(`pos-casaletto.micronuba.net`)"
+            - "traefik.http.routers.pos-casaletto.entrypoints=websecure"
+            - "traefik.http.routers.pos-casaletto.tls.certresolver=le"
+            - "traefik.http.services.pos-casaletto.loadbalancer.server.port=80"
+            - "traefik.docker.network=micronuba_public"
+
+networks:
+    micronuba_public:
+        external: true

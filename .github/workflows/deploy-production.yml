@@ -1,0 +1,43 @@
+name: Deploy Production (POS_Casaletto)
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy master to production VPS
+    runs-on: ubuntu-latest
+    environment: POS_Casaletto
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script_stop: true
+          timeout: 300s
+          script: |
+            set -e
+            cd /root/POS_Casaletto
+
+            echo "Sincronizando codigo (master)..."
+            git fetch origin master
+            git reset --hard origin/master
+            git clean -fd
+
+            echo "Reconstruyendo y levantando contenedores..."
+            docker compose -f docker-compose.prod.yml up -d --build
+
+            echo "Limpiando imagenes huerfanas..."
+            docker image prune -f
+
+            echo "Deploy a produccion completado."

@@ -1,0 +1,43 @@
+name: Deploy Staging (POS_Casaletto_staging)
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy develop to staging VPS
+    runs-on: ubuntu-latest
+    environment: POS_Casaletto_staging
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script_stop: true
+          timeout: 300s
+          script: |
+            set -e
+            cd /root/POS_Casaletto_staging
+
+            echo "Sincronizando codigo (develop)..."
+            git fetch origin develop
+            git reset --hard origin/develop
+            git clean -fd
+
+            echo "Reconstruyendo y levantando contenedores..."
+            docker compose -f docker-compose.staging.yml up -d --build
+
+            echo "Limpiando imagenes huerfanas..."
+            docker image prune -f
+
+            echo "Deploy a staging completado."

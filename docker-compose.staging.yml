@@ -1,0 +1,52 @@
+# Staging — VPS micronuba (srv1269581), detrás del gateway Traefik existente.
+# Uso en el VPS (carpeta /root/POS_Casaletto_staging): docker compose -f docker-compose.staging.yml up -d --build
+#
+# Requiere en el VPS:
+#   - Red externa `micronuba_public` (creada por micronuba-infra)
+#   - DNS: staging.pos-casaletto.micronuba.net -> IP del VPS (pendiente de crear)
+
+include:
+    - docker/docker-mysql.yml
+
+services:
+    mysql:
+        container_name: mysql-casaletto-staging
+
+    ospos:
+        build:
+            context: .
+            target: ospos
+        image: casaletto-ospos:staging
+        restart: always
+        depends_on:
+            - mysql
+        networks:
+            - app_net
+            - micronuba_public
+        volumes:
+            - uploads:/app/public/uploads
+            - logs:/app/writable/logs
+        environment:
+            - CI_ENVIRONMENT=production
+            - FORCE_HTTPS=true
+            - PHP_TIMEZONE=America/Bogota
+            - MYSQL_USERNAME=admin
+            - MYSQL_PASSWORD=pointofsale
+            - MYSQL_DB_NAME=ospos
+            - MYSQL_HOST_NAME=mysql
+            - ALLOWED_HOSTNAMES=staging.pos-casaletto.micronuba.net
+            # Ver NOTA de encryption_key en docker-compose.local.yml: Sales.php
+            # crashea sin esto (Email_lib -> Services::encrypter()). Clave única
+            # de este ambiente, no reutilizar la de prod/local.
+            - encryption_key=hex2bin:c926387f27cac4db3b81c5abd8cdad7ff9cc0d08bab94e79e19d5a59624ac63f
+        labels:
+            - "traefik.enable=true"
+            - "traefik.http.routers.pos-casaletto-staging.rule=Host(`staging.pos-casaletto.micronuba.net`)"
+            - "traefik.http.routers.pos-casaletto-staging.entrypoints=websecure"
+            - "traefik.http.routers.pos-casaletto-staging.tls.certresolver=le"
+            - "traefik.http.services.pos-casaletto-staging.loadbalancer.server.port=80"
+            - "traefik.docker.network=micronuba_public"
+
+networks:
+    micronuba_public:
+        external: true
