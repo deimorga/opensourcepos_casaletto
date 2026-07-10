@@ -2,6 +2,7 @@
 
 - **Estado:** Pendiente de desarrollo (aún no iniciado)
 - **Solicitado:** 2026-07-05
+- **Revisado contra documentación funcional:** 2026-07-09 (ver sección 5.1)
 - **Módulo afectado:** Sales / Register
 
 ## 1. Contexto y motivación
@@ -37,6 +38,16 @@ OSPOS ya cubre el resultado de negocio (varias cuentas abiertas sin cobrar) medi
 
 **La limitación actual es de experiencia de uso, no de capacidad:** hoy retomar una cuenta implica ir a una lista y buscarla; lo que se pide es reemplazar (o complementar) esa lista por pestañas visibles y clicables directamente en la pantalla de Register.
 
+### 5.1 Hallazgos al revisar la documentación funcional (2026-07-09)
+
+Siguiendo la regla de revisar `docs/Funcional/` antes de definir/refinar un requerimiento, se contrastó este alcance contra `docs/Funcional/referencia-ospos-wiki/` (wiki oficial de OSPOS, vendorizada y traducida) y contra el código actual (3.4.2). Tres hallazgos relevantes:
+
+1. **Limitación conocida y documentada por el proyecto original**: [`Sales-Restaurant.md`](../referencia-ospos-wiki/Sales-Restaurant.md) cita el [issue upstream #1933](https://github.com/opensourcepos/opensourcepos/issues/1933#issuecomment-379600903) — *"actualmente solo funciona con 2 mesas"*. No hay un límite duro de 2 visible en el código de nuestra versión (`Dinner_table.php`, `Config.php`) al revisarlo estáticamente, por lo que **hay que confirmarlo empíricamente en staging antes de diseñar la solución técnica** (dar de alta 3+ mesas reales, suspender varias en simultáneo, retomarlas, verificar que ninguna se pierda o mezcle). Si el bug sigue vigente, hay que resolverlo como parte de este mismo desarrollo, no como algo aparte.
+
+2. **Existe un mecanismo hermano ya implementado que vale la pena evaluar como base alternativa/complementaria**: [`Work-Orders.md`](../referencia-ospos-wiki/Work-Orders.md) describe una Orden de Trabajo como *"esencialmente una venta suspendida que se puede recuperar en cualquier momento para actualizarla"* — conceptualmente muy cercano a lo que necesitamos (una cuenta que vive en el tiempo, se actualiza en varias visitas, y se factura al final). La wiki decía que esto era "una propuesta, próximamente en un PR", pero **se confirmó en el código que ya está implementado de verdad** (`SALE_TYPE_WORK_ORDER`, `work_order_number`, `Token_work_order_sequence`, soporte en `Config.php` y en reportes) — la doc estaba desactualizada. Vale la pena revisar si el mecanismo de Work Order (con su propio `sale_status`/`sales_type`) es más apropiado como base técnica que extender el mecanismo de mesas, o si conviene combinar ambos.
+
+3. **Distinción a no confundir**: `Payment-Processing.md` documenta un concepto distinto y **posterior** al que nos ocupa — una venta ya *completada* puede quedar con "saldo pendiente" (due) si tiene cliente asignado. Eso es diferente de una venta *suspendida* (aún no completada), que es el estado sobre el que trabaja este requerimiento. Las pestañas en paralelo operan sobre ventas en estado `SUSPENDED`, no sobre ventas completadas con saldo pendiente — no mezclar ambos flujos en el diseño.
+
 ## 6. Actores
 
 - **Cajero / mesero (Employee):** abre, alterna y cierra las cuentas por mesa.
@@ -52,10 +63,18 @@ OSPOS ya cubre el resultado de negocio (varias cuentas abiertas sin cobrar) medi
 
 ## 8. Preguntas abiertas / a definir antes de pasar a diseño técnico
 
+- **[Bloqueante, con acción concreta]** Validar en staging si la limitación del issue #1933 ("solo funciona con 2 mesas") sigue vigente en 3.4.2 con 3+ mesas reales — ver 5.1.1.
+- ¿Conviene construir las pestañas sobre el mecanismo de mesas (`dinner_table_id` + `SUSPENDED`), sobre el mecanismo de Work Orders (`SALE_TYPE_WORK_ORDER`), o combinar ambos? — ver 5.1.2.
 - ¿Hay un número máximo razonable de pestañas simultáneas a soportar (según cantidad real de mesas del local)?
 - ¿Qué debe pasar si se cierra el navegador o se pierde la sesión con pestañas abiertas — deben quedar recuperables igual que hoy quedan las suspendidas?
 - ¿Se requiere impresión de comanda/ticket parcial por pestaña mientras sigue abierta, o solo al cerrar?
 
 ## 9. Referencia técnica
 
-El diseño técnico (qué archivos tocar, cómo manejar múltiples carritos en paralelo, etc.) se aborda por separado una vez validado este alcance funcional. Puntos de partida ya identificados: `app/Libraries/Sale_lib.php`, `app/Models/Dinner_table.php`, `app/Models/Sale.php` (estado `SUSPENDED`), `app/Views/sales/register.php`.
+El diseño técnico (qué archivos tocar, cómo manejar múltiples carritos en paralelo, etc.) se aborda por separado una vez validado este alcance funcional. Puntos de partida ya identificados:
+
+- `app/Libraries/Sale_lib.php` — carrito de sesión actual (a rediseñar para múltiples carritos en paralelo).
+- `app/Models/Dinner_table.php` — mecanismo de mesas (`dinner_table_id`, ocupar/liberar).
+- `app/Models/Sale.php` — estado `SUSPENDED`, y también `SALE_TYPE_WORK_ORDER`/`work_order_number` (mecanismo hermano, ver 5.1.2).
+- `app/Models/Tokens/Token_work_order_sequence.php` — numeración de órdenes de trabajo, por si se reutiliza ese camino.
+- `app/Views/sales/register.php` — vista del Register donde iría la barra de pestañas.
