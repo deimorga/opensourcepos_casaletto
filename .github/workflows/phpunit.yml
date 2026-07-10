@@ -55,12 +55,13 @@ jobs:
           node-version: '20'
 
       - name: Get npm cache directory
-        run: echo "NPM_CACHE_DIR=$(npm config get cache)" >> $GITHUB_ENV
+        id: npm-cache-dir
+        run: echo "dir=$(npm config get cache)" >> "$GITHUB_OUTPUT"
 
       - name: Cache npm dependencies
         uses: actions/cache@v3
         with:
-          path: ${{ env.NPM_CACHE_DIR }}
+          path: ${{ steps.npm-cache-dir.outputs.dir }}
           key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-node-
@@ -85,12 +86,13 @@ jobs:
           echo "MariaDB is ready!"
 
       - name: Get composer cache directory
-        run: echo "COMPOSER_CACHE_FILES_DIR=$(composer config cache-files-dir)" >> $GITHUB_ENV
+        id: composer-cache-dir
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
 
       - name: Cache dependencies
         uses: actions/cache@v3
         with:
-          path: ${{ env.COMPOSER_CACHE_FILES_DIR }}
+          path: ${{ steps.composer-cache-dir.outputs.dir }}
           key: ${{ runner.os }}-${{ matrix.php-version }}-${{ hashFiles('**/composer.lock') }}
           restore-keys: |
             ${{ runner.os }}-${{ matrix.php-version }}-
