@@ -60,6 +60,9 @@ build/
 generate_languages.php
 dist
 docs
+!docs/
+!docs/Funcional/
+!docs/Funcional/**
 /patches
 translations
 /.buildpath
