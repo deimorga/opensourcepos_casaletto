@@ -35,7 +35,7 @@ Que el cajero pueda ver y operar **varias ventas abiertas en paralelo** desde la
 
 OSPOS ya cubre el resultado de negocio (varias cuentas abiertas sin cobrar) mediante un mecanismo existente, que sirve de base para este desarrollo — **no se parte de cero**:
 
-- **Modo Mesas** (`dinner_table_enable`, configurable en Config): permite dar de alta mesas con nombre y asociarlas a una venta.
+- **Modo Mesas** (`dinner_table_enable`, configurable en Config): permite dar de alta mesas con nombre y asociarlas a una venta. Desde 2026-07-10 también se pueden crear mesas nuevas directamente desde Register ("+ New table"), sin ir a Config — ver 5.3.
 - **Suspender / Suspendidas** (atajos `ALT+3` / `ALT+4`): el cajero arma un carrito, lo "suspende" (queda guardado con estado `SUSPENDED` asociado a la mesa), y puede retomarlo luego desde una lista de ventas suspendidas.
 
 **La limitación actual es de experiencia de uso, no de capacidad:** hoy retomar una cuenta implica ir a una lista y buscarla; lo que se pide es reemplazar (o complementar) esa lista por pestañas visibles y clicables directamente en la pantalla de Register.
@@ -56,6 +56,15 @@ Siguiendo la regla de revisar `docs/Funcional/` antes de definir/refinar un requ
 - **Nuevo estado `OPENED`, distinto de `SUSPENDED`.** Al revisar el código se confirmó que `SUSPENDED` ya se reutiliza para tres conceptos de negocio distintos (Cotización, Orden de Trabajo, y "pausar" un carrito normal) — usar el mismo valor para "cuenta de mesa abierta" habría sido un cuarto significado escondido detrás del mismo nombre, con riesgo real de que un desarrollador futuro lo interprete mal. Se evaluó el costo de agregar un estado nuevo (ver `docs/Tecnico/`) y resultó bajo: de los 9 archivos que usan `SUSPENDED` hoy, 6 (los reportes) no requieren ningún cambio porque siempre filtran por `sale_type` específico y nunca consultan el caso genérico.
 - **Persistencia inmediata (autoguardado), no solo al "Suspender".** Hoy el carrito vive únicamente en la sesión del navegador hasta que se presiona Suspender/Completar — eso no cumple con "que se vaya guardando por si hay desconexión o reinicio". Cada cambio en una pestaña abierta (agregar/quitar/editar un item) debe guardarse de inmediato como fila real en la base, no solo al final.
 
+### 5.3 Decisión de diseño: la mesa es una cuenta desechable por visita, no un mueble fijo (aprobada 2026-07-10)
+
+En Casaletto una "mesa" no representa necesariamente un mueble físico numerado y permanente — puede ser una cuenta identificada con el nombre del cliente (p. ej. "Carlos"), abierta solo mientras dura esa visita. Confirmado explícitamente por el negocio: esto aplica **también** a las mesas numeradas (Mesa 1, Mesa 2, etc.), no solo a las creadas ad-hoc con nombre de cliente.
+
+En consecuencia:
+- **No hay una lista fija de mesas dadas de alta de antemano.** Se crean bajo demanda desde Register ("+ New table", con nombre libre) cuando se empieza a atender un lugar/cliente, y **se borran por completo** al pagarse o cancelarse — no quedan reutilizables en una lista.
+- El dropdown de "mesa libre" y la lista de pestañas abiertas arrancan **vacíos** si no hay ninguna cuenta en curso; nunca muestran mesas ya cerradas.
+- Esto responde además a la pregunta abierta de la sección 8 sobre "número máximo de pestañas": al no existir una lista fija ni acumularse mesas cerradas, no hay un límite artificial que gestionar — el único tope práctico es la cantidad de cuentas realmente abiertas en un momento dado.
+
 ## 6. Actores
 
 - **Cajero / mesero (Employee):** abre, alterna y cierra las cuentas por mesa.
@@ -67,14 +76,13 @@ Siguiendo la regla de revisar `docs/Funcional/` antes de definir/refinar un requ
 3. Agrega items al carrito de esa pestaña con normalidad.
 4. Sin cerrar/cobrar, hace clic en otra pestaña (u otra mesa libre) → el sistema conserva intacto el carrito de la primera y muestra el de la segunda.
 5. Puede repetir esto con tantas mesas como estén dadas de alta.
-6. Cuando un cliente decide pagar, el cajero va a su pestaña y completa el cobro como se hace hoy — esa pestaña se cierra/libera al completarse la venta.
+6. Cuando un cliente decide pagar, el cajero va a su pestaña y completa el cobro como se hace hoy — esa pestaña se cierra y la mesa se **borra** (no solo se libera; ver 5.3), desapareciendo de las listas hasta que se vuelva a crear para la próxima visita. Lo mismo ocurre si el pedido se cancela.
 
 ## 8. Preguntas abiertas
 
-- ¿Hay un número máximo razonable de pestañas simultáneas a soportar (según cantidad real de mesas del local)?
 - ¿Se requiere impresión de comanda/ticket parcial por pestaña mientras sigue abierta, o solo al cerrar?
 
-Resueltas (ver 5.2): base técnica (mesas, no Work Orders), manejo de estado (`OPENED` nuevo), y persistencia (autoguardado) — ya no son preguntas abiertas.
+Resueltas: base técnica (mesas, no Work Orders), manejo de estado (`OPENED` nuevo), y persistencia (autoguardado) — ver 5.2. Modelo de mesa como cuenta desechable (sin límite fijo de pestañas ni lista permanente) — ver 5.3.
 
 **Issue #1933 validado (ver doc técnico, secciones 6 y 9):** no se reproduce con el diseño final. Sí se reprodujo una variante del mismo bug en la primera versión del código propio (cambiar a mesa vacía no vaciaba el carrito anterior) — corregida y re-verificada con 3 mesas reales alternadas repetidamente sin pérdida ni mezcla.
 

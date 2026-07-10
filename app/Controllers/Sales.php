@@ -959,6 +959,16 @@ class Sales extends Secure_Controller
                 $data['error_message'] = lang('Sales.transaction_failed');
                 return $this->_reload($data);
             } else {
+                // Each table is a disposable per-visit tab, not a permanent
+                // fixture: once paid, it's gone from the free-table list
+                // entirely rather than sitting there reusable. Ids 1/2
+                // (Delivery/Take Away) are pseudo-tables, not real ones --
+                // never delete those. See
+                // docs/Tecnico/ventas-en-paralelo-pestanas.md section 12.
+                if ($this->config['dinner_table_enable'] && (int) $data['dinner_table'] > 2) {
+                    $this->dinner_table->delete((int) $data['dinner_table']);
+                }
+
                 $data['barcode'] = $this->barcode_lib->generate_receipt_barcode($data['sale_id']);
 
                 // Validate receipt template to prevent path traversal
@@ -1649,7 +1659,12 @@ class Sales extends Secure_Controller
 
             if ($this->config['dinner_table_enable']) {
                 $dinner_table = $this->sale_lib->get_dinner_table();
-                $this->dinner_table->release($dinner_table);
+                // Delete rather than release: each table is a disposable
+                // per-visit tab, not a permanent fixture -- see postComplete()
+                // and docs/Tecnico/ventas-en-paralelo-pestanas.md section 12.
+                if ($dinner_table !== null && $dinner_table > 2) {
+                    $this->dinner_table->delete($dinner_table);
+                }
             }
 
             if ($sale_type == SALE_TYPE_WORK_ORDER) {

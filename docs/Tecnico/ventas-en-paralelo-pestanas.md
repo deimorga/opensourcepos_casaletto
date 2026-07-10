@@ -197,3 +197,48 @@ En vez de intentar reconciliar dos mecanismos de "cuenta pendiente" (autoguardad
 Código: `app/Views/sales/register.php`, botón `#suspend_sale_button` envuelto en `<?php if (!($config['dinner_table_enable'] && (int) $selected_table > 2)) { ?>`.
 
 No se requirió limpieza de datos porque no había mesas fantasma activas al momento de la corrección — si se detectan en producción, se resuelven manualmente liberando la mesa (`UPDATE ospos_dinner_tables SET status = 0 WHERE dinner_table_id = ...`) y, si corresponde, marcando la venta huérfana como `CANCELED`.
+
+## 12. Decisión de diseño: la mesa es una pestaña desechable, no un mueble fijo (2026-07-10)
+
+**Reporte del usuario:** tras la corrección de la sección 11, seguía viendo el dropdown "Table" con mesas ya pagadas/canceladas (Mesa 1/2/3, Terraza, Carlos, Prueba) en vez de arrancar vacío. Aclarado vía pregunta directa: el reporte era sobre el **dropdown de mesas libres** (`<select name="dinner_table">`), no la barra de pestañas de arriba (que ya funcionaba bien desde la sección 11). Y, más importante, aclaró el modelo de negocio real: **una "mesa" en Casaletto no es un mueble físico permanente — es una cuenta desechable por visita/cliente**, que incluso puede llevar el nombre del cliente (p. ej. "Carlos") en vez de un número. Esto aplica **también** a las mesas numeradas (Mesa 1, Mesa 2, etc.), no solo a las creadas ad-hoc: confirmado explícitamente que **todas** las mesas deben borrarse al liberarse, y volver a crearse (vía "+ New table", sección 10) la próxima vez que se use ese lugar físico.
+
+### 12.1 Cambio de comportamiento
+
+- `Sales::postComplete()` (rama de venta normal, `sale_type = SALE_TYPE_POS`): tras confirmar que la venta se guardó (`sale_id_num != NEW_ENTRY`), si hay mesa activa y no es una pseudo-mesa (`dinner_table_id > 2`, dejando afuera Delivery/Take Away — mismo criterio que en toda la feature), se llama a `Dinner_table::delete($dinner_table_id)` (método preexistente, hace soft-delete `deleted = 1`) en vez de dejarla simplemente liberada (`status = 0`) para su reuso.
+- `Sales::postCancel()`: mismo criterio — en vez de solo `release()`, se llama `delete()` cuando la mesa es real.
+- En ambos casos se reutiliza `Dinner_table::delete()` tal cual existe (ya usado desde Config para borrar mesas manualmente) — no se agregó ningún método nuevo al modelo para esto.
+
+### 12.2 Bug preexistente expuesto: `get_empty_tables()` con precedencia de operadores incorrecta
+
+Al verificar el cambio (soft-deleting una mesa vía SQL directo para simular el nuevo flujo), el dropdown seguía mostrando mesas marcadas `deleted = 1`. Causa: `Dinner_table::get_empty_tables()` armaba la condición, en su versión original, como
+
+```php
+$builder->where('status', 0);
+$builder->orWhere('dinner_table_id', $current_dinner_table_id);
+$builder->where('deleted', 0);
+```
+
+que CI4 QueryBuilder traduce literalmente a `WHERE status = 0 OR dinner_table_id = ? AND deleted = 0` — y en SQL, `AND` liga más fuerte que `OR`, así que esto se evalúa como `WHERE status = 0 OR (dinner_table_id = ? AND deleted = 0)`. El filtro `deleted = 0` solo aplicaba dentro de la segunda rama del OR: **cualquier fila con `status = 0`, sin importar su `dinner_table_id` ni su `deleted`, pasaba igual**. Y `status = 0` es justamente el estado normal de una mesa recién borrada (borrar solo toca `deleted`, no `status`) — por eso toda mesa pagada/cancelada seguía "colándose" en el dropdown de mesas libres.
+
+Este bug es **preexistente** (la función nunca tuvo `groupStart()`/`groupEnd()`) y no se había notado antes porque el borrado de mesas hasta ahora solo pasaba manualmente desde Config, de forma esporádica — el nuevo flujo automático (borrar en cada `postComplete()`/`postCancel()`) lo ejercita constantemente y lo hizo visible de inmediato.
+
+**Corrección:** agrupar explícitamente la condición OR para que quede `WHERE deleted = 0 AND (status = 0 OR dinner_table_id = ?)`:
+
+```php
+$builder->where('deleted', 0);
+$builder->groupStart();
+$builder->where('status', 0);
+$builder->orWhere('dinner_table_id', $current_dinner_table_id);
+$builder->groupEnd();
+```
+
+Código final en `app/Models/Dinner_table.php::get_empty_tables()`.
+
+### 12.3 Verificación
+
+Ciclo completo repetido en el contenedor local tras ambos cambios (delete-on-close + fix de `get_empty_tables()`):
+- Limpieza de datos de prueba acumulados de sesiones anteriores (soft-delete manual vía SQL de las mesas de prueba ya pagadas/canceladas).
+- Dropdown "Table" confirmado mostrando **solo** Delivery/Take Away tras la limpieza.
+- Creada "Mesa 5" vía "+ New table", agregado un item (Empanadas, $6.00), agregado pago en efectivo por el monto exacto, **Complete**.
+- Tras completar y volver a `/sales`: la barra de pestañas no muestra "Mesa 5" (ya no hay pestañas abiertas) y el dropdown "Table" vuelve a mostrar solo Delivery/Take Away — confirma que la mesa fue borrada (no solo liberada) y que `get_empty_tables()` ya no filtra mal.
+- ✅ Comportamiento esperado por el usuario: la lista de mesas arranca vacía sin pedidos, y cada mesa (incluidas las numeradas) desaparece por completo al pagarse o cancelarse, quedando disponible para recrearse con "+ New table" la próxima vez.
