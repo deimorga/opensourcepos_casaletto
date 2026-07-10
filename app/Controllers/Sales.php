@@ -316,6 +316,32 @@ class Sales extends Secure_Controller
     }
 
     /**
+     * Creates a new dinner table on the fly from the Register screen (the
+     * "+ New table" tab) and switches to it as a fresh, empty tab, without
+     * needing to go through Config > Table first. See
+     * docs/Tecnico/ventas-en-paralelo-pestanas.md section 10.
+     *
+     * @return ResponseInterface|string
+     * @noinspection PhpUnused
+     */
+    public function postCreateTable(): ResponseInterface|string
+    {
+        if ($this->config['dinner_table_enable']) {
+            $table_name = trim((string) $this->request->getPost('table_name'));
+
+            if ($table_name !== '') {
+                // ospos_dinner_tables.name is a varchar(30) -- truncate
+                // rather than let the insert fail outright.
+                $new_dinner_table_id = $this->dinner_table->create(mb_substr($table_name, 0, 30));
+                $this->sale_lib->clear_all();
+                $this->sale_lib->set_dinner_table($new_dinner_table_id);
+            }
+        }
+
+        return $this->_reload();
+    }
+
+    /**
      * @param int $sale_type
      * @return ResponseInterface|string
      */

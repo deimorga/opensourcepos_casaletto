@@ -33,6 +33,20 @@ class Dinner_table extends Model
     }
 
     /**
+     * Creates a new dinner table on the fly (e.g. from the Register "new
+     * table" button) and returns its id, unlike save_value() which is
+     * built around Config's bulk-save-all-tables form and only reports
+     * success/failure.
+     */
+    public function create(string $name): int
+    {
+        $builder = $this->db->table('dinner_tables');
+        $builder->insert(['name' => $name, 'status' => 0, 'deleted' => 0]);
+
+        return (int) $this->db->insertID();
+    }
+
+    /**
      * @param array $table_data
      * @param int $dinner_table_id
      * @return bool

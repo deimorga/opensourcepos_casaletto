@@ -114,7 +114,7 @@ helper('url');
         </div>
     <?= form_close() ?>
 
-    <?php if ($config['dinner_table_enable'] && !empty($open_tabs)) { ?>
+    <?php if ($config['dinner_table_enable']) { ?>
         <div id="open_tabs_bar" class="panel panel-default">
             <div class="panel-body form-group" style="padding-bottom: 5px;">
                 <ul class="nav nav-pills">
@@ -125,10 +125,19 @@ helper('url');
                             </a>
                         </li>
                     <?php } ?>
+                    <li>
+                        <a href="#" id="new_table_button" title="<?= lang('Sales.new_table') ?>">
+                            <span class="glyphicon glyphicon-plus">&nbsp;</span><?= lang('Sales.new_table') ?>
+                        </a>
+                    </li>
                 </ul>
             </div>
         </div>
     <?php } ?>
+
+    <?= form_open("$controller_name/createTable", ['id' => 'new_table_form']) ?>
+        <input type="hidden" name="table_name" id="new_table_name">
+    <?= form_close() ?>
 
     <?php $tabindex = 0; ?>
 
@@ -623,6 +632,15 @@ helper('url');
             }
             $select.val(tableId);
             $("#mode_form").submit();
+        });
+
+        $("#new_table_button").click(function(event) {
+            event.preventDefault();
+            var name = prompt("<?= lang('Sales.new_table_prompt') ?>");
+            if (name && name.trim() !== "") {
+                $("#new_table_name").val(name.trim());
+                $("#new_table_form").submit();
+            }
         });
 
         $(".delete_item_button").click(function() {

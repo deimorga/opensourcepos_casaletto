@@ -137,6 +137,8 @@ return [
     "must_enter_numeric_giftcard"      => "Gift Card Number must be a number.",
     "new_customer"                     => "New Customer",
     "new_item"                         => "New Item",
+    "new_table"                        => "New table",
+    "new_table_prompt"                 => "Name for the new table:",
     "no_description"                   => "No description",
     "no_filter"                        => "All",
     "no_items_in_cart"                 => "There are no Items in the cart.",

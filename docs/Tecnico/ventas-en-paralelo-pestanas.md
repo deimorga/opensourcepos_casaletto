@@ -144,3 +144,25 @@ El `<select name="dinner_table">` del Register solo lista mesas **libres** (`$em
 - ✅ 3 mesas alternadas repetidamente sin pérdida ni mezcla de items (issue #1933 no se reproduce — sección 6).
 - ✅ Prueba de resiliencia: con una mesa con items sin cobrar, `docker restart` del contenedor `ospos` → al volver a entrar, la pestaña sigue en la barra con sus items intactos (confirma que el autoguardado no depende de la sesión del navegador, solo de la fila persistida).
 - ✅ Cobrar una mesa la hace desaparecer de la barra de pestañas y la libera como mesa disponible en el selector; las demás pestañas abiertas no se ven afectadas.
+
+## 10. Crear mesas nuevas directamente desde Register (2026-07-10)
+
+**Pedido del usuario:** poder agregar mesas nuevas, con nombre, sin salir de la pantalla de Sales (antes solo era posible desde Config > Table). Investigación previa confirmó que **no existía ningún límite real de cantidad de mesas** en ninguna capa (JS/controlador/modelo/BD) — el único límite es el tamaño de columna `name varchar(30)`. Lo que faltaba era la conveniencia de crearlas sin ir a Config.
+
+### 10.1 Diseño
+
+- Botón "+ New table" (`Sales.new_table`) al final de la barra de pestañas (`open_tabs_bar`), visible siempre que `dinner_table_enable` esté activo — no depende de que ya existan pestañas abiertas.
+- Al hacer click, un `prompt()` del navegador pide el nombre (`Sales.new_table_prompt`); si el usuario cancela o deja vacío, no pasa nada.
+- El nombre se envía por POST a un formulario dedicado (`#new_table_form`, action `sales/createTable`) — **separado** de `#mode_form` a propósito, porque `#mode_form` ya tiene una acción fija (`sales/changeMode`) usada por mode/table/stock_location; mezclar una tercera acción ahí hubiera sido más confuso que un form chico aparte.
+- `Sales::postCreateTable()` (nuevo): si `dinner_table_enable` está activo y el nombre no es vacío, crea la mesa vía `Dinner_table::create()` (nuevo método, hace `insert()` + devuelve `insertID()` — distinto de `save_value()`, que está pensado para el guardado masivo de Config y no expone el id nuevo), y la deja seleccionada como pestaña activa (`clear_all()` + `set_dinner_table()`, mismo patrón que `postChangeMode()`).
+- El nombre se trunca a 30 caracteres en el controlador (`mb_substr($table_name, 0, 30)`) para respetar la columna `varchar(30)` sin que el insert falle — la validación de duplicados/caracteres prohibidos sigue siendo solo client-side en Config (deuda preexistente, no introducida ni resuelta por este cambio).
+
+### 10.2 Bug real encontrado durante esta verificación: JS roto en el contenedor local por revertir artefactos de build
+
+Al cerrar el ciclo anterior (Fase 4), se revirtieron `app/Views/login.php` y `app/Views/partial/header.php` con `git checkout --` para no commitear los `<script>`/`<link>` que `gulp-inject` escribe ahí en cada build (nombres de archivo con hash, específicos de cada corrida local — correctamente excluidos del commit). Pero esos tags **no son solo un artefacto cosmético**: son la única forma en que jQuery, moment y el resto del bundle se cargan en producción (`CI_ENVIRONMENT=production` usa la rama `inject:prod:js`, vacía tras el revert). El contenedor se reconstruyó con esos archivos revertidos y quedó sirviendo páginas **sin ningún JS** (confirmado con `Uncaught ReferenceError: $ is not defined` / `jQuery is not defined` en consola) — rompiendo silenciosamente todo el register, no solo la feature nueva.
+
+**Corrección/aprendizaje:** `git checkout --` esos dos archivos es seguro para el propósito de "no ensuciar el commit", pero **debe ir seguido de un rebuild de assets (`npx gulp ...`) antes de reconstruir la imagen de nuevo**, para que el contenedor local siga sirviendo JS/CSS real. No alcanza con revertir y listo — el working tree necesita quedar con los inject reales para cualquier build posterior, aunque esos dos archivos nunca se commiteen.
+
+### 10.3 Verificación
+
+Se creó una mesa "Terraza" desde el botón nuevo, quedó seleccionada automáticamente, se le agregó un item, y se confirmó en base que autoguardó correctamente (`sale_status = OPENED`, `dinner_table_id` apuntando a la mesa recién creada) y que apareció en la barra de pestañas junto a las demás mesas ya abiertas.

@@ -137,6 +137,8 @@ return [
     "must_enter_numeric_giftcard"      => "Número de Tarjeta de Regalo debe ser número.",
     "new_customer"                     => "Cliente Nuevo",
     "new_item"                         => "Artículo Nuevo",
+    "new_table"                        => "Nueva mesa",
+    "new_table_prompt"                 => "Nombre de la nueva mesa:",
     "no_description"                   => "Ninguno",
     "no_filter"                        => "Todos",
     "no_items_in_cart"                 => "No hay artículos en el carrito.",
