@@ -520,7 +520,19 @@ helper('url');
 
             <?= form_open("$controller_name/cancel", ['id' => 'buttons_form']) ?>
             <div class="form-group" id="buttons_sale">
-                <div class="btn btn-sm btn-default pull-left" id="suspend_sale_button"><span class="glyphicon glyphicon-align-justify">&nbsp;</span><?= lang(ucfirst($controller_name) . '.suspend_sale') ?></div>
+                <?php if (!($config['dinner_table_enable'] && (int) $selected_table > 2)) { ?>
+                    <!-- Hidden for open table tabs: autosave already persists
+                         the cart on every mutation (see
+                         Sales::_autosave_open_tab()), and Sale::save_value()
+                         occupies the dinner table for any non-COMPLETED
+                         status including SUSPENDED without ever releasing it,
+                         so suspending a table here would strand it as
+                         occupied but invisible in the open tabs bar (only
+                         Cancel/Complete correctly free it). See
+                         docs/Tecnico/ventas-en-paralelo-pestanas.md
+                         section 11. -->
+                    <div class="btn btn-sm btn-default pull-left" id="suspend_sale_button"><span class="glyphicon glyphicon-align-justify">&nbsp;</span><?= lang(ucfirst($controller_name) . '.suspend_sale') ?></div>
+                <?php } ?>
                 <?php if (!$pos_mode && isset($customer)) { // Only show this part if the payment covers the total ?>
                     <div class="btn btn-sm btn-success" id="finish_invoice_quote_button"><span class="glyphicon glyphicon-ok">&nbsp;</span><?= esc($mode_label) ?></div>
                 <?php } ?>

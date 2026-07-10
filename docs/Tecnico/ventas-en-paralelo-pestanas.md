@@ -166,3 +166,34 @@ Al cerrar el ciclo anterior (Fase 4), se revirtieron `app/Views/login.php` y `ap
 ### 10.3 Verificación
 
 Se creó una mesa "Terraza" desde el botón nuevo, quedó seleccionada automáticamente, se le agregó un item, y se confirmó en base que autoguardó correctamente (`sale_status = OPENED`, `dinner_table_id` apuntando a la mesa recién creada) y que apareció en la barra de pestañas junto a las demás mesas ya abiertas.
+
+## 11. Bug real: "Suspend" dejaba mesas ocupadas pero invisibles (2026-07-10)
+
+**Reporte del usuario:** tras varias horas de pruebas manuales, algunas mesas quedaban "grabadas" — ocupadas, pero sin aparecer en la barra de pestañas ni liberarse. Pidió que la barra se limpie correctamente al cancelar o pagar, y que arranque vacía si no hay pedidos.
+
+### 11.1 Diagnóstico
+
+Se reprodujo el ciclo completo (abrir Mesa 1 → agregar item → **Cancel**) y funcionó correctamente: la mesa desapareció de la barra y volvió a estar libre en el dropdown. Se revisó también la base de datos completa de mesas/ventas y el estado era consistente — nada roto en Cancel ni en Complete (ambos ya verificados en la sección 9.4).
+
+El bug real está en la interacción entre el botón **"Suspend"** (preexistente, no tocado por este desarrollo) y el nuevo estado `OPENED`:
+
+- `Sale::save_value()` (preexistente, `app/Models/Sale.php:676-683`) tiene esta lógica genérica, que corre en **cualquier** guardado de venta con mesa asociada:
+  ```php
+  if ($sale_status == COMPLETED) {
+      $dinner_table->release($dinner_table_id);
+  } else {
+      $dinner_table->occupy($dinner_table_id);
+  }
+  ```
+  Es decir: la mesa se libera **solo** cuando el estado guardado es `COMPLETED`. Para cualquier otro estado (`OPENED`, `SUSPENDED`, etc.) la mesa se marca/mantiene **ocupada** (`dinner_tables.status = 1`).
+- `Sales::postSuspend()` (preexistente, sin modificar) llama a `save_value()` con `$sale_status = SUSPENDED` y **nunca** llama a `$dinner_table->release()` — a diferencia de `postCancel()`, que sí lo hace explícitamente (`app/Controllers/Sales.php:1652`).
+- Resultado: si el cajero presiona "Suspend" mientras una mesa está activa, la venta pasa a `SUSPENDED` → desaparece de `get_all_opened()` (que solo filtra `OPENED`, sección 4.4) → **pero la mesa sigue ocupada**, porque `postSuspend()` nunca la libera. La mesa queda "fantasma": ocupada (no aparece como libre en el selector) pero sin pestaña visible para volver a ella. Solo era recuperable por el mecanismo viejo de "Suspended" (botón/lista aparte), no por la barra de pestañas nueva.
+- No se encontraron mesas en este estado en la base al momento de investigar (probablemente porque el usuario las liberó por otra vía durante sus propias pruebas), pero el bug es real y reproducible: cualquier "Suspend" sobre una mesa real (`dinner_table_id > 2`) lo dispara.
+
+### 11.2 Corrección
+
+En vez de intentar reconciliar dos mecanismos de "cuenta pendiente" (autoguardado `OPENED` + `Suspend` clásico), se **oculta el botón "Suspend"** cuando hay una mesa real activa (`dinner_table_enable` y `dinner_table_id > 2`, dejando afuera "Delivery"/"Take Away" que no participan del tracking de ocupación — ver `Dinner_table::occupy()`/`release()`). Esto es consistente con la decisión de diseño original (sección 3 / doc funcional 5.2): el autoguardado ya cubre por completo la necesidad que "Suspend" resolvía antes para mesas, así que dejarlo visible solo agregaba una vía para llegar a un estado inconsistente. Sigue disponible normalmente para Cotización/Orden de Trabajo/"suspender" sin mesa, que es su uso original.
+
+Código: `app/Views/sales/register.php`, botón `#suspend_sale_button` envuelto en `<?php if (!($config['dinner_table_enable'] && (int) $selected_table > 2)) { ?>`.
+
+No se requirió limpieza de datos porque no había mesas fantasma activas al momento de la corrección — si se detectan en producción, se resuelven manualmente liberando la mesa (`UPDATE ospos_dinner_tables SET status = 0 WHERE dinner_table_id = ...`) y, si corresponde, marcando la venta huérfana como `CANCELED`.
