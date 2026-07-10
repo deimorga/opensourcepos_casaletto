@@ -1,0 +1,65 @@
+# Staging — VPS micronuba (srv1269581), detrás del gateway Traefik existente.
+# Uso en el VPS (carpeta /root/POS_Casaletto_staging): docker compose -f docker-compose.staging.yml up -d --build
+#
+# Requiere en el VPS:
+#   - Red externa `micronuba_public` (creada por micronuba-infra)
+#   - DNS: staging.pos-casaletto.micronuba.net -> IP del VPS (pendiente de crear)
+#   - Un archivo `.env` (NO versionado, chmod 600) junto a este compose con:
+#       MYSQL_ROOT_PASSWORD=...
+#       MYSQL_USERNAME=admin
+#       MYSQL_PASSWORD=...
+#       MYSQL_DB_NAME=ospos
+#       ENCRYPTION_KEY=hex2bin:...
+#     docker compose lo carga automáticamente para sustituir las ${VARIABLES}
+#     de abajo -- no hay secretos en este archivo.
+
+include:
+    - docker/docker-mysql.yml
+
+services:
+    mysql:
+        container_name: mysql-casaletto-staging
+        environment:
+            - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+            - MYSQL_DATABASE=${MYSQL_DB_NAME}
+            - MYSQL_USER=${MYSQL_USERNAME}
+            - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+
+    ospos:
+        build:
+            context: .
+            target: ospos
+        image: casaletto-ospos:staging
+        restart: always
+        depends_on:
+            - mysql
+        networks:
+            - app_net
+            - micronuba_public
+        volumes:
+            - uploads:/app/public/uploads
+            - logs:/app/writable/logs
+        environment:
+            - CI_ENVIRONMENT=production
+            - FORCE_HTTPS=true
+            - PHP_TIMEZONE=America/Bogota
+            - MYSQL_USERNAME=${MYSQL_USERNAME}
+            - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+            - MYSQL_DB_NAME=${MYSQL_DB_NAME}
+            - MYSQL_HOST_NAME=mysql
+            - ALLOWED_HOSTNAMES=staging.pos-casaletto.micronuba.net
+            # Ver NOTA en docker/docker-mysql.yml comment above: Sales.php
+            # crashea sin esto (Email_lib -> Services::encrypter()). Clave
+            # única por ambiente, definida en el .env del VPS, nunca en git.
+            - encryption_key=${ENCRYPTION_KEY}
+        labels:
+            - "traefik.enable=true"
+            - "traefik.http.routers.pos-casaletto-staging.rule=Host(`staging.pos-casaletto.micronuba.net`)"
+            - "traefik.http.routers.pos-casaletto-staging.entrypoints=websecure"
+            - "traefik.http.routers.pos-casaletto-staging.tls.certresolver=le"
+            - "traefik.http.services.pos-casaletto-staging.loadbalancer.server.port=80"
+            - "traefik.docker.network=micronuba_public"
+
+networks:
+    micronuba_public:
+        external: true

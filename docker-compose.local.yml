@@ -1,0 +1,66 @@
+# Standalone compose file for local certification with micronuba-infra.
+# Uso: docker compose -f docker-compose.local.yml up -d --build
+#
+# Requiere:
+#   - micronuba-infra corriendo (Traefik en :8090, red micronuba_public activa)
+#   - /etc/hosts: 127.0.0.1  casaletto.local
+#
+# Self-contained on purpose (does not layer on top of docker-compose.yml):
+# that file's "ospos" service binds host port 80 (already used by another
+# project here) and pulls jekkos/opensourcepos:master instead of building
+# our own fork. Merging the two would require Compose's `!reset` tag to
+# drop the inherited port mapping, which the editor's YAML/Docker schema
+# doesn't recognize (cosmetic-only "Unresolved tag" warning) -- easier to
+# just not merge and define the service fresh here.
+
+include:
+    - docker/docker-mysql.yml
+
+services:
+    ospos:
+        build:
+            context: .
+            target: ospos
+        image: casaletto-ospos:local
+        restart: always
+        depends_on:
+            - mysql
+        networks:
+            - app_net
+            - micronuba_public
+        volumes:
+            - uploads:/app/public/uploads
+            - logs:/app/writable/logs
+        environment:
+            - CI_ENVIRONMENT=production
+            - FORCE_HTTPS=false
+            - PHP_TIMEZONE=UTC
+            - MYSQL_USERNAME=admin
+            - MYSQL_PASSWORD=pointofsale
+            - MYSQL_DB_NAME=ospos
+            - MYSQL_HOST_NAME=mysql
+            # NOTE: getValidHost() in app/Config/App.php compares the raw HTTP_HOST
+            # (which includes the port for non-default ports) against this whitelist
+            # verbatim -- despite INSTALL.md saying "no port numbers". Since Traefik's
+            # local entrypoint is :8090 (not 80/443), the port must be included here
+            # or every generated asset/base URL silently drops the port and 404s.
+            - ALLOWED_HOSTNAMES=casaletto.local:8090
+            # NOTE: Sales.php's constructor instantiates Email_lib unconditionally,
+            # which calls Services::encrypter() with no fallback for an empty key --
+            # this hard-crashes the entire Sales/Register module (and anything else
+            # touching Encryption) on any install where encryption.key is unset,
+            # including the upstream docker-compose.yml, which never sets it either.
+            # CI4's BaseConfig supports an underscore env-var alias for dotted config
+            # keys (see vendor/codeigniter4/framework/system/Config/BaseConfig.php
+            # getEnvValue()), so `encryption_key` works without needing a .env file.
+            - encryption_key=hex2bin:8ccc8ffc31e6693b35e6a4b973dd1e74cada9da9fdb9453a99b7b4191acb9bf2
+        labels:
+            - "traefik.enable=true"
+            - "traefik.http.routers.casaletto-pos-local.rule=Host(`casaletto.local`)"
+            - "traefik.http.routers.casaletto-pos-local.entrypoints=web"
+            - "traefik.http.services.casaletto-pos-local.loadbalancer.server.port=80"
+            - "traefik.docker.network=micronuba_public"
+
+networks:
+    micronuba_public:
+        external: true
