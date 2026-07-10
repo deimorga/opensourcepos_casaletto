@@ -1,22 +1,22 @@
 
-[← Back to Installation Guides](Getting-Started-installations) | [Home](Home)
+[← Volver a Guías de Instalación](Getting-Started-installations) | [Inicio](Home)
 
 ---
 
-This guide covers deployment on Windows Server Internet Information Services (IIS). 
+Esta guía cubre el despliegue en Windows Server Internet Information Services (IIS).
 
-After some trial and error, I succeeded in making it work and have some simple steps for the next person. 
+Después de un poco de prueba y error, logré hacerlo funcionar y tengo algunos pasos simples para la próxima persona.
 
-1. Point your webroot folder to "/ospos_path/public" directly 
-2. install the url_rewrite module in iis manager
-3. import the .htaccess to make a web.config file with the rewrite rules
-4. everything else can be followed in the install.md
+1. Apunta tu carpeta webroot directamente a "/ospos_path/public"
+2. instala el módulo url_rewrite en el administrador de IIS
+3. importa el .htaccess para crear un archivo web.config con las reglas de reescritura
+4. todo lo demás se puede seguir en el install.md
 
-Everything works exactly as it should, took me longer than i would like to admit to figure that out. 
-Keep up the good work everyone! 
+Todo funciona exactamente como debería, me tomó más tiempo del que me gustaría admitir descubrirlo.
+¡Sigan con el buen trabajo, a todos!
 
 
-The following is my web.config file in my /public/ directory if anyone wants to edit/add it in to the github.
+A continuación está mi archivo web.config en mi directorio /public/ por si alguien quiere editarlo/agregarlo al github.
 
 
 `<?xml version="1.0" encoding="UTF-8"?>

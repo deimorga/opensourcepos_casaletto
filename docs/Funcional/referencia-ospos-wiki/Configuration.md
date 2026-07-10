@@ -1,21 +1,21 @@
-[← Back to Usage Guide](Getting-Started-usage) | [Home](Home)
+[← Volver a la Guía de uso](Getting-Started-usage) | [Inicio](Home)
 
 ---
 
-Allows employees to manage the complete system. Start by clicking the Office button. This will load a top list of tabs on screen. **Note:** Older versions (3.0 and earlier) have a "configuration" instead of "office" module.
+Permite a los empleados administrar el sistema completo. Comienza haciendo clic en el botón Oficina. Esto cargará una lista superior de pestañas en pantalla. **Nota:** Las versiones anteriores (3.0 y previas) tienen un módulo "configuration" en lugar de "office".
 
-## Access
+## Acceso
 
-The menu and modules are divided into two virtual groups: Office and Home. These toggle back and forth between the menu groups.
+El menú y los módulos están divididos en dos grupos virtuales: Oficina e Inicio. Estos alternan entre sí entre los grupos de menú.
 
-Permission grants are needed to make a module usable. Even if a menu item is hidden, the employee can still access it if they know the URL. Conversely, even if a menu item is visible, the user will not have access without the proper permission.
+Se necesitan permisos otorgados para que un módulo sea utilizable. Aunque un elemento del menú esté oculto, el empleado puede acceder a él si conoce la URL. Por el contrario, aunque un elemento del menú sea visible, el usuario no tendrá acceso sin el permiso adecuado.
 
-## Workflow
+## Flujo de trabajo
 
-- The Office menu option which appears on the Home menu group can be removed via a configuration option on the General configuration tab.
-- When removed, the user must click on a link or type in the URL to access the office menu.
-- This isolates it from the home page so users won't accidentally access office settings without proper permissions.
+- La opción de menú Oficina que aparece en el grupo de menú Inicio puede eliminarse mediante una opción de configuración en la pestaña de configuración General.
+- Cuando se elimina, el usuario debe hacer clic en un enlace o escribir la URL para acceder al menú de oficina.
+- Esto lo aísla de la página de inicio para que los usuarios no accedan accidentalmente a la configuración de oficina sin los permisos adecuados.
 
-## Screen
+## Pantalla
 
 ![](https://camo.githubusercontent.com/d81d457f771760f95ef80684068783a70ced4ec0/68747470733a2f2f6769746c61622e636f6d2f776562766e7a2f6f73706f736f732f7261772f6d61737465722f64656269616e4f73706f732f73637265656e73686f742d6f73706f736f732d646f63732d312d7374617274696e676d656e752e706e67)

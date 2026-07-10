@@ -1,154 +1,154 @@
 
-[← Back to Usage Guide](Getting-Started-usage) | [Home](Home)
+[← Volver a la Guía de Uso](Getting-Started-usage) | [Inicio](Home)
 
 ---
 
-This page organizes and collects design specs for the purchasing feature.
+Esta página organiza y reúne las especificaciones de diseño para la funcionalidad de compras (purchasing).
 
-## Requirements/Features
+## Requisitos/Funcionalidades
 
-_Please add whatever features you need to have supported by the purchasing module with as much explanation as you feel is needed. Remember that terms used in one country or that are industry specific might need to be elaborated so that the developer better understands._
+_Por favor agrega cualquier funcionalidad que necesites que sea compatible con el módulo de compras, con toda la explicación que consideres necesaria. Recuerda que los términos usados en un país o específicos de una industria podrían necesitar más detalle para que el desarrollador los entienda mejor._
 
-* Must be able to record purchases placed by phone directly to the vendor. In other words, the status is already "order placed with supplier".
-* When inventory is received the purchase order can be located by supplier id, supplier name, due date, or item name.
-* Can create a purchase order manually.
-* Can automatically generate a purchase order for a selected supplier based on low inventory. 
-* Can print a purchase order.
-* Can email a purchase order to the supplier's email address.
-* Can adjust a purchase order that has been submitted to the supplier based on actual anticipated receipt.
-* The user should be able to upload a PDF document that is owned by the supplier but referenced by the purchase order either as an order acknowledgement or as an invoice.
-* Can generate a report of the differences between ordered and actual.
-* Can generate and print a receiving document (also known as a goods receipt note) from the purchase order.
-* The entry of a receipt associated with a purchase order must update the purchase order with the actual quantity received.
-* When an invoice for the shipment is received we must be able to reconcile the invoice with the purchase order and the item cost from the invoice is stored to the purchase order item as actual cost and the actual cost will be updated (by default) to the item cost.
-* Application of an invoice will change the status of a purchase order to complete.
-* Purchase order should have a maker-checker functionality (User access control), before system mark the status as requested. It should require an administrator (Another user who has approval role) to approve it. And this Maker-Checker Can be configurable i.e. if enabled then it will require initiator and approver. And if disabled then no need to request for approval.
-* In reporting page, multiple filters should be available,i.e. based on supplier and/or date and/or Items and etc.
-* In reporting it should show who initiate/approve the order if maker-checker functionality is enabled.
-* Purchase order should have a different reporting page as a Receiving.
-* Purchase order should have user access control
-* [ai] Would like a feature for additional charges such as freight, prepricing labels, royalties, etc. that get distributed among the cost of items based on either item volume/weight, amount (cost), or quantity.
+* Debe poder registrar compras realizadas por teléfono directamente al proveedor. En otras palabras, el estado ya es "pedido realizado con el proveedor".
+* Cuando se recibe el inventario, la orden de compra se puede ubicar por id de proveedor, nombre de proveedor, fecha de vencimiento, o nombre de artículo.
+* Se puede crear una orden de compra manualmente.
+* Se puede generar automáticamente una orden de compra para un proveedor seleccionado basada en bajo inventario.
+* Se puede imprimir una orden de compra.
+* Se puede enviar por correo electrónico una orden de compra a la dirección de correo del proveedor.
+* Se puede ajustar una orden de compra que ya fue enviada al proveedor, basándose en la recepción anticipada real.
+* El usuario debe poder subir un documento PDF que pertenece al proveedor pero que es referenciado por la orden de compra, ya sea como confirmación de pedido o como factura.
+* Se puede generar un reporte de las diferencias entre lo pedido y lo real.
+* Se puede generar e imprimir un documento de recepción (también conocido como nota de recepción de mercancía) a partir de la orden de compra.
+* El registro de una recepción asociada a una orden de compra debe actualizar la orden de compra con la cantidad real recibida.
+* Cuando se recibe una factura por el envío, debemos poder conciliar la factura con la orden de compra, y el costo del artículo tomado de la factura se almacena en el artículo de la orden de compra como costo real, y el costo real se actualizará (por defecto) al costo del artículo.
+* La aplicación de una factura cambiará el estado de una orden de compra a completado.
+* La orden de compra debe tener funcionalidad de solicitante-aprobador (control de acceso de usuario), antes de que el sistema marque el estado como solicitado. Debe requerir que un administrador (otro usuario que tenga el rol de aprobador) la apruebe. Y este esquema de solicitante-aprobador debe ser configurable, es decir, si está habilitado requerirá iniciador y aprobador. Y si está deshabilitado, no se necesitará solicitar aprobación.
+* En la página de reportes, deben estar disponibles múltiples filtros, es decir, basados en proveedor y/o fecha y/o artículos, etc.
+* En el reporte debe mostrarse quién inició/aprobó la orden si la funcionalidad de solicitante-aprobador está habilitada.
+* La orden de compra debe tener una página de reportes diferente a la de Recepción.
+* La orden de compra debe tener control de acceso de usuario
+* [ai] Se desearía una funcionalidad para cargos adicionales como flete, etiquetado previo a precios, regalías, etc., que se distribuyan entre el costo de los artículos según el volumen/peso del artículo, el monto (costo), o la cantidad.
 
-**[daN4cat]** Please note that as purchases there are returns that result in a Credit Note. This is quite common. Faulty goods have a return request, a pick up and then pend on Credit note issuing from the Supplier.
+**[daN4cat]** Ten en cuenta que, al igual que las compras, existen devoluciones que resultan en una Nota de Crédito. Esto es bastante común. Los productos defectuosos tienen una solicitud de devolución, un retiro y luego quedan pendientes de la emisión de la nota de crédito por parte del proveedor.
 
-**[daN4cat]** Please note that purchase could be made in different currencies, it's not unusual here in the UK to buy good from EU zone and get invoices in Euro. Then at payment time you have the conversion and you know how much you paid in GBP. That's for the sake of tracking expenditure per supplier.
+**[daN4cat]** Ten en cuenta que la compra podría realizarse en diferentes monedas; no es inusual aquí en el Reino Unido comprar mercancía de la zona de la UE y recibir facturas en euros. Luego, al momento del pago, tienes la conversión y sabes cuánto pagaste en libras esterlinas (GBP). Eso es para efectos de rastrear el gasto por proveedor.
 
-### Receiving Rules
+### Reglas de Recepción
 
-* At the point of receiving the user should be able to provide any missing item information such as UPC code, suppier id, or vendor number or vendor id (Vendor here represents the manufacturer of the product that is used in my environment to uniquely identify the product since not all items have UPC codes and the suppler's item id is not reliably unique.)
+* Al momento de recibir, el usuario debe poder proporcionar cualquier información faltante del artículo, como código UPC, id de proveedor, o número o id de vendedor (aquí "Vendedor" representa al fabricante del producto, que se usa en mi entorno para identificar de forma única el producto, ya que no todos los artículos tienen códigos UPC y el id de artículo del proveedor no es confiablemente único.)
 
-### Payables Rules
-
-
-## Questions
-
-* There was a requirement requested to store an invoice pdf format with payment terms and deadline.  I'm not clear if this is a requirement for OSPOS or for a document storage system. _Question answered and incorporated in the document_ 
-
-* [daN4cat] We talk of vendor but OSPOS has concept of Supplier. with Agency as a field. Is this the same?  _Answer: Yes.  The corrections have been made.  However, I'm not clear on what an Agency is in this context.  I assumed it was a European thing.  Can someone explain the role between a supplier and an Agency for me?_
-
-* [daN4cat] There is a concept of order confirmation that might not match your original order due to the fact that they discontinued items, or changed items for a newer one, and etc. This piece of incoming information needs to be stored as could come as pdf over an email from the supplier. Suppliers invoice needs to be stored as can come as pdf or can be scanned to a pdf.  _Reponse: This has been added to the requirements._
-
-* [daN4cat] A point to consider here is that barcodes for new items are not known until you receive the goods. _Response this has been incorporated in the requirements under a new topic of Receiving Rules which will represent changes to the receiving process that will need to be made._
-
-* [daN4cat] We receive suppliers' order confirmation and invoices over email in pdf formats, those files should be attached to the PO.Also payment amount, currency, payment form and deadline should be added at the time the invoice is added to the PO, once the goods are received. So the payment deadline notification is flagged or visible from an office view. As said we should manage the supplier invoice life cycle with payment due dates until it's paid. Also we should consider cases of "Sale or Return", so invoice could be issued for the purpose of formalising the movement of goods (e.g. fiscal and insurance reasons) but could be paid later. _Response: Will start incorporating a simple Payables Management component in the purchasing system.  Running out of time at the moment so will come back to this very soon._
-
-## Definitions/Structure
-
-_Please list industry specific terms with their explanation.  This section will also be the embryonic foundation of the database._
-
-### Definitions
-
-* **Distributor** - OSPOS is distributor-centric, so the businesses providing inventory to an OSPOS shop will always be classified as a distributor (even though technically they could be a manufacturer that we are dealing with directly).  A distributor in OSPOS is typically a wholesale distributor of items that are manufactured and sold by other vendors.
-* **Purchase Order Status** - This is the status of the purchase order 
-  * **Open** - The initiator of the purchase order is preparing the purchase order.
-  * **Prepared** - Initiator of purchase order has completed his/her work.
-  * **Approved** - The approver of the purchase order has given their blessing to the purchase order and it can now be submitted.
-  * **Submitted** - The submitter of the purchase order has printed and/or emailed the purchase order to the supplier. 
-  * **Partial** - One or more of the items on the purchase order has been received but other ordered items are still on back order or delivery status has not yet been determined.
-  * **Fulfilled** - All of the items on the purchase order have been received or it has been determined that the item will not be delivered.
-  * **Invoiced** - An invoice for one or more of the items has been received and the purchase order has been partially reconciled.
-  * **Complete** - All items on the purchase order have been reconciled with an invoice received from the vendor.
-  * **Canceled** - No item on the purchase order is expected to be fulfilled.
-
-### Structure
-
-* **Requisition** - A requisition is an item for which a purchase order needs to be generated.  It establishes the link between the demand and the actual order - eventually becoming the supporting detail for the purchase order.
-  * **Requisition Id** - The unique identifier for this requisition.
-  * **Requisition Source**, int(2) - A code designating what is driving the demand for this item.  (0-Inventory Replenishment, 1=Work Order, 2=Just in Time Order , 3=General Purchase) 
-  * **Sale Id**, int(10) - If the requisition is generated from a sale (i.e. work order) then this is the unique identifier for the sale.
-  * **Line Number** - If the requisition is generated from a sale (i.e. work order) then this is the unique identifier for the sale.
-  * **Purchase Order Id** - The unique identifier for the purchase order. Added as a foreign key when the requisition is assigned to a purchase order.
-  * **Requested By** - The employee id of the person who generated the requisition..
-  * **Item Id**
-  * **Supplier Code** - The item number to be used to place orders with the vendor.  It can be Item Id, UPC, Supplier ID, or Vendor Id.
-  * **Description**, varchar(30), allows null
-  * **Serial Number**, varchar(30), allows null
-  * **Line**, int(3)
-  * **Original Order Quantity**, decimal(15,3)
-  * **Current Order Quantity**, decimal(15,3)
-  * **Quantity Received**, decimal(15,3)
-  * **Quantity Canceled**, decimal(15,3)
-  * **Item Cost Price**, decimal(15,2)
-  * **Item Unit Price**, decimal(15,2)
-  * **Item Location**, int(11)
-  * **Order Quantity**, decimal(15,3), default 1
-
-* **Purchase Order**
-  * **Purchase Order Id**, int(10) - The unique identifier is assigned incrementally at the time the purchase order is saved.  When the purchase order is auto generated for a supplier the purchase order id is generated when the receiving document is saved.
-  * **Purchase Order Number** - This is document number that is assigned by the system when the purchase order is saved or automatically created.  It will use the same token based auto number generating used by the sales system for invoices and quotes.
-  * **Purchase Order Status**, tinyint(2) - This is the status of the purchase order. (0-New, 1-Open, 2-Partial, 3-Fulfilled, 4-Invoiced, 5-Complete, 6-Canceled) 
-  * **Purchase Order Type**, tinyint(2) - This is the type of the purchase order. (0-Standard, 1-Replenishment).
-  * **Supplier Id**, int(10) - This is the unique identifier for the company (supplier) fulfilling the order.
-  * **Supplier Salesperson**, varchar(32) - This is the name of the supplier's salesperson, so their back office can know who to consult internally about the P. O.
-  * **Employee**, int(10) - This is the id of the employee that saved the purchase order.
-  * **Comment**, text - This is a comment that can be entered at the time the purchase order is generated or the receiving is saved.
-  * **Reference**, varchar(32) -This is a field to enter a document number provided by the supplier that might be used to discuss what was shipped by the vendor.
-  * **When Purchased**, timestamp - This is the date and time when the purchase order was generated
-  * **Prepared By** - The employee id of the person who consolidated the requisitions and prepared the purchase order.
-  * **Approved By** - The employee id of the person who approved the purchase order for submission to the the supplier.
-  * **Submitted By** - The employee id of the person who printed and/or emailed the purchase order to the supplier.
+### Reglas de Cuentas por Pagar
 
 
-### Existing Tables that might be involved.
+## Preguntas
 
-* **Receivings**
-  * **Receiving Id**, int(10) - The unique receiving identifier is assigned incrementally at the time the receiving is saved.  When the receiving document is generated from the purchase order(s) the receiving id is generated when the receiving document is saved.
-  * **Supplier Id**, int(10) - This is the unique identifier for the company (supplier) fulfilling the order.
-  * **Employee**, int(10) - This is the id of the employee that saved the receiving or generated the receiving document.
-  * **Comment**, text - This is a comment that can be entered at the time the receiving document is generated or the receiving is saved.
-  * **Payment Type**, varchar(20) - I think this is probably going to be made obsolete with the introduction of the purchasing feature
-  * **Reference**, varchar(32) -This is a field to enter a document number provided by the supplier that might be used to discuss what was shipped by the vendor.
-  * **Receiving Time**, timestamp - This is the date and time when the document was
-  * **Purchase Order Id**, int(10), NEW - This is the purchase order that receiving document is generated from.  If the document is not generated from a receiving document then the value will be null.
+* Hubo un requisito solicitado para almacenar una factura en formato pdf con términos de pago y fecha límite. No tengo claro si esto es un requisito para OSPOS o para un sistema de almacenamiento de documentos. _Pregunta respondida e incorporada en el documento_
+
+* [daN4cat] Hablamos de "vendor" pero OSPOS tiene el concepto de Proveedor (Supplier), con Agencia como un campo. ¿Es lo mismo? _Respuesta: Sí. Se han hecho las correcciones. Sin embargo, no tengo claro qué es una Agencia en este contexto. Supuse que era algo europeo. ¿Alguien puede explicarme el rol entre un proveedor y una Agencia?_
+
+* [daN4cat] Existe un concepto de confirmación de pedido que podría no coincidir con tu pedido original debido a que descontinuaron artículos, o cambiaron artículos por uno más nuevo, etc. Esta información entrante necesita almacenarse, ya que podría llegar como pdf por correo electrónico del proveedor. La factura del proveedor necesita almacenarse, ya que puede llegar como pdf o puede ser escaneada a pdf. _Respuesta: Esto se ha agregado a los requisitos._
+
+* [daN4cat] Un punto a considerar aquí es que los códigos de barras de artículos nuevos no se conocen hasta que se recibe la mercancía. _Respuesta: esto se ha incorporado en los requisitos bajo un nuevo tema de Reglas de Recepción, que representará los cambios al proceso de recepción que se necesitarán hacer._
+
+* [daN4cat] Recibimos las confirmaciones de pedido y facturas de los proveedores por correo electrónico en formato pdf; esos archivos deberían adjuntarse a la orden de compra (PO). Además, el monto de pago, moneda, forma de pago y fecha límite deberían agregarse en el momento en que se agrega la factura a la PO, una vez que se recibe la mercancía. Así, la notificación de la fecha límite de pago queda marcada o visible desde una vista de oficina. Como se dijo, deberíamos gestionar el ciclo de vida de la factura del proveedor con fechas de vencimiento de pago hasta que se pague. También deberíamos considerar casos de "Venta o Devolución" (Sale or Return), por lo que la factura podría emitirse con el propósito de formalizar el movimiento de mercancía (por ejemplo, por razones fiscales y de seguros) pero podría pagarse después. _Respuesta: Se comenzará a incorporar un componente simple de Gestión de Cuentas por Pagar en el sistema de compras. Se está acabando el tiempo por el momento, así que se retomará esto muy pronto._
+
+## Definiciones/Estructura
+
+_Por favor lista los términos específicos de la industria con su explicación. Esta sección también será la base embrionaria de la base de datos._
+
+### Definiciones
+
+* **Distribuidor** - OSPOS está centrado en el distribuidor, por lo que los negocios que proveen inventario a una tienda OSPOS siempre se clasificarán como distribuidor (aunque técnicamente podrían ser un fabricante con el que estamos tratando directamente). Un distribuidor en OSPOS es típicamente un distribuidor mayorista de artículos que son fabricados y vendidos por otros proveedores (vendors).
+* **Estado de la Orden de Compra** - Este es el estado de la orden de compra
+  * **Abierta (Open)** - El iniciador de la orden de compra está preparando la orden de compra.
+  * **Preparada (Prepared)** - El iniciador de la orden de compra ha completado su trabajo.
+  * **Aprobada (Approved)** - El aprobador de la orden de compra ha dado su visto bueno a la orden de compra y ya puede enviarse.
+  * **Enviada (Submitted)** - El emisor de la orden de compra ha impreso y/o enviado por correo electrónico la orden de compra al proveedor.
+  * **Parcial (Partial)** - Uno o más de los artículos de la orden de compra han sido recibidos, pero otros artículos pedidos siguen en pedido pendiente o su estado de entrega aún no se ha determinado.
+  * **Cumplida (Fulfilled)** - Todos los artículos de la orden de compra han sido recibidos, o se ha determinado que el artículo no será entregado.
+  * **Facturada (Invoiced)** - Se ha recibido una factura por uno o más de los artículos y la orden de compra ha sido parcialmente conciliada.
+  * **Completa (Complete)** - Todos los artículos de la orden de compra han sido conciliados con una factura recibida del proveedor (vendor).
+  * **Cancelada (Canceled)** - No se espera que ningún artículo de la orden de compra sea cumplido.
+
+### Estructura
+
+* **Requisición (Requisition)** - Una requisición es un artículo para el cual se necesita generar una orden de compra. Establece el vínculo entre la demanda y el pedido real, convirtiéndose eventualmente en el detalle de soporte de la orden de compra.
+  * **Id de Requisición** - El identificador único de esta requisición.
+  * **Origen de la Requisición**, int(2) - Un código que designa qué está generando la demanda de este artículo. (0-Reposición de Inventario, 1=Orden de Trabajo, 2=Pedido Justo a Tiempo, 3=Compra General)
+  * **Id de Venta**, int(10) - Si la requisición se genera a partir de una venta (es decir, una orden de trabajo), este es el identificador único de la venta.
+  * **Número de Línea** - Si la requisición se genera a partir de una venta (es decir, una orden de trabajo), este es el identificador único de la venta.
+  * **Id de Orden de Compra** - El identificador único de la orden de compra. Se agrega como clave foránea cuando la requisición se asigna a una orden de compra.
+  * **Solicitado Por** - El id de empleado de la persona que generó la requisición.
+  * **Id de Artículo**
+  * **Código de Proveedor** - El número de artículo que se usará para hacer pedidos al vendedor (vendor). Puede ser el Id de Artículo, UPC, ID de Proveedor, o Id de Vendedor.
+  * **Descripción**, varchar(30), permite nulo
+  * **Número de Serie**, varchar(30), permite nulo
+  * **Línea**, int(3)
+  * **Cantidad de Pedido Original**, decimal(15,3)
+  * **Cantidad de Pedido Actual**, decimal(15,3)
+  * **Cantidad Recibida**, decimal(15,3)
+  * **Cantidad Cancelada**, decimal(15,3)
+  * **Precio de Costo del Artículo**, decimal(15,2)
+  * **Precio Unitario del Artículo**, decimal(15,2)
+  * **Ubicación del Artículo**, int(11)
+  * **Cantidad de Pedido**, decimal(15,3), por defecto 1
+
+* **Orden de Compra**
+  * **Id de Orden de Compra**, int(10) - El identificador único se asigna de forma incremental en el momento en que se guarda la orden de compra. Cuando la orden de compra se genera automáticamente para un proveedor, el id de orden de compra se genera cuando se guarda el documento de recepción.
+  * **Número de Orden de Compra** - Este es el número de documento que asigna el sistema cuando se guarda o se crea automáticamente la orden de compra. Usará el mismo generador de números automáticos basado en tokens que usa el sistema de ventas para facturas y cotizaciones.
+  * **Estado de la Orden de Compra**, tinyint(2) - Este es el estado de la orden de compra. (0-Nueva, 1-Abierta, 2-Parcial, 3-Cumplida, 4-Facturada, 5-Completa, 6-Cancelada)
+  * **Tipo de Orden de Compra**, tinyint(2) - Este es el tipo de la orden de compra. (0-Estándar, 1-Reposición).
+  * **Id de Proveedor**, int(10) - Este es el identificador único de la empresa (proveedor) que cumple el pedido.
+  * **Vendedor del Proveedor**, varchar(32) - Este es el nombre del vendedor del proveedor, para que su back office sepa a quién consultar internamente sobre la orden de compra (P.O.).
+  * **Empleado**, int(10) - Este es el id del empleado que guardó la orden de compra.
+  * **Comentario**, text - Este es un comentario que se puede ingresar en el momento en que se genera la orden de compra o se guarda la recepción.
+  * **Referencia**, varchar(32) - Este es un campo para ingresar un número de documento proporcionado por el proveedor que podría usarse para discutir qué fue enviado por el vendedor.
+  * **Cuándo se Compró**, timestamp - Esta es la fecha y hora en que se generó la orden de compra
+  * **Preparado Por** - El id de empleado de la persona que consolidó las requisiciones y preparó la orden de compra.
+  * **Aprobado Por** - El id de empleado de la persona que aprobó la orden de compra para su envío al proveedor.
+  * **Enviado Por** - El id de empleado de la persona que imprimió y/o envió por correo electrónico la orden de compra al proveedor.
 
 
-* **Receivings Items**
+### Tablas Existentes que Podrían Estar Involucradas
 
-  * **Receiving Id**, int(10) - The unique receiving identifier is assigned incrementally at the time the receiving is saved.  When the receiving document is generated from the purchase order(s) the receiving id is generated when the receiving document is saved.
-  * **Item Id**
-  * **Description**, varchar(30), allows null
-  * **Serial Number**, varchar(30), allows null
-  * **Line**, int(3)
-  * **Quantity Purchased**, decimal(15,3)
-  * **Item Cost Price**, decimal(15,2)
-  * **Item Unit Price**, decimal(15,2)
-  * **Item Location**, int(11)
-  * **Receiving Quantity**, decimal(15,3), default 1
+* **Recepciones (Receivings)**
+  * **Id de Recepción**, int(10) - El identificador único de recepción se asigna de forma incremental en el momento en que se guarda la recepción. Cuando el documento de recepción se genera a partir de la(s) orden(es) de compra, el id de recepción se genera cuando se guarda el documento de recepción.
+  * **Id de Proveedor**, int(10) - Este es el identificador único de la empresa (proveedor) que cumple el pedido.
+  * **Empleado**, int(10) - Este es el id del empleado que guardó la recepción o generó el documento de recepción.
+  * **Comentario**, text - Este es un comentario que se puede ingresar en el momento en que se genera el documento de recepción o se guarda la recepción.
+  * **Tipo de Pago**, varchar(20) - Creo que esto probablemente quedará obsoleto con la introducción de la funcionalidad de compras
+  * **Referencia**, varchar(32) - Este es un campo para ingresar un número de documento proporcionado por el proveedor que podría usarse para discutir qué fue enviado por el vendedor.
+  * **Hora de Recepción**, timestamp - Esta es la fecha y hora en que se
+  * **Id de Orden de Compra**, int(10), NUEVO - Esta es la orden de compra de la que se genera el documento de recepción. Si el documento no se genera a partir de un documento de recepción, el valor será nulo.
 
-* **Items** _Only a subset of the relevant item properties are shown._
-  * **Item Id**, int(10)
-  * **Item Name**, varchar(255)
-  * **Item Number**, varchar(255), UPC 
-  * **Custom ?**, varchar(25), the item identifier for a purchase order can be either the item number (which is the UPC identifier, or one of the custom fields which represent the supplier item id.
-  * **Receiving Quantity**, decimal(15,3) - When a purchase order is generated the quantity ordered will be defaulted from the value of this field.  By default it will updated by the last receiving quantity
-  * **Reorder Level**, decimal(15,3) - When a receiving document is generated items will be added to the receiving document when total quantity in all locations is equal to or below the reorder level.
-  * **Stock Type**, tinyint(2) - Only stocking items will be replenished.
-  * **Supplier Id**, int(11) - When a supplier is selected to have a purchase order generated 
-  * **Cost Price**, decimal(15,2)
-  * **Unit Price**, decimal(15,2)
 
-## Rules and Constraints
+* **Artículos de Recepciones (Receivings Items)**
 
-## Operations
+  * **Id de Recepción**, int(10) - El identificador único de recepción se asigna de forma incremental en el momento en que se guarda la recepción. Cuando el documento de recepción se genera a partir de la(s) orden(es) de compra, el id de recepción se genera cuando se guarda el documento de recepción.
+  * **Id de Artículo**
+  * **Descripción**, varchar(30), permite nulo
+  * **Número de Serie**, varchar(30), permite nulo
+  * **Línea**, int(3)
+  * **Cantidad Comprada**, decimal(15,3)
+  * **Precio de Costo del Artículo**, decimal(15,2)
+  * **Precio Unitario del Artículo**, decimal(15,2)
+  * **Ubicación del Artículo**, int(11)
+  * **Cantidad de Recepción**, decimal(15,3), por defecto 1
 
-## Configuration
+* **Artículos (Items)** _Solo se muestra un subconjunto de las propiedades relevantes del artículo._
+  * **Id de Artículo**, int(10)
+  * **Nombre del Artículo**, varchar(255)
+  * **Número de Artículo**, varchar(255), UPC
+  * **¿Personalizado?**, varchar(25), el identificador del artículo para una orden de compra puede ser el número de artículo (que es el identificador UPC), o uno de los campos personalizados que representan el id de artículo del proveedor.
+  * **Cantidad de Recepción**, decimal(15,3) - Cuando se genera una orden de compra, la cantidad pedida tomará por defecto el valor de este campo. Por defecto se actualizará con la última cantidad recibida
+  * **Nivel de Reorden**, decimal(15,3) - Cuando se genera un documento de recepción, se agregarán artículos al documento de recepción cuando la cantidad total en todas las ubicaciones sea igual o menor al nivel de reorden.
+  * **Tipo de Stock**, tinyint(2) - Solo los artículos de stock serán repuestos.
+  * **Id de Proveedor**, int(11) - Cuando se selecciona un proveedor para que se le genere una orden de compra
+  * **Precio de Costo**, decimal(15,2)
+  * **Precio Unitario**, decimal(15,2)
+
+## Reglas y Restricciones
+
+## Operaciones
+
+## Configuración

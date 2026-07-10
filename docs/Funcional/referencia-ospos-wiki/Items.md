@@ -1,88 +1,88 @@
 
-[← Back to Usage Guide](Getting-Started-usage) | [Home](Home)
+[← Volver a la Guía de Uso](Getting-Started-usage) | [Inicio](Home)
 
 ---
 
-**This is work in progress. Support for temporary items is being added to the system.**
+**Este es un trabajo en progreso. Se está agregando soporte para artículos temporales al sistema.**
 
-## 1. Items Features
+## 1. Funcionalidades de Artículos
 
 
-## 2. Definitions/Structure
+## 2. Definiciones/Estructura
 
-*Item* represent something that can be sold.  It can be used to manage the quantity of the item in stock or or it can be a service provided.
+*Artículo* representa algo que se puede vender. Puede usarse para gestionar la cantidad del artículo en existencia o puede ser un servicio prestado.
 
 * *UPC/EAN/ISBN*
 
-* *Item Name*
+* *Nombre del artículo*
 
-* *Category*
+* *Categoría*
 
-* *Supplier*
+* *Proveedor*
 
-* *Cost Price*
+* *Precio de costo*
 
-* *Retail Price*
+* *Precio de venta*
 
-* *Tax 1*
+* *Impuesto 1*
 
-* *Tax 2*
+* *Impuesto 2*
 
-* *Quantity in stock*
+* *Cantidad en existencia*
 
-* *Receiving quantity "cannot be set to 0"*
+* *Cantidad a recibir "no se puede establecer en 0"*
 
-* *Reorder Level*
+* *Nivel de reorden*
 
-* *Item Description*
+* *Descripción del artículo*
 
 * *Avatar*
 
-* *Allow Alt Description*
+* *Permitir descripción alternativa*
 
-* *Item has Serial Number*
+* *El artículo tiene número de serie*
 
-* *Stock Type* defines whether or not the item is physical item that is tracked in inventory or is non-stocked item (for example a labor service).  The valid values are `0 - Stock`, `1 - Non-stock`.  The default Stock Type is `Stock`.
+* *Tipo de existencia* define si el artículo es un artículo físico que se rastrea en el inventario o si es un artículo sin existencia (por ejemplo, un servicio de mano de obra). Los valores válidos son `0 - Con existencia`, `1 - Sin existencia`. El tipo de existencia predeterminado es `Con existencia`.
 
-* *Item Type* defines whether or not the item is a standard item which can either be an item that is stocked in inventory or an item that represents a single service that is provided.   A second type is an Kit which is an Item that represents a a collection of other non-kit items.  Another type of item is a standard item however instead of ordering by quantity the item can be ordered by dollar amount.  A temporary item is a type of non-stock item that can be used to quickly define an item on the fly to handle a sale.  This can be useful in situations where items are fabricated to order.  When a temporary item is added to an order the user will be prompted to override the temporary name, barcode, and description.  A temporary item must be a non-stock item.
-** The valid values are `0 - Standard`, `1 - Kit`, `2 - Item Amount Entry`, `3 - Temporary`.  The default item type is `Standard`.
+* *Tipo de artículo* define si el artículo es un artículo estándar que puede ser un artículo que se mantiene en inventario o un artículo que representa un único servicio que se presta. Un segundo tipo es un Kit, que es un Artículo que representa una colección de otros artículos que no son kits. Otro tipo de artículo es un artículo estándar, pero en lugar de pedirse por cantidad, el artículo puede pedirse por monto en dólares. Un artículo temporal es un tipo de artículo sin existencia que puede usarse para definir rápidamente un artículo sobre la marcha para gestionar una venta. Esto puede ser útil en situaciones donde los artículos se fabrican por encargo. Cuando se agrega un artículo temporal a un pedido, se le pedirá al usuario que sobrescriba el nombre temporal, el código de barras y la descripción. Un artículo temporal debe ser un artículo sin existencia.
+** Los valores válidos son `0 - Estándar`, `1 - Kit`, `2 - Ingreso de monto de artículo`, `3 - Temporal`. El tipo de artículo predeterminado es `Estándar`.
 
-* *Deleted*
+* *Eliminado*
 
-The following elements are being proposed to be added to the `items` table in support 
+Se propone agregar los siguientes elementos a la tabla `items` en apoyo a
 
-* *Quantity per Pack* is the number of low sell units per pack.
+* *Cantidad por paquete* es el número de unidades de venta mínima por paquete.
 
-* *Pack Name* is the name of the of the type of pack.  If no pack name is specified but the pack name is used then it will default to "EACH".  Typical names might be "CASE", "CARTON", "BOTTLE", or "GALLONS".
+* *Nombre del paquete* es el nombre del tipo de paquete. Si no se especifica un nombre de paquete pero se utiliza el nombre del paquete, entonces se usará por defecto "EACH" (CADA UNO). Los nombres típicos podrían ser "CASE" (CAJA), "CARTON" (CARTÓN), "BOTTLE" (BOTELLA) o "GALLONS" (GALONES).
 
-* *Low Sell Item Id* is the item id for the item that represents the smallest pack of the given product.  For example if 281 is the item id for an individual candy bar then the Low Sell Item Id for that item would also be 281, the quantity per Pack would be 1 and the Pack Name would be "EACH".  If there is a small carton containing 6 of those candy bars then that would be a different item id (say 817) with a quantity per pack of 6, a pack name of CARTON, and the Low Sell Item Id would be 281.  A similar scenario would exist for a different item if it was also sold by the case where there might be 10 cartons per case.  In that scenario the quantity per pack would be 60 (10 cartons times 6 each's per carton). 
+* *Id de artículo de venta mínima* es el id del artículo que representa el paquete más pequeño de un producto dado. Por ejemplo, si 281 es el id del artículo para una barra de dulce individual, entonces el Id de artículo de venta mínima para ese artículo también sería 281, la cantidad por paquete sería 1 y el nombre del paquete sería "EACH". Si hay un cartón pequeño que contiene 6 de esas barras de dulce, entonces ese sería un id de artículo diferente (digamos 817) con una cantidad por paquete de 6, un nombre de paquete de CARTON, y el Id de artículo de venta mínima sería 281. Un escenario similar existiría para un artículo diferente si también se vendiera por caja, donde podría haber 10 cartones por caja. En ese escenario, la cantidad por paquete sería 60 (10 cartones multiplicados por 6 unidades por cartón).
 
 
 
-## 3. Rules of Operation
+## 3. Reglas de operación
 
-### 3.1 Sales
+### 3.1 Ventas
 
-- Currently at the point of sale all items are checked to see if there is sufficient quantity on hand to satisfy the sale.  If the *Stock Type* is set to `Non-stock` then the validation will not take place. 
+- Actualmente, en el punto de venta todos los artículos se verifican para comprobar si hay suficiente cantidad disponible para satisfacer la venta. Si el *Tipo de existencia* está establecido en `Sin existencia`, entonces esta validación no se realizará.
 
-### 3.2 Item Maintenance
+### 3.2 Mantenimiento de artículos
 
-- When a new Item of type Item Kit is added then the the Item Kit table will be checked to see if there is an entry in the table with the same name as the Item just added.  If not then a new Item Kit will be added for this item.  If one is found then the Item Kit `item_id` field will be updated to point to this item.
+- Cuando se agrega un nuevo Artículo de tipo Kit de artículos, se verificará la tabla de Kits de artículos para ver si existe una entrada en la tabla con el mismo nombre que el Artículo recién agregado. Si no es así, se agregará un nuevo Kit de artículos para este artículo. Si se encuentra uno, el campo `item_id` del Kit de artículos se actualizará para apuntar a este artículo.
 
-- If an Item of type Item Kit is added the system will check to see if there is an Item Kit that already exists with the same description.  If the existing Item Kit references a different Item then the new Item cannot be added.  Either the item description needs to be changed or the Item Kit referenced item needs to be cleared.   This is to insure that we do not accidentally end up with two item kits for the same item.  However, if this is something that is required then it is possible by changing the description after the item is added.
+- Si se agrega un Artículo de tipo Kit de artículos, el sistema verificará si ya existe un Kit de artículos con la misma descripción. Si el Kit de artículos existente hace referencia a un Artículo diferente, entonces el nuevo Artículo no podrá agregarse. Es necesario cambiar la descripción del artículo o borrar el artículo referenciado por el Kit de artículos. Esto es para asegurar que no terminemos accidentalmente con dos kits de artículos para el mismo artículo. Sin embargo, si esto es algo requerido, es posible lograrlo cambiando la descripción después de agregar el artículo.
 
-- {IN DEVELOPMENT} An item type of Temporary Item can only be non-stock.  A generic description identifying the item as a temporary item is recommended.  Since the sales system must have a unique internal item number then you should set up as many temporary items as you expect on a single order.  You can override the UPC code, item name, description, cost, price, and discount at the point of sale.
+- {EN DESARROLLO} Un artículo de tipo Artículo Temporal solo puede ser sin existencia. Se recomienda una descripción genérica que identifique al artículo como un artículo temporal. Dado que el sistema de ventas debe tener un número de artículo interno único, debe configurar tantos artículos temporales como espere necesitar en un solo pedido. Puede sobrescribir el código UPC, el nombre del artículo, la descripción, el costo, el precio y el descuento en el punto de venta.
 
-- {IN DEVELOPMENT} Normally an item is inventoried, sold, and costed in the retail pack (the lowest number of units per pack).  The proposal that I'm putting on the table is to allow two or more items to be defined for the same product with each representing a different quantity per package.   This ability will be controlled by a system setting and will default to disabled. 
- 
-### 3.3 Temporary Items
+- {EN DESARROLLO} Normalmente, un artículo se inventaría, se vende y se costea en el paquete de venta al detalle (el número más bajo de unidades por paquete). La propuesta que se está planteando es permitir que se definan dos o más artículos para el mismo producto, cada uno representando una cantidad diferente por paquete. Esta capacidad estará controlada por una configuración del sistema y estará deshabilitada por defecto.
 
-Temporary Items are created for the purpose selling an item that we do not want to manage in our "standard" collection of stock and non-stock items.  They are created to record a sale of something that is not kept in stock and is not expected to be sold again.  It could be that the item is expected to be sold again, but we are deferring setting it up properly until a later time.
+### 3.3 Artículos temporales
 
-Internally, a temporary item is maintained in the item file just like any other item.  However, it has unique properties (other than an item type of "Temporary"). 
+Los Artículos Temporales se crean con el propósito de vender un artículo que no queremos gestionar en nuestra colección "estándar" de artículos con y sin existencia. Se crean para registrar la venta de algo que no se mantiene en existencia y que no se espera volver a vender. Podría ser que se espere volver a vender el artículo, pero estamos posponiendo su configuración adecuada para más adelante.
 
-First, it is associated with a single order and is attached the order only when clicking on the New button from the sales register.  Items that are added to a sale via the register can be deleted.  If a temporary item is deleted from the register it is also removed from the items table.
+Internamente, un artículo temporal se mantiene en el archivo de artículos igual que cualquier otro artículo. Sin embargo, tiene propiedades únicas (además de un tipo de artículo "Temporal").
 
-The approach taken to support temporary items is to insure the integrity of the reporting system which is dependent on joins from the sales_items table to the items table to retrieve item information.  You can think of temporary items more as an extension of the sales_items table since that item only exists for the purpose of holding information about the temporary item for that sales_item.
+Primero, está asociado a un único pedido y se adjunta al pedido solo al hacer clic en el botón Nuevo desde la caja registradora de ventas. Los artículos que se agregan a una venta a través de la caja registradora pueden eliminarse. Si se elimina un artículo temporal de la caja registradora, también se elimina de la tabla de artículos.
 
-Although temporary items are not included in the "normal" list of items, there is a filter option that allows you to list just temporary items. From the list of temporary items it is now possible to change the item type to a standard item or a kit item. This is a one way change. Once you convert a temporary item to a standard or kit item it cannot be changed back to a temporary item.
+El enfoque adoptado para soportar artículos temporales busca asegurar la integridad del sistema de reportes, el cual depende de uniones (joins) desde la tabla sales_items hacia la tabla items para recuperar la información del artículo. Se puede pensar en los artículos temporales más como una extensión de la tabla sales_items, ya que ese artículo solo existe con el propósito de contener información sobre el artículo temporal para ese sales_item.
+
+Aunque los artículos temporales no se incluyen en la lista "normal" de artículos, existe una opción de filtro que permite listar únicamente los artículos temporales. Desde la lista de artículos temporales ahora es posible cambiar el tipo de artículo a un artículo estándar o a un artículo de kit. Este es un cambio de una sola vía. Una vez que se convierte un artículo temporal en un artículo estándar o de kit, no se puede volver a convertir en un artículo temporal.

@@ -1,43 +1,42 @@
-_The following is a proposed enhancement to OSPOS.  Coming soon to a pull request near you._
+_Lo siguiente es una mejora propuesta para OSPOS. Próximamente en un pull request cerca de ti._
 
-In the service and repair industry there is the notion of a Work Order.  A work order is one phase of the life a sale.  It is a way to communicate to those doing the service and repair work what the customer wants and it is a way to communicate back to the sales rep and customer what actually happened.  The work order is usually found in a plastic protective sleeve.
+En la industria de servicios y reparaciones existe el concepto de Orden de Trabajo (Work Order). Una orden de trabajo es una fase de la vida de una venta. Es una forma de comunicar a quienes realizan el trabajo de servicio y reparación lo que el cliente desea, y también es una forma de comunicar de vuelta al representante de ventas y al cliente lo que realmente sucedió. La orden de trabajo normalmente se encuentra dentro de una funda protectora de plástico.
 
-This change will allow the sales clerk to prepare a work order and when the work is complete then the work order is updated to reflect what actually took place and then the sale is invoiced.
+Este cambio permitirá que el vendedor prepare una orden de trabajo y, cuando el trabajo esté completo, la orden de trabajo se actualiza para reflejar lo que realmente ocurrió y luego la venta se factura.
 
-## Requirements/Features
+## Requisitos/Funcionalidades
 
-* Introduce a new document type of work order that can be used to keep track of material, parts, and services that are performed for repair or service work.
-* Be able to add a Cash Deposit payment or a Credit Deposit payment against a work order.
-* Retain the work order so that if the customer cancels the work order then we can track the reason why in the sales comment.
+* Introducir un nuevo tipo de documento de orden de trabajo que se pueda usar para llevar el control de materiales, piezas y servicios realizados en trabajos de reparación o servicio.
+* Poder agregar un pago de Depósito en Efectivo (Cash Deposit) o un pago de Depósito con Crédito (Credit Deposit) contra una orden de trabajo.
+* Conservar la orden de trabajo de modo que, si el cliente cancela la orden de trabajo, se pueda registrar el motivo en el comentario de la venta.
 
-## Definitions/Structures
+## Definiciones/Estructuras
 
-The Work Order feature doesn't introduce any new tables.  However it does do the following
+La funcionalidad de Orden de Trabajo no introduce ninguna tabla nueva. Sin embargo, sí hace lo siguiente:
 
-* Add new `sales_type` field to the `sales` table.  Sales type values are (0=POS Sale, 1=Invoice, 2=Work Order, 3=Quote, 4=Return)
-* Add a new `sale_status` value of CANCELED.  So now the values are (0=Complete, 1=Suspended, 2=Canceled)
-* Adds 3 new configuration values
+* Agrega un nuevo campo `sales_type` a la tabla `sales`. Los valores del tipo de venta son (0=Venta POS, 1=Factura, 2=Orden de Trabajo, 3=Cotización, 4=Devolución)
+* Agrega un nuevo valor de `sale_status` llamado CANCELADO (CANCELED). Ahora los valores son (0=Completo, 1=Suspendida, 2=Cancelada)
+* Agrega 3 nuevos valores de configuración
   * work_order_enabled
   * work_order_format
   * last_used_work_order_number
-* Adds 2 new payment types
-  * Cash Deposit
-  * Credit Deposit
+* Agrega 2 nuevos tipos de pago
+  * Depósito en Efectivo
+  * Depósito con Crédito
 
-## Rules/Constraints
+## Reglas/Restricciones
 
-* A new sale can be created as a work order.
-* Any suspended sale can be converted to a work order.
-* By default prices will not be included in the printed work order, however the user has on option to include prices in the printed work order.
-* A work order is essentially a suspended sale that can be retrieved at any point in time to update with more information.
-* Work orders must not be physically deleted because we want to be able to report why the work order was canceled.  The reason for cancellation should be noted in the sales comment field.
-* Once work is completed on a work order it can be retrieved from its "suspended" state, updated and then invoiced.
+* Una nueva venta se puede crear como una orden de trabajo.
+* Cualquier venta suspendida se puede convertir en una orden de trabajo.
+* Por defecto los precios no se incluirán en la orden de trabajo impresa, sin embargo el usuario tiene la opción de incluir los precios en la orden de trabajo impresa.
+* Una orden de trabajo es esencialmente una venta suspendida que se puede recuperar en cualquier momento para actualizarla con más información.
+* Las órdenes de trabajo no deben eliminarse físicamente porque queremos poder reportar por qué se canceló la orden de trabajo. El motivo de la cancelación debe anotarse en el campo de comentario de la venta.
+* Una vez que el trabajo se completa en una orden de trabajo, esta se puede recuperar desde su estado "suspendida", actualizarse y luego facturarse.
 
-## Operations
+## Operaciones
 
 
-## Configuration
+## Configuración
 
-* To enable work orders go to the Config --> Invoice table, and page down to where the check box labeled Work Order Support can be found and check it.
-* This change introduces a new token named {WSEQ:9} which follows the same convention as the ISEQ and QSEQ tokens. The default for the work order number takes advantage of that token and the starting work order number can be set in the Last Used Work Order Number field.
-
+* Para habilitar las órdenes de trabajo, ve a Config --> tabla de Factura, y desplázate hacia abajo hasta donde se encuentra la casilla etiquetada Soporte de Orden de Trabajo (Work Order Support) y márcala.
+* Este cambio introduce un nuevo token llamado {WSEQ:9} que sigue la misma convención que los tokens ISEQ y QSEQ. El valor predeterminado para el número de orden de trabajo aprovecha ese token, y el número inicial de orden de trabajo se puede establecer en el campo Último Número de Orden de Trabajo Usado.

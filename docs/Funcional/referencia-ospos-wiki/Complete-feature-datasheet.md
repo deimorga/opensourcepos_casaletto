@@ -1,108 +1,108 @@
 
-[← Back to Home](Home)
+[← Volver a Inicio](Home)
 
 ---
 
-* **Feature index table**:
-  * [Quick Overview of Features](#quick-overview-of-features)
-  * [Complete List of Features](#complete-list-of-features)
-* **See also**:
-  * [Getting Started Installations](Getting-Started-installations)
-  * [Getting Started Usage](Getting-Started-usage)
-  * [Printing general info](Printing)
-  * [Wiki Home](Home)
+* **Tabla índice de características**:
+  * [Resumen Rápido de Características](#quick-overview-of-features)
+  * [Lista Completa de Características](#complete-list-of-features)
+* **Ver también**:
+  * [Primeros Pasos - Instalaciones](Getting-Started-installations)
+  * [Primeros Pasos - Uso](Getting-Started-usage)
+  * [Información general de Impresión](Printing)
+  * [Inicio de la Wiki](Home)
 
-## Quick Overview Of Features
+## Resumen Rápido De Características
 ----------------------------
 
-Please for complete feature see the [Complete List of Features](#complete-list-of-features) here below, this its a quick reference
+Para ver la lista completa de características consulta la [Lista Completa de Características](#complete-list-of-features) más abajo, esto es una referencia rápida
 
-| ❔ Wanted feature... | 🚀 What can do... | ℹ️ What cannot do... |
+| ❔ Característica deseada... | 🚀 Qué puede hacer... | ℹ️ Qué no puede hacer... |
 | --- | --- | --- |
-| Point of Sale (POS) | **Sell** products or/and services  and apply **multiple payments** (inclusivelly different types) to the sale, include a featured **Restaurant Tables** module, Purchase Orders | Advanced Transaction Types such as Special Orders, Back Orders and **Layaways**, Credit **accounting** sales |
-| Customer Relationship Management (CRM) | Add customers, import/export from CSV, **maintain customer** profiles and view full **sales history**, and market to them via **email** marketing and **SMS marketing** | Accounts Receivable / House Accounts, OSPOS has CRM features but **no A.R**. features, No **multi tenancy** with one deployment. |
-| Inventory Management | Create stock (any product) and non-stock items (articles), ...with custom fields. Import/export from CSV. Generate amd read barcodes | Inventory Matrix, Track items features, colors, materials. Support QR codes (see #1935) |
-| Multilingual Web Interface (i18n GUI) | Multilingual support with regionalisation, Selectable Boostrap (Bootswatch) based UI theme | End-user customize interface like Wordpress but with little coding can be done. No regionalisation per items attributes |
-| Reporting | Customers, Inventory and Transactions (sales or returns) |  There are reports, but no dashboard that shares Top Sales, Top Suppliers, Best Selling Items, Top Customers, etc. See #1433 |
-| Expense Modules | Added and summarize basic expenses, no accounting needs | Accounting with expenses over the sales are out of scope |
-| Gift Card and Rewards | Issue gift cards from as a payment method, Customers rewards | Management of accounting gift cards, expired dates on rewards |
+| Punto de Venta (POS) | **Vender** productos y/o servicios y aplicar **múltiples pagos** (incluyendo diferentes tipos) a la venta, incluye un módulo destacado de **Mesas de Restaurante**, Órdenes de Compra | Tipos de Transacción avanzados como Órdenes Especiales, Pedidos Pendientes (Back Orders) y **Apartados (Layaways)**, ventas de crédito con **contabilidad** |
+| Gestión de Relación con Clientes (CRM) | Agregar clientes, importar/exportar desde CSV, **mantener perfiles de clientes** y ver el **historial de ventas** completo, y hacerles marketing vía **email marketing** y **marketing por SMS** | Cuentas por Cobrar / Cuentas de Casa, OSPOS tiene funciones de CRM pero **no funciones de Cuentas por Cobrar**, No hay **multi-tenencia** con un solo despliegue |
+| Gestión de Inventario | Crear artículos de stock (cualquier producto) y artículos sin stock (artículos temporales), ...con campos personalizados. Importar/exportar desde CSV. Generar y leer códigos de barras | Matriz de Inventario, seguimiento de características de artículos, colores, materiales. Soporte de códigos QR (ver #1935) |
+| Interfaz Web Multilingüe (i18n GUI) | Soporte multilingüe con regionalización, Tema de interfaz seleccionable basado en Bootstrap (Bootswatch) | El usuario final personaliza la interfaz como en Wordpress pero se puede hacer con poco código. No hay regionalización por atributos de artículos |
+| Reportes | Clientes, Inventario y Transacciones (ventas o devoluciones) | Hay reportes, pero no un panel (dashboard) que muestre las Mejores Ventas, Mejores Proveedores, Artículos Más Vendidos, Mejores Clientes, etc. Ver #1433 |
+| Módulo de Gastos | Agregar y resumir gastos básicos, sin necesidades contables | La contabilidad de gastos sobre las ventas está fuera del alcance |
+| Tarjetas de Regalo y Recompensas | Emitir tarjetas de regalo como método de pago, Recompensas de clientes | Gestión contable de tarjetas de regalo, fechas de vencimiento en recompensas |
 
-* **See also**:
-  * [Getting Started Installations](Getting-Started-installations)
-  * [Getting Started Usage](Getting-Started-usage)
-  * [Printing general info](Printing)
-  * [Wiki Home](Home)
+* **Ver también**:
+  * [Primeros Pasos - Instalaciones](Getting-Started-installations)
+  * [Primeros Pasos - Uso](Getting-Started-usage)
+  * [Información general de Impresión](Printing)
+  * [Inicio de la Wiki](Home)
 
-The following section has the complete list of each feature and compressive guides to use them:
+La siguiente sección contiene la lista completa de cada característica y guías detalladas para usarlas:
 
-# Complete List of Features
+# Lista Completa de Características
 ---------------------------
 
-A quick overview of those modules can be found at the [Getting Started Usage](Getting-Started-usage) wiki page, here were detailed all the features of the Open Source Point Of Sale software:
+Un resumen rápido de esos módulos se puede encontrar en la página wiki de [Primeros Pasos - Uso](Getting-Started-usage); aquí se detallan todas las características del software Open Source Point Of Sale:
 
-* Interface
-   * Web interface responsive, mobile and desktop view capable
-   * Employee access Login 
-   * Multiuser module permission control
-   * reCAPTCHA option to protect login page from brute force attacks
-   * [Multi-language](Developer-Translations#translation-status)
-   * [User interface Internalization](Developer-Translations#translation-status)
-   * Selectable Boostrap (Bootswatch) based UI theme
-* Employees
-   * Employees Manage
-   * Importing from CSV file
-   * Exporting to Spreadsheets
-* Sales
-   * Sales Management: Receipt
-   * Sales Management: Return
-   * Sales Management: Quote
-   * Sales Management: Suspend
-   * Sales Transactions logging
-   * Sales Receipt and invoice printing and/or emailing
-   * Receiving
-   * [Temporary Items](Items#temporary-items)
-   * Gift card Support
-   * Rewards on customers
-   * [Restaurant Tables](Sales-Restaurant)
-   * Purchase Orders
-* Inventory
-   * Suppliers Management
-   * Items Stock Management
-   * Items Kits for Items groups
-   * Barcode support, Barcode generation
-   * Inventory counting
-   * Items Management: Category Naming and Image
-   * Items Management Taxation
-   * Items Price Management
-   * Managing Stock for multi location
-   * [Items Importing from CSV](Import-data-from-CSV-file#importing-items)
-   * Exporting to Spreadsheets
-* Customers
-   * Customer Manage, including registration consent repect GPDR regulations #2003
-   * [Customer Import from CSV](Import-data-from-CSV-file#importing-customers)
-   * Exporting to Spreadsheets
-   * VAT and multi tiers taxation
-* [Expenses](Expenses)
-   * [Expenses logging by Simple and faster UI](Expenses)
-* Reporting
-   * Reporting on sales, orders, expenses, inventory status
-   * Exporting to Spreadsheets
-* Communications
-   * Messaging (SMS)
-   * Mailchimp integration
-* [Printing](Printing)
-   * [Device printing](Printing#device-printing-support)
-   * [Barcode Printing](Printing#barcode-printing)
-   * PDF Printing export
-   * [Printing Item Labels](Printing#device-printing-support)
-   * [Fiscal Printing](Printing#fiscal-printing)
-* Store Office
-   * Store Configuration
-   * Regionalisation
+* Interfaz
+   * Interfaz web responsiva, capaz de verse en móvil y escritorio
+   * Inicio de sesión de acceso de Empleado
+   * Control de permisos por módulo multiusuario
+   * Opción de reCAPTCHA para proteger la página de inicio de sesión de ataques de fuerza bruta
+   * [Multi-idioma](Developer-Translations#translation-status)
+   * [Internacionalización de la interfaz de usuario](Developer-Translations#translation-status)
+   * Tema de interfaz seleccionable basado en Bootstrap (Bootswatch)
+* Empleados
+   * Gestión de Empleados
+   * Importación desde archivo CSV
+   * Exportación a Hojas de Cálculo
+* Ventas
+   * Gestión de Ventas: Recibo
+   * Gestión de Ventas: Devolución
+   * Gestión de Ventas: Cotización
+   * Gestión de Ventas: Suspender
+   * Registro de Transacciones de Ventas
+   * Impresión y/o envío por correo de Recibos y facturas de Venta
+   * Recepción
+   * [Artículos Temporales](Items#temporary-items)
+   * Soporte de Tarjetas de Regalo
+   * Recompensas de clientes
+   * [Mesas de Restaurante](Sales-Restaurant)
+   * Órdenes de Compra
+* Inventario
+   * Gestión de Proveedores
+   * Gestión de Stock de Artículos
+   * Kits de Artículos para grupos de Artículos
+   * Soporte de códigos de barras, generación de códigos de barras
+   * Conteo de inventario
+   * Gestión de Artículos: Nombrado de Categorías e Imagen
+   * Gestión de Impuestos de Artículos
+   * Gestión de Precios de Artículos
+   * Gestión de Stock para múltiples ubicaciones
+   * [Importación de Artículos desde CSV](Import-data-from-CSV-file#importing-items)
+   * Exportación a Hojas de Cálculo
+* Clientes
+   * Gestión de Clientes, incluyendo consentimiento de registro respetando la normativa GPDR #2003
+   * [Importación de Clientes desde CSV](Import-data-from-CSV-file#importing-customers)
+   * Exportación a Hojas de Cálculo
+   * IVA e impuestos multi-nivel
+* [Gastos](Expenses)
+   * [Registro de Gastos con una interfaz simple y rápida](Expenses)
+* Reportes
+   * Reportes de ventas, órdenes, gastos, estado del inventario
+   * Exportación a Hojas de Cálculo
+* Comunicaciones
+   * Mensajería (SMS)
+   * Integración con Mailchimp
+* [Impresión](Printing)
+   * [Impresión en dispositivo](Printing#device-printing-support)
+   * [Impresión de códigos de barras](Printing#barcode-printing)
+   * Exportación de impresión en PDF
+   * [Impresión de Etiquetas de Artículos](Printing#device-printing-support)
+   * [Impresión Fiscal](Printing#fiscal-printing)
+* Oficina de Tienda
+   * Configuración de Tienda
+   * Regionalización
 
-## See also
+## Ver también
 
-  * [Getting Started Installations](Getting-Started-installations)
-  * [Getting Started Usage](Getting-Started-usage)
-  * [Printing general info](Printing)
-  * [Wiki Home](Home)
+  * [Primeros Pasos - Instalaciones](Getting-Started-installations)
+  * [Primeros Pasos - Uso](Getting-Started-usage)
+  * [Información general de Impresión](Printing)
+  * [Inicio de la Wiki](Home)

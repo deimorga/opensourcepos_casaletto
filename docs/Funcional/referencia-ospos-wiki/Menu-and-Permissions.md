@@ -1,45 +1,45 @@
 
-[← Back to Usage Guide](Getting-Started-usage) | [Home](Home)
+[← Volver a la Guía de Uso](Getting-Started-usage) | [Inicio](Home)
 
 ---
 
-This document describes the menu and permissions infrastructure in order to support a primary/home/storefront menu and a "back office"/manager menu.
+Este documento describe la infraestructura de menús y permisos que da soporte a un menú principal/de inicio/de tienda y a un menú de "back office"/administrador.
 
-## Requirements/Features
+## Requisitos/Funcionalidades
 
-* Provide a separation between the "normal" home page menu (the "home" menu group) and a "back office" home page menu (the "office" menu group..
-* The "office" menu will be secured so that only those who have been granted permission to access it can do so.
-* A configuration option will allow for an office menu navigation icon to be included in the home menu group.  By default it will be included, but it can be excluded.  In that case the only access to the office page will be through a direct link or via a manual URL change.
-* A logged in employee will always have access to the home page.
-* Employees will need to have explicit permissions granted to the office menu.
-* The menu options available on either menu group are unique to each employee and set via the permissions table in Employee maintenance.
-* A menu option can appear in both menu groups for a given employee.
-* Only module level permissions can be used to determine which menu the module navigation icon appears.
+* Proveer una separación entre el menú "normal" de la página de inicio (el grupo de menú "home") y un menú de página de inicio de "back office" (el grupo de menú "office").
+* El menú "office" estará protegido de modo que solo quienes tengan permiso concedido para acceder a él puedan hacerlo.
+* Una opción de configuración permitirá incluir un ícono de navegación del menú de oficina dentro del grupo de menú "home". Por defecto estará incluido, pero se puede excluir. En ese caso, el único acceso a la página de oficina será mediante un enlace directo o cambiando manualmente la URL.
+* Un empleado que haya iniciado sesión siempre tendrá acceso a la página de inicio.
+* Los empleados necesitarán tener permisos explícitos otorgados para el menú de oficina.
+* Las opciones de menú disponibles en cualquiera de los dos grupos de menú son únicas para cada empleado y se establecen mediante la tabla de permisos en el mantenimiento de Empleados.
+* Una opción de menú puede aparecer en ambos grupos de menú para un empleado determinado.
+* Solo los permisos a nivel de módulo pueden usarse para determinar en qué menú aparece el ícono de navegación del módulo.
 
-## Operations
+## Operaciones
 
-By default, the home menu will contain the following menu options.
+Por defecto, el menú de inicio contendrá las siguientes opciones de menú.
 
-* Office
-* Customers
-* Items
-* Item Kits
-* Suppliers
-* Reports
-* Receivings
-* Sales
-* Messages
-* Gift Cars
+* Oficina
+* Clientes
+* Artículos
+* Kits de Artículos
+* Proveedores
+* Reportes
+* Recepciones
+* Ventas
+* Mensajes
+* Tarjetas de Regalo
 
-By default, the office menu will contain the following menu options
+Por defecto, el menú de oficina contendrá las siguientes opciones de menú
 
-* Home
-* Employees
-* Taxes
-* Store Configuration
-* Migration
+* Inicio
+* Empleados
+* Impuestos
+* Configuración de Tienda
+* Migración
 
-The Office and Home options toggle back and forth between the menu groups.
+Las opciones Oficina e Inicio se alternan entre los grupos de menú.
 
-The Office menu option which appears on the Home menu group can be removed from the Home menu group via a configuration option on the General configuration tab.  The result of this option is that the user must click on a link or type in the URL in order to access the office menu.  This isolates it a bit from the home page so that no one will try to go into the office menu unless they are authorized and know what the URL is for it.
+La opción de menú Oficina que aparece en el grupo de menú Inicio se puede quitar del grupo de menú Inicio mediante una opción de configuración en la pestaña de configuración General. El resultado de esta opción es que el usuario debe hacer clic en un enlace o escribir la URL para acceder al menú de oficina. Esto lo aísla un poco de la página de inicio, de modo que nadie intentará entrar al menú de oficina a menos que esté autorizado y sepa cuál es la URL para hacerlo.
 

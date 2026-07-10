@@ -1,11 +1,11 @@
 
-[← Back to Usage Guide](Getting-Started-usage) | [Home](Home)
+[← Volver a la Guía de Uso](Getting-Started-usage) | [Inicio](Home)
 
 ---
 
-## Employee Management
+## Gestión de Empleados
 
-The Employees module allows you to manage user accounts and permissions.
+El módulo de Empleados te permite gestionar las cuentas de usuario y los permisos.
         string title
         string description
         int instructor_id FK

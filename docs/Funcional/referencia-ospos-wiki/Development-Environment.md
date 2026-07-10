@@ -1,13 +1,13 @@
 
-1. Read the [Requirements section in Development Index](Development-Index#server-requirements).
-2. Read the [Architecture section](Development-Index#architecture) first.
-3. After reading this document, read the [Error Logging](Error-Logging) guide.
+1. Lee la sección de [Requisitos en el Índice de Desarrollo](Development-Index#server-requirements).
+2. Lee primero la [sección de Arquitectura](Development-Index#architecture).
+3. Después de leer este documento, lee la guía de [Registro de Errores](Error-Logging).
 
-For the impatient: read the [Development Index](Development-Index) wiki page.
+Para los impacientes: lee la página wiki del [Índice de Desarrollo](Development-Index).
 
-## Setup using docker
+## Configuración usando docker
 
-Docker and docker-compose are recommended to make a first full build. If you don't want to use docker, read the Basic tool setup section further on here.
+Se recomienda Docker y docker-compose para hacer una primera compilación completa. Si no quieres usar docker, lee la sección de configuración básica de herramientas más adelante aquí.
 
 ```
 docker run --rm -v $(pwd):/app jekkos/composer composer install
@@ -17,84 +17,84 @@ docker-compose -f docker-compose.dev.yml build
 docker-compose -f docker-compose.dev.yml up
 ```
 
-## Workflow
+## Flujo de trabajo
 
-Obviously as github does, by pull request, there's no extended process of "reviews", the pull are accepted once any developer revised and confirm works, but try to adhere to coding standard and documentation as described in this document.
+Obviamente, como hace github, mediante pull request, no hay un proceso extendido de "revisiones"; el pull se acepta una vez que algún desarrollador lo revisó y confirmó que funciona, pero intenta apegarte al estándar de codificación y documentación como se describe en este documento.
 
-Please read the [development index code tips and help](Development-Index#development-code-tips-and-help) wiki page section for more detailed information on.
+Por favor lee la sección de la página wiki [consejos de código y ayuda del índice de desarrollo](Development-Index#development-code-tips-and-help) para información más detallada.
 
-## Code style
+## Estilo de código
 
-The application tries to adhere to [CodeIgniter 4 coding style](https://codeigniter4.github.io/userguide4/concepts/structure.html), must read carefully.
+La aplicación intenta apegarse al [estilo de codificación de CodeIgniter 4](https://codeigniter4.github.io/userguide4/concepts/structure.html), hay que leerlo con atención.
 
-**IMPORTANT**: as discussed in #389, but due the application was a migration from CI3 some portions of the code might not comply yet. Please do not make pull requests only to format old code, do this only if new features are involved.
+**IMPORTANTE**: como se discutió en el #389, pero debido a que la aplicación fue una migración desde CI3, algunas porciones del código podrían no cumplir aún. Por favor no hagas pull requests únicamente para dar formato a código antiguo, hazlo solo si están involucradas nuevas características.
 
-Always check the [Development code tips and help](Development-Index#development-code-tips-and-help) for how to code the controllers and views respect the models.
+Siempre revisa los [consejos de código y ayuda del desarrollo](Development-Index#development-code-tips-and-help) sobre cómo codificar los controladores y vistas respecto a los modelos.
 
-## Code documentation
+## Documentación del código
 
-The application generates code documentation using PHPDoc. For more details see [issue 1278](https://github.com/jekkos/opensourcepos/issues/1278).
-Code documentation can be read using IDE tools that support PHPDoc.
-See the [CodeIgniter 4 user guide](https://codeigniter4.github.io/userguide4/) for framework documentation.
+La aplicación genera documentación de código usando PHPDoc. Para más detalles ver el [issue 1278](https://github.com/jekkos/opensourcepos/issues/1278).
+La documentación del código se puede leer usando herramientas de IDE que soporten PHPDoc.
+Ver la [guía de usuario de CodeIgniter 4](https://codeigniter4.github.io/userguide4/) para la documentación del framework.
 
-## Basic Tool installation
+## Instalación básica de herramientas
 
-The build tools can be installed permanently if one prefers not to use docker. Node.js, npm and composer are used and need to be installed:
+Las herramientas de compilación se pueden instalar de forma permanente si se prefiere no usar docker. Se usan Node.js, npm y composer y necesitan estar instalados:
 
     sudo apt-get install nodejs
     sudo apt-get install npm
 
-Also composer needs to be installed, by example Debian derived distribution can see tutorial: https://getcomposer.org/download/
+También composer necesita estar instalado; por ejemplo, en distribuciones derivadas de Debian se puede ver el tutorial: https://getcomposer.org/download/
 
-Once the basic tools are installed run `npm install` which will install all npm dependencies.
+Una vez instaladas las herramientas básicas, ejecuta `npm install`, lo cual instalará todas las dependencias de npm.
 
-## Running js minification builds
+## Ejecutando las compilaciones de minificación de js
 
-The project uses gulp and npm to minify the final included javascript.
-As first step you need to install npm once done you should issue the following command:
+El proyecto usa gulp y npm para minificar el javascript incluido final.
+Como primer paso necesitas instalar npm; una vez hecho, debes ejecutar el siguiente comando:
 
     npm install
 
-This will install all required npm dependencies for building the project.
+Esto instalará todas las dependencias de npm necesarias para compilar el proyecto.
 
-## Running CSS minification builds
+## Ejecutando las compilaciones de minificación de CSS
 
-The gulp build process will minify CSS and JavaScript files as needed. Run:
+El proceso de compilación de gulp minificará los archivos CSS y JavaScript según sea necesario. Ejecuta:
 
     npm run build
 
-## Proper way to see js minifications changes
+## Forma correcta de ver los cambios de minificación de js
 
-JS and CSS are cached, you just need to reload your page keeping the shift button pressed in your web browser.
+JS y CSS se almacenan en caché, solo necesitas recargar tu página manteniendo presionada la tecla shift en tu navegador web.
 
-This procedure are also recommended if you perform an update.
+Este procedimiento también se recomienda si realizas una actualización.
 
-## Dotfiles for easy environment setup
+## Dotfiles para una configuración fácil del entorno
 
-The addition of the dotenv composer library makes it easy to configure different staging environments with database credentials and environment bound variables. Copy the `.env.example` file in the project root to `.env` and fill in variable values as needed. PHP display_errors will be set to 1 in development mode which will ease troubleshooting errors and debugging when things go awry.
+La adición de la librería composer dotenv facilita configurar diferentes entornos de staging con credenciales de base de datos y variables ligadas al entorno. Copia el archivo `.env.example` en la raíz del proyecto a `.env` y completa los valores de las variables según sea necesario. PHP display_errors se establecerá en 1 en modo desarrollo, lo cual facilitará la resolución de errores y la depuración cuando algo salga mal.
 
-## Minification setup using Docker
+## Configuración de minificación usando Docker
 
-A full development environment can be easily configured using docker. For this purpose there is the `Dockerfile.test` file. You will need to mount the project directory path on the host in the docker container. First build and tag the docker image described in the `Dockerfile.test` file.
+Un entorno de desarrollo completo se puede configurar fácilmente usando docker. Para este propósito existe el archivo `Dockerfile.test`. Necesitarás montar la ruta del directorio del proyecto en el host dentro del contenedor docker. Primero compila y etiqueta la imagen docker descrita en el archivo `Dockerfile.test`.
 
 `docker build -f Dockerfile.test -t opensourcepos:test .`
 
-As a final step you can run npm from the newly created image. Open up a terminal in the ospos directory and then issue following command
+Como paso final puedes ejecutar npm desde la imagen recién creada. Abre una terminal en el directorio ospos y luego ejecuta el siguiente comando
 
 `docker run -v $(pwd):/data -f Dockerfile.test opensourcepos:test npm install`
 
-Now at this point you can follow the [Development code tips and help](Development-Index#development-code-tips-and-help) to start making new features to the opensourcepos.
+Ahora, en este punto puedes seguir los [consejos de código y ayuda del desarrollo](Development-Index#development-code-tips-and-help) para empezar a crear nuevas características para opensourcepos.
 
-## Debugging PHP using XDebug and Docker
+## Depurando PHP usando XDebug y Docker
 
-The PHP side of this application can also be debugged using a prebuilt Docker container. This container will add the XDebug PHP module that can be used from within IntelliJ or Eclipse. First check the ip address on your host's docker interface as it needs to be configured in the `docker-compose.dev.yml` file. Next you can use docker-compose to start the application with xdebug enabled by entering following command from the CLI (head for ospos directory first)
+El lado de PHP de esta aplicación también se puede depurar usando un contenedor Docker preconstruido. Este contenedor agregará el módulo PHP XDebug que se puede usar desde IntelliJ o Eclipse. Primero revisa la dirección ip en la interfaz docker de tu host, ya que debe configurarse en el archivo `docker-compose.dev.yml`. Luego puedes usar docker-compose para iniciar la aplicación con xdebug habilitado ingresando el siguiente comando desde la CLI (primero dirígete al directorio ospos)
 
 `docker-compose -f docker-compose.dev.yml up`
 
-After the container is launched the xdebug connection should be available on port 9000 of the docker ip address. Add [this to the configuration in IntelliJ or Eclipse](https://gist.github.com/chadrien/c90927ec2d160ffea9c4) and you should be good to go.
+Después de que el contenedor se inicie, la conexión de xdebug debería estar disponible en el puerto 9000 de la dirección ip de docker. Agrega [esto a la configuración en IntelliJ o Eclipse](https://gist.github.com/chadrien/c90927ec2d160ffea9c4) y deberías estar listo.
 
-# See also: 
+# Ver también: 
 
-* [Development index](Development-Index#tech-architecture)
-* [Development code tips and help](Development-Index#development-code-tips-and-help)
-* [Error Logging](Error-Logging)
+* [Índice de desarrollo](Development-Index#tech-architecture)
+* [Consejos de código y ayuda del desarrollo](Development-Index#development-code-tips-and-help)
+* [Registro de Errores](Error-Logging)

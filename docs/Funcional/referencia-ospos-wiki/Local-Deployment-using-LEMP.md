@@ -1,82 +1,82 @@
-**NOTE: This guide uses outdated PHP versions. OSPOS requires PHP 8.1 to 8.4. Please adapt the PHP version numbers accordingly.**
+**NOTA: Esta guía utiliza versiones de PHP desactualizadas. OSPOS requiere PHP 8.1 a 8.4. Por favor adapta los números de versión de PHP según corresponda.**
 
-Default Linux, Nginx, MariaDB, PHP 8.1+ & Adminer stack on Ubuntu
+Stack estándar Linux, Nginx, MariaDB, PHP 8.1+ y Adminer sobre Ubuntu
 
-# 1: Update Ubuntu
+# 1: Actualizar Ubuntu
 
 `sudo apt-get update`
 
 `sudo apt-get upgrade`
 
-# 2: Install Nginx Web Server
+# 2: Instalar el Servidor Web Nginx
 
 `sudo apt-get install nginx`
 
-### After installation, enable Nginx to auto start when Ubuntu is booted
+### Después de la instalación, habilita el inicio automático de Nginx cuando Ubuntu arranque
 
 `sudo systemctl enable nginx`
 
-### Start Nginx with this command
+### Inicia Nginx con este comando
 
 `sudo systemctl start nginx`
 
-### Check out it's status
+### Verifica su estado
 
 `systemctl status nginx`
 
-Now in your browser’s address bar, type `http://localhost` or `http://127.0.0.1` and hit enter
+Ahora en la barra de direcciones de tu navegador, escribe `http://localhost` o `http://127.0.0.1` y presiona enter
 
-You will see "Welcome to nginx!,
-that means nginx installed and running successfully.
-### Now, we need to make www-data (Nginx user) as the owner of web root directory
+Verás "Welcome to nginx!",
+eso significa que nginx se instaló y está funcionando correctamente.
+### Ahora necesitamos hacer que www-data (usuario de Nginx) sea el propietario del directorio raíz web
 
 `sudo chown www-data /var/www/html -R`
 
-# 3: Install MariaDB
+# 3: Instalar MariaDB
 
 `sudo apt-get install mariadb-server mariadb-client`
 
-### MariaDB server should be automatically started. Use systemctl to check its status.
+### El servidor MariaDB debería iniciarse automáticamente. Usa systemctl para verificar su estado.
 
 `systemctl status mysql`
 
-### Enable MariaDB to automatically start when Ubuntu is rebooted
+### Habilita el inicio automático de MariaDB cuando Ubuntu se reinicie
 
 `sudo systemctl enable mysql`
 
-### Run the post installation security script
+### Ejecuta el script de seguridad post-instalación
 
 `sudo mysql_secure_installation`
 
- When it asks you to enter MariaDB root password, press `enter` because you have not set the root password yet. Then enter `y` to set the root password for MariaDB server.
+ Cuando te pida ingresar la contraseña root de MariaDB, presiona `enter` porque aún no has configurado la contraseña root. Luego ingresa `y` para establecer la contraseña root del servidor MariaDB.
 
- Next just press Enter to answer all the remaining questions. This will remove anonymous user, disable remote root login and remove test database. This step is a basic requirement for MariaDB database security.
+ Después simplemente presiona Enter para responder todas las preguntas restantes. Esto eliminará el usuario anónimo, deshabilitará el inicio de sesión root remoto y eliminará la base de datos de prueba. Este paso es un requisito básico para la seguridad de la base de datos MariaDB.
 
-# 4: Install PHP
+# 4: Instalar PHP
 
 `sudo apt-get install php-fpm php-mbstring php-xml php-mysql php-common php-gd php-json php-cli php-curl php-intl php-bcmath`
 
-### Now start php-fpm
+### Ahora inicia php-fpm
 
 `sudo systemctl start php8.1-fpm`
 
-### Check php status
+### Verifica el estado de php
 
 `systemctl status php8.1-fpm`
 
 
-# 5: Create a Default Nginx Server Block File
+# 5: Crear un Archivo de Bloque de Servidor Nginx por Defecto
 
 
-### Remove the "default.conf" symlink in "sites-enabled" directory
+### Elimina el enlace simbólico "default.conf" en el directorio "sites-enabled"
 
 `sudo rm /etc/nginx/sites-enabled/default`
 
-### create a new default server block file under /etc/nginx/conf.d/ directory
+### crea un nuevo archivo de bloque de servidor por defecto bajo el directorio /etc/nginx/conf.d/
 
 `sudo nano /etc/nginx/conf.d/default.conf`
 
-### Paste the following text into the file, save and close the file
+### Pega el siguiente texto en el archivo, guarda y ciérralo
 
 
 
@@ -111,96 +111,83 @@ that means nginx installed and running successfully.
 		}
 	}
 
-### Test nginx configuration and reload it
+### Prueba la configuración de nginx y recárgala
 
 `sudo nginx -t`
 
 `sudo service nginx restart`
 
 
-# 6: Test PHP
+# 6: Probar PHP
 
 
 `php --version`
 
-### Test PHP-FPM, first create a `php_info.php` file in the Web root directory
+### Para probar PHP-FPM, primero crea un archivo `php_info.php` en el directorio raíz web
 
 `sudo nano /var/www/html/php_info.php`
 
-### Paste the following PHP code into the file and save it
+### Pega el siguiente código PHP en el archivo y guárdalo
 
 `<?php phpinfo(); ?>`
 
-Now in the browser address bar, enter `localhost/php_info.php`. You should see your server’s PHP information. This means PHP is workinging fine. For your server’s security, you should delete php_info.php file now.
+Ahora en la barra de direcciones del navegador, ingresa `localhost/php_info.php`. Deberías ver la información PHP de tu servidor. Esto significa que PHP está funcionando correctamente. Por la seguridad de tu servidor, deberías eliminar el archivo php_info.php ahora.
 
-# 7: Install 'Adminer' ('phpmyadmin' equivalent)
+# 7: Instalar 'Adminer' (equivalente a 'phpmyadmin')
 
-Adminer is a free opensource data base management tool like phpmyadmin. It is very ightweight and easy to install and also supports various themes. Download Adminer from here:
+Adminer es una herramienta gratuita de código abierto para administración de bases de datos, similar a phpmyadmin. Es muy ligera y fácil de instalar, y también soporta varios temas. Descarga Adminer desde aquí:
 
  https://github.com/vrana/adminer/releases/download/v4.2.5/adminer-4.2.5.php
 
- Place it in var/www/html folder.
- To access it, type in your browser `localhost/adminer-4.2.5.php`
+ Colócalo en la carpeta var/www/html.
+ Para acceder a él, escribe en tu navegador `localhost/adminer-4.2.5.php`
 
-# 8: Fix MariaDB bug in ubuntu 16.04
+# 8: Corregir un error de MariaDB en ubuntu 16.04
 
-Your Linux OS has a root user. MariaDB also has a root user. So sometimes, when you try to log into MariaDB monitor as root user, MariaDB may authenticate you via the `Unix_Socket plugin` but this plugin is not installed by default. So you see Plugin '`unix_socket`' is not loaded Error.
+Tu sistema operativo Linux tiene un usuario root. MariaDB también tiene un usuario root. Así que a veces, cuando intentas iniciar sesión en el monitor de MariaDB como usuario root, MariaDB puede autenticarte a través del plugin `Unix_Socket`, pero este plugin no está instalado por defecto. Así que verás el error Plugin '`unix_socket`' is not loaded.
 
-### Fix this error
+### Corregir este error
 
-First stop MariaDB, use this command to stop it.
+Primero detén MariaDB, usa este comando para detenerlo.
 
 `sudo systemctl stop mysql`
 
-### Then start MariaDB with --skip-grant-tables option which bypass user authentication
+### Luego inicia MariaDB con la opción --skip-grant-tables que evita la autenticación de usuario
 
 `sudo mysqld_safe --skip-grant-tables &`
 
-### Log into MariaDB monitor as root
+### Inicia sesión en el monitor de MariaDB como root
 
 `mysql -u root`
 
-### Enter the following SQL statement to check which authentication plugin is used for root
+### Ingresa la siguiente sentencia SQL para verificar qué plugin de autenticación se usa para root
 
 `MariaDB [(none)]> select Host,User,plugin from mysql.user where User='root';`
 
-You will see it’s using `unix_socket` plugin. To change it to `mysql_native_password` plugin, execute this command:
+Verás que está usando el plugin `unix_socket`. Para cambiarlo al plugin `mysql_native_password`, ejecuta este comando:
 
 `MariaDB [(none)]> update mysql.user set plugin='mysql_native_password';`
 
-### Exit MariaDB monitor
+### Salir del monitor de MariaDB
 
 `flush privileges;`
 `quit;`
 
-### Stop mysqld_safe
+### Detener mysqld_safe
 
 `sudo kill -9 $(pgrep mysql)`
 
-### Start MariaDB again
+### Iniciar MariaDB nuevamente
 
 `sudo systemctl start mysql `
 
-### Now you can use normal password to login
+### Ahora puedes usar la contraseña normal para iniciar sesión
 
 `mysql -u root -p`
 
 
-## That's all, you have done everything. Enjoy !
+## Eso es todo, ya hiciste todo. ¡Disfruta!
 
-# FAQ
+# Preguntas Frecuentes
 
-If you face any issue, please see [Issue 546](https://github.com/opensourcepos/opensourcepos/issues/546).
-
-
-
-
-
-
-
-
-
-
-
-
-
+Si tienes algún problema, consulta el [Issue 546](https://github.com/opensourcepos/opensourcepos/issues/546).

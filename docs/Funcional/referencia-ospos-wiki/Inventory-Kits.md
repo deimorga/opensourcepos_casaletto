@@ -1,21 +1,21 @@
-[← Back to Usage Guide](Getting-Started-usage) | [Home](Home)
+[← Volver a la Guía de Uso](Getting-Started-usage) | [Inicio](Home)
 
 ---
 
-Allows employees to group products from inventory to sell as combo products. This depends on previously loaded [Items](Inventory-Items) in the [Inventory module](Getting-Started-usage#3-inventory).
+Permite a los empleados agrupar productos del inventario para venderlos como productos combinados. Esto depende de los [Artículos](Inventory-Items) previamente cargados en el [módulo de Inventario](Getting-Started-usage#3-inventory).
 
-## Access
+## Acceso
 
-Start by clicking the Items Kits module button on the main screen. This will load your list of item kits if any are configured.
+Comience haciendo clic en el botón del módulo Kits de Artículos en la pantalla principal. Esto cargará su lista de kits de artículos, si hay alguno configurado.
 
-You can **add, remove, modify and manage** items using the [Inventory module](Getting-Started-usage#3-inventory) and then build a kit based on those items.
+Puede **agregar, eliminar, modificar y administrar** artículos usando el [módulo de Inventario](Getting-Started-usage#3-inventory) y luego armar un kit basado en esos artículos.
 
-The [Inventory module](Getting-Started-usage#3-inventory) displays a list of recent items and entries for item kits.
+El [módulo de Inventario](Getting-Started-usage#3-inventory) muestra una lista de artículos recientes y entradas de kits de artículos.
 
-## Workflow
+## Flujo de trabajo
 
-(Work in progress)
+(Trabajo en progreso)
 
-## Limitations
+## Limitaciones
 
-(Work in progress)
+(Trabajo en progreso)

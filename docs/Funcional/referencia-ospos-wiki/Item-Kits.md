@@ -1,64 +1,64 @@
 
-[← Back to Usage Guide](Getting-Started-usage) | [Home](Home)
+[← Volver a la Guía de Uso](Getting-Started-usage) | [Inicio](Home)
 
 ---
 
-## Quick Order Entry
+## Ingreso rápido de pedidos
 
-Provides a way to quickly enter a group of related items into an order. The user selects the kit and all of the items associated with the kit are added to the order.
+Ofrece una forma de ingresar rápidamente un grupo de artículos relacionados en un pedido. El usuario selecciona el kit y todos los artículos asociados al kit se agregan al pedido.
 
-No item needs to be created to represent the kit. Only the items in the kit will need to be added to the item table.
+No es necesario crear ningún artículo para representar el kit. Solo será necesario agregar a la tabla de artículos los artículos que componen el kit.
 
-## Packaged Items
+## Artículos empaquetados
 
-This allows a customer to purchase a special package of items (such as a birthday party package promotion) that are bundled together.  The user can enter the package identifier and the package is added to the sales order along with all of the items in the package.
+Esto permite que un cliente compre un paquete especial de artículos (como una promoción de paquete de fiesta de cumpleaños) que se agrupan juntos. El usuario puede ingresar el identificador del paquete y el paquete se agrega al pedido de venta junto con todos los artículos que lo componen.
 
-An item is created in the items table to represent the kit.
+Se crea un artículo en la tabla de artículos para representar el kit.
 
-Packaged items can be prepackaged and maintained in stock just like any other item.  The quantity of each item in the package can continue to be tracked as if it were not in the package.
+Los artículos empaquetados pueden estar preempacados y mantenerse en existencia como cualquier otro artículo. La cantidad de cada artículo dentro del paquete se puede seguir rastreando como si no estuviera dentro del paquete.
 
-When the package is entered then the number of packages that are *prebuilt* is shown and if unavalable (but the individual items show adequate stock) then the user knows that a package can be built "just in time".
+Cuando se ingresa el paquete, se muestra el número de paquetes que están *prearmados* y, si no hay disponibles (pero los artículos individuales muestran existencia suficiente), entonces el usuario sabe que se puede armar un paquete "justo a tiempo".
 
-### 1.3 **Bundled Service Sales**
+### 1.3 **Ventas de servicios agrupados**
 
-This feature allows a user to sell a service which is, of course, a non-stocked item (unless you wanted to limit the number of these services sold because it is a loss-leader).
+Esta funcionalidad permite que un usuario venda un servicio, el cual, por supuesto, es un artículo sin existencia (a menos que se quiera limitar la cantidad de estos servicios vendidos porque es un producto de pérdida para atraer clientes).
 
-The service can include a list of tasks that will be included with the service.  It can also include a list of stocked materials that are consumed as part of the service. The user can be charged for each individual task and material, or the price for the service can be set once to cover all of the tasks and materials, or the price for the service can be set once to cover all of the service tasks but the materials can be charged separately.
+El servicio puede incluir una lista de tareas que se incluirán con el servicio. También puede incluir una lista de materiales con existencia que se consumen como parte del servicio. Al usuario se le puede cobrar por cada tarea y material individual, o el precio del servicio puede establecerse una sola vez para cubrir todas las tareas y materiales, o el precio del servicio puede establecerse una sola vez para cubrir todas las tareas del servicio pero los materiales se pueden cobrar por separado.
 
-### 1.4 **Discounts**
+### 1.4 **Descuentos**
 
-Discounts can now be by percent or fixed amount and the discount is applied to each individual item added to the order.  Sources for discounts from system configuration which means it is applied to every item added to an order, or from the customer configuration, or from the kit configuration.
+Los descuentos ahora pueden ser por porcentaje o por monto fijo, y el descuento se aplica a cada artículo individual agregado al pedido. Las fuentes de descuentos provienen de la configuración del sistema, lo que significa que se aplica a cada artículo agregado a un pedido, o de la configuración del cliente, o de la configuración del kit.
 
-When the discount is by percent then that discount percent is added to each item added to the order that is assigned a price.  When the discount is by amount then the discount amount gets a bit squirrely.  The assumption is that if the discount is by amount then it should NOT be applied to each item.  Instead, the discount amount is applied to each item until the amount is depleted.  So in effect it is spread across the items.  This really only seems logical if you are pricing at the kit level because then the discount amount would be applied to the kit. If the kit price is essentially a charge for packaging then the discount amount might be greater than the price from the kit item.  This will result in the discount amount for the kit item cannot be greater than the price so it will be the same as the price (essentially giving the item a zero price).  The remainder of the discount amount will be applied to the next item.  This is then repeated for the next item until the discount amount is fully depleted. 
+Cuando el descuento es por porcentaje, ese porcentaje de descuento se agrega a cada artículo agregado al pedido al que se le asigna un precio. Cuando el descuento es por monto, el monto del descuento se vuelve un poco más complicado. El supuesto es que si el descuento es por monto, entonces NO debería aplicarse a cada artículo. En cambio, el monto del descuento se aplica a cada artículo hasta que el monto se agota. Así que, en efecto, se distribuye entre los artículos. Esto realmente solo parece lógico si se está fijando el precio a nivel de kit, porque entonces el monto del descuento se aplicaría al kit. Si el precio del kit es esencialmente un cargo por el empaquetado, el monto del descuento podría ser mayor que el precio del artículo de kit. Esto hará que el monto del descuento para el artículo de kit no pueda ser mayor que el precio, por lo que será igual al precio (dejando esencialmente el artículo con precio cero). El resto del monto del descuento se aplicará al siguiente artículo. Esto se repite luego para el siguiente artículo hasta que el monto del descuento se agote por completo.
 
 
-## 2. Definitions/Structure
+## 2. Definiciones/Estructura
 
-*Item Kits* represent a collection of stocked items or labor items. 
+*Los Kits de Artículos* representan una colección de artículos con existencia o artículos de mano de obra.
 
-* *Item Kit Name* is the internal name used for the kit.  It will not be used for the invoice or receipt.  When the kit is created the *item kit name* will be loaded from the selected *item kit item*.
+* *Nombre del kit de artículos* es el nombre interno usado para el kit. No se usará en la factura ni en el recibo. Cuando se crea el kit, el *nombre del kit de artículos* se cargará desde el *artículo del kit de artículos* seleccionado.
 
-* *Item Kit Description* is description of the kit for internal use only.  It will not appear on invoices or receipts.
+* *Descripción del kit de artículos* es la descripción del kit para uso interno únicamente. No aparecerá en las facturas ni en los recibos.
 
-* *Kit Item* is the item number of the item on the `item` table that represents the kit.  This is an optional field and is needed only if you need the *kit item* listed on the invoice or receipt, or you need to track the the number of kits that you have available to sale.
+* *Artículo del kit* es el número de artículo del artículo en la tabla `item` que representa el kit. Este es un campo opcional y solo es necesario si se requiere que el *artículo del kit* aparezca listado en la factura o el recibo, o si se necesita rastrear la cantidad de kits que se tienen disponibles para la venta.
 
-* *Item Kit Discount* is the discount amount to be applied to all items in the kit.  This discount is only applied if the *item kit discount* is greater than the customer discount.
+* *Descuento del kit de artículos* es el monto de descuento que se aplicará a todos los artículos del kit. Este descuento solo se aplica si el *descuento del kit de artículos* es mayor que el descuento del cliente.
 
-* *Kit Pricing Method* is a code that identifies how the prices are to be applied to item kit items when they are added to the `sales_items` table.  The values are(0=all item kit items are priced based on the price found in the `items` table which includes the kit item itself (if it exists and if a price is assigned to it), 1=The kit is priced based on the price of the *kit item*, 2=The kit is priced based on the price of the kit item* plus the price of any stocked items that are included in the kit)
+* *Método de fijación de precios del kit* es un código que identifica cómo se deben aplicar los precios a los artículos del kit de artículos cuando se agregan a la tabla `sales_items`. Los valores son (0=todos los artículos del kit de artículos tienen precio basado en el precio encontrado en la tabla `items`, lo cual incluye al propio artículo del kit (si existe y si tiene un precio asignado), 1=El kit tiene precio basado en el precio del *artículo del kit*, 2=El kit tiene precio basado en el precio del *artículo del kit* más el precio de cualquier artículo con existencia que esté incluido en el kit)
 
-* *Print Kit Items* is a code that identifies whether or not items with a zero price should be included in the printed receipt or invoice.  The values are (0=Include all item kit items in the receipt and invoice, 1=Include only priced items in the receipt or invoice, 2=Include only the *kit item* in the receipt or invoice.)  
+* *Imprimir artículos del kit* es un código que identifica si los artículos con precio cero deben incluirse o no en el recibo o factura impresos. Los valores son (0=Incluir todos los artículos del kit de artículos en el recibo y la factura, 1=Incluir solo los artículos con precio en el recibo o la factura, 2=Incluir solo el *artículo del kit* en el recibo o la factura.)
 
-*Item Kit Items* represent an individual item that is part of a kit.  The same item can be a component of multiple kits. 
+*Los Artículos del Kit de Artículos* representan un artículo individual que forma parte de un kit. El mismo artículo puede ser componente de múltiples kits.
 
-An *Item Kit* can also combine both *stock* and *labor* items.
+*Un Kit de Artículos* también puede combinar artículos tanto de *existencia* como de *mano de obra*.
 
-If an *Item Kit* can be inventoried then it must reference an entry in the *Item* table that is stocked.
+Si *un Kit de Artículos* puede inventariarse, entonces debe hacer referencia a una entrada en la tabla *Artículo* que tenga existencia.
 
-If an *Item Kit* is to be listed as an item in a sale then it must reference an entry in the *Item* Table.
+Si *un Kit de Artículos* debe listarse como un artículo en una venta, entonces debe hacer referencia a una entrada en la tabla *Artículo*.
 
-If an *Item Kit* does not represent an item that is in the *Item* table then it serves only to facilitate the ordering and receiving of a collection of items at one time.  The kit itself will not be listed on the order or receivings report
- 
-An *Item Kit* can represent a group of inventoried items that are kept in inventory separately but that can be sold as a set sold as a set at a possible discount (such as a party pack).
+Si *un Kit de Artículos* no representa un artículo que esté en la tabla *Artículo*, entonces solo sirve para facilitar el pedido y la recepción de una colección de artículos a la vez. El kit en sí no aparecerá en el reporte de pedidos ni de recepciones.
 
-An *Item Kit* can also represent a collection of services and/or inventoried material used as part of the services included in the kit.
+*Un Kit de Artículos* puede representar un grupo de artículos inventariados que se mantienen en inventario por separado pero que pueden venderse como un conjunto, posiblemente con un descuento (como un paquete de fiesta).
+
+*Un Kit de Artículos* también puede representar una colección de servicios y/o materiales inventariados usados como parte de los servicios incluidos en el kit.
 

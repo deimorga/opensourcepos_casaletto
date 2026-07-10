@@ -1,83 +1,83 @@
 
-[← Back to Usage Guide](Getting-Started-usage) | [Home](Home)
+[← Volver a la Guía de Uso](Getting-Started-usage) | [Inicio](Home)
 
 ---
 
-## Sales Features
+## Funcionalidades de Ventas
 
-## Definitions/Structure
+## Definiciones/Estructura
 ![sales](https://github.com/jekkos/opensourcepos/blob/master/design/sales.png)
 
-Not yet included in the entity diagram is the following field which was added to both the `sales_items` table and the `sales_suspended~items` table.  The field is `print_option`.  The values are ..
-- `0` - Include sales item in list of items when printing invoice and receipt
-- `1` - If the price is zero then exclude the sales item from being included in the receipt and invoice detail.
-- `2` - Always exclude the sales item from being included in the receipt and invoice detail.
+Aún no está incluido en el diagrama de entidades el siguiente campo, que fue agregado tanto a la tabla `sales_items` como a la tabla `sales_suspended~items`. El campo es `print_option`. Los valores son...
+- `0` - Incluir el artículo de venta en la lista de artículos al imprimir la factura y el recibo.
+- `1` - Si el precio es cero, entonces excluir el artículo de venta de ser incluido en el detalle del recibo y la factura.
+- `2` - Excluir siempre el artículo de venta de ser incluido en el detalle del recibo y la factura.
 
 
-## 3. Rules of Operation
+## 3. Reglas de Operación
 
-### Sales
+### Ventas
 
-- At the point of sale all *stock items* are checked to see if there is sufficient quantity on hand to satisfy the sale.  If the *Item Type* is set to *non-stock* then the validation will not take place.
+- En el punto de venta, todos los *artículos de inventario* (stock items) se verifican para comprobar si hay cantidad suficiente disponible para satisfacer la venta. Si el *Tipo de Artículo* está configurado como *sin inventario* (non-stock), entonces la validación no se realizará.
 
-### Invoice Print
+### Impresión de Factura
 
-### Quotes
+### Cotizaciones
 
-Quote documents are not yet supported.  They are documented here to solicit feedback.  Issue #352 is the basis for the majority of design specs documented here.
+Los documentos de cotización todavía no son compatibles. Se documentan aquí para solicitar retroalimentación. El Issue #352 es la base de la mayoría de las especificaciones de diseño documentadas aquí.
 
-Invoices can currently be printed by checking the "Print Invoice" checkbox during Sales entry.  However this option is currently only available when the sale is complete and payment in full is complete.
+Actualmente las facturas se pueden imprimir marcando la casilla "Imprimir Factura" durante el registro de la venta. Sin embargo, esta opción solo está disponible cuando la venta está completa y el pago se ha realizado en su totalidad.
 
 
-With *Invoice* selected the check box labeled "Create Invoice" will be selected and a button labeled "Invoice" will be available (between "Suspend" and "Cancel").  At any point the user can click on the Invoice button which will complete the sale and print the invoice.  The addition information that is usually available only when payment is complete will be available for use.  When the *Invoice* button is pressed the sale will be completed and the invoice document will be printed.it will "Complete" the sale as an Invoice sale instead of a Receipt sale.
+Con *Factura* seleccionada, la casilla etiquetada "Crear Factura" quedará marcada y estará disponible un botón etiquetado "Factura" (entre "Suspender" y "Cancelar"). En cualquier momento el usuario puede hacer clic en el botón Factura, lo cual completará la venta e imprimirá la factura. La información adicional que normalmente solo está disponible cuando el pago está completo estará disponible para su uso. Cuando se presiona el botón *Factura*, la venta se completará y se imprimirá el documento de factura. Esto "Completará" la venta como una venta de tipo Factura en lugar de una venta de tipo Recibo.
 
-With *Quote* selected the check box labeled "Create Invoice" will not be selected and the middle button will be labeled "Quote" instead of "Invoice".  (If the user wants to bypass creating a Quote and go directly to creating an Invoice then the user only needs to select the "Create Invoice" button.)  After entering the sale when the user presses the "Quote" button the sale will be suspended and a quote document will be printed.
+Con *Cotización* seleccionada, la casilla etiquetada "Crear Factura" no estará marcada y el botón central se etiquetará como "Cotización" en lugar de "Factura". (Si el usuario desea omitir la creación de una Cotización e ir directamente a la creación de una Factura, solo necesita seleccionar el botón "Crear Factura"). Después de registrar la venta, cuando el usuario presione el botón "Cotización", la venta quedará suspendida y se imprimirá un documento de cotización.
 
-Even with "Invoice" or "Quote" selected the standard "Receipt" behavior is achieved by pressing on the "Complete" button which is still available.
+Incluso con "Factura" o "Cotización" seleccionada, el comportamiento estándar de "Recibo" se logra presionando el botón "Completar", que sigue estando disponible.
  
-## 4. Configuration
+## 4. Configuración
 
-### Invoicing
+### Facturación
 
-**Enable Invoicing** - If checked then the option for printing invoices instead of a receipt at the completion of a sale will be available.
+**Habilitar Facturación** - Si está marcada, estará disponible la opción de imprimir facturas en lugar de un recibo al completar una venta.
 
-**Default Register Mode** - [PROPOSED] When the user returns to the Register the register will default to one of the following modes.
-- *Sale* - When the sale is complete and payment received in full then a sales receipt will be printed.
-- *Sale by Invoice* - When the sales is complete, regardless of the amount paid, an invoice will be  printed.
-- *Quote* - This is used to prepare a quote document.  When completed the sales transaction derived from the quoate is suspended and can be unsuspended and process either as a "Sale" or a "Sale by Invoice".
+**Modo de Registro Predeterminado** - [PROPUESTO] Cuando el usuario vuelve al Registro (Register), este tomará por defecto uno de los siguientes modos.
+- *Venta* - Cuando la venta está completa y el pago se recibió en su totalidad, se imprimirá un recibo de venta.
+- *Venta por Factura* - Cuando la venta está completa, sin importar el monto pagado, se imprimirá una factura.
+- *Cotización* - Se utiliza para preparar un documento de cotización. Al completarse, la transacción de venta derivada de la cotización queda suspendida y puede reanudarse (unsuspend) y procesarse ya sea como "Venta" o como "Venta por Factura".
 
-**Sales Invoice Format** - This is how the invoice number will be formatted when it is assigned.  There are three codes that you can provide that will be translated to a particular value.  Normally only one is used.
-- *$CO or {CO:9}* - This will be replaced with the number of sales records that have an invoice number.
-- *$YCO or {YCO:9}* - This will be replaced with the number of sales records with rollover each year.
-- *$SCO or {SCO:9}* - This is a count of the number of suspended sales records with an invoice number.
-- *{ISEQ:9}* - This will use the "Last invoice number used" configuration value to build the invoice when the sale is complete.  When the sale is complete the value is incremented and replaces {ISEQ}.  If the invoice number should be a fixed number of digits then the number of digits to use can be indicated using the following format {ISEQ:9} with the single numeric digit after the colon representing the number of digits that should be returned.  It can be up to 9 digits long with 0 indicating that the number should be as long as necessary to hold the full value and {xxx:0} and {xxx} will be treated the same.
-- *%y* -  The two digit year from the date of sale replaces the value %y.  In fact, there are numerous "%" tokens that are based on current system date and time.  They are listed at http://php.net/manual/en/function.strftime.php
+**Formato de Factura de Venta** - Así es como se formateará el número de factura cuando se le asigne uno. Existen tres códigos que se pueden proporcionar y que se traducirán a un valor en particular. Normalmente solo se usa uno.
+- *$CO o {CO:9}* - Se reemplazará con el número de registros de venta que tienen un número de factura.
+- *$YCO o {YCO:9}* - Se reemplazará con el número de registros de venta reiniciando el conteo cada año.
+- *$SCO o {SCO:9}* - Es un conteo del número de registros de venta suspendidos que tienen un número de factura.
+- *{ISEQ:9}* - Usará el valor de configuración "Último número de factura usado" para construir la factura cuando la venta se complete. Al completarse la venta, el valor se incrementa y reemplaza a {ISEQ}. Si el número de factura debe tener una cantidad fija de dígitos, la cantidad de dígitos a usar se puede indicar con el formato {ISEQ:9}, donde el dígito numérico después de los dos puntos representa la cantidad de dígitos que se deben devolver. Puede tener hasta 9 dígitos de largo, donde 0 indica que el número debe tener la longitud necesaria para contener el valor completo, y {xxx:0} y {xxx} se tratarán de la misma manera.
+- *%y* - El año de dos dígitos de la fecha de venta reemplaza el valor %y. De hecho, existen numerosos tokens "%" basados en la fecha y hora actual del sistema. Están listados en http://php.net/manual/en/function.strftime.php
 
-For example, If the value "INV-%y{ISEQ:6}" will render the invoice number INV-17000032 if prior to generation the value of the last invoice number used is 31 and the year of the sale is 2017.
+Por ejemplo, si el valor es "INV-%y{ISEQ:6}", se generará el número de factura INV-17000032 si, antes de la generación, el valor del último número de factura usado es 31 y el año de la venta es 2017.
 
-**Invoice Email Template**
+**Plantilla de Correo de Factura**
 
-**Invoice Comment** - This is the text of a comment that will be automatically added to every invoice that is generated.
+**Comentario de Factura** - Este es el texto de un comentario que se agregará automáticamente a cada factura que se genere.
 
-**Sequence of Invoice Lines** - The line items on invoice can be printed in four sequences.  The ability to control this is configured at a global level.  The options are
+**Secuencia de Líneas de Factura** - Las líneas de artículos en la factura se pueden imprimir en cuatro secuencias. La capacidad de controlar esto se configura a nivel global. Las opciones son:
 
-- *Entry* - This will list the items in the sequence in which they were entered. The first item entered will be listed first.  This is the default.
-- *Group by Type* - This will group the items by stock type.  Non-stock items will be listed first followed by stock items.  Within each group the items will be sorted by name or alternate description.
-- *Group by Category* - This will group the items by category.  The categories will be listed by category name.  Within a category the items will be sorted by name or alternate description. 
+- *Entrada (Entry)* - Listará los artículos en la secuencia en la que fueron ingresados. El primer artículo ingresado se listará primero. Este es el valor predeterminado.
+- *Agrupar por Tipo* - Agrupará los artículos por tipo de inventario. Los artículos sin inventario (non-stock) se listarán primero, seguidos por los artículos con inventario (stock). Dentro de cada grupo, los artículos se ordenarán por nombre o descripción alternativa.
+- *Agrupar por Categoría* - Agrupará los artículos por categoría. Las categorías se listarán por nombre de categoría. Dentro de una categoría, los artículos se ordenarán por nombre o descripción alternativa.
 
-**Last used invoice number** - [Proposed] This will contain the last number used to build an invoice number where the {ISEQ:9} is part of the format.
+**Último número de factura usado** - [Propuesto] Contendrá el último número usado para construir un número de factura donde {ISEQ:9} es parte del formato.
 
-**Sales Quote Format** - This is how the quote number will be formatted when it is assigned.  There following codes can be used to assign a particular value.  Normally only one is used but they can be combined.
-- *$CO or {CO:9}* - This will be replaced with the number of sales records that have an invoice number.
-- *$YCO or {YCO:9}* - This will be replaced with the number of sales records.
-- *$SCO or {SCO:9}* - This is a count of the number of suspended sales records with an invoice number.
-- *{QSEQ:9}* - [Proposed] This will use the "Last quote number used" configuration value to build the invoice when the sale is complete.  When the sale is complete the value is incremented and replaces {QSEQ:9}.  If the quote number should be a fixed number of digits then the number of digits to use can be indicated using the following format {QSEQ:0} with the number of zeros between the brackets indicating how long the number should be. It can be up to 9 digits long with 0 indicating that the number should be as long as necessary to hold the full value and {xxx:0} and {xxx} will be treated the same.
-- *%y* - The two digit year from the date of sale replaces the value %y. In fact, there are numerous "%" tokens that are based on current system date and time.  They are listed at http://php.net/manual/en/function.strftime.php
+**Formato de Cotización de Venta** - Así es como se formateará el número de cotización cuando se le asigne uno. Se pueden usar los siguientes códigos para asignar un valor en particular. Normalmente solo se usa uno, pero se pueden combinar.
+- *$CO o {CO:9}* - Se reemplazará con el número de registros de venta que tienen un número de factura.
+- *$YCO o {YCO:9}* - Se reemplazará con el número de registros de venta.
+- *$SCO o {SCO:9}* - Es un conteo del número de registros de venta suspendidos que tienen un número de factura.
+- *{QSEQ:9}* - [Propuesto] Usará el valor de configuración "Último número de cotización usado" para construir la factura cuando la venta se complete. Al completarse la venta, el valor se incrementa y reemplaza a {QSEQ:9}. Si el número de cotización debe tener una cantidad fija de dígitos, la cantidad de dígitos a usar se puede indicar con el formato {QSEQ:0}, donde la cantidad de ceros entre corchetes indica cuán largo debe ser el número. Puede tener hasta 9 dígitos de largo, donde 0 indica que el número debe tener la longitud necesaria para contener el valor completo, y {xxx:0} y {xxx} se tratarán de la misma manera.
+- *%y* - El año de dos dígitos de la fecha de venta reemplaza el valor %y. De hecho, existen numerosos tokens "%" basados en la fecha y hora actual del sistema. Están listados en http://php.net/manual/en/function.strftime.php
 
-For example, If the value "Q%y{QSEQ:6}" will render the quote number Q17000032 if prior to generation the value of the last invoice number used is 31 and the year of the sale is 2017.
+Por ejemplo, si el valor es "Q%y{QSEQ:6}", se generará el número de cotización Q17000032 si, antes de la generación, el valor del último número de factura usado es 31 y el año de la venta es 2017.
 
-**Last used quote number** - [Proposed] This will contain the last number used to build a quote number where {QSEQ:9} is part of the format.
+**Último número de cotización usado** - [Propuesto] Contendrá el último número usado para construir un número de cotización donde {QSEQ:9} es parte del formato.
 
 ---
 
-**This is work in progress.  Feedback is always appreciated.**
+**Este es un trabajo en progreso. Siempre se agradece la retroalimentación.**

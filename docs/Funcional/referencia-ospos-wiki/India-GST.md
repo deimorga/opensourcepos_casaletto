@@ -1,167 +1,167 @@
-[← Back to Configuration](Configuration) | [Home](Home)
+[← Volver a Configuración](Configuration) | [Inicio](Home)
 
 ---
 
-This guide explains how to configure India Goods and Services Tax (GST) in the application.
+Esta guía explica cómo configurar el Impuesto sobre Bienes y Servicios de India (GST) en la aplicación.
 
-## Overview
+## Resumen
 
-India GST (introduced in 2017) uses 3 main tax jurisdictions:
+El GST de India (introducido en 2017) usa 3 jurisdicciones fiscales principales:
 
-| Jurisdiction | Description |
+| Jurisdicción | Descripción |
 |--------------|-------------|
-| **CGST** | Central Goods and Services Tax |
-| **SGST** | State Goods and Services Tax |
-| **IGST** | Integrated Goods and Services Tax |
+| **CGST** | Impuesto Central sobre Bienes y Servicios |
+| **SGST** | Impuesto Estatal sobre Bienes y Servicios |
+| **IGST** | Impuesto Integrado sobre Bienes y Servicios |
 
-Unlike the US with numerous tax jurisdictions, India has only these 3, making it simpler to configure with the Destination Based Tax feature.
+A diferencia de EE. UU., que tiene numerosas jurisdicciones fiscales, India tiene solo estas 3, lo que hace más simple su configuración con la funcionalidad de Impuesto Basado en Destino.
 
-## Tax Code Assignment
+## Asignación de Código de Impuesto
 
-Tax codes are assigned to customers to identify which tax jurisdictions apply:
+Los códigos de impuesto se asignan a los clientes para identificar qué jurisdicciones fiscales aplican:
 
-- **Customer has tax code** - Uses that tax code
-- **No customer tax code** - Uses customer's state to determine tax jurisdiction
-- **Default** - Uses company's default tax code
+- **El cliente tiene código de impuesto** - Se usa ese código de impuesto
+- **El cliente no tiene código de impuesto** - Se usa el estado del cliente para determinar la jurisdicción fiscal
+- **Predeterminado** - Se usa el código de impuesto predeterminado de la empresa
 
-> **Important:** To print a tax invoice for a customer, you must enter their GSTIN (GST Identification Number).
+> **Importante:** Para imprimir una factura fiscal (tax invoice) para un cliente, debes ingresar su GSTIN (Número de Identificación GST).
 
-## Prerequisites
+## Requisitos Previos
 
-Before configuring India GST:
+Antes de configurar el GST de India:
 
-1. Enable **Destination Based Tax** (see [Taxes](Taxes))
-2. Understand tax categories and jurisdictions
-3. Have your company's GSTIN ready
-4. Know which tax slab rates apply to your products
+1. Habilita **Impuesto Basado en Destino** (consulta [Impuestos](Taxes))
+2. Comprende las categorías y jurisdicciones fiscales
+3. Ten a mano el GSTIN de tu empresa
+4. Conoce qué tasas de tramo (slab) de impuesto aplican a tus productos
 
-## Step 1: Enable HSN Codes
+## Paso 1: Habilitar Códigos HSN
 
-Go to **Office → Configuration → General**:
+Ve a **Oficina → Configuración → General**:
 
-| Setting | Value |
+| Configuración | Valor |
 |---------|-------|
-| Include support for HSN Codes | ☑ Checked |
+| Incluir soporte para Códigos HSN | ☑ Marcado |
 
-HSN (Harmonized System Nomenclature) codes classify products for tax purposes.
+Los códigos HSN (Nomenclatura del Sistema Armonizado) clasifican los productos para fines fiscales.
 
-## Step 2: Configure Tax Settings
+## Paso 2: Configurar los Ajustes de Impuestos
 
-Go to **Office → Configuration → Tax**:
+Ve a **Oficina → Configuración → Impuestos**:
 
-| Setting | Value | Notes |
+| Configuración | Valor | Notas |
 |---------|-------|-------|
-| Tax Id | Your GSTIN | Enter your company's GST Identification Number |
-| Tax Included | ☑ or ☐ | Check if prices include tax (VAT-style) |
-| Use Destination Based Tax | ☑ Checked | Required for GST |
+| Tax Id | Tu GSTIN | Ingresa el Número de Identificación GST de tu empresa |
+| Impuesto Incluido | ☑ o ☐ | Marca si los precios incluyen impuesto (estilo IVA) |
+| Usar Impuesto Basado en Destino | ☑ Marcado | Requerido para GST |
 
-## Step 3: Create Tax Codes
+## Paso 3: Crear Códigos de Impuesto
 
-Go to **Office → Taxes**:
+Ve a **Oficina → Impuestos**:
 
-### Create Tax Jurisdictions
+### Crear Jurisdicciones Fiscales
 
-Create tax codes for each jurisdiction your business requires:
+Crea códigos de impuesto para cada jurisdicción que requiera tu negocio:
 
-1. **Your company's tax code** (required) - Represents your location
-2. **CGST** - Central GST jurisdiction
-3. **SGST** - State GST jurisdiction
-4. **IGST** - Integrated GST jurisdiction
-5. **Others** - Any additional state-specific jurisdictions
+1. **El código de impuesto de tu empresa** (requerido) - Representa tu ubicación
+2. **CGST** - Jurisdicción de GST Central
+3. **SGST** - Jurisdicción de GST Estatal
+4. **IGST** - Jurisdicción de GST Integrado
+5. **Otros** - Cualquier jurisdicción adicional específica de un estado
 
-### Create Tax Categories
+### Crear Categorías de Impuesto
 
-Create one tax category for each tax slab:
+Crea una categoría de impuesto para cada tramo (slab) de impuesto:
 
-| Slab | Category Name |
+| Tramo | Nombre de Categoría |
 |------|---------------|
 | 5% | Tax Category 5% |
 | 12% | Tax Category 12% |
 | 18% | Tax Category 18% |
 | 28% | Tax Category 28% |
 
-### Create Tax Rates
+### Crear Tasas de Impuesto
 
-Define tax rates for each combination:
-- Tax Code (jurisdiction)
-- Tax Category (slab)
-- Tax Rate (percentage)
+Define las tasas de impuesto para cada combinación:
+- Código de Impuesto (jurisdicción)
+- Categoría de Impuesto (tramo)
+- Tasa de Impuesto (porcentaje)
 
-## Step 4: Set Defaults
+## Paso 4: Establecer Valores Predeterminados
 
-Go to **Office → Configuration → Tax**:
+Ve a **Oficina → Configuración → Impuestos**:
 
-| Setting | Value |
+| Configuración | Valor |
 |---------|-------|
-| Default Tax Category | Your most common tax slab |
-| Default Tax Jurisdiction | Your company's state |
-| Default Tax Code | Your company's tax code |
+| Categoría de Impuesto Predeterminada | Tu tramo de impuesto más común |
+| Jurisdicción Fiscal Predeterminada | El estado de tu empresa |
+| Código de Impuesto Predeterminado | El código de impuesto de tu empresa |
 
-## Step 5: Configure Items
+## Paso 5: Configurar los Artículos
 
-For each item:
+Para cada artículo:
 
-1. Go to **Items → Manage Items**
-2. Edit the item
-3. Enter the **HSN Code** (product classification)
-4. Select the **Tax Category** (tax slab)
-5. Click **Submit**
+1. Ve a **Artículos → Administrar Artículos**
+2. Edita el artículo
+3. Ingresa el **Código HSN** (clasificación del producto)
+4. Selecciona la **Categoría de Impuesto** (tramo de impuesto)
+5. Haz clic en **Enviar**
 
-> **Note:** If an item has no tax category, the Default Tax Category will be used.
+> **Nota:** Si un artículo no tiene categoría de impuesto, se usará la Categoría de Impuesto Predeterminada.
 
-## Step 6: Configure Customers
+## Paso 6: Configurar los Clientes
 
-For each customer:
+Para cada cliente:
 
-1. Go to **Customers → Manage Customers**
-2. Edit the customer
-3. Assign **Tax Code** (if different from default)
-4. Enter **GSTIN** (if they need tax invoices)
-5. Click **Submit**
+1. Ve a **Clientes → Administrar Clientes**
+2. Edita el cliente
+3. Asigna el **Código de Impuesto** (si es diferente al predeterminado)
+4. Ingresa el **GSTIN** (si necesitan facturas fiscales)
+5. Haz clic en **Enviar**
 
-> **Tax Invoice:** If GSTIN is provided, a tax invoice is generated. Otherwise, a standard invoice is generated.
+> **Factura Fiscal:** Si se proporciona el GSTIN, se genera una factura fiscal (tax invoice). De lo contrario, se genera una factura estándar.
 
-## Example Configuration
+## Ejemplo de Configuración
 
-### Example: Company in Maharashtra
+### Ejemplo: Empresa en Maharashtra
 
-**Tax Codes:**
-- `MH-CGST` - Maharashtra CGST (9%)
-- `MH-SGST` - Maharashtra SGST (9%)
-- `IGST` - Interstate GST (18%)
+**Códigos de Impuesto:**
+- `MH-CGST` - CGST de Maharashtra (9%)
+- `MH-SGST` - SGST de Maharashtra (9%)
+- `IGST` - GST Interestatal (18%)
 
-**Tax Categories:**
-- `GST-5` - 5% slab
-- `GST-12` - 12% slab
-- `GST-18` - 18% slab
-- `GST-28` - 28% slab
+**Categorías de Impuesto:**
+- `GST-5` - tramo 5%
+- `GST-12` - tramo 12%
+- `GST-18` - tramo 18%
+- `GST-28` - tramo 28%
 
-**Tax Rates:**
-| Tax Code | Category | Rate |
+**Tasas de Impuesto:**
+| Código de Impuesto | Categoría | Tasa |
 |----------|----------|------|
 | MH-CGST | GST-18 | 9% |
 | MH-SGST | GST-18 | 9% |
 | IGST | GST-18 | 18% |
 
-### For Sale Within Maharashtra:
+### Para Venta Dentro de Maharashtra:
 - CGST: 9%
 - SGST: 9%
 - Total: 18%
 
-### For Sale Outside Maharashtra (Interstate):
+### Para Venta Fuera de Maharashtra (Interestatal):
 - IGST: 18%
 
-## Troubleshooting
+## Solución de Problemas
 
-| Issue | Solution |
+| Problema | Solución |
 |-------|----------|
-| Tax invoice not printing | Verify customer has GSTIN entered |
-| Wrong tax rate | Check item's tax category and customer's tax code |
-| HSN code not showing | Enable "Include support for HSN Codes" in General config |
-| Multiple taxes showing | Verify tax rates are correctly assigned to jurisdictions |
+| La factura fiscal no se imprime | Verifica que el cliente tenga ingresado el GSTIN |
+| Tasa de impuesto incorrecta | Verifica la categoría de impuesto del artículo y el código de impuesto del cliente |
+| El código HSN no aparece | Habilita "Incluir soporte para Códigos HSN" en la configuración General |
+| Aparecen múltiples impuestos | Verifica que las tasas de impuesto estén correctamente asignadas a las jurisdicciones |
 
-## See Also
+## Ver También
 
-- [Taxes](Taxes) - Base tax system and Destination Based Tax
-- [Configuration](Configuration) - Store configuration
-- [Items](Items) - Managing inventory items
+- [Impuestos](Taxes) - Sistema de impuestos base e Impuesto Basado en Destino
+- [Configuración](Configuration) - Configuración de la tienda
+- [Artículos](Items) - Gestión de artículos de inventario

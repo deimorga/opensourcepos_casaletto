@@ -1,40 +1,40 @@
-**NOTE: This guide is for local testing only. For production use, a proper LAMP/LEMP stack is recommended.**
+**NOTA: Esta guía es solo para pruebas locales. Para uso en producción, se recomienda un stack LAMP/LEMP adecuado.**
 
-**OSPOS requires PHP 8.1 or higher. Make sure your XAMPP version includes PHP 8.1+.**
+**OSPOS requiere PHP 8.1 o superior. Asegúrate de que tu versión de XAMPP incluya PHP 8.1+.**
 
-## Installation Steps
+## Pasos de Instalación
 
-1. Download and install XAMPP with PHP 8.1+ from https://www.apachefriends.org/download.html
+1. Descarga e instala XAMPP con PHP 8.1+ desde https://www.apachefriends.org/download.html
 
-2. Launch the XAMPP Control Panel and start Apache and MySQL.
+2. Abre el Panel de Control de XAMPP e inicia Apache y MySQL.
 
-3. From Apache select Config and edit the Php.ini file to enable the following extensions:
+3. Desde Apache selecciona Config y edita el archivo Php.ini para habilitar las siguientes extensiones:
    
-   - `extension=gd` - for image processing
-   - `extension=intl` - for internationalization
-   - `extension=bcmath` - for arbitrary precision math
-   - `extension=mbstring` - for multibyte strings
-   - `extension=curl` - for HTTP requests
-   - `extension=xml` - for XML processing
-   - `extension=mysqli` - for MySQL database connections
+   - `extension=gd` - para procesamiento de imágenes
+   - `extension=intl` - para internacionalización
+   - `extension=bcmath` - para matemáticas de precisión arbitraria
+   - `extension=mbstring` - para cadenas multibyte
+   - `extension=curl` - para solicitudes HTTP
+   - `extension=xml` - para procesamiento de XML
+   - `extension=mysqli` - para conexiones a base de datos MySQL
 
-4. Download the latest OSPOS release from https://github.com/opensourcepos/opensourcepos/releases
+4. Descarga la última versión de OSPOS desde https://github.com/opensourcepos/opensourcepos/releases
 
-5. If using Windows, right-click the downloaded zip file, select Properties, and click Unblock if the button is present. Then extract the file.
+5. Si usas Windows, haz clic derecho en el archivo zip descargado, selecciona Propiedades, y haz clic en Desbloquear si el botón está presente. Luego extrae el archivo.
 
-6. Place the extracted folder into the `htdocs` directory.
+6. Coloca la carpeta extraída dentro del directorio `htdocs`.
 
-7. In XAMPP Control Panel go to MySQL - Admin to open phpMyAdmin.
+7. En el Panel de Control de XAMPP ve a MySQL - Admin para abrir phpMyAdmin.
 
-8. Create a new database named `ospos` (or your preferred name).
+8. Crea una nueva base de datos llamada `ospos` (o el nombre que prefieras).
 
-9. **(Older versions only)** Import database schema:
+9. **(Solo versiones antiguas)** Importa el esquema de la base de datos:
    
-   > **Note:** For current releases (stable and unstable), the database is created automatically on first run. This step is only needed for older versions.
+   > **Nota:** Para las versiones actuales (estables e inestables), la base de datos se crea automáticamente en la primera ejecución. Este paso solo es necesario para versiones antiguas.
    
-   Select the database, go to Import, and browse to locate `app/Database/database.sql`. Select it for import.
+   Selecciona la base de datos, ve a Importar, y navega para ubicar `app/Database/database.sql`. Selecciónalo para importar.
 
-10. Configure the database connection by copying `.env.example` to `.env` and editing the following lines:
+10. Configura la conexión a la base de datos copiando `.env.example` a `.env` y editando las siguientes líneas:
     
     ```
     database.default.hostname = 'localhost'
@@ -43,20 +43,20 @@
     database.default.password = ''    # default XAMPP has no password
     ```
 
-11. Set proper permissions on the `writable` directory. On Windows, this is usually not required.
+11. Establece los permisos adecuados en el directorio `writable`. En Windows, esto usualmente no es necesario.
 
-12. Go to `http://localhost/opensourcepos/public` (replace `opensourcepos` with your folder name) to see the login screen.
+12. Ve a `http://localhost/opensourcepos/public` (reemplaza `opensourcepos` con el nombre de tu carpeta) para ver la pantalla de inicio de sesión.
 
-13. Default credentials:
-    - Username: `admin`
-    - Password: `pointofsale`
+13. Credenciales por defecto:
+    - Usuario: `admin`
+    - Contraseña: `pointofsale`
 
-## Troubleshooting
+## Solución de Problemas
 
-- If you get a "system folder missing" error, make sure you downloaded a release build, not the source code. Or run `npm install` and build the project.
-- If extensions aren't loading, restart Apache after modifying php.ini.
-- For detailed extension requirements, see [issue 1607](https://github.com/opensourcepos/opensourcepos/issues/1607).
+- Si obtienes un error de "falta la carpeta system", asegúrate de haber descargado una versión compilada (release build), no el código fuente. O ejecuta `npm install` y compila el proyecto.
+- Si las extensiones no cargan, reinicia Apache después de modificar php.ini.
+- Para conocer en detalle los requisitos de extensiones, consulta el [issue 1607](https://github.com/opensourcepos/opensourcepos/issues/1607).
 
-## WAMP Users
+## Usuarios de WAMP
 
-If you are using WAMP instead of XAMPP, follow similar steps but ensure the ICU extension files are copied to the correct locations for intl support.
+Si estás usando WAMP en lugar de XAMPP, sigue pasos similares pero asegúrate de que los archivos de extensión ICU estén copiados en las ubicaciones correctas para el soporte de intl.

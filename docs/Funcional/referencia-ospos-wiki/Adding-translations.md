@@ -1,28 +1,28 @@
-[← Back to Home](Home)
+[← Volver a Inicio](Home)
 
 ---
 
-Find our [Weblate website here](https://translate.opensourcepos.org) and sign up to help translating this fine application. After registering you can subscribe to different languages and you will be notified once a new translation is added.
+Encuentra nuestro [sitio web de Weblate aquí](https://translate.opensourcepos.org) y regístrate para ayudar a traducir esta gran aplicación. Después de registrarte puedes suscribirte a diferentes idiomas y se te notificará cada vez que se agregue una nueva traducción.
 
 [![Translation status](https://translate.opensourcepos.org/widgets/opensourcepos/-/multi-green.svg)](https://translate.opensourcepos.org/engage/opensourcepos/?utm_source=widget)
 
-## Translations Guideline
+## Guía de Traducciones
 
-While not all guidelines will apply straight to all languages, we'd like to propose a few "Translation Guidelines" to be used and recommended for all translations:
+Aunque no todas las pautas aplicarán directamente a todos los idiomas, nos gustaría proponer algunas "Pautas de Traducción" para usar y recomendar en todas las traducciones:
 
-- Titles follow capitalization rules for title format.  That is first Letter of each word capitalized except unimportant words and no punctuation is used (e.g., not "Change password." but instead "Change Password"). 
-- Sentences follow sentence grammar rules for punctuation and capitalization specific to the language (e.g., not "one or more of the has processed sales or you are trying to delete your account" but instead "one or more of the has processed sales or you are trying to delete your account.").
-- When sentences reference a field, it is referred to in the exact same format as the field (e.g., not "the title is a required field" but instead "Title is a required field").
-- Use a consistent success/failure message format.  Currently, I see "The {field} was successfully updated" and in other places "{field} update successful", but I think we should stick to "{field} update successful" and {field} update failed" style messages.  There are three major reasons for this: Succinct translations, consistency and it allows us to remove dozens of translated lines because we only need one translated line for "update successful" and "update failed"  or "is a required field." and in the code we can call the field name and either update successful or failed.  Of course there will be exceptions where we want to add more information, and for those we can have a separate translation line.
-- Gift Card(s) in the translation should be two words.  In the code it is one word, but English and most other languages it is two words.
+- Los títulos siguen las reglas de capitalización de formato título. Es decir, la primera letra de cada palabra en mayúscula excepto palabras poco importantes, y no se usa puntuación (por ejemplo, no "Cambiar contraseña." sino "Cambiar Contraseña").
+- Las oraciones siguen las reglas gramaticales de puntuación y capitalización específicas del idioma (por ejemplo, no "uno o más ha procesado ventas o estás intentando eliminar tu cuenta" sino "uno o más ha procesado ventas o estás intentando eliminar tu cuenta.").
+- Cuando las oraciones hacen referencia a un campo, se le nombra exactamente en el mismo formato que el campo (por ejemplo, no "el título es un campo obligatorio" sino "Título es un campo obligatorio").
+- Usa un formato consistente de mensaje de éxito/fallo. Actualmente se ve "El {campo} se actualizó correctamente" y en otros lugares "{campo} actualización exitosa", pero deberíamos mantenernos con el estilo de mensajes "{campo} actualización exitosa" y "{campo} actualización fallida". Hay tres razones principales para esto: traducciones más concisas, consistencia, y permite eliminar docenas de líneas traducidas porque solo necesitamos una línea traducida para "actualización exitosa" y "actualización fallida" o "es un campo obligatorio", y en el código podemos llamar al nombre del campo y ya sea actualización exitosa o fallida. Por supuesto habrá excepciones donde queramos agregar más información, y para esas podemos tener una línea de traducción separada.
+- Gift Card(s) en la traducción debería ser dos palabras (Tarjeta(s) de Regalo). En el código es una sola palabra, pero en español y la mayoría de los otros idiomas son dos palabras.
 
-# Translation in the "old way"
+# Traducción a la "manera antigua"
 
-**Note:** The preferred method is to use Weblate at https://translate.opensourcepos.org for translations. The manual method below is kept for reference.
+**Nota:** El método preferido es usar Weblate en https://translate.opensourcepos.org para las traducciones. El método manual a continuación se mantiene como referencia.
 
-In order to add a translation manually, the below steps should be followed (German is an example in this case):
+Para agregar una traducción manualmente, se deben seguir los siguientes pasos (el alemán es un ejemplo en este caso):
 
-- Edit the language files in the `app/Language/` directory, creating a new subdirectory for your language code (e.g., `app/Language/de/` for German)
-- The language identifier must follow the standard locale codes (e.g., `de`, `de-DE`, `de-AT`, `de-CH`). Be careful to not simply select `de` because German from Germany is different from German in Switzerland
-- Make a pull request based on the latest master. This pull request should contain the generated PHP language files
-- Go to Store Config and Locale tab and select your language
+- Edita los archivos de idioma en el directorio `app/Language/`, creando un nuevo subdirectorio para tu código de idioma (por ejemplo, `app/Language/de/` para alemán)
+- El identificador de idioma debe seguir los códigos de configuración regional estándar (por ejemplo, `de`, `de-DE`, `de-AT`, `de-CH`). Ten cuidado de no seleccionar simplemente `de`, porque el alemán de Alemania es diferente del alemán en Suiza
+- Haz un pull request basado en el último master. Este pull request debe contener los archivos de idioma PHP generados
+- Ve a Configuración de Tienda y en la pestaña Locale (Configuración Regional) selecciona tu idioma

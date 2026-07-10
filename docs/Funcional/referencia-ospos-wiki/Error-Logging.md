@@ -1,70 +1,70 @@
 
-[← Back to Development Index](Development-Index)
+[← Volver al Índice de Desarrollo](Development-Index)
 
 ---
 
-Logging is not activated by default. There are two places to check for errors: **server side** and **client side**.
+El registro de logs no está activado por defecto. Hay dos lugares donde revisar errores: **lado del servidor** y **lado del cliente**.
 
-## Table of Contents
+## Tabla de Contenidos
 
-- [Client Side Error Log](#error-log-on-client-side)
-- [Server Side Error Log](#error-log-on-server-side)
-  - [Application Error Log](#application-error-log)
-  - [Web Server Error Log](#webserver-error-log)
+- [Registro de Errores del Lado del Cliente](#error-log-on-client-side)
+- [Registro de Errores del Lado del Servidor](#error-log-on-server-side)
+  - [Registro de Errores de la Aplicación](#application-error-log)
+  - [Registro de Errores del Servidor Web](#webserver-error-log)
 
-## Error Log on Client Side
+## Registro de Errores del Lado del Cliente
 
-Depending on the browser, this applies to Firefox/Pale Moon and Chrome/Chromium.
+Dependiendo del navegador, esto aplica a Firefox/Pale Moon y Chrome/Chromium.
 
-1. Before loading the page with an issue, press the F12 key
-2. The screen will split in two parts - the second part is the web browser developer tool
-3. Click on the "Network" tab in the developer tool
-4. All web traffic will be displayed, showing each request and response
-5. Each request will have a line entry, same for each response
+1. Antes de cargar la página con el problema, presiona la tecla F12
+2. La pantalla se dividirá en dos partes - la segunda parte es la herramienta de desarrollador del navegador web
+3. Haz clic en la pestaña "Network" (Red) en la herramienta de desarrollador
+4. Se mostrará todo el tráfico web, mostrando cada solicitud y respuesta
+5. Cada solicitud tendrá una línea de entrada, lo mismo para cada respuesta
 
-![hot F12 at the web browser and see the new split window](https://github.com/venenux/osposos/raw/master/debianOspos/screenshot-ospos-devel-f12-client-log-error.png)
+![presiona F12 en el navegador web y ve la nueva ventana dividida](https://github.com/venenux/osposos/raw/master/debianOspos/screenshot-ospos-devel-f12-client-log-error.png)
 
-## Error Log on Server Side
+## Registro de Errores del Lado del Servidor
 
-Here are various components in action: the application log (disabled by default) and the system components log (Apache log that includes PHP error log, database error log).
+Aquí hay varios componentes en acción: el log de la aplicación (deshabilitado por defecto) y el log de componentes del sistema (log de Apache que incluye el log de errores de PHP, log de errores de la base de datos).
 
-### Application Error Log
+### Registro de Errores de la Aplicación
 
-It's disabled by default. In CodeIgniter 4, logging can be configured in `app/Config/App.php` or via the `.env` file. Set the `CI_ENVIRONMENT` variable to `development` for debugging or `production` for production use.
+Está deshabilitado por defecto. En CodeIgniter 4, el registro se puede configurar en `app/Config/App.php` o mediante el archivo `.env`. Configura la variable `CI_ENVIRONMENT` a `development` para depuración o `production` para uso en producción.
 
-The log threshold can be configured via the `logger.threshold` setting in `.env` (0 = disabled, up to 9 = all messages). For reporting and submitting issues, please set to `4` or higher and attach only relevant parts.
+El umbral del log se puede configurar mediante la opción `logger.threshold` en `.env` (0 = deshabilitado, hasta 9 = todos los mensajes). Para reportar y enviar issues, por favor configúralo en `4` o superior y adjunta solo las partes relevantes.
 
-The default location for log files is `writable/logs/`. Make sure the `writable` directory has proper write permissions for the web server user (e.g., `www-data`).
+La ubicación por defecto para los archivos de log es `writable/logs/`. Asegúrate de que el directorio `writable` tenga los permisos de escritura adecuados para el usuario del servidor web (por ejemplo, `www-data`).
 
-> **Important:** Check directory permissions. The web server user must have write access to `writable/logs/`. If permissions are incorrect, log files will not be created.
+> **Importante:** Revisa los permisos del directorio. El usuario del servidor web debe tener acceso de escritura a `writable/logs/`. Si los permisos son incorrectos, los archivos de log no se crearán.
 
-#### Database SQL Logging
+#### Registro SQL de Base de Datos
 
-Database query logging can be enabled in `app/Config/Database.php` or via the `.env` file. The logs will be written to `writable/logs/` along with application logs.
+El registro de consultas a la base de datos se puede habilitar en `app/Config/Database.php` o mediante el archivo `.env`. Los logs se escribirán en `writable/logs/` junto con los logs de la aplicación.
   
-### Web Server Error Log
+### Registro de Errores del Servidor Web
 
-In standard distributions, a general error log file that registers PHP script processing errors is always present.
+En las distribuciones estándar, siempre está presente un archivo de log de errores general que registra los errores de procesamiento de scripts PHP.
 
-- On standard Linux installations: `/var/log/<webserver>/error.log`
-- On Apache2 binary installations: `${INSTALL_DIR}/logs/error.log`
-- On Nginx/Lighttpd binary installations: `${INSTALL_DIR}/logs/error.log`
+- En instalaciones estándar de Linux: `/var/log/<webserver>/error.log`
+- En instalaciones binarias de Apache2: `${INSTALL_DIR}/logs/error.log`
+- En instalaciones binarias de Nginx/Lighttpd: `${INSTALL_DIR}/logs/error.log`
 
-For example, you can customize this in the Apache configuration file (`apache2.conf` or `http.conf`):
+Por ejemplo, puedes personalizar esto en el archivo de configuración de Apache (`apache2.conf` o `http.conf`):
 
 ```
 ErrorLog "${INSTALL_DIR}/logs/apache_error.log"
 CustomLog "${INSTALL_DIR}/logs/access.log" common
 ```
 
-Refer to your web server documentation for customization options.
+Consulta la documentación de tu servidor web para opciones de personalización.
 
-#### PHP Errors
+#### Errores de PHP
 
-If the error is due to application code issues, you might need to activate the PHP error log.
+Si el error se debe a problemas del código de la aplicación, podrías necesitar activar el log de errores de PHP.
 
-There are two aspects: identifying where the log is created, and establishing what should be written to the log. The application also provides the option to display errors directly in the web page, which is good for debugging but not recommended for production (security reasons). To display PHP errors in your page, set `CI_ENVIRONMENT = development` in your `.env` file.
+Hay dos aspectos: identificar dónde se crea el log, y establecer qué debe escribirse en el log. La aplicación también ofrece la opción de mostrar los errores directamente en la página web, lo cual es útil para depuración pero no se recomienda en producción (por razones de seguridad). Para mostrar los errores de PHP en tu página, configura `CI_ENVIRONMENT = development` en tu archivo `.env`.
 
-The PHP configuration file (`php.ini`) controls error logging. The `php.ini` file is typically found in the PHP installation folder (see [PHP documentation](http://php.net/manual/en/configuration.file.php)).
+El archivo de configuración de PHP (`php.ini`) controla el registro de errores. El archivo `php.ini` normalmente se encuentra en la carpeta de instalación de PHP (ver la [documentación de PHP](http://php.net/manual/en/configuration.file.php)).
 
-Modern PHP installations set the error log path to empty, so it's managed by the web server. Consult the PHP documentation for your specific distribution.
+Las instalaciones modernas de PHP configuran la ruta del log de errores como vacía, por lo que es gestionada por el servidor web. Consulta la documentación de PHP para tu distribución específica.

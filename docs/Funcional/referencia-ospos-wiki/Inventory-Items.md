@@ -1,23 +1,23 @@
-[← Back to Usage Guide](Getting-Started-usage) | [Home](Home)
+[← Volver a la Guía de Uso](Getting-Started-usage) | [Inicio](Home)
 
 ---
 
-Allows employees to load products into inventory. Start by clicking the Items button. This will load your list of items.
+Permite a los empleados cargar productos en el inventario. Comience haciendo clic en el botón Artículos. Esto cargará su lista de artículos.
 
-## Access
+## Acceso
 
-You can **add, remove, modify and manage** items using the [Inventory module](Getting-Started-usage#3-inventory) and use them for sales or returns in the [Sale Module](Getting-Started-usage#4-sales).
+Puede **agregar, eliminar, modificar y administrar** artículos usando el [módulo de Inventario](Getting-Started-usage#3-inventory) y usarlos para ventas o devoluciones en el [módulo de Ventas](Getting-Started-usage#4-sales).
 
-The [Inventory module](Getting-Started-usage#3-inventory) displays a list of recent items and entries for item kits.
+El [módulo de Inventario](Getting-Started-usage#3-inventory) muestra una lista de artículos recientes y entradas de kits de artículos.
 
-The [Sale Module](Getting-Started-usage#4-sales) has an input field to scan barcodes or search items/kits by name or barcode number. The list is presented and you can pick items for the current sale.
+El [módulo de Ventas](Getting-Started-usage#4-sales) cuenta con un campo de entrada para escanear códigos de barras o buscar artículos/kits por nombre o número de código de barras. Se presenta la lista y usted puede elegir los artículos para la venta actual.
 
-## Importing Items
+## Importación de artículos
 
-CSV imports are possible for items to both **add new items** and **update existing items**. The file must follow standard CSV format including a header row. It is recommended that you download the CSV Import Template each time (Items > CSV Import > "Download Import CSV Template (CSV)").
+Es posible realizar importaciones CSV de artículos, tanto para **agregar artículos nuevos** como para **actualizar artículos existentes**. El archivo debe seguir el formato CSV estándar, incluyendo una fila de encabezado. Se recomienda descargar la Plantilla de Importación CSV cada vez (Artículos > Importar CSV > "Descargar plantilla de importación CSV (CSV)").
 
-If the **Id** column is populated with the `item_id`, the importer will **update** the item, but it only replaces attributes and fields where there is a value. Empty fields are ignored rather than removing existing data. For update operations, there are no required columns like in imports.
+Si la columna **Id** está completada con el `item_id`, el importador **actualizará** el artículo, pero solo reemplazará los atributos y campos donde haya un valor. Los campos vacíos se ignoran en lugar de eliminar los datos existentes. Para las operaciones de actualización, no hay columnas obligatorias como sí las hay en las importaciones.
 
-If the **Id** column is left blank, the importer treats the item as new. It checks the barcode against existing barcodes and if **no duplicate barcodes** is enabled, it will create an error if a duplicate is found.
+Si la columna **Id** se deja en blanco, el importador trata al artículo como nuevo. Verifica el código de barras contra los códigos de barras existentes y, si la opción de **sin códigos de barras duplicados** está habilitada, generará un error si se encuentra un duplicado.
 
-Errors are logged in the error log. **If an error occurs, none of the rows will be imported.**
+Los errores se registran en el registro de errores. **Si ocurre un error, no se importará ninguna de las filas.**

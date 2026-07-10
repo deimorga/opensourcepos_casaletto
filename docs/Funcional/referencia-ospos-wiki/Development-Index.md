@@ -1,220 +1,220 @@
 
-[← Back to Home](Home) | [Installation](Getting-Started-installations) | [Error Logging](Error-Logging)
+[← Volver a Inicio](Home) | [Instalación](Getting-Started-installations) | [Registro de Errores](Error-Logging)
 
 ---
 
-## Table of Contents
+## Tabla de Contenidos
 
-- [Overview](#overview)
-- [Server Requirements](#server-requirements)
-- [Architecture](#architecture)
-  - [MVC Pattern](#mvc-pattern)
-  - [Controllers](#controllers)
-  - [Models](#models)
-  - [Filters](#filters)
-- [Development Setup](#development-setup)
-- [Contributing](#contributing)
-  - [Workflow](#workflow-contributions)
-  - [Code Style](#code-style)
-- [Development Tips](#development-tips)
+- [Resumen](#overview)
+- [Requisitos del Servidor](#server-requirements)
+- [Arquitectura](#architecture)
+  - [Patrón MVC](#mvc-pattern)
+  - [Controladores](#controllers)
+  - [Modelos](#models)
+  - [Filtros](#filters)
+- [Configuración del Entorno de Desarrollo](#development-setup)
+- [Contribuir](#contributing)
+  - [Flujo de trabajo](#workflow-contributions)
+  - [Estilo de Código](#code-style)
+- [Consejos de Desarrollo](#development-tips)
 
 ---
 
-## Overview
+## Resumen
 
-Open Source Point of Sale is an open source application evolved from [PHP Point Of Sale](https://github.com/daN4cat/PHP-Point-Of-Sale). [![GitHub version](https://badge.fury.io/gh/jekkos%2Fopensourcepos.svg)](https://badge.fury.io/gh/jekkos%2Fopensourcepos)
+Open Source Point of Sale es una aplicación de código abierto evolucionada a partir de [PHP Point Of Sale](https://github.com/daN4cat/PHP-Point-Of-Sale). [![GitHub version](https://badge.fury.io/gh/jekkos%2Fopensourcepos.svg)](https://badge.fury.io/gh/jekkos%2Fopensourcepos)
 
 [![Translation status](https://translate.opensourcepos.org/widgets/opensourcepos/-/svg-badge.svg)](https://translate.opensourcepos.org/engage/opensourcepos/?utm_source=widget)
 
-### How to Contribute
+### Cómo Contribuir
 
-- **Report bugs:** [Create an issue](https://github.com/opensourcepos/opensourcepos/issues/new)
-- **Translate:** [Weblate](https://translate.opensourcepos.org)
-- **Code:** Read this page, then submit pull requests
+- **Reportar errores:** [Crea un issue](https://github.com/opensourcepos/opensourcepos/issues/new)
+- **Traducir:** [Weblate](https://translate.opensourcepos.org)
+- **Código:** Lee esta página, luego envía pull requests
 
 ---
 
-## Server Requirements
+## Requisitos del Servidor
 
-For full details, see [Minimum Server Requirements](Minimum-Server-Requirements).
+Para más detalles, consulta [Requisitos Mínimos del Servidor](Minimum-Server-Requirements).
 
-### Summary Table
+### Tabla Resumen
 
-| Component | Minimum | Recommended | Notes |
+| Componente | Mínimo | Recomendado | Notas |
 |-----------|---------|-------------|-------|
-| **Web Server** | Apache 2.4 | Apache 2.4 | Nginx also works |
-| **Database** | MySQL 5.7 / MariaDB 10.x | MySQL 8.0 / MariaDB 10.5+ | Percona compatible |
-| **PHP** | 8.1 | 8.3 - 8.4 | PHP ≤7.4 NOT supported |
-| **Hardware** | 64-bit capable | Modern | Raspberry Pi supported |
+| **Servidor Web** | Apache 2.4 | Apache 2.4 | Nginx también funciona |
+| **Base de Datos** | MySQL 5.7 / MariaDB 10.x | MySQL 8.0 / MariaDB 10.5+ | Compatible con Percona |
+| **PHP** | 8.1 | 8.3 - 8.4 | PHP ≤7.4 NO está soportado |
+| **Hardware** | Capaz de 64 bits | Moderno | Raspberry Pi soportado |
 
-### Required PHP Extensions
+### Extensiones de PHP Requeridas
 
-| Extension | Purpose |
+| Extensión | Propósito |
 |-----------|---------|
-| `php-json` | JSON data handling |
-| `php-gd` | Image processing |
-| `php-bcmath` | Arbitrary precision math |
-| `php-intl` | Internationalization |
-| `php-openssl` | SSL/TLS encryption |
-| `php-mbstring` | Multibyte string support |
-| `php-curl` | HTTP requests |
-| `php-xml` | XML processing |
+| `php-json` | Manejo de datos JSON |
+| `php-gd` | Procesamiento de imágenes |
+| `php-bcmath` | Matemática de precisión arbitraria |
+| `php-intl` | Internacionalización |
+| `php-openssl` | Cifrado SSL/TLS |
+| `php-mbstring` | Soporte de cadenas multibyte |
+| `php-curl` | Solicitudes HTTP |
+| `php-xml` | Procesamiento de XML |
 
-### Client Side Requirements
+### Requisitos del Lado del Cliente
 
-| Browser | Minimum Version | Status |
+| Navegador | Versión Mínima | Estado |
 |---------|-----------------|--------|
-| Firefox / Pale Moon | 34+ (ESR) | ✅ Recommended |
-| Chrome / Chromium | 40+ | ✅ Supported |
-| Safari / Edge | Modern | ⚠️ May work |
-| Others | - | ❌ Not supported |
+| Firefox / Pale Moon | 34+ (ESR) | ✅ Recomendado |
+| Chrome / Chromium | 40+ | ✅ Soportado |
+| Safari / Edge | Moderno | ⚠️ Podría funcionar |
+| Otros | - | ❌ No soportado |
 
 ---
 
-## Architecture
+## Arquitectura
 
-The application is built on **CodeIgniter 4** framework. Read the [CodeIgniter 4 documentation](https://codeigniter4.github.io/userguide4/) for framework reference.
+La aplicación está construida sobre el framework **CodeIgniter 4**. Lee la [documentación de CodeIgniter 4](https://codeigniter4.github.io/userguide4/) como referencia del framework.
 
-Additional technologies used:
-- **jQuery** - JavaScript library
-- **Bootstrap 3** - CSS framework with Bootswatch themes
+Tecnologías adicionales usadas:
+- **jQuery** - Librería JavaScript
+- **Bootstrap 3** - Framework CSS con temas Bootswatch
 
-### Directory Structure
+### Estructura de Directorios
 
 ```
 opensourcepos/
 ├── app/
-│   ├── Config/        # Configuration files
-│   ├── Controllers/   # Controllers (MVC)
-│   ├── Models/        # Models (MVC)
-│   ├── Views/         # Views (MVC)
-│   ├── Helpers/       # Helper functions
-│   ├── Libraries/     # Custom libraries
-│   ├── Language/      # Translation files
-│   ├── Database/      # Database schema
-│   └── Filters/       # Request filters
-├── public/            # Web root
-├── writable/          # Logs, cache, uploads
-├── tests/             # PHPUnit tests
-└── vendor/            # Composer dependencies
+│   ├── Config/        # Archivos de configuración
+│   ├── Controllers/   # Controladores (MVC)
+│   ├── Models/        # Modelos (MVC)
+│   ├── Views/         # Vistas (MVC)
+│   ├── Helpers/       # Funciones helper
+│   ├── Libraries/     # Librerías personalizadas
+│   ├── Language/      # Archivos de traducción
+│   ├── Database/      # Esquema de base de datos
+│   └── Filters/       # Filtros de solicitud
+├── public/            # Raíz web
+├── writable/          # Logs, caché, subidas
+├── tests/             # Pruebas PHPUnit
+└── vendor/            # Dependencias de Composer
 ```
 
-### MVC Pattern
+### Patrón MVC
 
-The application follows the Model-View-Controller (MVC) pattern managed by CodeIgniter 4.
+La aplicación sigue el patrón Modelo-Vista-Controlador (MVC) gestionado por CodeIgniter 4.
 
-- **Controllers** handle HTTP requests and business logic
-- **Models** interact with the database
-- **Views** render HTML output
+- Los **Controladores** manejan las solicitudes HTTP y la lógica de negocio
+- Los **Modelos** interactúan con la base de datos
+- Las **Vistas** renderizan la salida HTML
 
-Read the [CodeIgniter 4 MVC documentation](https://codeigniter4.github.io/userguide4/incoming/controllers.html) for details.
+Lee la [documentación de MVC de CodeIgniter 4](https://codeigniter4.github.io/userguide4/incoming/controllers.html) para más detalles.
 
-### Controllers
+### Controladores
 
-Key controllers:
+Controladores clave:
 
-| Controller | Purpose |
+| Controlador | Propósito |
 |------------|---------|
-| `BaseController` | Base class for authenticated controllers |
-| `Login` | Handles user authentication |
-| `Home` | Dashboard and main functionality |
-| `Sales` | POS sales operations |
-| `Items` | Inventory management |
-| `Employees` | Employee/user management |
-| `Reports` | Reporting functionality |
+| `BaseController` | Clase base para controladores autenticados |
+| `Login` | Maneja la autenticación de usuario |
+| `Home` | Panel principal y funcionalidad general |
+| `Sales` | Operaciones de venta del POS |
+| `Items` | Gestión de inventario |
+| `Employees` | Gestión de empleados/usuarios |
+| `Reports` | Funcionalidad de reportes |
 
-Each controller has a corresponding view directory in `app/Views/`.
+Cada controlador tiene un directorio de vistas correspondiente en `app/Views/`.
 
-### Models
+### Modelos
 
-All models are loaded automatically. See `app/Config/Autoload.php` for load order.
+Todos los modelos se cargan automáticamente. Ver `app/Config/Autoload.php` para el orden de carga.
 
-### Filters
+### Filtros
 
-The application uses CodeIgniter 4 filters for:
+La aplicación usa filtros de CodeIgniter 4 para:
 
-- **Session/Authentication** - Verify logged-in user
-- **Configuration loading** - Make config available globally
-- **Database logging** - Optional SQL query logging
+- **Sesión/Autenticación** - Verificar el usuario con sesión iniciada
+- **Carga de configuración** - Hacer disponible la configuración de forma global
+- **Registro de base de datos** - Registro opcional de consultas SQL
 
 ---
 
-## Development Setup
+## Configuración del Entorno de Desarrollo
 
-### Prerequisites
+### Prerrequisitos
 
-1. Install `git`, `npm`, `composer`, `apache`, `mysql`, `php` (8.1+)
-2. Understand web request/response concepts
-3. Read the [CodeIgniter 4 documentation](https://codeigniter4.github.io/userguide4/)
+1. Instalar `git`, `npm`, `composer`, `apache`, `mysql`, `php` (8.1+)
+2. Entender los conceptos de solicitud/respuesta web
+3. Leer la [documentación de CodeIgniter 4](https://codeigniter4.github.io/userguide4/)
 
-### Steps
+### Pasos
 
 ```bash
-# 1. Clone the repository
+# 1. Clonar el repositorio
 git clone https://github.com/opensourcepos/opensourcepos.git
 cd opensourcepos
 
-# 2. Install dependencies
+# 2. Instalar dependencias
 composer install
 npm install
 
-# 3. Configure environment
+# 3. Configurar el entorno
 cp .env.example .env
-# Edit .env with your database credentials
+# Edita .env con tus credenciales de base de datos
 
-# 4. (Older versions only) Import database
-# Note: For current releases, database is created automatically on first run
+# 4. (Solo versiones antiguas) Importar base de datos
+# Nota: Para versiones actuales, la base de datos se crea automáticamente en la primera ejecución
 mysql -u root -p ospos < app/Database/database.sql
 
-# 5. Run development server
+# 5. Ejecutar el servidor de desarrollo
 php spark serve
 ```
 
-For detailed setup instructions, see [Development Environment](Development-Environment).
+Para instrucciones de configuración detalladas, consulta [Entorno de Desarrollo](Development-Environment).
 
 ---
 
-## Contributing
+## Contribuir
 
-### Workflow Contributions
+### Flujo de trabajo para Contribuciones
 
-1. **Fork** the repository on GitHub
-2. **Create a branch** for your changes
-3. **Make your changes** following code style guidelines
-4. **Test thoroughly**
-5. **Submit a pull request** to the `opensourcepos/opensourcepos` repository
+1. Haz un **Fork** del repositorio en GitHub
+2. **Crea una rama** para tus cambios
+3. **Realiza tus cambios** siguiendo las pautas de estilo de código
+4. **Prueba a fondo**
+5. **Envía un pull request** al repositorio `opensourcepos/opensourcepos`
 
 ![Pull Request Workflow](https://s3.amazonaws.com/github-images/blog/2012/easy-pull-request-creation.png)
 
-### Code Style
+### Estilo de Código
 
-- Follow [PSR-12](https://www.php-fig.org/psr/psr-12/) coding standards
-- Use [CodeIgniter 4 style guide](https://codeigniter4.github.io/userguide4/extending/styleguide.html)
-- Use meaningful variable names
-- Add proper PHPDoc comments
-- **Always use translations** (see below)
+- Sigue los estándares de codificación [PSR-12](https://www.php-fig.org/psr/psr-12/)
+- Usa la [guía de estilo de CodeIgniter 4](https://codeigniter4.github.io/userguide4/extending/styleguide.html)
+- Usa nombres de variables significativos
+- Agrega comentarios PHPDoc adecuados
+- **Siempre usa traducciones** (ver abajo)
 
 ---
 
-## Development Tips
+## Consejos de Desarrollo
 
-### Get Current User Information
+### Obtener Información del Usuario Actual
 
 ```php
-// Get logged-in employee object
+// Obtener el objeto del empleado con sesión iniciada
 $employee_object = $this->Employee->get_logged_in_employee_info();
 
-// Get employee ID
+// Obtener el ID del empleado
 $employee_id = $this->Employee->get_logged_in_employee_info()->person_id;
 
-// Recommended: Store in variable to avoid multiple calls
+// Recomendado: Guardar en una variable para evitar múltiples llamadas
 $employee = $this->Employee->get_logged_in_employee_info();
 $employee_id = $employee->person_id;
 ```
 
-### Modal Dialog Links
+### Enlaces de Diálogo Modal
 
-Use the `modal-dlg` CSS class to open links in modal dialogs:
+Usa la clase CSS `modal-dlg` para abrir enlaces en diálogos modales:
 
 ```php
 echo anchor(
@@ -228,18 +228,18 @@ echo anchor(
 );
 ```
 
-### Always Use Translations
+### Siempre Usa Traducciones
 
-**Never hardcode strings.** Always use translation functions:
+**Nunca escribas cadenas de texto de forma fija (hardcode).** Siempre usa las funciones de traducción:
 
 ```php
-// BAD
+// MAL
 echo "Change Password";
 
-// GOOD
+// BIEN
 echo $this->lang->line('employees_change_password');
 
-// In views with anchor()
+// En vistas con anchor()
 echo anchor(
     'home/change_password/'.$user_info->person_id,
     $user_info->first_name,
@@ -251,38 +251,38 @@ echo anchor(
 );
 ```
 
-Translation files are located in:
-- `app/Language/en/Employees.php` (English)
-- `app/Language/es/Employees.php` (Spanish)
+Los archivos de traducción se encuentran en:
+- `app/Language/en/Employees.php` (Inglés)
+- `app/Language/es/Employees.php` (Español)
 - etc.
 
 ---
 
-## Technical Specifications
+## Especificaciones Técnicas
 
-Detailed documentation for specific features:
+Documentación detallada para características específicas:
 
-| Topic | Link |
+| Tema | Enlace |
 |-------|------|
-| Localisation | [Localisation Support](Localisation-support) |
-| Menu and Permissions | [Menu and Permissions](Menu-and-Permissions) |
-| Sales | [Sales](Sales) |
-| Taxes | [Taxes](Taxes) |
-| Work Orders | [Work Orders](Work-Orders) |
-| Items | [Items](Items) |
-| Item Kits | [Item Kits](Item-Kits) |
-| Purchasing | [Purchasing](Purchasing) |
+| Localización | [Soporte de Localización](Localisation-support) |
+| Menú y Permisos | [Menú y Permisos](Menu-and-Permissions) |
+| Ventas | [Ventas](Sales) |
+| Impuestos | [Impuestos](Taxes) |
+| Órdenes de Trabajo | [Órdenes de Trabajo](Work-Orders) |
+| Artículos | [Artículos](Items) |
+| Kits de Artículos | [Kits de Artículos](Item-Kits) |
+| Compras | [Compras](Purchasing) |
 
 ---
 
-## See Also
+## Ver También
 
-- [Development Environment Setup](Development-Environment)
-- [Error Logging](Error-Logging)
-- [Adding Translations](Adding-translations)
-- [Minimum Server Requirements](Minimum-Server-Requirements)
-- [Getting Started - Installation](Getting-Started-installations)
+- [Configuración del Entorno de Desarrollo](Development-Environment)
+- [Registro de Errores](Error-Logging)
+- [Agregar Traducciones](Adding-translations)
+- [Requisitos Mínimos del Servidor](Minimum-Server-Requirements)
+- [Primeros Pasos - Instalación](Getting-Started-installations)
 
 ---
 
-_If you like the project and are making money out of it, consider [buying us a coffee](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=MUN6AEG7NY6H8)._
+_Si te gusta el proyecto y estás generando dinero con él, considera [invitarnos un café](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=MUN6AEG7NY6H8)._

@@ -1,10 +1,10 @@
 
-[← Back to Usage Guide](Getting-Started-usage) | [Home](Home)
+[← Volver a la Guía de Uso](Getting-Started-usage) | [Inicio](Home)
 
 ---
 
-## Point of Sale Register
+## Registro del Punto de Venta
 
-The POS module is the primary interface for processing sales transactions.
+El módulo POS es la interfaz principal para procesar transacciones de venta.
 
-> **Note:** This page needs additional content. See the [Sales](Sales) page for sales-related documentation.
+> **Nota:** Esta página necesita contenido adicional. Consulta la página de [Ventas](Sales) para la documentación relacionada con ventas.

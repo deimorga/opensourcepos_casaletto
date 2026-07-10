@@ -1,20 +1,20 @@
 
-[← Back to Installation Guides](Getting-Started-installations) | [Home](Home)
+[← Volver a Guías de Instalación](Getting-Started-installations) | [Inicio](Home)
 
 ---
 
-This guide covers installation on:
+Esta guía cubre la instalación en:
 - Ubuntu 24.04 LTS
 - Ubuntu 22.04 LTS
 - Linux Mint 21.3
 
-⚠️ **PHP 8.1 to 8.4 is required.** PHP 7.4 and below is NOT supported.
+⚠️ **Se requiere PHP 8.1 a 8.4.** PHP 7.4 e inferior NO es compatible.
 
 ---
 
-## Step 1: Install LAMP Stack
+## Paso 1: Instalar el Stack LAMP
 
-Add PHP repository and install required packages:
+Agrega el repositorio de PHP e instala los paquetes requeridos:
 
 ```bash
 sudo add-apt-repository ppa:ondrej/php
@@ -22,7 +22,7 @@ sudo apt update
 sudo apt-get install -y apache2 mariadb-server php php-curl php-mysql php-gd php-intl php-bcmath php-mbstring php-xml php-mysqli
 ```
 
-Enable required modules:
+Habilita los módulos requeridos:
 
 ```bash
 sudo a2enmod rewrite
@@ -31,15 +31,15 @@ sudo phpenmod intl gd bcmath curl
 
 ---
 
-## Step 2: Configure Apache
+## Paso 2: Configurar Apache
 
-Edit the Apache configuration:
+Edita la configuración de Apache:
 
 ```bash
 sudo nano /etc/apache2/apache2.conf
 ```
 
-Find the `<Directory /var/www/>` section and change `AllowOverride` to `All`:
+Busca la sección `<Directory /var/www/>` y cambia `AllowOverride` a `All`:
 
 ```apache
 <Directory /var/www/>
@@ -49,13 +49,13 @@ Find the `<Directory /var/www/>` section and change `AllowOverride` to `All`:
 </Directory>
 ```
 
-Restart Apache:
+Reinicia Apache:
 
 ```bash
 sudo systemctl restart apache2
 ```
 
-Remove default page:
+Elimina la página por defecto:
 
 ```bash
 sudo rm /var/www/html/index.html
@@ -63,9 +63,9 @@ sudo rm /var/www/html/index.html
 
 ---
 
-## Step 3: Create Database
+## Paso 3: Crear la Base de Datos
 
-Create the database and user:
+Crea la base de datos y el usuario:
 
 ```bash
 sudo mysql -u root -e "CREATE SCHEMA ospos;"
@@ -76,17 +76,17 @@ sudo mysql -u root -e "FLUSH PRIVILEGES;"
 
 ---
 
-## Step 4: Download and Install
+## Paso 4: Descargar e Instalar
 
-1. Download the latest release from [GitHub Releases](https://github.com/opensourcepos/opensourcepos/releases)
-2. Rename the downloaded file to `ospos.zip`
-3. Extract to the web directory:
+1. Descarga la última versión desde [GitHub Releases](https://github.com/opensourcepos/opensourcepos/releases)
+2. Renombra el archivo descargado a `ospos.zip`
+3. Extráelo en el directorio web:
 
 ```bash
 sudo unzip ~/Downloads/ospos.zip -d /var/www/html/
 ```
 
-4. Set ownership:
+4. Establece la propiedad:
 
 ```bash
 sudo chown -R www-data:www-data /var/www/html
@@ -94,11 +94,11 @@ sudo chown -R www-data:www-data /var/www/html
 
 ---
 
-## Step 5: Import Database (Older Versions Only)
+## Paso 5: Importar la Base de Datos (Solo Versiones Antiguas)
 
-⚠️ **Important:** For current releases (stable and unstable), the database is created automatically on first run. **You do NOT need to import database.sql manually.**
+⚠️ **Importante:** Para las versiones actuales (estables e inestables), la base de datos se crea automáticamente en la primera ejecución. **NO necesitas importar database.sql manualmente.**
 
-This step is only required for older versions:
+Este paso solo es necesario para versiones antiguas:
 
 ```bash
 mysql -u admin -ppointofsale -D ospos < /var/www/html/app/Database/database.sql
@@ -106,9 +106,9 @@ mysql -u admin -ppointofsale -D ospos < /var/www/html/app/Database/database.sql
 
 ---
 
-## Step 6: Set Permissions
+## Paso 6: Establecer Permisos
 
-Secure the writable directories:
+Asegura los directorios editables (writable):
 
 ```bash
 sudo chmod 750 /var/www/html/writable/logs
@@ -120,41 +120,41 @@ sudo chown -R www-data:www-data /var/www/html/writable
 
 ---
 
-## Step 7: Access the Application
+## Paso 7: Acceder a la Aplicación
 
-Open your browser and navigate to:
+Abre tu navegador y ve a:
 
 ```
 http://localhost/public
 ```
 
-**Default credentials:**
-- Username: `admin`
-- Password: `pointofsale`
+**Credenciales por defecto:**
+- Usuario: `admin`
+- Contraseña: `pointofsale`
 
-The application will upgrade the database on first login, then redirect you to log in again.
-
----
-
-## Optional: Email Setup
-
-For email functionality, see [Email Configuration](Email-Configuration).
+La aplicación actualizará la base de datos en el primer inicio de sesión, y luego te redirigirá para iniciar sesión de nuevo.
 
 ---
 
-## Troubleshooting
+## Opcional: Configuración de Correo
 
-| Issue | Solution |
+Para la funcionalidad de correo electrónico, consulta [Configuración de Correo](Email-Configuration).
+
+---
+
+## Solución de Problemas
+
+| Problema | Solución |
 |-------|----------|
-| Blank page | Check `writable/logs/` for errors, ensure permissions are correct |
-| Database error | Verify database credentials in `.env` file |
-| Permission denied | Run `sudo chown -R www-data:www-data /var/www/html` |
-| PHP extensions missing | Run `sudo apt-get install php-curl php-gd php-intl php-bcmath php-mbstring php-xml` |
+| Página en blanco | Revisa `writable/logs/` en busca de errores, asegúrate de que los permisos sean correctos |
+| Error de base de datos | Verifica las credenciales de la base de datos en el archivo `.env` |
+| Permiso denegado | Ejecuta `sudo chown -R www-data:www-data /var/www/html` |
+| Faltan extensiones de PHP | Ejecuta `sudo apt-get install php-curl php-gd php-intl php-bcmath php-mbstring php-xml` |
 
 ---
 
-## See Also
+## Ver También
 
-- [Minimum Server Requirements](Minimum-Server-Requirements)
-- [Getting Started - Usage](Getting-Started-usage)
-- [Troubleshooting Guide](Error-Logging)
+- [Requisitos Mínimos del Servidor](Minimum-Server-Requirements)
+- [Primeros Pasos - Uso](Getting-Started-usage)
+- [Guía de Solución de Problemas](Error-Logging)

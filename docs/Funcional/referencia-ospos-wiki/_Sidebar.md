@@ -1,109 +1,109 @@
-# Quick Links
+# Enlaces rápidos
 
-- [**Home**](Home)
+- [**Inicio**](Home)
 - [**Demo**](https://demo.opensourcepos.org/)
-- [**Requirements**](Minimum-Server-Requirements)
+- [**Requisitos**](Minimum-Server-Requirements)
 
 ***
 
-## Getting Started
+## Primeros pasos
 
-- [Installation Guide](Getting-Started-installations)
-- [Usage Guide](Getting-Started-usage)
-- [Server Requirements](Minimum-Server-Requirements)
-- [Feature List](Complete-feature-datasheet)
-- [Hardware Support](Supported-hardware-datasheet)
+- [Guía de instalación](Getting-Started-installations)
+- [Guía de uso](Getting-Started-usage)
+- [Requisitos del servidor](Minimum-Server-Requirements)
+- [Listado de funcionalidades](Complete-feature-datasheet)
+- [Hardware compatible](Supported-hardware-datasheet)
 
 ***
 
-## Installation
+## Instalación
 
 ### Linux
 - [Ubuntu 24.04/22.04](Ubuntu-24.04-22.04-Installation)
 - [LEMP (Nginx)](Local-Deployment-using-LEMP)
 
 ### Raspberry Pi
-- [Raspberry Pi Guide](Raspberry-Pi-Installation)
+- [Guía Raspberry Pi](Raspberry-Pi-Installation)
 
 ### Windows/Mac
-- [XAMPP (Testing)](XAMPP-Installation)
-- [MAMP for Windows](Local-Deployment-using-MAMP-for-Windows)
-- [Windows Local](Windows-Local-Installation)
-- [IIS Deployment](IIS-Deployment)
+- [XAMPP (pruebas)](XAMPP-Installation)
+- [MAMP para Windows](Local-Deployment-using-MAMP-for-Windows)
+- [Windows local](Windows-Local-Installation)
+- [Despliegue en IIS](IIS-Deployment)
 
-### Cloud/Docker
-- [Docker Install](Getting-Started-installations#local-docker-install)
+### Nube/Docker
+- [Instalación con Docker](Getting-Started-installations#local-docker-install)
 - [DigitalOcean](Getting-Started-installations#cloud-deploy-installation)
 
 ***
 
-## Configuration
+## Configuración
 
-- [Store Config](Configuration)
-- [Printing](Printing)
-- [Printing Support](Printing-support)
-- [Weighted Barcodes](Weighted-Barcodes)
-- [Localization](Localisation-support)
-- [Taxes](Taxes)
-- [India GST](India-GST)
-- [Email Configuration](Email-Configuration)
-- [MySQL 8.x Upgrade](Upgrading-to-MySQL-8.x)
+- [Configuración de la tienda](Configuration)
+- [Impresión](Printing)
+- [Soporte de impresión](Printing-support)
+- [Códigos de barra por peso](Weighted-Barcodes)
+- [Localización](Localisation-support)
+- [Impuestos](Taxes)
+- [GST India](India-GST)
+- [Configuración de correo](Email-Configuration)
+- [Actualización a MySQL 8.x](Upgrading-to-MySQL-8.x)
 
 ***
 
-## User Guides
+## Guías de usuario
 
-### Employees
-- [Employees](Employees)
-- [Permissions](Menu-and-Permissions)
+### Empleados
+- [Empleados](Employees)
+- [Permisos](Menu-and-Permissions)
 
-### Inventory
-- [Items](Items)
-- [Item Kits](Item-Kits)
-- [Inventory Items](Inventory-Items)
-- [Inventory Kits](Inventory-Kits)
-- [Stocktake](Stocktake)
-- [Import CSV](Import-data-from-CSV-file)
+### Inventario
+- [Artículos](Items)
+- [Kits de artículos](Item-Kits)
+- [Inventario de artículos](Inventory-Items)
+- [Inventario de kits](Inventory-Kits)
+- [Toma de inventario](Stocktake)
+- [Importar CSV](Import-data-from-CSV-file)
 
-### Sales
-- [Sales Register](Sales)
-- [Sales Modes](Sales-Modes)
-- [Restaurant](Sales-Restaurant)
-- [Work Orders](Work-Orders)
+### Ventas
+- [Registro de ventas](Sales)
+- [Modos de venta](Sales-Modes)
+- [Restaurante](Sales-Restaurant)
+- [Órdenes de trabajo](Work-Orders)
 - [POS](Pos)
 
-### Financials
-- [Expenses](Expenses)
-- [Payments](Payment-Processing)
-- [Alternate Currency](Alternate-Currency-Receipts-and-Invoices)
-- [Purchasing](Purchasing)
+### Finanzas
+- [Gastos](Expenses)
+- [Pagos](Payment-Processing)
+- [Moneda alternativa](Alternate-Currency-Receipts-and-Invoices)
+- [Compras](Purchasing)
 
 ***
 
-## Developer Docs
+## Documentación para desarrolladores
 
-### Setup
-- [Development Index](Development-Index)
-- [Dev Environment](Development-Environment)
-- [Error Logging](Error-Logging)
-- [Webserver Overview](Webserver-Overview)
+### Configuración
+- [Índice de desarrollo](Development-Index)
+- [Entorno de desarrollo](Development-Environment)
+- [Registro de errores](Error-Logging)
+- [Panorama del servidor web](Webserver-Overview)
 
-### Customization
-- [Item Attributes](Item-Attributes)
-- [Add New Report](How-to-add-a-new-report)
-- [Database Layout](Database-Layout)
+### Personalización
+- [Atributos de artículos](Item-Attributes)
+- [Agregar un nuevo reporte](How-to-add-a-new-report)
+- [Estructura de la base de datos](Database-Layout)
 
-### Translations
-- [User Translations](Adding-translations)
-- [Dev Translations](Developer-Translations)
-
-***
-
-## Contributing
-
-- [Milestones & Labels](Milestones-and-Labels)
-- [Issue Guidelines](Why-my-issue-was-closed?)
+### Traducciones
+- [Traducciones de usuario](Adding-translations)
+- [Traducciones para desarrolladores](Developer-Translations)
 
 ***
 
-_IF you like this project, consider [buying us a coffee](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=MUN6AEG7NY6H8)._
+## Contribuir
+
+- [Milestones y etiquetas](Milestones-and-Labels)
+- [Lineamientos de issues](Why-my-issue-was-closed?)
+
+***
+
+_Si te gusta este proyecto, considerá [invitarnos un café](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=MUN6AEG7NY6H8)._

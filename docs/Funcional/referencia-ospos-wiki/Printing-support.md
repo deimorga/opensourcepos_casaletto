@@ -1,143 +1,138 @@
 
-[← Back to Configuration](Configuration) | [Home](Home)
+[← Volver a Configuración](Configuration) | [Inicio](Home)
 
 ---
 
-The printing feature depends on the print setup and the print behaviour.
+La función de impresión depende de la configuración de la impresora y de su comportamiento de impresión.
 
-## Table of Contents
+## Tabla de contenidos
 
-* [General Printing Support](#general-printing-support)
-* [Device Printing Support](#device-printing-support)
-* [Barcode Printing Support](#barcode-printing)
-* [How to printing](#how-to-printing)
-  * [Preparation printing for firefox/palemoon](#preparation-printing-for-firefoxpalemoon)
-  * [Preparing printing for Chrome/Chromium](#preparing-printing-for-chomechromium)
-* [Advanced and Autoprinting](#advanced-and-autoprinting)
+* [Soporte general de impresión](#general-printing-support)
+* [Soporte de impresión por dispositivo](#device-printing-support)
+* [Soporte de impresión de códigos de barras](#barcode-printing)
+* [Cómo imprimir](#how-to-printing)
+  * [Preparación de impresión para firefox/palemoon](#preparation-printing-for-firefoxpalemoon)
+  * [Preparación de impresión para Chrome/Chromium](#preparing-printing-for-chomechromium)
+* [Impresión avanzada y automática](#advanced-and-autoprinting)
   * [Firefox, Palemon, Icecat](#firefox-palemoon-icecat)
   * [Chrome](#chrome)
-  * [Fiscal printing](#fiscal-printing)
+  * [Impresión fiscal](#fiscal-printing)
 
-## General Printing Support
+## Soporte general de impresión
 
-Currently OSPOS can print in any environment, you can use a installed printer. The only limitation is with Fiscal KIT's due to the fact that it needs AD-HOC special dependent on each country requirements.
+Actualmente OSPOS puede imprimir en cualquier entorno, se puede usar cualquier impresora instalada. La única limitación es con los KIT's fiscales, debido a que requieren una configuración especial AD-HOC dependiendo de los requisitos de cada país.
 
-## Device Printing Support
+## Soporte de impresión por dispositivo
 
-A priter could be the Star TSP 100 ECO using the Firefox or Chrome browsers. A label printer could be the Zebra LP 2824 Plus printer with 2 x 1 labels. 
-Other customers have had success with other printers from companies. If you plan to purchase a different receipt printer, try to get one that prints on paper that is 72 mm or greater.
+Una impresora podría ser la Star TSP 100 ECO usando los navegadores Firefox o Chrome. Una impresora de etiquetas podría ser la Zebra LP 2824 Plus con etiquetas de 2 x 1.
+Otros clientes han tenido éxito con impresoras de otras marcas. Si planeas comprar una impresora de recibos diferente, procura conseguir una que imprima en papel de 72 mm o mayor.
 
-Obviously printing depends on the browser, so it must be first configured and then in ospos 
-the printing configuration has some options, only enable with some changes over the browser.
-For the Zebra it's recommended also search at https://www.peninsula-group.com/mac-thermal-printer-driver/ 
-the CUPS interface for Unixes comes with basic enough support that works as its.
+Obviamente la impresión depende del navegador, por lo que primero debe configurarse, y luego en ospos
+la configuración de impresión tiene algunas opciones, que solo se habilitan con algunos cambios en el navegador.
+Para la Zebra también se recomienda buscar en https://www.peninsula-group.com/mac-thermal-printer-driver/
+la interfaz CUPS para sistemas Unix trae soporte básico suficiente que funciona tal cual.
 
-## Barcode Printing
+## Impresión de códigos de barras
 
-This feature doesn't need special settings, but a printer must be correctly configured. For printing instructions, see the [Getting Started Usage: Inventory](Getting-Started-usage#3-inventory) section.
+Esta función no necesita configuraciones especiales, pero la impresora debe estar correctamente configurada. Para instrucciones de impresión, consulta la sección [Guía de uso: Inventario](Getting-Started-usage#3-inventory).
 
-But remenber as we previously mentioned, Our recommended label printer is the Zebra LP 2824 Plus printer with 2 x 1 labels. Other customers have had success with other printers from companies.
+Pero recuerda, como se mencionó anteriormente, que nuestra impresora de etiquetas recomendada es la Zebra LP 2824 Plus con etiquetas de 2 x 1. Otros clientes han tenido éxito con impresoras de otras marcas.
 
 
-# How to printing
+# Cómo imprimir
 
-Either for normal printing or for devices/receipt printing, first need OS configuration/installation printer, then browser configuration and lasted go to **Office->StoreConfig->Receipt**, here the most important settings are *Format* and *Font size*.
+Tanto para impresión normal como para dispositivos/impresión de recibos, primero se necesita configurar/instalar la impresora en el SO, luego configurar el navegador, y por último ir a **Oficina->ConfiguraciónTienda->Recibo**, donde las opciones más importantes son *Formato* y *Tamaño de fuente*.
 
-![printing settings:](https://user-images.githubusercontent.com/10962177/36354930-c33ea10c-1498-11e8-8b0b-a4eb2b2ecbdb.png)
+![configuración de impresión:](https://user-images.githubusercontent.com/10962177/36354930-c33ea10c-1498-11e8-8b0b-a4eb2b2ecbdb.png)
 
-* **Format** defines amount of information to the receipt will be printed. Reduced can be help with some printing settings.
-* **FontSize** defines size of the font this must be set in correct size number depending of the output of the printing.
+* **Formato** define la cantidad de información que se imprimirá en el recibo. La opción Reducido puede ayudar con algunas configuraciones de impresión.
+* **Tamaño de fuente** define el tamaño de la fuente; debe configurarse con el número de tamaño correcto según el resultado de la impresión.
 
-Then the **default receipt shows more info than the short (order)** receipt. So **for printing in 78mm printers and related, must use "order" as format**.
+El recibo **predeterminado muestra más información que el recibo corto (orden)**. Por lo tanto, **para imprimir en impresoras de 78mm y similares, debe usarse "orden" como formato**.
 
-The **Autoprinting** are explained here in below specific section.
+La **impresión automática** se explica más abajo, en la sección específica.
 
-Unless margings and show dialog printing rest of the options are self explanatory, please read section below for.
+Salvo los márgenes y la opción de mostrar el diálogo de impresión, el resto de las opciones se explican por sí mismas; por favor lee la sección siguiente.
 
-  * [Preparation printing for firefox/palemoon](#preparation-printing-for-firefoxpalemoon)
-  * [Preparing printing for Chome/Chromium](#preparing-printing-for-chomechromium)
-* [Advanced and Autoprinting](#advanced-and-autoprinting)
+  * [Preparación de impresión para firefox/palemoon](#preparation-printing-for-firefoxpalemoon)
+  * [Preparación de impresión para Chome/Chromium](#preparing-printing-for-chomechromium)
+* [Impresión avanzada y automática](#advanced-and-autoprinting)
   * [Firefox, Palemon, Icecat](#firefox-palemoon-icecat)
   * [Chrome](#chrome)
-  * [Fiscal printing](#fiscal-printing)
+  * [Impresión fiscal](#fiscal-printing)
 
 
-### Preparation printing for firefox/palemoon
+### Preparación de impresión para firefox/palemoon
 
-1. download, configure and install the printer in the OS, and config that can print a simple letter at least.
-2. In firefox, Palemoon, Icecat click the menu button at top right of screen (three horizontal bars)
-3. Choose Print
-4. Click Page Setup (Make sure print background images is unchecked)
-5. Click Margins & Header/Footer
-6. Set all margins to 0.
-7. Set Headers and Footers to --Blank--
+1. Descarga, configura e instala la impresora en el SO, y confirma que pueda imprimir al menos una carta simple.
+2. En firefox, Palemoon, Icecat, haz clic en el botón de menú en la esquina superior derecha de la pantalla (tres barras horizontales)
+3. Elige Imprimir
+4. Haz clic en Configurar página (asegúrate de que "Imprimir imágenes de fondo" esté desmarcado)
+5. Haz clic en Márgenes y encabezado/pie de página
+6. Configura todos los márgenes en 0.
+7. Configura Encabezados y Pies de página en --En blanco--
 
-### Preparing printing for Chome/Chromium
+### Preparación de impresión para Chome/Chromium
 
-1. download, configure and install the printer in the OS, and confir that can print a simple letter at least.
-2. In the menu button at top right of screen (three horizontal bars) select Print
-3. In the dialog the pops up, select the printer destination that just instaled and configured in OS
-4. In same dialog, click "More settings", or "advanced settings"
-5. and select Layout:Portrait, Paper:75mm, Margings:default, 
-6 also in Options deactivate headers and deactivate background
+1. Descarga, configura e instala la impresora en el SO, y confirma que pueda imprimir al menos una carta simple.
+2. En el botón de menú en la esquina superior derecha de la pantalla (tres barras horizontales) selecciona Imprimir
+3. En el cuadro de diálogo que aparece, selecciona el destino de impresora que se acaba de instalar y configurar en el SO
+4. En el mismo cuadro de diálogo, haz clic en "Más ajustes" o "configuración avanzada"
+5. y selecciona Diseño: Vertical, Papel: 75mm, Márgenes: predeterminado,
+6. También en Opciones, desactiva encabezados y desactiva el fondo
 
-## Recommended Printing settings
+## Configuración de impresión recomendada
 
-Remember that the printer its recommended 75mm paper setup.
+Recuerda que se recomienda configurar la impresora con papel de 75mm.
 
-1. Go to OS printers interface, in MAC/Linux got CUPS at http://localhost:631
-2. Select the printer and then Printer Properties
-3. Click Device Settings Tab or General Options
-4. In the Form to Tray Assignment or Media size choose 72mm x Receipt
-5. Cash Drawer options select 1 and 2
-6. Choose media of 2x1 and resolute
+1. Ve a la interfaz de impresoras del SO; en MAC/Linux se accede a CUPS en http://localhost:631
+2. Selecciona la impresora y luego Propiedades de la impresora
+3. Haz clic en la pestaña Configuración del dispositivo u Opciones generales
+4. En Asignación de formulario a bandeja o Tamaño de medio, elige 72mm x Recibo
+5. En las opciones del cajón de dinero selecciona 1 y 2
+6. Elige el medio de 2x1 y la resolución
 
-# Advanced and Autoprinting
+# Impresión avanzada y automática
 
-Advanced printing allows set margins, and the "direct printer" to, only by selecting the "Order" format.
+La impresión avanzada permite configurar márgenes y la "impresión directa", solamente seleccionando el formato "Orden".
 
-This feature is currently available in combination with browsers Palemoon, Icecat, Iceweasel, Firefox and with some little changes in Chrome. For most modern browsers another way to do by changing deep settings in firefox `about:config` interface options.
+Esta función actualmente está disponible en combinación con los navegadores Palemoon, Icecat, Iceweasel, Firefox, y con algunos pequeños cambios en Chrome. Para la mayoría de los navegadores modernos, otra forma de hacerlo es cambiando configuraciones avanzadas en la interfaz `about:config` de firefox.
 
   * [Firefox, Palemon, Icecat](#firefox-palemoon-icecat)
   * [Chrome](#chrome)
-  * [Fiscal printing](#fiscal-printing)
+  * [Impresión fiscal](#fiscal-printing)
 
 ### Firefox, Palemoon, Icecat
 
-AutoPrinting support also advanced feature are enabled in two ways, the first using the jsPrint addon at
-https://addons.mozilla.org/es/firefox/addon/js-print-setup The supported browsers must be **firefox << 49.9**, **Palemoon >> 24**, and **Icedcat >> 16**. The second way its preconfiguring the browser to printing directly.
+El soporte de impresión automática, así como la función avanzada, se pueden habilitar de dos maneras: la primera usando el complemento jsPrint en
+https://addons.mozilla.org/es/firefox/addon/js-print-setup Los navegadores compatibles deben ser **firefox << 49.9**, **Palemoon >> 24**, e **Icedcat >> 16**. La segunda forma es preconfigurando el navegador para imprimir directamente.
 
-Enable jsprint/seamlessprint settings in Firefox, must configure with enable for all the sites (low security, sorry). In some cases newer firefox can try https://addons.mozilla.org/es/firefox/addon/seamless-print/ but not Quamtun Firefox.
+Habilita las configuraciones de jsprint/seamlessprint en Firefox; debe configurarse habilitado para todos los sitios (baja seguridad, lo sentimos). En algunos casos, en versiones más nuevas de firefox se puede probar https://addons.mozilla.org/es/firefox/addon/seamless-print/ pero no en Firefox Quantum.
 
-After enabling/configure this addon, the ospos print settings will be available and can be configured.
+Después de habilitar/configurar este complemento, la configuración de impresión de ospos estará disponible y podrá configurarse.
 
-Go to Store config and reselect the printers, occasionally had to select a different printer. Submit. 
-Then go back and select the correct printer. Then submit.
+Ve a la configuración de la tienda y vuelve a seleccionar las impresoras; ocasionalmente hay que seleccionar una impresora diferente. Envía el formulario.
+Luego regresa y selecciona la impresora correcta. Envía el formulario nuevamente.
 
-**Alternate second way for newer browsers**: Type about:config at Firefox’s/Palemoon's location bar and hit Enter. Right click at anywhere on the page and select New > Boolean.  Enter the preference name as print.always_print_silent and click OK. Then set the boolean value to true. Restart firefox. This need that the default OS printer must be the desired receipt printer.
+**Segunda forma alternativa para navegadores más nuevos**: Escribe about:config en la barra de direcciones de Firefox/Palemoon y presiona Enter. Haz clic derecho en cualquier parte de la página y selecciona Nuevo > Booleano. Ingresa el nombre de la preferencia como print.always_print_silent y haz clic en Aceptar. Luego configura el valor booleano en true. Reinicia firefox. Esto requiere que la impresora predeterminada del SO sea la impresora de recibos deseada.
 
 ### Chrome
 
-Not recommended, but receipt auto printing is also available in Chrome by using kiosk mode. A printer 
-should be selected once after launching Chrome using a custom shortcut.
+No recomendado, pero la impresión automática de recibos también está disponible en Chrome usando el modo kiosko. Debe seleccionarse una impresora una vez, después de iniciar Chrome usando un acceso directo personalizado.
 
-A new icon application launcher or launch/invoke the binary adding the `--kiosk --kiosk-printing ` option 
-to the executable. By the way, to make the kiosk mode effecting you need to close all the chrome 
-apps and restart otherwise it doesn't work. Open a Terminal, and write the command: `google-chrome --kiosk --kiosk-printing `
+Un nuevo ícono de lanzador de aplicación, o al lanzar/invocar el binario, agregando la opción `--kiosk --kiosk-printing` al ejecutable. Por cierto, para que el modo kiosko surta efecto necesitas cerrar todas las aplicaciones de chrome y reiniciar, de lo contrario no funciona. Abre una Terminal y escribe el comando: `google-chrome --kiosk --kiosk-printing `
 
-After enabling/configure kiosk, the ospos print settings will be available and can be configured.
+Después de habilitar/configurar el modo kiosko, la configuración de impresión de ospos estará disponible y podrá configurarse.
 
-Go to Store config and reselect the printers, occasionally had to select a different printer. Submit. 
-Then go back and select the correct printer. Then submit.
+Ve a la configuración de la tienda y vuelve a seleccionar las impresoras; ocasionalmente hay que seleccionar una impresora diferente. Envía el formulario.
+Luego regresa y selecciona la impresora correcta. Envía el formulario nuevamente.
 
-## Fiscal printing
+## Impresión fiscal
 
-Some countries need some special communications with internal chip in the printers, this feature are 
-only done locally and its not possible unless a specific ad-hoc can be done or with special device that 
-receive the raw printing and send from the browser to the printer.
+Algunos países requieren comunicaciones especiales con el chip interno de las impresoras; esta función solo puede realizarse localmente y no es posible a menos que se pueda hacer un desarrollo específico ad-hoc, o con un dispositivo especial que reciba la impresión en bruto y la envíe desde el navegador a la impresora.
 
-You can ask here for some services by few bucks, adaptations are made easy for some countries. Open an issue [a support ticket Issue (by click here)](https://github.com/opensourcepos/opensourcepos/issues/new) just few words ahead to your solution!
+Puedes solicitar aquí algunos servicios por unos pocos dólares; las adaptaciones se realizan de forma sencilla para algunos países. Abre un issue [un ticket de soporte (haz clic aquí)](https://github.com/opensourcepos/opensourcepos/issues/new), ¡solo unas palabras y estarás cerca de tu solución!
 
-# See also:
+# Ver también:
 
-* [Getting Started Usage](Getting-Started-usage)
+* [Guía de uso](Getting-Started-usage)

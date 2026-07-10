@@ -1,36 +1,36 @@
-[← Back to Configuration](Configuration) | [Home](Home)
+[← Volver a Configuración](Configuration) | [Inicio](Home)
 
 ---
 
-This guide explains how to configure email functionality using Postfix with Gmail SMTP on Linux (Ubuntu, Linux Mint, etc.).
+Esta guía explica cómo configurar la funcionalidad de correo electrónico usando Postfix con SMTP de Gmail en Linux (Ubuntu, Linux Mint, etc.).
 
-## Prerequisites
+## Requisitos previos
 
-- A Gmail account with **2-Step Verification** enabled
-- An **App Password** generated for Postfix (not your regular Gmail password)
+- Una cuenta de Gmail con **verificación en dos pasos** habilitada
+- Una **contraseña de aplicación** generada para Postfix (no tu contraseña habitual de Gmail)
 
-> **Generate App Password:** https://support.google.com/accounts/answer/185833
+> **Generar contraseña de aplicación:** https://support.google.com/accounts/answer/185833
 
-## Step 1: Install Postfix
+## Paso 1: Instalar Postfix
 
 ```bash
 sudo apt-get install postfix
 ```
 
-During installation:
-- Select **"Internet Site"** as the mail server configuration type
-- Click **Ok** to proceed
-- Accept all defaults for the remaining prompts
+Durante la instalación:
+- Selecciona **"Internet Site"** como tipo de configuración del servidor de correo
+- Haz clic en **Ok** para continuar
+- Acepta los valores predeterminados para el resto de las indicaciones
 
-## Step 2: Configure Postfix for Gmail
+## Paso 2: Configurar Postfix para Gmail
 
-Edit the Postfix configuration file:
+Edita el archivo de configuración de Postfix:
 
 ```bash
 sudo nano /etc/postfix/main.cf
 ```
 
-Add or modify the following lines:
+Agrega o modifica las siguientes líneas:
 
 ```conf
 relayhost = [smtp.gmail.com]:587
@@ -41,65 +41,65 @@ smtp_sasl_password_maps = hash:/etc/postfix/sasl_passwd
 smtp_tls_CAfile = /etc/ssl/certs/ca-certificates.crt
 ```
 
-## Step 3: Create Gmail Authentication File
+## Paso 3: Crear el archivo de autenticación de Gmail
 
-Create the password file:
+Crea el archivo de contraseñas:
 
 ```bash
 sudo nano /etc/postfix/sasl_passwd
 ```
 
-Add your Gmail credentials:
+Agrega tus credenciales de Gmail:
 
 ```conf
 [smtp.gmail.com]:587 your_email@gmail.com:your_app_password
 ```
 
-Replace:
-- `your_email@gmail.com` - Your Gmail email address
-- `your_app_password` - The app password you generated in Google Account settings
+Reemplaza:
+- `your_email@gmail.com` - Tu dirección de correo de Gmail
+- `your_app_password` - La contraseña de aplicación que generaste en la configuración de tu cuenta de Google
 
-> **Important:** No spaces after the colon or password.
+> **Importante:** Sin espacios después de los dos puntos ni después de la contraseña.
 
-## Step 4: Secure the Password File
+## Paso 4: Asegurar el archivo de contraseñas
 
 ```bash
 sudo chmod 600 /etc/postfix/sasl_passwd
 sudo postmap /etc/postfix/sasl_passwd
 ```
 
-## Step 5: Restart Postfix
+## Paso 5: Reiniciar Postfix
 
 ```bash
 sudo service postfix restart
 ```
 
-## Step 6: Configure OSPOS
+## Paso 6: Configurar OSPOS
 
-In OSPOS, navigate to **Settings → Configuration → Email** and set:
+En OSPOS, ve a **Configuración → Configuración → Correo electrónico** y establece:
 
-| Setting | Value |
+| Configuración | Valor |
 |---------|-------|
-| Protocol | `smtp` |
-| SMTP Server | `localhost` |
-| SMTP Port | `25` |
-| SMTP Encryption | `None` |
+| Protocolo | `smtp` |
+| Servidor SMTP | `localhost` |
+| Puerto SMTP | `25` |
+| Cifrado SMTP | `None` |
 
-Leave other email settings blank and click **Submit**.
+Deja en blanco las demás configuraciones de correo y haz clic en **Enviar**.
 
-## Step 7: Test Email
+## Paso 7: Probar el correo electrónico
 
-You should now be able to send receipts and invoices directly from OSPOS using your Gmail account.
+Ahora deberías poder enviar recibos y facturas directamente desde OSPOS usando tu cuenta de Gmail.
 
-## Troubleshooting
+## Solución de problemas
 
-| Issue | Solution |
+| Problema | Solución |
 |-------|----------|
-| Authentication failed | Verify you're using an App Password, not your regular Gmail password |
-| Connection refused | Check if Postfix is running: `sudo systemctl status postfix` |
-| Emails not sending | Check logs: `sudo tail -f /var/log/mail.log` |
+| Error de autenticación | Verifica que estés usando una contraseña de aplicación, no tu contraseña habitual de Gmail |
+| Conexión rechazada | Verifica si Postfix está en ejecución: `sudo systemctl status postfix` |
+| Los correos no se envían | Revisa los registros: `sudo tail -f /var/log/mail.log` |
 
-## See Also
+## Ver también
 
-- [Configuration](Configuration)
-- [Minimum Server Requirements](Minimum-Server-Requirements)
+- [Configuración](Configuration)
+- [Requisitos mínimos del servidor](Minimum-Server-Requirements)

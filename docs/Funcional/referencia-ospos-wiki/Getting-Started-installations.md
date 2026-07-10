@@ -1,63 +1,63 @@
 
-[← Back to Home](Home) | [Minimum Requirements](Minimum-Server-Requirements) | [Usage Guide](Getting-Started-usage)
+[← Volver a Inicio](Home) | [Requisitos Mínimos](Minimum-Server-Requirements) | [Guía de Uso](Getting-Started-usage)
 
 ---
 
-## Table of Contents
+## Tabla de Contenidos
 
-- [Quick Start](#quick-start)
-- [Server Requirements](#server-requirements)
-- [Installation Methods](#installation-methods)
-  - [Local Install (Unix/Linux)](#local-deploy-install-for-unixlinux-environments)
-  - [Docker Install](#local-docker-install)
-  - [Cloud Install (DigitalOcean)](#cloud-deploy-installation)
-- [Other Installation Guides](#other-installation-guides)
-- [Post-Installation](#post-installation)
-
----
-
-## Quick Start
-
-**The fastest way to try:**
-
-1. Download the latest release from [GitHub Releases](https://github.com/opensourcepos/opensourcepos/releases)
-2. Set up a LAMP/LEMP stack with PHP 8.1+
-3. Configure `.env` with your database credentials
-4. Browse to `http://localhost/public`
-5. Login with `admin` / `pointofsale`
-
-> **Note:** For current releases (stable and unstable), the database is created automatically on first run. You do NOT need to import database.sql manually.
+- [Inicio Rápido](#quick-start)
+- [Requisitos del Servidor](#server-requirements)
+- [Métodos de Instalación](#installation-methods)
+  - [Instalación Local (Unix/Linux)](#local-deploy-install-for-unixlinux-environments)
+  - [Instalación con Docker](#local-docker-install)
+  - [Instalación en la Nube (DigitalOcean)](#cloud-deploy-installation)
+- [Otras Guías de Instalación](#other-installation-guides)
+- [Post-Instalación](#post-installation)
 
 ---
 
-## Server Requirements
+## Inicio Rápido
 
-Before installing, ensure your server meets the [Minimum Server Requirements](Minimum-Server-Requirements).
+**La forma más rápida de probarlo:**
 
-### Summary
+1. Descarga la última versión desde [GitHub Releases](https://github.com/opensourcepos/opensourcepos/releases)
+2. Configura un stack LAMP/LEMP con PHP 8.1+
+3. Configura `.env` con las credenciales de tu base de datos
+4. Navega a `http://localhost/public`
+5. Inicia sesión con `admin` / `pointofsale`
 
-| Component | Minimum | Recommended |
+> **Nota:** Para las versiones actuales (estables e inestables), la base de datos se crea automáticamente en la primera ejecución. NO necesitas importar database.sql manualmente.
+
+---
+
+## Requisitos del Servidor
+
+Antes de instalar, asegúrate de que tu servidor cumpla con los [Requisitos Mínimos del Servidor](Minimum-Server-Requirements).
+
+### Resumen
+
+| Componente | Mínimo | Recomendado |
 |-----------|---------|-------------|
 | PHP | 8.1 | 8.3 - 8.4 |
 | MySQL/MariaDB | 5.7 / 10.x | 8.0 / 10.5+ |
 | Apache | 2.4 | 2.4 |
-| Web Browser | Firefox 34+, Chrome 40+ | Modern browser |
+| Navegador Web | Firefox 34+, Chrome 40+ | Navegador moderno |
 
-⚠️ **PHP ≤ 7.4 is NOT supported**
+⚠️ **PHP ≤ 7.4 NO es compatible**
 
 ---
 
-## Installation Methods
+## Métodos de Instalación
 
-### Local Deploy Install for Unix/Linux Environments
+### Instalación Local para Entornos Unix/Linux
 
-#### Step 1: Open Terminal
+#### Paso 1: Abrir Terminal
 
-Open a terminal window. On macOS, find it at `Finder → Accessories → Terminal`. On Linux, find it at `Menu → System Tools → Terminal`. For commands requiring root access, use `sudo su`.
+Abre una ventana de terminal. En macOS, la encuentras en `Finder → Accesorios → Terminal`. En Linux, la encuentras en `Menú → Herramientas del Sistema → Terminal`. Para comandos que requieran acceso root, usa `sudo su`.
 
-#### Step 2: Install Dependencies
+#### Paso 2: Instalar Dependencias
 
-Install Apache2, MariaDB/MySQL, PHP, and required extensions:
+Instala Apache2, MariaDB/MySQL, PHP y las extensiones requeridas:
 
 **Debian/Ubuntu:**
 ```bash
@@ -71,20 +71,20 @@ sudo a2enmod rewrite
 sudo yum install httpd mysql-server php php-bcmath php-dba php-gd php-mbstring php-xml
 ```
 
-> **Note:** PHP 8.1 to 8.4 is required. PHP 7.4 and below is NOT supported.
+> **Nota:** Se requiere PHP 8.1 a 8.4. PHP 7.4 e inferior NO es compatible.
 
-#### Step 3: Prepare Web Directory
+#### Paso 3: Preparar el Directorio Web
 
-Navigate to your web root:
+Navega a la raíz de tu servidor web:
 ```bash
 cd /var/www/html
 ```
 
-#### Step 4: Download
+#### Paso 4: Descargar
 
-Download the latest release from [GitHub Releases](https://github.com/opensourcepos/opensourcepos/releases) and extract it to your web directory.
+Descarga la última versión desde [GitHub Releases](https://github.com/opensourcepos/opensourcepos/releases) y extráela en tu directorio web.
 
-#### Step 5: Create Database
+#### Paso 5: Crear la Base de Datos
 
 ```bash
 mysql -u root -e "CREATE SCHEMA ospos;"
@@ -93,17 +93,17 @@ mysql -u root -e "GRANT ALL PRIVILEGES ON ospos.* TO 'admin'@'%' IDENTIFIED BY '
 mysql -u root -e "FLUSH PRIVILEGES;"
 ```
 
-#### Step 6: Import Database Schema (Older Versions Only)
+#### Paso 6: Importar el Esquema de la Base de Datos (Solo Versiones Antiguas)
 
-> **Important:** For current releases (stable and unstable), the database is created automatically on first run. **This step is only required for older versions.**
+> **Importante:** Para las versiones actuales (estables e inestables), la base de datos se crea automáticamente en la primera ejecución. **Este paso solo es necesario para versiones antiguas.**
 
 ```bash
 mysql -u admin -ppointofsale -D ospos < /var/www/html/app/Database/database.sql
 ```
 
-#### Step 7: Configure Database Connection
+#### Paso 7: Configurar la Conexión a la Base de Datos
 
-Copy `.env.example` to `.env` and configure:
+Copia `.env.example` a `.env` y configura:
 ```ini
 database.default.hostname = 'localhost'
 database.default.database = 'ospos'
@@ -111,73 +111,73 @@ database.default.username = 'admin'
 database.default.password = 'pointofsale'
 ```
 
-#### Step 8: Set Permissions
+#### Paso 8: Establecer Permisos
 
 ```bash
 sudo chown -R www-data:www-data /var/www/html
 sudo chmod -R 750 /var/www/html/writable
 ```
 
-#### Step 9: Access the application
+#### Paso 9: Acceder a la Aplicación
 
-Open your browser and navigate to:
-- `http://localhost/public` or
+Abre tu navegador y ve a:
+- `http://localhost/public` o
 - `http://127.0.0.1/public`
 
-#### Step 10: Login
+#### Paso 10: Iniciar Sesión
 
-- **Username:** `admin`
-- **Password:** `pointofsale`
+- **Usuario:** `admin`
+- **Contraseña:** `pointofsale`
 
 ---
 
-### Local Docker Install
+### Instalación Local con Docker
 
-#### Step 1: Install Docker
+#### Paso 1: Instalar Docker
 
-Install Docker following the [official Docker documentation](https://docs.docker.com/get-docker/) for your platform.
+Instala Docker siguiendo la [documentación oficial de Docker](https://docs.docker.com/get-docker/) para tu plataforma.
 
-#### Step 2: Prepare Directory
+#### Paso 2: Preparar el Directorio
 
 ```bash
 mkdir ~/osposdocker
 cd ~/osposdocker
 ```
 
-#### Step 3: Download and Extract
+#### Paso 3: Descargar y Extraer
 
-Download the latest release from [GitHub Releases](https://github.com/opensourcepos/opensourcepos/releases) and extract to your directory.
+Descarga la última versión desde [GitHub Releases](https://github.com/opensourcepos/opensourcepos/releases) y extráela en tu directorio.
 
-#### Step 4: Build and Run
+#### Paso 4: Construir y Ejecutar
 
 ```bash
 docker-compose build
 docker-compose up
 ```
 
-> **Warning:** The default Docker setup is NOT suited for production. Change default passwords before exposing publicly.
+> **Advertencia:** La configuración de Docker por defecto NO es adecuada para producción. Cambia las contraseñas por defecto antes de exponerla públicamente.
 
 ---
 
-### Cloud Deploy Installation
+### Instalación en la Nube
 
-For cloud hosting, we recommend [**DigitalOcean**](https://m.do.co/c/ac38c262507b) where you can get a **$100 free credit** while supporting the project!
+Para hosting en la nube, recomendamos [**DigitalOcean**](https://m.do.co/c/ac38c262507b), donde puedes obtener **$100 de crédito gratis** mientras apoyas el proyecto.
 
-#### Step 1: Create Account
+#### Paso 1: Crear una Cuenta
 
-Create a [DigitalOcean account](https://m.do.co/c/ac38c262507b).
+Crea una [cuenta en DigitalOcean](https://m.do.co/c/ac38c262507b).
 
-#### Step 2: Create Droplet
+#### Paso 2: Crear un Droplet
 
-Choose a Debian/Ubuntu Droplet with LAMP or One-Click app.
+Elige un Droplet de Debian/Ubuntu con LAMP o una aplicación de un clic.
 
-#### Step 3: Connect to Server
+#### Paso 3: Conectarse al Servidor
 
 ```bash
 ssh root@<your-droplet-ip>
 ```
 
-#### Step 4: Install Dependencies
+#### Paso 4: Instalar Dependencias
 
 ```bash
 a2enmod rewrite
@@ -185,13 +185,13 @@ apt-get install php-intl php-mbstring php-xml php-bcmath php-curl php-gd
 service apache2 restart
 ```
 
-> **Note:** Ensure PHP 8.1+ is installed. PHP 7.4 and below is NOT supported.
+> **Nota:** Asegúrate de tener PHP 8.1+ instalado. PHP 7.4 e inferior NO es compatible.
 
-#### Step 5: Download
+#### Paso 5: Descargar
 
-Download the latest release from [GitHub Releases](https://github.com/opensourcepos/opensourcepos/releases).
+Descarga la última versión desde [GitHub Releases](https://github.com/opensourcepos/opensourcepos/releases).
 
-#### Step 6: Create Database
+#### Paso 6: Crear la Base de Datos
 
 ```bash
 mysql -u root -e "CREATE SCHEMA ospos;"
@@ -200,71 +200,71 @@ mysql -u root -e "GRANT ALL PRIVILEGES ON ospos.* TO 'admin'@'%';"
 mysql -u root -e "FLUSH PRIVILEGES;"
 ```
 
-#### Step 7: Import Database (Older Versions Only)
+#### Paso 7: Importar la Base de Datos (Solo Versiones Antiguas)
 
-> **Important:** For current releases (stable and unstable), the database is created automatically on first run. **This step is only required for older versions.**
+> **Importante:** Para las versiones actuales (estables e inestables), la base de datos se crea automáticamente en la primera ejecución. **Este paso solo es necesario para versiones antiguas.**
 
 ```bash
 mysql -u admin -ppointofsale -D ospos < /var/www/html/app/Database/database.sql
 ```
 
-#### Step 8: Access the application
+#### Paso 8: Acceder a la Aplicación
 
-Open your browser and navigate to: `http://<your-droplet-ip>/public`
+Abre tu navegador y ve a: `http://<your-droplet-ip>/public`
 
-#### Step 9: Login
+#### Paso 9: Iniciar Sesión
 
-- **Username:** `admin`
-- **Password:** `pointofsale`
-
----
-
-## Post-Installation
-
-After successful installation:
-
-1. Change the admin password immediately
-2. Configure your store settings in **Store Config**
-3. Set up employees and permissions
-4. Add your inventory items
-5. Configure taxes and payment methods
-
-See [Getting Started Usage](Getting-Started-usage) for detailed configuration.
+- **Usuario:** `admin`
+- **Contraseña:** `pointofsale`
 
 ---
 
-## Other Installation Guides
+## Post-Instalación
 
-- [Local Deployment using LEMP (Nginx)](Local-Deployment-using-LEMP)
-- [Local Deployment using MAMP for Windows](Local-Deployment-using-MAMP-for-Windows)
-- [Local Deployment using XAMPP](XAMPP-Installation)
-- [Raspberry Pi Guide](Raspberry-Pi-Installation)
-- [Ubuntu 24.04/22.04 Install](Ubuntu-24.04-22.04-Installation)
+Después de una instalación exitosa:
+
+1. Cambia la contraseña de administrador de inmediato
+2. Configura los ajustes de tu tienda en **Configuración de Tienda**
+3. Configura empleados y permisos
+4. Agrega tus artículos de inventario
+5. Configura impuestos y métodos de pago
+
+Consulta [Guía de Uso - Primeros Pasos](Getting-Started-usage) para una configuración detallada.
 
 ---
 
-## Troubleshooting
+## Otras Guías de Instalación
 
-### Common Issues
+- [Despliegue Local usando LEMP (Nginx)](Local-Deployment-using-LEMP)
+- [Despliegue Local usando MAMP para Windows](Local-Deployment-using-MAMP-for-Windows)
+- [Despliegue Local usando XAMPP](XAMPP-Installation)
+- [Guía de Raspberry Pi](Raspberry-Pi-Installation)
+- [Instalación en Ubuntu 24.04/22.04](Ubuntu-24.04-22.04-Installation)
 
-| Issue | Solution |
+---
+
+## Solución de Problemas
+
+### Problemas Comunes
+
+| Problema | Solución |
 |-------|----------|
-| "system folder missing" | Download a release build, not source code. Or run `npm install` and build. |
-| Login error | Check database credentials in `.env` file |
-| Blank page | Check PHP error logs, enable `display_errors` in development |
-| Permission errors | Run `chmod -R 750 writable` and `chown -R www-data:www-data writable` |
+| Falta la carpeta "system" | Descarga una versión compilada (release build), no el código fuente. O ejecuta `npm install` y compila. |
+| Error al iniciar sesión | Verifica las credenciales de la base de datos en el archivo `.env` |
+| Página en blanco | Revisa los logs de error de PHP, habilita `display_errors` en desarrollo |
+| Errores de permisos | Ejecuta `chmod -R 750 writable` y `chown -R www-data:www-data writable` |
 
-For more help, see [FAQ in README](https://github.com/opensourcepos/opensourcepos#faq) or [create an issue](https://github.com/opensourcepos/opensourcepos/issues/new).
-
----
-
-## See Also
-
-- [Minimum Server Requirements](Minimum-Server-Requirements)
-- [Getting Started Usage](Getting-Started-usage)
-- [Development Index](Development-Index)
-- [Hardware Support](Supported-hardware-datasheet)
+Para más ayuda, consulta las [preguntas frecuentes en el README](https://github.com/opensourcepos/opensourcepos#faq) o [crea un issue](https://github.com/opensourcepos/opensourcepos/issues/new).
 
 ---
 
-_If you like the project and are making money out of it, consider [buying us a coffee](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=MUN6AEG7NY6H8)._
+## Ver También
+
+- [Requisitos Mínimos del Servidor](Minimum-Server-Requirements)
+- [Guía de Uso - Primeros Pasos](Getting-Started-usage)
+- [Índice de Desarrollo](Development-Index)
+- [Soporte de Hardware](Supported-hardware-datasheet)
+
+---
+
+_Si te gusta el proyecto y estás generando dinero con él, considera [invitarnos un café](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=MUN6AEG7NY6H8)._

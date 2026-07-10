@@ -1,28 +1,28 @@
 
-[← Back to Usage Guide](Getting-Started-usage) | [Home](Home)
+[← Volver a la Guía de Uso](Getting-Started-usage) | [Inicio](Home)
 
 ---
 
-## Supported Import Features
+## Funcionalidades de importación soportadas
 
-* [Importing Items](#importing-items)
-* [Importing Customers](#importing-customers)
+* [Importación de artículos](#importing-items)
+* [Importación de clientes](#importing-customers)
 
-## Importing Items
+## Importación de artículos
 
-You can manually insert each product one by one, but this becomes cumbersome with large numbers of products.  For this reason, a Comma-Separated Values (CSV) import function has been introduced.
+Puede insertar manualmente cada producto uno por uno, pero esto se vuelve engorroso con grandes cantidades de productos. Por esta razón, se introdujo una función de importación de Valores Separados por Comas (CSV).
 
-## Prerequisites and file format
+## Requisitos previos y formato de archivo
 
-CSV file to RFC-4180 specification with commas as the delimeter.  See https://en.wikipedia.org/wiki/Comma-separated_values for more details.
+Archivo CSV conforme a la especificación RFC-4180, con comas como delimitador. Consulte https://en.wikipedia.org/wiki/Comma-separated_values para más detalles.
 
-OSPOS will generate your CSV template based on your current data structure.  You can generate this file by going to Items->CSV Import and clicking the link (Download Import CSV Template (CSV))
+OSPOS generará su plantilla CSV según la estructura de datos actual. Puede generar este archivo yendo a Artículos->Importar CSV y haciendo clic en el enlace (Descargar plantilla de importación CSV (CSV)).
 
-Empty rows will be ignored.
+Las filas vacías serán ignoradas.
 
-CSV files with the Byte-Order Mark (BOM) or without it will be processed by the software.
+El software procesará los archivos CSV con o sin la Marca de Orden de Bytes (BOM).
 
-## Item Columns and field mapping
+## Columnas de artículos y mapeo de campos
 
 ```
 0 - barcode
@@ -54,15 +54,15 @@ CSV files with the Byte-Order Mark (BOM) or without it will be processed by the 
 26 - quantity 1
 ```
 
-# Importing Customers
+# Importación de clientes
 
-You can manually insert each Client one by one at Sale module when register a sale, but when you have a lot of customers it's not fun.
+Puede insertar manualmente cada cliente uno por uno en el módulo de Ventas al registrar una venta, pero cuando tiene muchos clientes esto deja de ser práctico.
 
-## File format and prerequisites
+## Formato de archivo y requisitos previos
 
-By using plain CSV file.
+Usando un archivo CSV plano.
 
-# See Also
+# Ver también
 
-* [Getting Started Usage](Getting-Started-usage)
-* [Complete Feature Datasheet](Complete-feature-datasheet#complete-list-of-features)
+* [Guía de uso inicial](Getting-Started-usage)
+* [Hoja de datos completa de funcionalidades](Complete-feature-datasheet#complete-list-of-features)

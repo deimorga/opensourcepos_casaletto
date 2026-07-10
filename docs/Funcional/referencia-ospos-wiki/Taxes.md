@@ -1,150 +1,150 @@
-[← Back to Configuration](Configuration) | [Home](Home)
+[← Volver a Configuración](Configuration) | [Inicio](Home)
 
 ---
 
-This page explains how to configure taxes in the application. For India GST specifically, see [India GST Configuration](India-GST).
+Esta página explica cómo configurar los impuestos en la aplicación. Para GST de India específicamente, consulta [Configuración de GST India](India-GST).
 
-## Table of Contents
+## Tabla de Contenidos
 
-- [Tax System Overview](#tax-system-overview)
-- [Base System Taxes](#base-system-taxes)
-- [Destination Based Tax](#destination-based-tax)
-- [Tax Definitions](#tax-definitions)
-- [Configure Taxes](#configure-taxes)
-- [Troubleshooting](#troubleshooting)
+- [Resumen del Sistema de Impuestos](#tax-system-overview)
+- [Impuestos del Sistema Base](#base-system-taxes)
+- [Impuesto Basado en Destino](#destination-based-tax)
+- [Definiciones de Impuestos](#tax-definitions)
+- [Configurar Impuestos](#configure-taxes)
+- [Solución de Problemas](#troubleshooting)
 
-## Tax System Overview
+## Resumen del Sistema de Impuestos
 
-The application supports multiple tax configurations:
+La aplicación admite múltiples configuraciones de impuestos:
 
-| Tax Type | Use Case | Features |
+| Tipo de Impuesto | Caso de Uso | Funcionalidades |
 |----------|----------|----------|
-| **Base System Tax** | Simple tax requirements | Up to 2 tax rates per item, sales tax or VAT |
-| **Destination Based Tax** | Multiple tax jurisdictions | Tax by customer location, US state/county/city taxes |
-| **India GST** | India Goods and Services Tax | CGST, SGST, IGST support |
+| **Impuesto del Sistema Base** | Requisitos de impuestos simples | Hasta 2 tasas de impuesto por artículo, impuesto sobre ventas o IVA |
+| **Impuesto Basado en Destino** | Múltiples jurisdicciones fiscales | Impuesto según la ubicación del cliente, impuestos estatales/de condado/de ciudad en EE. UU. |
+| **GST India** | Impuesto sobre Bienes y Servicios de India | Soporte para CGST, SGST, IGST |
 
-## Base System Taxes
+## Impuestos del Sistema Base
 
-If your tax requirements are simple, use the base system tax approach.
+Si tus requisitos de impuestos son simples, usa el enfoque de impuesto del sistema base.
 
-**Features:**
-- Maximum of 2 tax rates per item
-- Supports sales tax (added to price) or VAT (included in price)
-- **Cannot mix sales tax and VAT** - choose one approach
+**Funcionalidades:**
+- Máximo de 2 tasas de impuesto por artículo
+- Admite impuesto sobre ventas (se agrega al precio) o IVA (incluido en el precio)
+- **No se pueden mezclar impuesto sobre ventas e IVA** - elige un solo enfoque
 
-**Important:** Once you start making sales, you cannot switch between sales tax and VAT without incorrect reports.
+**Importante:** Una vez que comienzas a realizar ventas, no puedes cambiar entre impuesto sobre ventas e IVA sin generar reportes incorrectos.
 
-## Destination Based Tax
+## Impuesto Basado en Destino
 
-In the United States, sales tax can be based on:
-- **Origin address** - Store location
-- **Ship-to address** - Where products are shipped
-- **Bill-to address** - Customer billing address
+En Estados Unidos, el impuesto sobre ventas puede basarse en:
+- **Dirección de origen** - Ubicación de la tienda
+- **Dirección de envío** - A dónde se envían los productos
+- **Dirección de facturación** - Dirección de facturación del cliente
 
-Use this feature if you need to collect and report taxes by multiple tax jurisdictions.
+Usa esta funcionalidad si necesitas recaudar y reportar impuestos en múltiples jurisdicciones fiscales.
 
-## Tax Definitions
+## Definiciones de Impuestos
 
-| Term | Definition |
+| Término | Definición |
 |------|------------|
-| **Default Tax Code** | Tax code for the store location (also called Origin Tax Code). Only one per company. |
-| **Tax Code** | Code assigned to a customer identifying which tax jurisdictions apply to their sale. |
-| **Tax Rate** | Percent value (up to 4 decimal places) for a tax jurisdiction. |
-| **HSN Code** | Harmonized System Nomenclature - internationally adopted product category code. |
-| **Item Tax Category** | Category for items requiring different tax rates (e.g., alcohol at higher rate). |
-| **VAT Tax** | Tax tracked for both sales and receiving (Value Added Tax). |
-| **Tax Included** | Tax is included in the sales price. |
-| **Tax Excluded** | Tax is added to the sales price. |
-| **Taxing Decimals** | Number of decimals for tax amount storage. |
-| **Cascaded Tax** | Second tax computed on invoice total plus first tax (VAT). Not currently supported. |
-| **Tax Group** | Summary of taxes collected for one or more tax authorities in a sale. |
+| **Código de Impuesto Predeterminado** | Código de impuesto para la ubicación de la tienda (también llamado Código de Impuesto de Origen). Solo uno por empresa. |
+| **Código de Impuesto** | Código asignado a un cliente que identifica qué jurisdicciones fiscales aplican a su venta. |
+| **Tasa de Impuesto** | Valor porcentual (hasta 4 decimales) para una jurisdicción fiscal. |
+| **Código HSN** | Nomenclatura del Sistema Armonizado - código de categoría de producto adoptado internacionalmente. |
+| **Categoría de Impuesto de Artículo** | Categoría para artículos que requieren tasas de impuesto diferentes (por ejemplo, alcohol con una tasa más alta). |
+| **Impuesto IVA** | Impuesto rastreado tanto para ventas como para recepciones (Impuesto al Valor Agregado). |
+| **Impuesto Incluido** | El impuesto está incluido en el precio de venta. |
+| **Impuesto Excluido** | El impuesto se agrega al precio de venta. |
+| **Decimales de Impuesto** | Número de decimales para el almacenamiento del monto de impuesto. |
+| **Impuesto en Cascada** | Segundo impuesto calculado sobre el total de la factura más el primer impuesto (IVA). No es compatible actualmente. |
+| **Grupo de Impuestos** | Resumen de los impuestos recaudados para una o más autoridades fiscales en una venta. |
 
-## Configure Taxes
+## Configurar Impuestos
 
-### Step 1: Enable Tax Module
+### Paso 1: Habilitar el Módulo de Impuestos
 
-1. Go to **Office → Employees**
-2. Edit the employee who will manage taxes
-3. Check the **Taxes** module permission (not Tax reporting)
+1. Ve a **Oficina → Empleados**
+2. Edita al empleado que administrará los impuestos
+3. Marca el permiso del módulo **Impuestos** (no el de Reportes de impuestos)
 
-### Step 2: Configure Tax Type
+### Paso 2: Configurar el Tipo de Impuesto
 
-Go to **Office → Store Config → General**:
+Ve a **Oficina → Configuración de Tienda → General**:
 
-| Setting | Value | Notes |
+| Configuración | Valor | Notas |
 |---------|-------|-------|
-| **Tax Included** | ☑ Checked | Use for VAT (tax included in price) |
-| | ☐ Unchecked | Use for sales tax (tax added to price) |
-| **Destination Based Tax** | ☑ Checked | Enable destination-based tax calculation |
-| | ☐ Unchecked | Use simple item-level tax rates |
+| **Impuesto Incluido** | ☑ Marcado | Úsalo para IVA (impuesto incluido en el precio) |
+| | ☐ Desmarcado | Úsalo para impuesto sobre ventas (impuesto agregado al precio) |
+| **Impuesto Basado en Destino** | ☑ Marcado | Habilita el cálculo de impuestos basado en destino |
+| | ☐ Desmarcado | Usa tasas de impuesto simples a nivel de artículo |
 
-### Step 3: Set Default Origin Tax Code
+### Paso 3: Establecer el Código de Impuesto de Origen Predeterminado
 
-1. Create a tax code for your store location
-2. Go to **Office → Store Config → General**
-3. Enter the tax code in **Default Origin Tax Code**
+1. Crea un código de impuesto para la ubicación de tu tienda
+2. Ve a **Oficina → Configuración de Tienda → General**
+3. Ingresa el código de impuesto en **Código de Impuesto de Origen Predeterminado**
 
-### Step 4: Add Tax Rates
+### Paso 4: Agregar Tasas de Impuesto
 
-Go to **Office → Taxes** and add each tax jurisdiction:
+Ve a **Oficina → Impuestos** y agrega cada jurisdicción fiscal:
 
-1. **Tax Code** - Unique identifier (e.g., `CA` for California)
-2. **Tax Code Name** - Description (e.g., `California State Tax`)
-3. **Tax Code Type** - Choose:
-   - `Sales Tax` - Tax calculated per item, then totaled
-   - `Sales Tax by Invoice` - Tax calculated on total per category
-4. **City** and **State** - Location for customer-based tax lookup
-5. **Tax Rate** - Percentage (e.g., `7.25` for 7.25%)
-6. **Rounding Code** - How to round fractional amounts
-7. **Category Exceptions** - Override standard rate for specific categories
+1. **Código de Impuesto** - Identificador único (por ejemplo, `CA` para California)
+2. **Nombre del Código de Impuesto** - Descripción (por ejemplo, `California State Tax`)
+3. **Tipo de Código de Impuesto** - Elige:
+   - `Sales Tax` - El impuesto se calcula por artículo y luego se totaliza
+   - `Sales Tax by Invoice` - El impuesto se calcula sobre el total por categoría
+4. **Ciudad** y **Estado** - Ubicación para la búsqueda de impuestos según el cliente
+5. **Tasa de Impuesto** - Porcentaje (por ejemplo, `7.25` para 7.25%)
+6. **Código de Redondeo** - Cómo redondear los montos fraccionarios
+7. **Excepciones de Categoría** - Sobrescribe la tasa estándar para categorías específicas
 
-### Step 5: Assign Tax Categories to Items
+### Paso 5: Asignar Categorías de Impuesto a los Artículos
 
-For items with different tax rates (e.g., alcohol, services):
+Para artículos con tasas de impuesto diferentes (por ejemplo, alcohol, servicios):
 
-1. Go to **Office → Items**
-2. Edit the item
-3. Assign the appropriate **Tax Category**
+1. Ve a **Oficina → Artículos**
+2. Edita el artículo
+3. Asigna la **Categoría de Impuesto** correspondiente
 
-## Rules and Constraints
+## Reglas y Restricciones
 
-> **Important:** Once Destination Tax is enabled, the default tax rate fields on items are no longer used for tax calculation.
+> **Importante:** Una vez habilitado el Impuesto de Destino, los campos de tasa de impuesto predeterminada en los artículos ya no se usan para el cálculo de impuestos.
 
-| Rule | Behavior |
-|------|----------|
-| No customer tax code | Use Origin Tax Code (store default) |
-| Customer has tax code | Use customer's assigned tax code |
-| Sales by Receipt | Tax based on default tax code |
-| Sales by Invoice | Tax based on customer city/state |
-| Tax rates locked | Rates are frozen when sale completes |
+| Regla | Comportamiento |
+|------|------------|
+| Sin código de impuesto de cliente | Se usa el Código de Impuesto de Origen (predeterminado de la tienda) |
+| El cliente tiene código de impuesto | Se usa el código de impuesto asignado al cliente |
+| Ventas por Recibo | El impuesto se basa en el código de impuesto predeterminado |
+| Ventas por Factura | El impuesto se basa en la ciudad/estado del cliente |
+| Tasas de impuesto bloqueadas | Las tasas quedan congeladas cuando se completa la venta |
 
-## Customer Tax Code Assignment
+## Asignación de Código de Impuesto de Cliente
 
-Customer tax codes are assigned based on this priority:
+Los códigos de impuesto de los clientes se asignan según esta prioridad:
 
-1. **Customer's assigned tax code** - If customer has a specific tax code
-2. **Customer's city + state** - If tax code matches customer location
-3. **Customer's state** - If tax code matches customer state
-4. **Default origin tax code** - Fallback to store location
+1. **Código de impuesto asignado al cliente** - Si el cliente tiene un código de impuesto específico
+2. **Ciudad + estado del cliente** - Si el código de impuesto coincide con la ubicación del cliente
+3. **Estado del cliente** - Si el código de impuesto coincide con el estado del cliente
+4. **Código de impuesto de origen predeterminado** - Alternativa por defecto a la ubicación de la tienda
 
-## India GST
+## GST India
 
-India's Goods and Services Tax (introduced 2017) has similar requirements to US Destination Based Tax.
+El Impuesto sobre Bienes y Servicios de India (introducido en 2017) tiene requisitos similares al Impuesto Basado en Destino de EE. UU.
 
-For India GST configuration, see [India GST Configuration](India-GST).
+Para la configuración de GST de India, consulta [Configuración de GST India](India-GST).
 
-## Troubleshooting
+## Solución de Problemas
 
-| Issue | Solution |
+| Problema | Solución |
 |-------|----------|
-| Tax not calculating | Check "Destination Based Tax" is enabled in Store Config |
-| Wrong tax rate | Verify customer has correct tax code assigned |
-| Tax rates changed after sale | Tax rates are locked when sale completes (by design) |
-| VAT and sales tax mixed reports | Cannot switch between tax types after sales (by design) |
-| Category tax not applying | Verify item has correct tax category assigned |
+| El impuesto no se calcula | Verifica que "Impuesto Basado en Destino" esté habilitado en Configuración de Tienda |
+| Tasa de impuesto incorrecta | Verifica que el cliente tenga asignado el código de impuesto correcto |
+| Las tasas de impuesto cambiaron después de la venta | Las tasas de impuesto se bloquean cuando se completa la venta (por diseño) |
+| Reportes mezclan IVA e impuesto sobre ventas | No se puede cambiar entre tipos de impuesto después de haber realizado ventas (por diseño) |
+| No se aplica el impuesto de categoría | Verifica que el artículo tenga asignada la categoría de impuesto correcta |
 
-## See Also
+## Ver También
 
-- [India GST Configuration](India-GST)
-- [Configuration](Configuration)
-- [Getting Started Usage](Getting-Started-usage)
+- [Configuración de GST India](India-GST)
+- [Configuración](Configuration)
+- [Primeros Pasos - Uso](Getting-Started-usage)

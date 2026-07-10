@@ -1,12 +1,12 @@
 
-[← Back to Home](Home)
+[← Volver a Inicio](Home)
 
 ---
 
-When an Issue or Pull Request (PR) are created, two things are generally tagged by the authors:
+Cuando se crea un Issue o Pull Request (PR), generalmente los autores etiquetan dos cosas:
 
-- **Label**
-- **Milestone**
+- **Label (Etiqueta)**
+- **Milestone (Hito)**
 
-## Milestones
-The label Epic indicates a new major chunk of work and addition to the software that will most likely drive a Release.
+## Hitos (Milestones)
+La etiqueta Epic indica un nuevo bloque importante de trabajo y adición al software que probablemente impulsará un Release (Lanzamiento).

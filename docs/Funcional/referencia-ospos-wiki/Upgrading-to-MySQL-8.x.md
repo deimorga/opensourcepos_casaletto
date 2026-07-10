@@ -1,26 +1,26 @@
 
-[← Back to Configuration](Configuration) | [Home](Home)
+[← Volver a Configuración](Configuration) | [Inicio](Home)
 
 ---
 
-Version 3.4 and later support MySQL 8.x.
+La versión 3.4 y posteriores son compatibles con MySQL 8.x.
 
-## Prerequisites
+## Requisitos Previos
 
-If you are starting with a clean install, ensure the version of MySQL you want is installed and ready to use.
+Si estás empezando con una instalación limpia, asegúrate de que la versión de MySQL que deseas esté instalada y lista para usar.
 
-> **Important:** If you are upgrading from an existing site using MySQL 5.6 or 5.7, first upgrade your existing site without changing your MySQL version.
+> **Importante:** Si estás actualizando desde un sitio existente que usa MySQL 5.6 o 5.7, primero actualiza tu sitio existente sin cambiar la versión de MySQL.
 
-The migration will make the necessary database changes needed for MySQL 8.x compatibility.
+La migración realizará los cambios necesarios en la base de datos requeridos para la compatibilidad con MySQL 8.x.
 
-## Upgrade Steps
+## Pasos de Actualización
 
-1. Save your database.
+1. Respalda tu base de datos.
 
-2. Export your database to an SQL script.
+2. Exporta tu base de datos a un script SQL.
 
-3. Install the new version of MySQL 8.x
+3. Instala la nueva versión de MySQL 8.x
 
-4. If you were doing an "in place" upgrade then you should be okay. See [MySQL In-Place Upgrade](https://dev.mysql.com/blog-archive/inplace-upgrade-from-mysql-5-7-to-mysql-8-0/) for details.
+4. Si estabas realizando una actualización "in place" (en el mismo lugar), entonces deberías estar bien. Consulta [MySQL In-Place Upgrade](https://dev.mysql.com/blog-archive/inplace-upgrade-from-mysql-5-7-to-mysql-8-0/) para más detalles.
 
-5. If you are not doing "in place" (i.e. running multiple development/test environments), then import your data from the export script created in step 2.
+5. Si no estás haciendo una actualización "in place" (es decir, ejecutas múltiples entornos de desarrollo/prueba), entonces importa tus datos desde el script de exportación creado en el paso 2.

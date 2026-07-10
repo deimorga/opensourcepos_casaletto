@@ -1,22 +1,22 @@
 
-[← Back to Developer Docs](Development-Index) | [Home](Home)
+[← Volver a Documentación para Desarrolladores](Development-Index) | [Inicio](Home)
 
 ---
 
-The application uses the Model-View-Controller paradigm. Therefore you need to work on the three parts in order to create a new report.
+La aplicación utiliza el paradigma Modelo-Vista-Controlador. Por lo tanto, necesitas trabajar en las tres partes para crear un nuevo reporte.
 
-Model -> application\models\reports\yourreportmodelname.php
-Controller -> application\controllers\reports.php (add your controller entry to the list)
-View -> application\views\reports (if you mimic one listing or graphical that already exist you should not care too much about this)
+Modelo -> application\models\reports\yourreportmodelname.php
+Controlador -> application\controllers\reports.php (agrega la entrada de tu controlador a la lista)
+Vista -> application\views\reports (si estás imitando un listado o gráfico que ya existe, no deberías preocuparte mucho por esto)
 
-You should check this file too: application\helpers\table_helper.php because deals with the tabular view of certain reports in particular the row format.
+También deberías revisar este archivo: application\helpers\table_helper.php porque se encarga de la vista tabular de ciertos reportes, en particular el formato de fila.
 
-And then make sure your new Report is added to application\config\routes.php
+Y luego asegúrate de que tu nuevo Reporte esté agregado en application\config\routes.php
 
-The best would be to start looking into one similar report to understand how it's structured and copy and paste it renaming to your new report. Once renamed you can play with query part and etc.
+Lo mejor sería empezar mirando un reporte similar para entender cómo está estructurado, copiarlo y pegarlo renombrándolo a tu nuevo reporte. Una vez renombrado puedes trabajar con la parte de la consulta (query), etc.
 
-If you add new text strings then you need to deal with the translations, but one step at time.
+Si agregas nuevas cadenas de texto, entonces necesitas ocuparte de las traducciones, pero un paso a la vez.
 
-If you let say just want to add Location as parameter picked up from a list before showing an existing report, you need to select a different selector view that is mentioned in the routes.php.
+Si digamos que solo quieres agregar Ubicación como parámetro seleccionable de una lista antes de mostrar un reporte existente, necesitas seleccionar una vista de selector diferente que esté mencionada en routes.php.
 
-It takes a bit of time to get your mind around all the logic, so play a bit, fail and learn :-)
+Toma un poco de tiempo entender toda la lógica, así que juega un poco, falla y aprende :-)

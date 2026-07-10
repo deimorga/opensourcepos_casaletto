@@ -1,19 +1,19 @@
 
-[← Back to Installation Guides](Getting-Started-installations) | [Home](Home)
+[← Volver a Guías de Instalación](Getting-Started-installations) | [Inicio](Home)
 
 ---
 
-This guide covers installation on Windows for local testing only. For production use, a proper server is recommended.
+Esta guía cubre la instalación en Windows solo para pruebas locales. Para uso en producción, se recomienda un servidor adecuado.
 
-> **Note:** For current releases (stable and unstable), the database is created automatically on first run. You do NOT need to import `app/Database/database.sql` manually.
+> **Nota:** Para las versiones actuales (estables e inestables), la base de datos se crea automáticamente en la primera ejecución. NO necesitas importar `app/Database/database.sql` manualmente.
 
-## Quick Steps
+## Pasos Rápidos
 
-1. Install XAMPP with PHP 8.1+ from [Apache Friends](https://www.apachefriends.org/)
-2. Start Apache and MySQL from XAMPP Control Panel
-3. Create database in phpMyAdmin
-4. Download latest release and extract to `htdocs`
-5. Configure `.env` with database credentials
-6. Browse to `http://localhost/opensourcepos/public`
+1. Instala XAMPP con PHP 8.1+ desde [Apache Friends](https://www.apachefriends.org/)
+2. Inicia Apache y MySQL desde el Panel de Control de XAMPP
+3. Crea la base de datos en phpMyAdmin
+4. Descarga la última versión y extráela en `htdocs`
+5. Configura `.env` con las credenciales de la base de datos
+6. Navega a `http://localhost/opensourcepos/public`
 
-For detailed XAMPP installation, see [XAMPP Installation Guide](XAMPP-Installation).
+Para una instalación detallada de XAMPP, consulta la [Guía de Instalación de XAMPP](XAMPP-Installation).

@@ -1,13 +1,12 @@
 
-Localisation was added in [issue 458](https://github.com/jekkos/opensourcepos/issues/458) and will require the `php-intl` extension. To make everything work correctly make sure that this is installed first. 
+La localización fue agregada en el [issue 458](https://github.com/jekkos/opensourcepos/issues/458) y requiere la extensión `php-intl`. Para que todo funcione correctamente, asegúrate de que esté instalada primero.
 
-## php-intl extension installation
-`php-intl` can be installed as follows
+## Instalación de la extensión php-intl
+`php-intl` se puede instalar de la siguiente manera:
 
-* On a debian based system by hitting `sudo apt-get install php-intl` or by manually enabling the intl extension in your cpanel (if using shared hosting).
-* On a wamp install by following the instructions [in this post](http://stackoverflow.com/questions/23431788/how-to-install-intl-php-extension-with-wamp-server)
+* En un sistema basado en Debian, ejecutando `sudo apt-get install php-intl` o habilitando manualmente la extensión intl en tu cpanel (si usas hosting compartido).
+* En una instalación wamp, siguiendo las instrucciones [en esta publicación](http://stackoverflow.com/questions/23431788/how-to-install-intl-php-extension-with-wamp-server)
 
-## Finding a suitable locale
+## Encontrar una localización adecuada
 
-Next a suitable locale code should be chosen. [A full list of language codes](https://github.com/opensourcepos/opensourcepos/tree/master/app/Language) can be found directly in our repository. This language code will at first determine the currency symbol and position, decimal and thousands separator. Currency symbol can then be overridden aside from the selected locale
-
+A continuación, debe elegirse un código de localización adecuado. [Una lista completa de códigos de idioma](https://github.com/opensourcepos/opensourcepos/tree/master/app/Language) se puede encontrar directamente en nuestro repositorio. Este código de idioma determinará, en primer lugar, el símbolo y la posición de la moneda, así como los separadores decimal y de miles. El símbolo de la moneda puede luego sobrescribirse independientemente de la localización seleccionada.

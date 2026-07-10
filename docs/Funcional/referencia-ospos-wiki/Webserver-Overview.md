@@ -1,43 +1,43 @@
 
-[← Back to Configuration](Configuration) | [Home](Home)
+[← Volver a Configuración](Configuration) | [Inicio](Home)
 
 ---
 
-This page provides additional information about webservers, PHP, and MySQL for users who need it.
+Esta página ofrece información adicional sobre servidores web, PHP y MySQL para los usuarios que la necesiten.
 
-## Overview
+## Descripción General
 
-PHP and other scripts need a webserver and in most cases a MySQL database to run. If you do not have a webserver hosted at a web host, you will need a webserver running on your local computer (like XAMPP, WAMP, or [Uniform Server](http://www.uniformserver.com/)).
+PHP y otros scripts necesitan un servidor web y, en la mayoría de los casos, una base de datos MySQL para ejecutarse. Si no tienes un servidor web alojado en un proveedor de hosting, necesitarás un servidor web ejecutándose en tu computadora local (como XAMPP, WAMP o [Uniform Server](http://www.uniformserver.com/)).
 
-## What version of PHP am I running?
-Load this file (info.php) in your public_html folder, then run the script, mywebsite.com/info.php
-copy this code 
+## ¿Qué versión de PHP estoy ejecutando?
+Carga este archivo (info.php) en tu carpeta public_html, luego ejecuta el script, mywebsite.com/info.php
+copia este código
 
 `<?php
 // Show all information, defaults to INFO_ALL
 phpinfo();
-?>` 
+?>`
 
-to notepad and save as All Files (*.*) named info.php
+en el bloc de notas y guárdalo como Todos los Archivos (*.*) con el nombre info.php
 
-you can find more information here: http://php.net/manual/en/function.phpinfo.php
+puedes encontrar más información aquí: http://php.net/manual/en/function.phpinfo.php
 
-## Moving your files and system to new local computer?
+## ¿Mudando tus archivos y sistema a una nueva computadora local?
 
-If you use Uniform Server then all that is needed to move your system is just backup and move your files. It is the biggest reason I use portable apps (http://portableapps.com/apps/) in the first place. I will have to do more research on moving other servers.
+Si usas Uniform Server, todo lo que necesitas para mudar tu sistema es simplemente respaldar y mover tus archivos. Es la razón principal por la que uso aplicaciones portables (http://portableapps.com/apps/) en primer lugar. Tendré que investigar más sobre cómo mudar otros servidores.
 
-## Using Uniform Server
+## Usando Uniform Server
 
-Uniform Server (http://www.uniformserver.com/) ZeroXIII releases are versions with pre-installed
- ZeroXIII modules producing a standard WAMP (Windows, Apache, MySQL 
- and PHP) server package. After extracting, servers are ready to
- run either from a USB memory stick or PC. Apart from changing
- the MySQL password (optional) there is no configuration required.
+Las versiones ZeroXIII de Uniform Server (http://www.uniformserver.com/) son versiones con
+ módulos ZeroXIII preinstalados que producen un paquete de servidor WAMP estándar (Windows, Apache, MySQL
+ y PHP). Después de extraerlos, los servidores están listos para
+ ejecutarse ya sea desde una memoria USB o desde una PC. Aparte de cambiar
+ la contraseña de MySQL (opcional) no se requiere ninguna configuración.
 
-Uniform Server uses 7z self-extracting archives. Archives are
- compressed using 7z and include the 7-Zip extractor. To unpack
- double click on the exe file this unpacks all folders and files
- contained in the archive nothing is added to the registry or
- installed. If you wish to view and extract individual
- folders/files download 7-z portable from:
+Uniform Server utiliza archivos autoextraíbles 7z. Los archivos están
+ comprimidos usando 7z e incluyen el extractor 7-Zip. Para descomprimir,
+ haz doble clic en el archivo exe, esto descomprime todas las carpetas y archivos
+ contenidos en el archivo comprimido; nada se agrega al registro ni se
+ instala. Si deseas ver y extraer carpetas/archivos
+ individuales, descarga 7-z portable desde:
  http://portableapps.com/apps/utilities/7-zip_portable

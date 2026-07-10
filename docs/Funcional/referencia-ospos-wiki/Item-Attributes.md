@@ -1,77 +1,77 @@
-[← Back to Configuration](Configuration) | [Home](Home)
+[← Volver a Configuración](Configuration) | [Inicio](Home)
 
 ---
 
-# Item Attributes
+# Atributos de artículos
 
-This page explains how to use custom attributes for items, sales, and receivings.
+Esta página explica cómo usar atributos personalizados para artículos, ventas y recepciones.
 
-> **Note:** The old `custom1` through `custom10` fields are deprecated. Use the Attributes system instead.
+> **Nota:** Los campos antiguos `custom1` a `custom10` están en desuso. Use el sistema de Atributos en su lugar.
 
-## Overview
+## Descripción general
 
-Attributes allow you to add custom fields to items, sales, and receivings. Each attribute can be:
+Los atributos le permiten agregar campos personalizados a artículos, ventas y recepciones. Cada atributo puede ser:
 
-- **Text** - Free-form text values
-- **Dropdown** - Pre-defined list of values
-- **Decimal** - Numeric values
-- **Date** - Date values
+- **Texto** - Valores de texto libre
+- **Lista desplegable** - Lista predefinida de valores
+- **Decimal** - Valores numéricos
+- **Fecha** - Valores de fecha
 
-You can define which attributes appear in:
-- **Items** - View and edit in item details
-- **Sales** - View and edit during sale transactions
-- **Receivings** - View and edit during receiving
+Puede definir en qué secciones aparecen los atributos:
+- **Artículos** - Ver y editar en los detalles del artículo
+- **Ventas** - Ver y editar durante las transacciones de venta
+- **Recepciones** - Ver y editar durante la recepción
 
-## Access Attributes Module
+## Acceder al módulo de Atributos
 
-1. Go to **Office → Employees**
-2. Edit employee permissions
-3. Check the **Attributes** module permission
+1. Vaya a **Oficina → Empleados**
+2. Edite los permisos del empleado
+3. Marque el permiso del módulo **Atributos**
 
-## Create Attribute Definitions
+## Crear definiciones de atributos
 
-Go to **Office → Attributes**:
+Vaya a **Oficina → Atributos**:
 
-### Definition Fields
+### Campos de definición
 
-| Field | Description |
+| Campo | Descripción |
 |-------|-------------|
-| **Definition Name** | Display name for the attribute (e.g., "Brand", "Color", "Size") |
-| **Definition Type** | `TEXT`, `DROPDOWN`, `DECIMAL`, or `DATE` |
-| **Definition Unit** | Unit of measure (e.g., "kg", "cm", "%" for numeric attributes) |
-| **Show in Items** | ☑ Display and edit in item details |
-| **Show in Sales** | ☑ Display and edit in sales transactions |
-| **Show in Receivings** | ☑ Display and edit in receiving forms |
+| **Nombre de la definición** | Nombre visible del atributo (por ejemplo, "Marca", "Color", "Talla") |
+| **Tipo de definición** | `TEXT`, `DROPDOWN`, `DECIMAL` o `DATE` |
+| **Unidad de la definición** | Unidad de medida (por ejemplo, "kg", "cm", "%" para atributos numéricos) |
+| **Mostrar en Artículos** | ☑ Mostrar y editar en los detalles del artículo |
+| **Mostrar en Ventas** | ☑ Mostrar y editar en las transacciones de venta |
+| **Mostrar en Recepciones** | ☑ Mostrar y editar en los formularios de recepción |
 
-### Dropdown Values
+### Valores de lista desplegable
 
-For `DROPDOWN` type attributes:
+Para atributos de tipo `DROPDOWN`:
 
-1. Create the attribute definition
-2. Click the attribute to edit
-3. Add dropdown values in the values section
-4. Each value can be used multiple times across items
+1. Cree la definición del atributo
+2. Haga clic en el atributo para editarlo
+3. Agregue los valores de la lista desplegable en la sección de valores
+4. Cada valor puede usarse múltiples veces en distintos artículos
 
-## Use Attributes in Items
+## Usar atributos en artículos
 
-Once attributes are defined with "Show in Items" checked:
+Una vez que los atributos están definidos con "Mostrar en Artículos" marcado:
 
-1. Go to **Items → Manage Items**
-2. Edit an item
-3. Scroll to **Attributes** section
-4. Enter values for each attribute
-5. Click **Submit**
+1. Vaya a **Artículos → Administrar artículos**
+2. Edite un artículo
+3. Desplácese hasta la sección **Atributos**
+4. Ingrese los valores para cada atributo
+5. Haga clic en **Enviar**
 
-### Import via CSV
+### Importar vía CSV
 
-When importing items via CSV, include attribute columns:
+Al importar artículos vía CSV, incluya columnas de atributos:
 
 ```
 attribute_1_name,attribute_1_value
 attribute_2_name,attribute_2_value
 ```
 
-**Example:**
+**Ejemplo:**
 
 ```
 item_name,category,Brand,Color,Size
@@ -79,51 +79,51 @@ Widget A,Electronics,Samsung,Black,Large
 Widget B,Electronics,LG,White,Small
 ```
 
-## Use Attributes in Sales
+## Usar atributos en ventas
 
-To show attributes in sales:
+Para mostrar atributos en ventas:
 
-1. Create attribute definition
-2. Check **Show in Sales**
-3. During a sale, the attribute will appear in the item details
+1. Cree la definición del atributo
+2. Marque **Mostrar en Ventas**
+3. Durante una venta, el atributo aparecerá en los detalles del artículo
 
-Attributes can be edited during the sale and will be saved with the transaction.
+Los atributos se pueden editar durante la venta y se guardarán junto con la transacción.
 
-## Use Attributes in Receivings
+## Usar atributos en recepciones
 
-To show attributes in receivings:
+Para mostrar atributos en recepciones:
 
-1. Create attribute definition
-2. Check **Show in Receivings**
-3. During receiving, the attribute will appear in the item details
+1. Cree la definición del atributo
+2. Marque **Mostrar en Recepciones**
+3. Durante la recepción, el atributo aparecerá en los detalles del artículo
 
-This allows you to update attribute values when receiving new stock.
+Esto le permite actualizar los valores de los atributos al recibir nueva existencia.
 
-## Database Structure
+## Estructura de la base de datos
 
-Attributes use three database tables:
+Los atributos utilizan tres tablas de base de datos:
 
-| Table | Purpose |
+| Tabla | Propósito |
 |-------|---------|
-| `attribute_definitions` | Stores attribute definitions (name, type, flags) |
-| `attribute_values` | Stores dropdown values for DROPDOWN type |
-| `attribute_links` | Links attributes to items/sales/receivings |
+| `attribute_definitions` | Almacena las definiciones de atributos (nombre, tipo, indicadores) |
+| `attribute_values` | Almacena los valores de la lista desplegable para el tipo DROPDOWN |
+| `attribute_links` | Vincula los atributos con artículos/ventas/recepciones |
 
-### Attribute Flags
+### Indicadores de atributos
 
-Attributes support these visibility flags:
+Los atributos admiten los siguientes indicadores de visibilidad:
 
-| Flag | Value | Shows In |
+| Indicador | Valor | Se muestra en |
 |------|-------|----------|
-| SHOW_IN_ITEMS | 1 | Items list and edit |
-| SHOW_IN_SALES | 2 | Sales transactions |
-| SHOW_IN_RECEIVINGS | 4 | Receiving forms |
+| SHOW_IN_ITEMS | 1 | Lista y edición de artículos |
+| SHOW_IN_SALES | 2 | Transacciones de venta |
+| SHOW_IN_RECEIVINGS | 4 | Formularios de recepción |
 
-These can be combined (e.g., `5` = Items + Receivings).
+Estos se pueden combinar (por ejemplo, `5` = Artículos + Recepciones).
 
-## Examples
+## Ejemplos
 
-### Example 1: Brand Attribute
+### Ejemplo 1: Atributo Marca
 
 ```
 Definition Name: Brand
@@ -133,9 +133,9 @@ Show in Sales: ☑
 Show in Receivings: ☐
 ```
 
-Items will have a Brand field, visible during sales.
+Los artículos tendrán un campo Marca, visible durante las ventas.
 
-### Example 2: Size Dropdown
+### Ejemplo 2: Lista desplegable de Talla
 
 ```
 Definition Name: Size
@@ -146,9 +146,9 @@ Show in Sales: ☑
 Show in Receivings: ☑
 ```
 
-Select from predefined sizes throughout the system.
+Seleccione entre las tallas predefinidas en todo el sistema.
 
-### Example 3: Weight (Decimal)
+### Ejemplo 3: Peso (Decimal)
 
 ```
 Definition Name: Weight
@@ -159,31 +159,31 @@ Show in Sales: ☐
 Show in Receivings: ☑
 ```
 
-Track weight in kilograms, editable in receivings.
+Rastree el peso en kilogramos, editable en recepciones.
 
-## API Endpoints
+## Endpoints de la API
 
-For developers, attributes can be accessed via:
+Para desarrolladores, se puede acceder a los atributos mediante:
 
-| Endpoint | Description |
+| Endpoint | Descripción |
 |----------|-------------|
-| `GET /attributes` | List all attribute definitions |
-| `POST /attributes/save_value` | Save attribute value for an item |
-| `POST /attributes/save_definition` | Save attribute definition |
-| `DELETE /attributes/delete_value` | Delete dropdown value |
+| `GET /attributes` | Lista todas las definiciones de atributos |
+| `POST /attributes/save_value` | Guarda el valor de un atributo para un artículo |
+| `POST /attributes/save_definition` | Guarda la definición de un atributo |
+| `DELETE /attributes/delete_value` | Elimina un valor de la lista desplegable |
 
-## Troubleshooting
+## Solución de problemas
 
-| Issue | Solution |
+| Problema | Solución |
 |-------|----------|
-| Attributes not showing | Check visibility flags in definition |
-| Dropdown values missing | Add values after creating DROPDOWN type |
-| Can't edit attributes | Verify employee has Attributes permission |
-| Import fails | Check CSV column names match attribute definition names |
+| Los atributos no se muestran | Verifique los indicadores de visibilidad en la definición |
+| Faltan valores de la lista desplegable | Agregue valores después de crear el tipo DROPDOWN |
+| No se pueden editar los atributos | Verifique que el empleado tenga el permiso de Atributos |
+| Falla la importación | Verifique que los nombres de las columnas del CSV coincidan con los nombres de las definiciones de atributos |
 
-## See Also
+## Ver también
 
-- [Items](Items)
-- [Inventory Items](Inventory-Items)
-- [Import from CSV](Import-data-from-CSV-file)
-- [Attribute Model Source](https://github.com/opensourcepos/opensourcepos/blob/master/app/Models/Attribute.php)
+- [Artículos](Items)
+- [Artículos de inventario](Inventory-Items)
+- [Importar desde CSV](Import-data-from-CSV-file)
+- [Código fuente del modelo de Atributos](https://github.com/opensourcepos/opensourcepos/blob/master/app/Models/Attribute.php)

@@ -1,15 +1,15 @@
-[← Back to Usage Guide](Getting-Started-usage) | [Home](Home)
+[← Volver a la Guía de Uso](Getting-Started-usage) | [Inicio](Home)
 
 ---
 
-## Overview
+## Resumen
 
-In normal POS operations a sale is made and the amount paid for the sale is entered. The sale cannot be completed until at least the amount due is entered as payment. If more than the amount due is received then the Change Due is reported and it is assumed that the buyer received the change due.
+En una operación normal de POS se realiza una venta y se ingresa el monto pagado por la venta. La venta no se puede completar hasta que al menos se ingrese como pago el monto adeudado. Si se recibe más del monto adeudado, se reporta el Cambio a Entregar (Change Due) y se asume que el comprador recibió dicho cambio.
 
-The amount of the payment and the amount refunded is tracked (along with when and who).
+Se registra el monto del pago y el monto reembolsado (junto con cuándo y quién lo realizó).
 
-There is support for a manual payment transaction (used for POS sales) that allows the seller to close the sale even though there is a balance due.  This payment transaction is used when the site administrator wants the clerk to make a deliberate decision to close the sale with a balance due on it.  Only sales with a customer assignment can be closed with a balance due.
+Existe soporte para una transacción de pago manual (usada para ventas POS) que permite al vendedor cerrar la venta aunque quede un saldo pendiente. Esta transacción de pago se usa cuando el administrador del sitio quiere que el cajero tome una decisión deliberada de cerrar la venta con un saldo pendiente. Solo las ventas con un cliente asignado se pueden cerrar con saldo pendiente.
 
-In an invoice sale it is normal for there to be a balance due.  All invoices require a customer be associated with the sale.  Although it's possible to enter a "due" payment transaction against an invoice, it is unnecessary.
+En una venta por factura es normal que quede un saldo pendiente. Todas las facturas requieren que se asocie un cliente a la venta. Aunque es posible registrar una transacción de pago "pendiente" (due) contra una factura, no es necesario.
 
-Development is currently underway to better track balance due amounts (including "due" transactions) and to slightly improve the support for post sale payments.  This work is to resolve issue #3072
+Actualmente se está desarrollando una mejora para llevar un mejor control de los montos de saldo pendiente (incluyendo las transacciones "pendientes") y para mejorar ligeramente el soporte de pagos posteriores a la venta. Este trabajo busca resolver el issue #3072

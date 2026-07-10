@@ -1,14 +1,14 @@
-# Raspberry Pi Installation
+# Instalación en Raspberry Pi
 
-[← Back to Installation Guides](Getting-Started-installations) | [Home](Home)
+[← Volver a Guías de Instalación](Getting-Started-installations) | [Inicio](Home)
 
 ---
 
-This guide covers installing on Raspberry Pi or similar ARM-based devices (Orange Pi, etc.).
+Esta guía cubre la instalación en Raspberry Pi o dispositivos similares basados en ARM (Orange Pi, etc.).
 
-## Quick Start with Docker (Recommended)
+## Inicio Rápido con Docker (Recomendado)
 
-Docker is the easiest way to run on Raspberry Pi since arm64/aarch64 images are now available.
+Docker es la forma más fácil de ejecutar en Raspberry Pi, ya que ahora hay disponibles imágenes arm64/aarch64.
 
 ```bash
 # Install Docker
@@ -32,15 +32,15 @@ nano .env
 docker-compose up -d
 ```
 
-Access at: `http://your-pi-ip:8080`
+Accede en: `http://your-pi-ip:8080`
 
-Default credentials: `admin` / `pointofsale`
+Credenciales por defecto: `admin` / `pointofsale`
 
-## Standard LAMP Installation
+## Instalación LAMP Estándar
 
-Raspberry Pi OS is based on Debian, so installation is similar to Ubuntu/Debian. Follow the [Ubuntu 24.04/22.04 Installation Guide](Ubuntu-24.04-22.04-Installation).
+Raspberry Pi OS está basado en Debian, por lo que la instalación es similar a Ubuntu/Debian. Sigue la [Guía de Instalación de Ubuntu 24.04/22.04](Ubuntu-24.04-22.04-Installation).
 
-### Quick Commands
+### Comandos Rápidos
 
 ```bash
 # Update system
@@ -65,20 +65,20 @@ sudo mysql -u root -e "GRANT ALL PRIVILEGES ON ospos.* TO 'admin'@'%';"
 sudo mysql -u root -e "FLUSH PRIVILEGES;"
 ```
 
-Download the latest release from [GitHub Releases](https://github.com/opensourcepos/opensourcepos/releases) and extract to `/var/www/html/`.
+Descarga la última versión desde [GitHub Releases](https://github.com/opensourcepos/opensourcepos/releases) y extráela en `/var/www/html/`.
 
-> **Note:** For current releases, the database is created automatically on first run.
+> **Nota:** Para las versiones actuales, la base de datos se crea automáticamente en la primera ejecución.
 
-## LEMP Stack (Nginx)
+## Stack LEMP (Nginx)
 
-If you prefer Nginx over Apache, follow the [LEMP Deployment Guide](Local-Deployment-using-LEMP).
+Si prefieres Nginx en lugar de Apache, sigue la [Guía de Despliegue LEMP](Local-Deployment-using-LEMP).
 
-## Performance Tips
+## Consejos de Rendimiento
 
-For better performance on Raspberry Pi:
+Para un mejor rendimiento en Raspberry Pi:
 
-1. **Use a fast SD card** - Class 10 or better
-2. **Increase swap file** - Helps with memory-intensive operations
+1. **Usa una tarjeta SD rápida** - Clase 10 o superior
+2. **Aumenta el archivo swap** - Ayuda con operaciones que consumen mucha memoria
    ```bash
    sudo dphys-swapfile swapoff
    sudo nano /etc/dphys-swapfile
@@ -86,21 +86,21 @@ For better performance on Raspberry Pi:
    sudo dphys-swapfile setup
    sudo dphys-swapfile swapon
    ```
-3. **Disable unnecessary services** - Free up resources
-4. **Use Docker** - Generally more lightweight than full LAMP stack
+3. **Deshabilita servicios innecesarios** - Libera recursos
+4. **Usa Docker** - Generalmente más ligero que un stack LAMP completo
 
-## Hardware Recommendations
+## Recomendaciones de Hardware
 
-| Pi Model | RAM | Performance |
+| Modelo de Pi | RAM | Rendimiento |
 |----------|-----|-------------|
-| Raspberry Pi 4 | 4GB+ | Recommended for production |
-| Raspberry Pi 4 | 2GB | Works well for light use |
-| Raspberry Pi 3 B+ | 1GB | Functional but slower |
-| Raspberry Pi Zero W | 512MB | Not recommended |
+| Raspberry Pi 4 | 4GB+ | Recomendado para producción |
+| Raspberry Pi 4 | 2GB | Funciona bien para uso ligero |
+| Raspberry Pi 3 B+ | 1GB | Funcional pero más lento |
+| Raspberry Pi Zero W | 512MB | No recomendado |
 
-## See Also
+## Ver También
 
-- [Ubuntu Installation Guide](Ubuntu-24.04-22.04-Installation)
-- [LEMP Installation Guide](Local-Deployment-using-LEMP)
-- [Docker Setup](Getting-Started-installations#local-docker-install)
-- [Minimum Server Requirements](Minimum-Server-Requirements)
+- [Guía de Instalación de Ubuntu](Ubuntu-24.04-22.04-Installation)
+- [Guía de Instalación LEMP](Local-Deployment-using-LEMP)
+- [Configuración de Docker](Getting-Started-installations#local-docker-install)
+- [Requisitos Mínimos del Servidor](Minimum-Server-Requirements)

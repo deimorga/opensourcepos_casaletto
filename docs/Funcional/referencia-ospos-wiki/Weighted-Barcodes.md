@@ -1,90 +1,90 @@
 
-[← Back to Configuration](Configuration) | [Home](Home)
+[← Volver a Configuración](Configuration) | [Inicio](Home)
 
 ---
 
-The application can be used for businesses based on **weighted items**, such as dairy markets, grocery shops, roasteries, and fruit/vegetable markets.
+La aplicación se puede usar para negocios basados en **artículos pesados**, como mercados de lácteos, tiendas de abarrotes, tostadurías y mercados de frutas/verduras.
 
-## How to Use Scales as an Input Device 
+## Cómo usar básculas como dispositivo de entrada
 
-The idea is that you configure the scale to readout the variables in a fixed string format. Most scales are regular USB devices that can be configured to send keys as if they were a keyboard. One thing you need to do is setup the format in OSPOS so it knows which data goes where.
+La idea es que configure la báscula para que muestre las variables en un formato de cadena fija. La mayoría de las básculas son dispositivos USB comunes que se pueden configurar para enviar pulsaciones de teclas como si fueran un teclado. Una cosa que necesita hacer es configurar el formato en OSPOS para que sepa qué dato va en cada lugar.
 
-### Where to configure
+### Dónde configurar
 
-The feature allows you to use a specific barcode format to parse the barcode set in configuration panel as below:
+Esta funcionalidad le permite usar un formato de código de barras específico para interpretar el código de barras, configurado en el panel de configuración como se muestra a continuación:
 
-![Input Field](http://ospos.wshells.org/Wiki/Input.png)
+![Campo de entrada](http://ospos.wshells.org/Wiki/Input.png)
 
-As you can see, the input field should be filled with the barcode format you are printing using the weighing scale.
+Como puede ver, el campo de entrada debe completarse con el formato de código de barras que está imprimiendo con la báscula.
 
-Below is a filled in example:
+A continuación se muestra un ejemplo completado:
 
-![Input Filled](http://ospos.wshells.org/Wiki/Filled.jpg)
+![Campo completado](http://ospos.wshells.org/Wiki/Filled.jpg)
 
-### The format before 3.3.2
+### El formato antes de la versión 3.3.2
 
 ```02(\d{5})(\w{6})```
 
-* 2 first characters represent the department code
-* 5 following digits represent the item weight
-* last 6 characters represent the item barcode
+* Los primeros 2 caracteres representan el código de departamento
+* Los siguientes 5 dígitos representan el peso del artículo
+* Los últimos 6 caracteres representan el código de barras del artículo
 
-### The format in 3.3.2 and beyond
+### El formato en la versión 3.3.2 y posteriores
 
-The format adheres to the token formatting used also in ([invoices, quotes and work orders](https://github.com/opensourcepos/opensourcepos/pull/2797)).
+El formato sigue el mismo formato de tokens que se usa también en ([facturas, cotizaciones y órdenes de trabajo](https://github.com/opensourcepos/opensourcepos/pull/2797)).
 
 ```02{W:5}{I:6}```
 
-* 2 first characters represent the department code
-* 5 following digits represent the item weight
-* last 6 characters represent the item barcode
-* One can also use price as {P:3} as a last variable
+* Los primeros 2 caracteres representan el código de departamento
+* Los siguientes 5 dígitos representan el peso del artículo
+* Los últimos 6 caracteres representan el código de barras del artículo
+* También se puede usar el precio como {P:3} como última variable
 
-Please set the **quantity decimals** to 2 in order to make the system parse the quantities correctly.
-For further info, [we are just a click away](https://github.com/opensourcepos/opensourcepos/issues/new)!
+Configure los **decimales de cantidad** en 2 para que el sistema interprete correctamente las cantidades.
+Para más información, [estamos a un clic de distancia](https://github.com/opensourcepos/opensourcepos/issues/new).
 
-### Further/in-depth explanation
+### Explicación adicional/en profundidad
 
-Barcodes embedded with data, such as weight or price or item ID can be parsed with a regex code (this is simpler than it sounds).
+Los códigos de barras con datos incorporados, como peso, precio o ID de artículo, se pueden interpretar con un código regex (esto es más simple de lo que suena).
 
-let's assume your barcode is an EAN13 barcode (in theory, this should work for any type of barcode), and your barcode looks like this:
+Supongamos que su código de barras es un código de barras EAN13 (en teoría, esto debería funcionar con cualquier tipo de código de barras), y su código de barras se ve así:
 
 2000021019409
 
-we can break this barcode up into the following segments:
+podemos dividir este código de barras en los siguientes segmentos:
 
-* 20 (company or country code)
-* 0002 (item ID)
-* 1 (random digit for barcode uniqueness)
-* 01940 (price)
-* 9 (checksum digit)
+* 20 (código de empresa o país)
+* 0002 (ID del artículo)
+* 1 (dígito aleatorio para la unicidad del código de barras)
+* 01940 (precio)
+* 9 (dígito de verificación/checksum)
 
-in order to write out regex code for this barcode (assuming all other barcodes are generated the same) you would need to use the following:
+para escribir el código regex para este código de barras (asumiendo que todos los demás códigos de barras se generan de la misma manera) necesitaría usar lo siguiente:
 * 20{I:4}\d{P:5}\d 
-* (worth noting, the last "\d" can be left out)
+* (vale la pena señalar que el último "\d" se puede omitir)
 
-let's understand the components of this, and see what our options are:
-* 20 is the company code, as mentioned above. this is an unchanging component.
-* {:} is to indicate that whatever is within these curly braces specifies a range of data that matches what is in the brackets.
-* I = item ID, and will always separate out whatever is within the specified range as the ID
-* W = weight/quantity of the item specified. this value is divided by 1000 by default.
-* P = price. by default, price does not consider cents. 
-* \d = digit placeholder. this digit will be ignored by default.
+entendamos los componentes de esto, y veamos cuáles son nuestras opciones:
+* 20 es el código de empresa, como se mencionó anteriormente. Este es un componente que no cambia.
+* {:} indica que lo que esté dentro de estas llaves especifica un rango de datos que coincide con lo que está entre los corchetes.
+* I = ID del artículo, y siempre separará lo que esté dentro del rango especificado como el ID
+* W = peso/cantidad del artículo especificado. Este valor se divide por 1000 de manera predeterminada.
+* P = precio. Por defecto, el precio no considera los centavos.
+* \d = marcador de posición de dígito. Este dígito se ignorará de manera predeterminada.
 
-for more information about regex codes, please refer to this link: https://www.w3schools.com/php/php_regex.asp
-
-
-the regex code you build ought to be placed into the "Barcode Formats" field, found in Configuration > Barcode
-
-the item ID for the item you are scanning should be placed into the "Barcode" segment of the item you are wishing to add by scanning.
-
-Should the price be embedded into the barcode, be sure to check the "amount entry" radio button on the item config screen.
+para más información sobre códigos regex, consulte este enlace: https://www.w3schools.com/php/php_regex.asp
 
 
-WARNING: The following section is only recommended if you are technically inclined
+el código regex que construya debe colocarse en el campo "Formatos de código de barras", que se encuentra en Configuración > Código de barras
 
-should you wish to accomodate cents into your barcodes price, you will need to edit the following file accordingly:
+el ID del artículo para el artículo que está escaneando debe colocarse en el segmento "Código de barras" del artículo que desea agregar al escanear.
 
-* File: Application/libraries/Token_lib.php
-* find line number 94
-* edit this line by adding " / 100" after "(double) $parsed_results['P']"
+En caso de que el precio esté incorporado en el código de barras, asegúrese de marcar el botón de opción "ingreso de monto" en la pantalla de configuración del artículo.
+
+
+ADVERTENCIA: La siguiente sección solo se recomienda si tiene conocimientos técnicos avanzados
+
+si desea acomodar centavos en el precio de sus códigos de barras, deberá editar el siguiente archivo en consecuencia:
+
+* Archivo: Application/libraries/Token_lib.php
+* busque la línea número 94
+* edite esta línea agregando " / 100" después de "(double) $parsed_results['P']"
