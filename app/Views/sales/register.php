@@ -5,6 +5,7 @@
  * @var array $mode
  * @var array $empty_tables
  * @var array $selected_table
+ * @var array $open_tabs
  * @var array $stock_locations
  * @var array $stock_location
  * @var array $cart
@@ -112,6 +113,22 @@ helper('url');
             </ul>
         </div>
     <?= form_close() ?>
+
+    <?php if ($config['dinner_table_enable'] && !empty($open_tabs)) { ?>
+        <div id="open_tabs_bar" class="panel panel-default">
+            <div class="panel-body form-group" style="padding-bottom: 5px;">
+                <ul class="nav nav-pills">
+                    <?php foreach ($open_tabs as $open_tab) { ?>
+                        <li class="<?= ((int) $open_tab['dinner_table_id'] === (int) $selected_table) ? 'active' : '' ?>">
+                            <a href="#" class="open_tab_button" data-dinner-table-id="<?= esc($open_tab['dinner_table_id']) ?>">
+                                <span class="glyphicon glyphicon-cutlery">&nbsp;</span><?= esc($open_tab['dinner_table_name'] ?? ('#' . $open_tab['dinner_table_id'])) ?>
+                            </a>
+                        </li>
+                    <?php } ?>
+                </ul>
+            </div>
+        </div>
+    <?php } ?>
 
     <?php $tabindex = 0; ?>
 
@@ -589,6 +606,23 @@ helper('url');
 
         $("#remove_customer_button").click(function() {
             $.post("<?= site_url('sales/removeCustomer'); ?>", redirect);
+        });
+
+        $(".open_tab_button").click(function(event) {
+            event.preventDefault();
+            var tableId = $(this).data("dinner-table-id");
+            var $select = $("select[name='dinner_table']");
+            // The dropdown only lists empty tables (see $empty_tables in
+            // Sales::_reload()), so a tab for an already-occupied table has
+            // no matching <option> and .val() would silently no-op. Add a
+            // throwaway option so the value survives form submission --
+            // the page reloads right after, so no need to keep it in sync
+            // with the selectpicker widget's own rendering.
+            if ($select.find("option[value='" + tableId + "']").length === 0) {
+                $select.append($("<option>").val(tableId));
+            }
+            $select.val(tableId);
+            $("#mode_form").submit();
         });
 
         $(".delete_item_button").click(function() {

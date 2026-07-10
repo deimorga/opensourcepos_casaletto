@@ -1,8 +1,8 @@
 # Diseño técnico — Ventas en paralelo por mesa/cliente (pestañas en Register)
 
 - **Alcance funcional:** [`docs/Funcional/ventas-en-paralelo-pestanas.md`](../Funcional/ventas-en-paralelo-pestanas.md) (leer primero)
-- **Estado:** Diseño aprobado, pendiente de implementación
-- **Fecha:** 2026-07-09 (revisado 2026-07-10 tras verificar el código exacto con agentes de exploración — ver sección 4)
+- **Estado:** Implementado y verificado funcionalmente en navegador (3+ mesas reales, alternancia repetida, resiliencia ante reinicio, cobro) — ver sección 9
+- **Fecha:** 2026-07-09 (revisado 2026-07-10 tras verificar el código exacto con agentes de exploración — ver sección 4; verificación funcional y corrección de 2 bugs reales — ver sección 9)
 
 ## 1. Principio rector
 
@@ -100,7 +100,7 @@ $this->sale_lib->copy_entire_sale($sale_id);
 
 ## 6. Validar issue #1933 ("solo funciona con 2 mesas")
 
-Antes de dar por terminada la implementación: dar de alta 3+ mesas reales en staging, abrir pestañas en las 3 en paralelo, agregar items distintos en cada una, alternar entre ellas, y confirmar que ninguna se pierde ni se mezcla con otra. Si el bug persiste en 3.4.2, se resuelve como parte de este mismo desarrollo (probablemente en `Dinner_table::get_empty_tables()` o en la lógica de `postChangeMode`), no como algo aparte.
+**Validado el 2026-07-10 contra el contenedor local (`casaletto.local:8090`) con 3 mesas reales — el bug NO se reproduce** con el diseño final de esta sección (ver 9.2 para el detalle de la corrección que lo garantiza). Se dieron de alta Mesa 1/2/3, se abrió una pestaña en cada una con un item distinto, se alternó repetidamente entre las tres (incluida la secuencia A→C→B→A→C) y ninguna perdió ni mezcló sus items.
 
 ## 7. Fuera de alcance de este diseño
 
@@ -112,7 +112,35 @@ Antes de dar por terminada la implementación: dar de alta 3+ mesas reales en st
 
 - `app/Config/Constants.php` — nueva constante `OPENED = 3`.
 - `app/Models/Sale.php` — `get_all_opened()` nuevo, `get_open_sale_by_table()` nuevo, `get_suspended_sale_info()` extendido a `IN (SUSPENDED, OPENED)`. `save_value()` sin cambios de firma (ya acepta `sale_status` como parámetro).
-- `app/Models/Dinner_table.php` — reutiliza `occupy()`/`release()`/`is_occupied()`/`get_empty_tables()` existentes sin cambios de firma; revisar si el bug #1933 vive acá al validar en la sección 6 (no se toca a priori).
-- `app/Controllers/Sales.php` — `postChangeMode()` reescrito (sección 4.4), `_autosave_open_tab()` nuevo + 3 llamadas (`postAdd`, `postEditItem`, `getDeleteItem`), `_reload()` con `open_tabs` agregado. **Sin endpoints nuevos.**
-- `app/Libraries/Sale_lib.php` — **sin cambios de forma.** Se sigue usando tal cual (`clear_all()`, `copy_entire_sale()`, getters/setters existentes) — la sección 4 anterior que proponía "simplificar a contexto activo liviano" quedó descartada: no hace falta tocar este archivo.
-- `app/Views/sales/register.php` — barra de pestañas + botones que reutilizan el submit existente del selector de mesa. **Sin JS/AJAX nuevo.**
+- `app/Models/Dinner_table.php` — reutiliza `occupy()`/`release()`/`is_occupied()`/`get_empty_tables()` existentes sin cambios de firma.
+- `app/Controllers/Sales.php` — `postChangeMode()` reescrito (secciones 4.4 y 9.1), `_autosave_open_tab()` nuevo + 3 llamadas (`postAdd`, `postEditItem`, `getDeleteItem`), `_reload()` con `open_tabs` agregado. **Sin endpoints nuevos.**
+- `app/Libraries/Sale_lib.php` — sin cambios de forma; solo se hizo `get_sale_id()` nula-segura (sección 9.3). Se sigue usando tal cual (`clear_all()`, `copy_entire_sale()`, getters/setters existentes).
+- `app/Views/sales/register.php` — barra de pestañas + botón que reutiliza el submit existente del selector de mesa (con el fix de la sección 9.2 para mesas ocupadas). **Sin AJAX nuevo.**
+
+## 9. Verificación funcional y bugs reales encontrados (2026-07-10)
+
+Tras la implementación (3 agentes en paralelo + integración), se corrió el ciclo completo en el contenedor local (`docker-compose.local.yml`, `casaletto.local:8090`, DB fresca migrada desde cero): login real, alta de 3 mesas reales en Config, alta de 3 items reales, apertura de pestaña en cada mesa, alternancia repetida, `docker restart` con una mesa sin cobrar, y cobro final. Este ciclo expuso **dos bugs reales** en la primera implementación que un repaso de código no había detectado — ambos corregidos y re-verificados en el mismo ciclo.
+
+### 9.1 Bug 1 — `postChangeMode()` no vaciaba el carrito al ir a una mesa vacía
+
+La primera versión de `postChangeMode()` (sección 4.4) sólo llamaba `clear_all()` en la rama "la mesa destino ya tiene una venta" (para cargar `copy_entire_sale()`). En la rama "mesa vacía" solo hacía `set_dinner_table($occupied_dinner_table)` — **sin** `clear_all()` antes. Resultado: cambiar de Mesa 1 (con items) a Mesa 2 (vacía) dejaba el carrito de Mesa 1 visualmente "pegado" a Mesa 2 hasta el primer `postAdd()`, que entonces autoguardaba los items de Mesa 1 bajo el `dinner_table_id` de Mesa 2. Es exactamente el patrón del issue #1933 reproducido en código propio, no heredado.
+
+**Corrección:** `clear_all()` se llama siempre que la mesa seleccionada cambia respecto a la mesa activa en sesión (se compara `$occupied_dinner_table` contra `Sale_lib::get_dinner_table()`, no contra `sale_id`, para no vaciar el carrito cuando el cajero simplemente reselecciona la mesa ya activa). Luego, según corresponda, `copy_entire_sale()` o `set_dinner_table()`. Código final en `Sales::postChangeMode()`.
+
+### 9.2 Bug 2 — el botón de pestaña no podía cambiar a una mesa ya ocupada
+
+El `<select name="dinner_table">` del Register solo lista mesas **libres** (`$empty_tables`, filtrado en el controlador — comportamiento preexistente, no tocado por este desarrollo). El JS original de la barra de pestañas (sección 5) hacía `$("select[name='dinner_table']").val(tableId)` para fijar la mesa antes de enviar el formulario — pero si `tableId` corresponde a una mesa **ocupada** (el caso normal: cambiar a una pestaña que ya tiene una cuenta abierta), no existe ese `<option>` en el DOM y `.val()` falla en silencio, dejando el `<select>` en su primera opción real (p. ej. "Delivery"). Esto rompía el caso de uso central de la feature: literalmente no se podía volver a una pestaña ya abierta haciendo click en ella.
+
+**Corrección:** el handler de click ahora agrega una `<option>` descartable al `<select>` si el valor no existe todavía, antes de fijar `.val()` y enviar el formulario (el `<option>` no necesita persistir ni sincronizarse visualmente con el widget `selectpicker`, porque la página se recarga completa inmediatamente después). Código final en `app/Views/sales/register.php`, handler `.open_tab_button`.
+
+### 9.3 Fix adicional — `Sale_lib::get_sale_id(): int`
+
+`postChangeMode()` ahora llama a `get_sale_id()` en un punto del ciclo de vida donde, para una sesión recién autenticada que nunca pasó por `clear_all()`, la sesión no tiene `sale_id` — el método (preexistente, tipado `int` estricto) devolvía `null` de la sesión y disparaba un `TypeError`. Se corrigió para devolver `NEW_ENTRY` (mismo valor por defecto que usa `clear_all()`) cuando la sesión no tiene el valor todavía, sin cambiar el contrato para el resto de los llamadores (que ya siempre corren después de `clear_all()`).
+
+### 9.4 Resultado de la verificación funcional completa
+
+- ✅ Apertura de pestaña por mesa, autoguardado inmediato (`sale_status = OPENED`, fila creada al primer item).
+- ✅ Cambiar de mesa sin cobrar preserva el carrito de la mesa anterior intacto (tras 9.1).
+- ✅ 3 mesas alternadas repetidamente sin pérdida ni mezcla de items (issue #1933 no se reproduce — sección 6).
+- ✅ Prueba de resiliencia: con una mesa con items sin cobrar, `docker restart` del contenedor `ospos` → al volver a entrar, la pestaña sigue en la barra con sus items intactos (confirma que el autoguardado no depende de la sesión del navegador, solo de la fila persistida).
+- ✅ Cobrar una mesa la hace desaparecer de la barra de pestañas y la libera como mesa disponible en el selector; las demás pestañas abiertas no se ven afectadas.

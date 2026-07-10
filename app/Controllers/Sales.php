@@ -269,15 +269,35 @@ class Sales extends Secure_Controller
         }
 
         if ($this->config['dinner_table_enable']) {
-            $occupied_dinner_table = $this->request->getPost('dinner_table', FILTER_SANITIZE_NUMBER_INT);
-            $released_dinner_table = $this->sale_lib->get_dinner_table();
-            $occupied = $this->dinner_table->is_occupied($released_dinner_table);
+            $occupied_dinner_table = (int) $this->request->getPost('dinner_table', FILTER_SANITIZE_NUMBER_INT);
+            $current_dinner_table = $this->sale_lib->get_dinner_table();
 
-            if ($occupied && ($occupied_dinner_table != $released_dinner_table)) {
-                $this->dinner_table->swap_tables($released_dinner_table, $occupied_dinner_table);
+            // Only touch session state when the table selection actually
+            // changes -- re-selecting the currently active table must not
+            // wipe its own in-progress cart.
+            if ($occupied_dinner_table !== $current_dinner_table) {
+                $current_sale_id = $this->sale_lib->get_sale_id();
+                $existing_sale_id = $this->sale->get_open_sale_by_table($occupied_dinner_table);
+
+                // Autosave already persisted whatever's about to be discarded
+                // from session, so clearing here never loses data -- it just
+                // stops the old table's cart from leaking into the new one
+                // (the bug behind upstream issue #1933: switching to an empty
+                // table only updated the table label, keeping the previous
+                // table's items in the cart).
+                $this->sale_lib->clear_all();
+
+                if ($existing_sale_id !== null && $existing_sale_id !== $current_sale_id) {
+                    // The target table already has an open tab -- load it in
+                    // full, same pattern postUnsuspend() uses.
+                    $this->sale_lib->copy_entire_sale($existing_sale_id);
+                } else {
+                    // Empty table: start a fresh, not-yet-persisted tab. The
+                    // row gets created on the first item add via
+                    // _autosave_open_tab().
+                    $this->sale_lib->set_dinner_table($occupied_dinner_table);
+                }
             }
-
-            $this->sale_lib->set_dinner_table($occupied_dinner_table);
         }
 
         $stock_location = $this->request->getPost('stock_location', FILTER_SANITIZE_NUMBER_INT);
@@ -571,6 +591,8 @@ class Sales extends Secure_Controller
             }
         }
 
+        $this->_autosave_open_tab();
+
         return $this->_reload($data);
     }
 
@@ -643,6 +665,8 @@ class Sales extends Secure_Controller
             $data['error'] = $errors ? reset($errors) : lang('Sales.error_editing_item');
         }
 
+        $this->_autosave_open_tab();
+
         return $this->_reload($data);
     }
 
@@ -659,6 +683,8 @@ class Sales extends Secure_Controller
         $this->sale_lib->delete_item($item_id);
 
         $this->sale_lib->empty_payments();
+
+        $this->_autosave_open_tab();
 
         return $this->_reload();
     }
@@ -1182,6 +1208,55 @@ class Sales extends Secure_Controller
     }
 
     /**
+     * Persists the active cart immediately when it belongs to an open
+     * restaurant table tab, so it survives a disconnect/restart instead of
+     * only living in session until Suspend/Complete. No-op outside of
+     * dinner-table mode. See docs/Tecnico/ventas-en-paralelo-pestanas.md
+     * section 3.
+     */
+    private function _autosave_open_tab(): void
+    {
+        if (!$this->config['dinner_table_enable']) {
+            return;
+        }
+
+        $dinner_table = $this->sale_lib->get_dinner_table();
+
+        if ($dinner_table === null) {
+            return;
+        }
+
+        $cart = $this->sale_lib->get_cart();
+
+        if (count($cart) === 0) {
+            return;    // save_value() refuses empty carts anyway (returns -1)
+        }
+
+        $sale_id = $this->sale_lib->get_sale_id();
+        $sale_status = OPENED;
+        $payments = $this->sale_lib->get_payments();
+        $employee_id = $this->employee->get_logged_in_employee_info()->person_id;
+        $customer_id = $this->sale_lib->get_customer();
+        $invoice_number = $this->sale_lib->get_invoice_number();
+        $work_order_number = $this->sale_lib->get_work_order_number();
+        $quote_number = $this->sale_lib->get_quote_number();
+        $sale_type = $this->sale_lib->get_sale_type();
+
+        if ($sale_type == '' || $sale_type === null) {
+            $sale_type = SALE_TYPE_POS;
+        }
+
+        $comment = $this->sale_lib->get_comment();
+        $sales_taxes = [[], []];
+
+        $new_sale_id = $this->sale->save_value($sale_id, $sale_status, $cart, $customer_id, $employee_id, $comment, $invoice_number, $work_order_number, $quote_number, $sale_type, $payments, $dinner_table, $sales_taxes);
+
+        if ($new_sale_id > 0 && $sale_id === NEW_ENTRY) {
+            $this->sale_lib->set_sale_id($new_sale_id);
+        }
+    }
+
+    /**
      * @param array $data
      * @return void
      */
@@ -1291,6 +1366,8 @@ class Sales extends Secure_Controller
             $data['mode_label'] = lang('Sales.receipt');
             $data['customer_required'] = lang('Sales.customer_optional');
         }
+
+        $data['open_tabs'] = $this->sale->get_all_opened();
 
         return view("sales/register", $data);
     }

@@ -136,6 +136,7 @@ const NAME_SEPARATOR = ' | ';
 const COMPLETED = 0;
 const SUSPENDED = 1;
 const CANCELED = 2;
+const OPENED = 3;   // Venta de mesa abierta (pestaña en Register) -- distinto de SUSPENDED (cotización, orden de trabajo, o "suspender" sin mesa). Ver docs/Tecnico/ventas-en-paralelo-pestanas.md
 
 const SALE_TYPE_POS = 0;
 const SALE_TYPE_INVOICE = 1;

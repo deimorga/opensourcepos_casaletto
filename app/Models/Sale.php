@@ -1188,6 +1188,35 @@ class Sale extends Model
     }
 
     /**
+     * Retrieves all sales currently open as a restaurant table tab (OPENED status).
+     */
+    public function get_all_opened(): array
+    {
+        $builder = $this->db->table('sales');
+        $builder->select('sales.sale_id, sales.dinner_table_id, dinner_tables.name as dinner_table_name, sales.customer_id, sales.comment, sales.sale_time');
+        $builder->join('dinner_tables', 'dinner_tables.dinner_table_id = sales.dinner_table_id', 'left');
+        $builder->where('sales.sale_status', OPENED);
+        $builder->orderBy('sales.dinner_table_id', 'ASC');
+
+        return $builder->get()->getResultArray() ?: [];
+    }
+
+    /**
+     * Finds the currently OPENED sale (table tab) for a given dinner table, if any.
+     */
+    public function get_open_sale_by_table(int $dinner_table_id): ?int
+    {
+        $builder = $this->db->table('sales');
+        $builder->select('sale_id');
+        $builder->where('dinner_table_id', $dinner_table_id);
+        $builder->where('sale_status', OPENED);
+
+        $row = $builder->get()->getRow();
+
+        return $row ? (int) $row->sale_id : null;
+    }
+
+    /**
      * Gets the dinner table for the selected sale
      */
     public function get_dinner_table(int $sale_id)    // TODO: this is returning null or the table_id.  We can keep it this way but multiple return types can't be declared until PHP 8.x
@@ -1363,7 +1392,7 @@ class Sale extends Model
         $builder = $this->db->table('sales');
         $builder->where('sale_id', $sale_id);
         $builder->join('people', 'people.person_id = sales.customer_id', 'LEFT');
-        $builder->where('sale_status', SUSPENDED);
+        $builder->whereIn('sale_status', [SUSPENDED, OPENED]);
 
         return $builder->get();
     }

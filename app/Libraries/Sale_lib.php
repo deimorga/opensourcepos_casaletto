@@ -1404,7 +1404,21 @@ class Sale_lib
      */
     public function get_sale_id(): int
     {
-        return $this->session->get('sale_id');
+        // Defaults to NEW_ENTRY, same as clear_all() -- postChangeMode()'s
+        // table-tab lookup can now call this before any cart has ever been
+        // started in this session (clear_all() not called yet).
+        return $this->session->get('sale_id') ?? NEW_ENTRY;
+    }
+
+    /**
+     * Sets the active sale_id in session without touching any other sale state.
+     * Used by the table-tab autosave flow (see Sales::_autosave_open_tab()) to
+     * remember the sale_id created on the first save, so subsequent autosaves
+     * update the same row instead of inserting a new one each time.
+     */
+    public function set_sale_id(int $sale_id): void
+    {
+        $this->session->set('sale_id', $sale_id);
     }
 
     /**

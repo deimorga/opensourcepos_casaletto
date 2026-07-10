@@ -1,9 +1,10 @@
 # Alcance funcional — Ventas en paralelo por mesa/cliente (pestañas en Register)
 
-- **Estado:** Alcance funcional aprobado, diseño técnico definido → ver [`docs/Tecnico/ventas-en-paralelo-pestanas.md`](../Tecnico/ventas-en-paralelo-pestanas.md)
+- **Estado:** Implementado y verificado funcionalmente en navegador (contenedor local) → ver [`docs/Tecnico/ventas-en-paralelo-pestanas.md`](../Tecnico/ventas-en-paralelo-pestanas.md), sección 9
 - **Solicitado:** 2026-07-05
 - **Revisado contra documentación funcional:** 2026-07-09 (ver sección 5.1)
 - **Decisión de diseño aprobada:** 2026-07-09 (ver sección 5.2)
+- **Verificación funcional completa:** 2026-07-10 (3+ mesas reales, alternancia, resiliencia ante reinicio, cobro — 2 bugs reales encontrados y corregidos en el ciclo, ver doc técnico sección 9)
 - **Módulo afectado:** Sales / Register
 
 ## 1. Contexto y motivación
@@ -70,11 +71,12 @@ Siguiendo la regla de revisar `docs/Funcional/` antes de definir/refinar un requ
 
 ## 8. Preguntas abiertas
 
-- **[Bloqueante, con acción concreta, sigue pendiente]** Validar en staging si la limitación del issue #1933 ("solo funciona con 2 mesas") sigue vigente en 3.4.2 con 3+ mesas reales. Se hace como parte de la implementación técnica, no antes.
 - ¿Hay un número máximo razonable de pestañas simultáneas a soportar (según cantidad real de mesas del local)?
 - ¿Se requiere impresión de comanda/ticket parcial por pestaña mientras sigue abierta, o solo al cerrar?
 
 Resueltas (ver 5.2): base técnica (mesas, no Work Orders), manejo de estado (`OPENED` nuevo), y persistencia (autoguardado) — ya no son preguntas abiertas.
+
+**Issue #1933 validado (ver doc técnico, secciones 6 y 9):** no se reproduce con el diseño final. Sí se reprodujo una variante del mismo bug en la primera versión del código propio (cambiar a mesa vacía no vaciaba el carrito anterior) — corregida y re-verificada con 3 mesas reales alternadas repetidamente sin pérdida ni mezcla.
 
 ## 9. Referencia técnica
 
