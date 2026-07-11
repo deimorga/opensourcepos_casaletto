@@ -186,10 +186,19 @@ helper('url');
                 </tr>
             <?php
             } else {
+                // Kit ingredient rows (print_option == PRINT_NO, set on every component
+                // when the kit's print_option is "kit item only") are buffered here and
+                // flushed as a collapsible group under the kit's own row (print_option ==
+                // PRINT_YES), which always renders right after its ingredients in this
+                // reversed iteration order -- see Sales::postAdd()/Sale_lib::add_item_kit(),
+                // the kit item is added to the cart before its components.
+                $pending_kit_children = [];
                 foreach (array_reverse($cart, true) as $line => $item) {
+                    $is_kit_ingredient = $item['print_option'] == PRINT_NO;
+                    ob_start();
             ?>
                     <?= form_open("$controller_name/editItem/$line", ['class' => 'form-horizontal', 'id' => "cart_$line"]) ?>
-                        <tr>
+                        <tr<?= $is_kit_ingredient ? ' class="kit-ingredient-row" data-kit-group="__KIT_GROUP__"' : '' ?>>
                             <td>
                                 <?php
                                 echo anchor("$controller_name/deleteItem/$line", '<span class="glyphicon glyphicon-trash"></span>');
@@ -206,6 +215,12 @@ helper('url');
                                 <td><?= esc($item['item_number']) ?></td>
                                 <td style="text-align: center;">
                                     <?= esc($item['name']) . ' ' . esc(implode(' ', [$item['attribute_values'], $item['attribute_dtvalues']])) ?>
+                                    <?php if (!$is_kit_ingredient && count($pending_kit_children) > 0) { ?>
+                                        <a href="javascript:void(0);" class="kit-toggle" data-kit-group="<?= $line ?>" title="<?= lang(ucfirst($controller_name) . '.show_kit_ingredients') ?>">
+                                            <span class="glyphicon glyphicon-triangle-right"></span>
+                                            <?= count($pending_kit_children) ?> <?= lang(ucfirst($controller_name) . '.kit_ingredients') ?>
+                                        </a>
+                                    <?php } ?>
                                     <br>
                                     <?php if ($item['stock_type'] == '0'): echo '[' . to_quantity_decimals($item['in_stock']) . ' in ' . esc($item['stock_name']) . ']';
                                     endif; ?>
@@ -259,7 +274,7 @@ helper('url');
                                 </a>
                             </td>
                         </tr>
-                        <tr>
+                        <tr<?= $is_kit_ingredient ? ' class="kit-ingredient-row" data-kit-group="__KIT_GROUP__"' : '' ?>>
                             <?php if ($item['item_type'] == ITEM_TEMP) { ?>
                                 <td><?= form_input(['type' => 'hidden', 'name' => 'item_id', 'value' => $item['item_id']]) ?></td>
                                 <td style="text-align: center;" colspan="6">
@@ -308,6 +323,31 @@ helper('url');
                         </tr>
                     <?= form_close() ?>
             <?php
+                    $row_html = ob_get_clean();
+
+                    if ($is_kit_ingredient) {
+                        $pending_kit_children[] = $row_html;
+                        continue;
+                    }
+
+                    // Print the kit's own row first, then its (hidden) ingredient rows
+                    // right after it -- otherwise, since ingredients were buffered while
+                    // walking backwards through insertion order, they'd print above the
+                    // kit row and expanding one at the bottom of a long cart would force
+                    // scrolling back up to see it.
+                    echo $row_html;
+
+                    if (count($pending_kit_children) > 0) {
+                        echo str_replace('__KIT_GROUP__', (string) $line, implode('', $pending_kit_children));
+                        $pending_kit_children = [];
+                    }
+                }
+
+                // Orphaned kit ingredient rows (their kit's own row was individually
+                // deleted from the cart) -- render plainly rather than hide them where
+                // nothing can un-hide them.
+                if (count($pending_kit_children) > 0) {
+                    echo implode('', $pending_kit_children);
                 }
             }
             ?>
@@ -604,6 +644,17 @@ helper('url');
     </div>
 </div>
 
+<style type="text/css">
+    tr.kit-ingredient-row {
+        display: none;
+        color: #888;
+        font-size: 0.9em;
+    }
+    a.kit-toggle {
+        margin-left: 8px;
+        white-space: nowrap;
+    }
+</style>
 <script type="text/javascript">
     const keyboardShortcuts = <?= json_encode($keyboardShortcuts ?? []) ?>;
     const paymentsCoverTotal = <?= json_encode((bool) $payments_cover_total) ?>;
@@ -627,6 +678,13 @@ helper('url');
 
         $("#remove_customer_button").click(function() {
             $.post("<?= site_url('sales/removeCustomer'); ?>", redirect);
+        });
+
+        $(document).on("click", ".kit-toggle", function(event) {
+            event.preventDefault();
+            var group = $(this).data("kit-group");
+            $("tr.kit-ingredient-row[data-kit-group='" + group + "']").toggle();
+            $(this).find(".glyphicon").toggleClass("glyphicon-triangle-right glyphicon-triangle-bottom");
         });
 
         $(".open_tab_button").click(function(event) {
