@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__plugin_chrome-devtools-mcp_chrome-devtools__type_text",
+      "Bash(grep -rn -A 15 \"CREATE TABLE.*dinner_tables\\\\|dinner_tables\\\\`\" /Users/deibymorenogarcia/Proyectos/opensourcepos_casaletto/app/Database/Migrations/sqlscripts/pre-3.0.2/phppos_migrate.sql)",
+      "Bash(grep -n 'auto\\\\|Routing::$default\\\\|autoRoute' app/Config/Routing.php)",
+      "Bash(kill 60544 60542)",
+      "Bash(pkill -f \"docker compose -f docker-compose.local.yml build\")",
+      "Bash(python3 -c \"import yaml; yaml.safe_load\\(open\\('.github/workflows/phpunit.yml'\\)\\)\")",
+      "Bash(ruby -ryaml -e \"YAML.load_file\\('.github/workflows/phpunit.yml'\\)\")",
+      "Bash(node -e \"const fs=require\\('fs'\\); try { require\\('yaml'\\).parse\\(fs.readFileSync\\('.github/workflows/phpunit.yml','utf8'\\)\\); console.log\\('valido via node yaml'\\); } catch\\(e\\) { console.log\\('no yaml pkg, trying basic check'\\); }\")",
+      "Bash(grep -n 'useSoftDeletes\\\\|protected $deletedField\\\\|function delete\\(' app/Models/Sale.php)"
+    ]
+  }
+}

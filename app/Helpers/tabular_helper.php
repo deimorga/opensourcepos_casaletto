@@ -870,7 +870,6 @@ function cashup_headers(): array
         ['close_employee_id'    => lang('Cashups.close_employee')],
         ['closed_amount_cash'   => lang('Cashups.closed_amount_cash')],
         ['note'                 => lang('Cashups.note'), 'escape' => false],
-        ['closed_amount_due'    => lang('Cashups.closed_amount_due')],
         ['closed_amount_card'   => lang('Cashups.closed_amount_card')],
         ['closed_amount_check'  => lang('Cashups.closed_amount_check')],
         ['closed_amount_total'  => lang('Cashups.closed_amount_total')]
@@ -905,7 +904,6 @@ function get_cash_up_data_row(object $cash_up): array
         'close_employee_id'    => $cash_up->close_first_name . ' ' . $cash_up->close_last_name,
         'closed_amount_cash'   => to_currency($cash_up->closed_amount_cash),
         'note'                 => $cash_up->note ? '<span class="glyphicon glyphicon-ok"></span>' : '<span class="glyphicon glyphicon-remove"></span>',
-        'closed_amount_due'    => to_currency($cash_up->closed_amount_due),
         'closed_amount_card'   => to_currency($cash_up->closed_amount_card),
         'closed_amount_check'  => to_currency($cash_up->closed_amount_check),
         'closed_amount_total'  => to_currency($cash_up->closed_amount_total),

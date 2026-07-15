@@ -138,25 +138,12 @@
             </div>
         </div>
 
-        <div class="form-group form-group-sm">
-            <?= form_label(lang('Cashups.closed_amount_due'), 'closed_amount_due', ['class' => 'control-label col-xs-3']) ?>
-            <div class="col-xs-4">
-                <div class="input-group input-group-sm">
-                    <?php if (!is_right_side_currency_symbol()): ?>
-                        <span class="input-group-addon input-sm"><b><?= esc($config['currency_symbol']) ?></b></span>
-                    <?php endif; ?>
-                    <?= form_input([
-                        'name'  => 'closed_amount_due',
-                        'id'    => 'closed_amount_due',
-                        'class' => 'form-control input-sm',
-                        'value' => to_currency_no_money($cash_ups_info->closed_amount_due)
-                    ]) ?>
-                    <?php if (is_right_side_currency_symbol()): ?>
-                        <span class="input-group-addon input-sm"><b><?= esc($config['currency_symbol']) ?></b></span>
-                    <?php endif; ?>
-                </div>
-            </div>
-        </div>
+        <?= form_input([
+            'type'  => 'hidden',
+            'name'  => 'closed_amount_due',
+            'id'    => 'closed_amount_due',
+            'value' => to_currency_no_money($cash_ups_info->closed_amount_due)
+        ]) ?>
 
         <div class="form-group form-group-sm">
             <?= form_label(lang('Cashups.closed_amount_card'), 'closed_amount_card', ['class' => 'control-label col-xs-3']) ?>
@@ -295,7 +282,7 @@
         var cashup_total_request = null;
         var cashup_total_timer = null;
 
-        $('#open_amount_cash, #transfer_amount_cash, #closed_amount_cash, #closed_amount_due, #closed_amount_card, #closed_amount_check').keyup(function() {
+        $('#open_amount_cash, #transfer_amount_cash, #closed_amount_cash, #closed_amount_card, #closed_amount_check').keyup(function() {
             // Debounce, and abort any still-in-flight request before starting a new
             // one -- otherwise an earlier keystroke's response can arrive after a
             // later one's and silently overwrite the (readonly) total with a stale

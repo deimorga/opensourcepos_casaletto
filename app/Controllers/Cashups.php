@@ -146,18 +146,19 @@ class Cashups extends Secure_Controller
             // Get all the transactions payment summaries
             $reports_data = $this->summary_payments->getData($inputs);
 
+            // Casaletto only reconciles Efectivo/Datafono/Banco at close time: Due
+            // (Adeudo) is intentionally never counted here, and closed_amount_check
+            // (labeled "Banco" in the UI) sums Bank Transfer sales, not Check sales.
             foreach ($reports_data as $row) {
                 if ($row['trans_group'] == lang('Reports.trans_payments')) {
                     if ($row['trans_type'] == lang('Sales.cash')) {
                         $cash_ups_info->closed_amount_cash += $row['trans_amount'];
-                    } elseif ($row['trans_type'] == lang('Sales.due')) {
-                        $cash_ups_info->closed_amount_due += $row['trans_amount'];
                     } elseif (
                         $row['trans_type'] == lang('Sales.debit') ||
                         $row['trans_type'] == lang('Sales.credit')
                     ) {
                         $cash_ups_info->closed_amount_card += $row['trans_amount'];
-                    } elseif ($row['trans_type'] == lang('Sales.check')) {
+                    } elseif ($row['trans_type'] == lang('Sales.bank_transfer')) {
                         $cash_ups_info->closed_amount_check += $row['trans_amount'];
                     }
                 }
