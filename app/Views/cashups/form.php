@@ -292,20 +292,35 @@
             language: '<?= current_language_code() ?>'
         });
 
+        var cashup_total_request = null;
+        var cashup_total_timer = null;
+
         $('#open_amount_cash, #transfer_amount_cash, #closed_amount_cash, #closed_amount_due, #closed_amount_card, #closed_amount_check').keyup(function() {
-            $.post("<?= esc("$controller_name/ajax_cashup_total") ?>", {
-                    'open_amount_cash': $('#open_amount_cash').val(),
-                    'transfer_amount_cash': $('#transfer_amount_cash').val(),
-                    'closed_amount_due': $('#closed_amount_due').val(),
-                    'closed_amount_cash': $('#closed_amount_cash').val(),
-                    'closed_amount_card': $('#closed_amount_card').val(),
-                    'closed_amount_check': $('#closed_amount_check').val()
-                },
-                function(response) {
-                    $('#closed_amount_total').val(response.total);
-                },
-                'json'
-            );
+            // Debounce, and abort any still-in-flight request before starting a new
+            // one -- otherwise an earlier keystroke's response can arrive after a
+            // later one's and silently overwrite the (readonly) total with a stale
+            // value.
+            clearTimeout(cashup_total_timer);
+
+            cashup_total_timer = setTimeout(function() {
+                if (cashup_total_request != null) {
+                    cashup_total_request.abort();
+                }
+
+                cashup_total_request = $.post("<?= esc("$controller_name/ajax_cashup_total") ?>", {
+                        'open_amount_cash': $('#open_amount_cash').val(),
+                        'transfer_amount_cash': $('#transfer_amount_cash').val(),
+                        'closed_amount_due': $('#closed_amount_due').val(),
+                        'closed_amount_cash': $('#closed_amount_cash').val(),
+                        'closed_amount_card': $('#closed_amount_card').val(),
+                        'closed_amount_check': $('#closed_amount_check').val()
+                    },
+                    function(response) {
+                        $('#closed_amount_total').val(response.total);
+                    },
+                    'json'
+                );
+            }, 300);
         });
 
         var submit_form = function() {

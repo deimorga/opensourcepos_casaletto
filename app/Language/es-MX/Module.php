@@ -6,7 +6,7 @@ return [
     "attributes"                 => "Atributos",
     "attributes_desc"            => "Agregar, Actualizar, Borrar y Buscar atributos.",
     "both"                       => "Ambos",
-    "cashups"                    => "Retiros",
+    "cashups"                    => "Turnos",
     "cashups_desc"               => "Agregar, Actualizar, Borrar y Buscar Cortes de Caja.",
     "config"                     => "Configuración",
     "config_desc"                => "Cambiar Configuracion de OSPOS.",
