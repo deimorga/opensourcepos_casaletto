@@ -31,7 +31,8 @@ class Cashup extends Model
         'open_employee_id',
         'close_employee_id',
         'deleted',
-        'closed_amount_due'
+        'closed_amount_due',
+        'status'
     ];
 
     /**
@@ -100,6 +101,7 @@ class Cashup extends Model
         } else {
             $builder->select('
             cash_up.cashup_id,
+            MAX(cash_up.status) AS status,
             MAX(cash_up.open_date) AS open_date,
             MAX(cash_up.close_date) AS close_date,
             MAX(cash_up.open_amount_cash) AS open_amount_cash,
@@ -166,6 +168,7 @@ class Cashup extends Model
         $builder = $this->db->table('cash_up AS cash_up');
         $builder->select('
             cash_up.cashup_id AS cashup_id,
+            cash_up.status AS status,
             cash_up.open_date AS open_date,
             cash_up.close_date AS close_date,
             cash_up.open_amount_cash AS open_amount_cash,
@@ -254,6 +257,30 @@ class Cashup extends Model
         $builder = $this->db->table('cash_up');
         $builder->whereIn('cashup_id', $cashup_ids);
         $success = $builder->update(['deleted' => 1]);
+        $this->db->transComplete();
+
+        return $success;
+    }
+
+    /**
+     * Reopens a list of closed cashups, resetting their closing amounts so the
+     * sales auto-fill in Cashups::getView() recalculates fresh next time they're
+     * edited. Only affects cashups that are actually closed.
+     */
+    public function reopen_list(array $cashup_ids): bool
+    {
+        $this->db->transStart();
+        $builder = $this->db->table('cash_up');
+        $builder->whereIn('cashup_id', $cashup_ids);
+        $builder->where('status', 'closed');
+        $success = $builder->update([
+            'status'               => 'open',
+            'closed_amount_cash'   => 0,
+            'closed_amount_due'    => 0,
+            'closed_amount_card'   => 0,
+            'closed_amount_check'  => 0,
+            'closed_amount_total'  => 0
+        ]);
         $this->db->transComplete();
 
         return $success;

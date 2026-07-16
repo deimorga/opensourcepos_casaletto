@@ -862,6 +862,7 @@ function cashup_headers(): array
 {
     return [
         ['cashup_id'            => lang('Cashups.id')],
+        ['status'               => lang('Cashups.status')],
         ['open_date'            => lang('Cashups.opened_date')],
         ['open_employee_id'     => lang('Cashups.open_employee')],
         ['open_amount_cash'     => lang('Cashups.open_amount_cash')],
@@ -894,8 +895,20 @@ function get_cash_up_data_row(object $cash_up): array
 {
     $controller = get_controller();
 
+    // A closed cashup is immutable -- the edit anchor omits data-btn-submit so
+    // the modal opens read-only, with no way to submit changes to it.
+    $edit_attrs = [
+        'class' => 'modal-dlg',
+        'title' => lang(ucfirst($controller) . ".update")
+    ];
+
+    if ($cash_up->status !== 'closed') {
+        $edit_attrs['data-btn-submit'] = lang('Common.submit');
+    }
+
     return [
         'cashup_id'            => $cash_up->cashup_id,
+        'status'                => $cash_up->status === 'closed' ? lang('Cashups.status_closed') : lang('Cashups.status_open'),
         'open_date'            => to_datetime(strtotime($cash_up->open_date)),
         'open_employee_id'     => $cash_up->open_first_name . ' ' . $cash_up->open_last_name,
         'open_amount_cash'     => to_currency($cash_up->open_amount_cash),
@@ -910,11 +923,7 @@ function get_cash_up_data_row(object $cash_up): array
         'edit'                 => anchor(
             "$controller/view/$cash_up->cashup_id",
             '<span class="glyphicon glyphicon-edit"></span>',
-            [
-                'class'           => 'modal-dlg',
-                'data-btn-submit' => lang('Common.submit'),
-                'title'           => lang(ucfirst($controller) . ".update")
-            ]
+            $edit_attrs
         )
     ];
 }

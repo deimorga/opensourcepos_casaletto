@@ -5,6 +5,15 @@
  * @var string $controller_name
  * @var array $config
  */
+
+$is_new = empty($cash_ups_info->cashup_id) || $cash_ups_info->cashup_id == NEW_ENTRY;
+$is_closed = !$is_new && $cash_ups_info->status === 'closed';
+
+// Opening fields are only editable while creating a new turno -- once it
+// exists, opening the turno is done and these become context-only.
+$open_field_attrs = $is_new ? [] : ['disabled' => 'disabled'];
+// Closing fields are editable only during the open -> closed transition.
+$close_field_attrs = $is_closed ? ['disabled' => 'disabled'] : [];
 ?>
 
 <div id="required_fields_message"><?= lang('Common.fields_required_message') ?></div>
@@ -25,12 +34,12 @@
                     <span class="input-group-addon input-sm">
                         <span class="glyphicon glyphicon-calendar"></span>
                     </span>
-                    <?= form_input([
+                    <?= form_input(array_merge([
                         'name'  => 'open_date',
                         'id'    => 'open_date',
                         'class' => 'form-control input-sm datepicker',
                         'value' => to_datetime(strtotime($cash_ups_info->open_date))
-                    ]) ?>
+                    ], $open_field_attrs)) ?>
                 </div>
             </div>
         </div>
@@ -38,7 +47,7 @@
         <div class="form-group form-group-sm">
             <?= form_label(lang('Cashups.open_employee'), 'open_employee', ['class' => 'control-label col-xs-3']) ?>
             <div class="col-xs-6">
-                <?= form_dropdown('open_employee_id', $employees, $cash_ups_info->open_employee_id, 'id="open_employee_id" class="form-control"') ?>
+                <?= form_dropdown('open_employee_id', $employees, $cash_ups_info->open_employee_id, array_merge(['id' => 'open_employee_id', 'class' => 'form-control'], $open_field_attrs)) ?>
             </div>
         </div>
 
@@ -49,12 +58,12 @@
                     <?php if (!is_right_side_currency_symbol()): ?>
                         <span class="input-group-addon input-sm"><b><?= esc($config['currency_symbol']) ?></b></span>
                     <?php endif; ?>
-                    <?= form_input([
+                    <?= form_input(array_merge([
                         'name'  => 'open_amount_cash',
                         'id'    => 'open_amount_cash',
                         'class' => 'form-control input-sm',
                         'value' => to_currency_no_money($cash_ups_info->open_amount_cash)
-                    ]) ?>
+                    ], $open_field_attrs)) ?>
                     <?php if (is_right_side_currency_symbol()): ?>
                         <span class="input-group-addon input-sm"><b><?= esc($config['currency_symbol']) ?></b></span>
                     <?php endif; ?>
@@ -69,18 +78,20 @@
                     <?php if (!is_right_side_currency_symbol()): ?>
                         <span class="input-group-addon input-sm"><b><?= esc($config['currency_symbol']) ?></b></span>
                     <?php endif; ?>
-                    <?= form_input([
+                    <?= form_input(array_merge([
                         'name'  => 'transfer_amount_cash',
                         'id'    => 'transfer_amount_cash',
                         'class' => 'form-control input-sm',
                         'value' => to_currency_no_money($cash_ups_info->transfer_amount_cash)
-                    ]) ?>
+                    ], $open_field_attrs)) ?>
                     <?php if (is_right_side_currency_symbol()): ?>
                         <span class="input-group-addon input-sm"><b><?= esc($config['currency_symbol']) ?></b></span>
                     <?php endif; ?>
                 </div>
             </div>
         </div>
+
+        <?php if (!$is_new): ?>
 
         <div class="form-group form-group-sm">
             <?= form_label(lang('Cashups.close_date'), 'close_date', ['class' => 'required control-label col-xs-3']) ?>
@@ -89,12 +100,12 @@
                     <span class="input-group-addon input-sm">
                         <span class="glyphicon glyphicon-calendar"></span>
                     </span>
-                    <?= form_input([
+                    <?= form_input(array_merge([
                         'name'  => 'close_date',
                         'id'    => 'close_date',
                         'class' => 'form-control input-sm datepicker',
                         'value' => to_datetime(strtotime($cash_ups_info->close_date))
-                    ]) ?>
+                    ], $close_field_attrs)) ?>
                 </div>
             </div>
         </div>
@@ -102,7 +113,7 @@
         <div class="form-group form-group-sm">
             <?= form_label(lang('Cashups.close_employee'), 'close_employee', ['class' => 'control-label col-xs-3']) ?>
             <div class="col-xs-6">
-                <?= form_dropdown('close_employee_id', $employees, $cash_ups_info->close_employee_id, 'id="close_employee_id" class="form-control"') ?>
+                <?= form_dropdown('close_employee_id', $employees, $cash_ups_info->close_employee_id, array_merge(['id' => 'close_employee_id', 'class' => 'form-control'], $close_field_attrs)) ?>
             </div>
         </div>
 
@@ -113,12 +124,12 @@
                     <?php if (!is_right_side_currency_symbol()): ?>
                         <span class="input-group-addon input-sm"><b><?= esc($config['currency_symbol']) ?></b></span>
                     <?php endif; ?>
-                    <?= form_input([
+                    <?= form_input(array_merge([
                         'name'  => 'closed_amount_cash',
                         'id'    => 'closed_amount_cash',
                         'class' => 'form-control input-sm',
                         'value' => to_currency_no_money($cash_ups_info->closed_amount_cash)
-                    ]) ?>
+                    ], $close_field_attrs)) ?>
                     <?php if (is_right_side_currency_symbol()): ?>
                         <span class="input-group-addon input-sm"><b><?= esc($config['currency_symbol']) ?></b></span>
                     <?php endif; ?>
@@ -129,12 +140,12 @@
         <div class="form-group form-group-sm">
             <?= form_label(lang('Cashups.note'), 'note', ['class' => 'control-label col-xs-3']) ?>
             <div class="col-xs-6">
-                <?= form_checkbox([
+                <?= form_checkbox(array_merge([
                     'name'    => 'note',
                     'id'      => 'note',
                     'value'   => 0,
                     'checked' => $cash_ups_info->note == 1
-                ]) ?>
+                ], $close_field_attrs)) ?>
             </div>
         </div>
 
@@ -152,12 +163,12 @@
                     <?php if (!is_right_side_currency_symbol()): ?>
                         <span class="input-group-addon input-sm"><b><?= esc($config['currency_symbol']) ?></b></span>
                     <?php endif; ?>
-                    <?= form_input([
+                    <?= form_input(array_merge([
                         'name'  => 'closed_amount_card',
                         'id'    => 'closed_amount_card',
                         'class' => 'form-control input-sm',
                         'value' => to_currency_no_money($cash_ups_info->closed_amount_card)
-                    ]) ?>
+                    ], $close_field_attrs)) ?>
                     <?php if (is_right_side_currency_symbol()): ?>
                         <span class="input-group-addon input-sm"><b><?= esc($config['currency_symbol']) ?></b></span>
                     <?php endif; ?>
@@ -172,12 +183,12 @@
                     <?php if (!is_right_side_currency_symbol()): ?>
                         <span class="input-group-addon input-sm"><b><?= esc($config['currency_symbol']) ?></b></span>
                     <?php endif; ?>
-                    <?= form_input([
+                    <?= form_input(array_merge([
                         'name'  => 'closed_amount_check',
                         'id'    => 'closed_amount_check',
                         'class' => 'form-control input-sm',
                         'value' => to_currency_no_money($cash_ups_info->closed_amount_check)
-                    ]) ?>
+                    ], $close_field_attrs)) ?>
                     <?php if (is_right_side_currency_symbol()): ?>
                         <span class="input-group-addon input-sm"><b><?= esc($config['currency_symbol']) ?></b></span>
                     <?php endif; ?>
@@ -209,28 +220,28 @@
         <div class="form-group form-group-sm">
             <?= form_label(lang('Cashups.description'), 'description', ['class' => 'control-label col-xs-3']) ?>
             <div class="col-xs-6">
-                <?= form_textarea([
+                <?= form_textarea(array_merge([
                     'name'  => 'description',
                     'id'    => 'description',
                     'class' => 'form-control input-sm',
                     'value' => $cash_ups_info->description
+                ], $close_field_attrs)) ?>
+            </div>
+        </div>
+
+        <div class="form-group form-group-sm">
+            <?= form_label(lang('Cashups.is_deleted') . ':', 'deleted', ['class' => 'control-label col-xs-3']) ?>
+            <div class="col-xs-5">
+                <?= form_checkbox([
+                    'name'    => 'deleted',
+                    'id'      => 'deleted',
+                    'value'   => 1,
+                    'checked' => $cash_ups_info->deleted == 1
                 ]) ?>
             </div>
         </div>
 
-        <?php if (!empty($cash_ups_info->cashup_id)) { ?>
-            <div class="form-group form-group-sm">
-                <?= form_label(lang('Cashups.is_deleted') . ':', 'deleted', ['class' => 'control-label col-xs-3']) ?>
-                <div class="col-xs-5">
-                    <?= form_checkbox([
-                        'name'    => 'deleted',
-                        'id'      => 'deleted',
-                        'value'   => 1,
-                        'checked' => $cash_ups_info->deleted == 1
-                    ]) ?>
-                </div>
-            </div>
-        <?php } ?>
+        <?php endif; ?>
     </fieldset>
 <?= form_close() ?>
 
@@ -259,6 +270,7 @@
             language: '<?= current_language_code() ?>'
         });
 
+        <?php if (!$is_new): ?>
         $('#close_date').datetimepicker({
             format: "<?= dateformat_bootstrap($config['dateformat']) . ' ' . dateformat_bootstrap($config['timeformat']) ?>",
             startDate: "<?= date($config['dateformat'] . ' ' . esc($config['timeformat'], 'js'), mktime(0, 0, 0, 1, 1, 2010)) ?>",
@@ -278,7 +290,9 @@
             bootcssVer: 3,
             language: '<?= current_language_code() ?>'
         });
+        <?php endif; ?>
 
+        <?php if (!$is_new && !$is_closed): ?>
         var cashup_total_request = null;
         var cashup_total_timer = null;
 
@@ -309,6 +323,7 @@
                 );
             }, 300);
         });
+        <?php endif; ?>
 
         var submit_form = function() {
             $(this).ajaxSubmit({

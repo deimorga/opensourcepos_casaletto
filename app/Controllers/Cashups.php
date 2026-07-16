@@ -32,6 +32,7 @@ class Cashups extends Secure_Controller
     public function getIndex(): string
     {
         $data['table_headers'] = get_cashups_manage_table_headers();
+        $data['is_admin'] = $this->employee->isAdmin((int) $this->employee->get_logged_in_employee_info()->person_id);
 
         // filters that will be loaded in the multiselect dropdown
         $data['filters'] = ['is_deleted' => lang('Cashups.is_deleted')];
@@ -101,13 +102,8 @@ class Cashups extends Secure_Controller
             $cash_ups_info->open_employee_id = $this->employee->get_logged_in_employee_info()->person_id;
             $cash_ups_info->close_employee_id = $this->employee->get_logged_in_employee_info()->person_id;
         }
-        // If all the amounts are null or 0 that means it's a close cashup
-        elseif (
-            floatval($cash_ups_info->closed_amount_cash) == 0
-            && floatval($cash_ups_info->closed_amount_due) == 0
-            && floatval($cash_ups_info->closed_amount_card) == 0
-            && floatval($cash_ups_info->closed_amount_check) == 0
-        ) {
+        // An open cashup being edited is the close-in-progress phase
+        elseif ($cash_ups_info->status === 'open') {
             // Set the close date and time to the actual as this is a close session
             $cash_ups_info->close_date = date('Y-m-d H:i:s');
 
@@ -206,32 +202,66 @@ class Cashups extends Secure_Controller
      */
     public function postSave(int $cashup_id = NEW_ENTRY): ResponseInterface
     {
-        $open_date = $this->request->getPost('open_date');
-        $open_date_formatter = date_create_from_format($this->config['dateformat'] . ' ' . $this->config['timeformat'], $open_date);
+        $is_new = ($cashup_id === NEW_ENTRY);
 
-        $close_date = $this->request->getPost('close_date');
-        $close_date_formatter = date_create_from_format($this->config['dateformat'] . ' ' . $this->config['timeformat'], $close_date);
+        if (!$is_new) {
+            $existing = $this->cashup->get_info($cashup_id);
 
-        $cash_up_data = [
-            'open_date'            => $open_date_formatter->format('Y-m-d H:i:s'),
-            'close_date'           => $close_date_formatter->format('Y-m-d H:i:s'),
-            'open_amount_cash'     => parse_decimals($this->request->getPost('open_amount_cash')),
-            'transfer_amount_cash' => parse_decimals($this->request->getPost('transfer_amount_cash')),
-            'closed_amount_cash'   => parse_decimals($this->request->getPost('closed_amount_cash')),
-            'closed_amount_due'    => parse_decimals($this->request->getPost('closed_amount_due')),
-            'closed_amount_card'   => parse_decimals($this->request->getPost('closed_amount_card')),
-            'closed_amount_check'  => parse_decimals($this->request->getPost('closed_amount_check')),
-            'closed_amount_total'  => parse_decimals($this->request->getPost('closed_amount_total')),
-            'note'                 => $this->request->getPost('note') != null,
-            'description'          => $this->request->getPost('description', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
-            'open_employee_id'     => $this->request->getPost('open_employee_id', FILTER_SANITIZE_NUMBER_INT),
-            'close_employee_id'    => $this->request->getPost('close_employee_id', FILTER_SANITIZE_NUMBER_INT),
-            'deleted'              => $this->request->getPost('deleted') != null
-        ];
+            if ($existing->status === 'closed') {
+                return $this->response->setJSON(['success' => false, 'message' => lang('Cashups.cannot_edit_closed'), 'id' => $cashup_id]);
+            }
+        }
+
+        if ($is_new) {
+            $open_date = $this->request->getPost('open_date');
+            $open_date_formatter = date_create_from_format($this->config['dateformat'] . ' ' . $this->config['timeformat'], $open_date);
+            $open_employee_id = $this->request->getPost('open_employee_id', FILTER_SANITIZE_NUMBER_INT);
+
+            $cash_up_data = [
+                'open_date'            => $open_date_formatter->format('Y-m-d H:i:s'),
+                'close_date'           => $open_date_formatter->format('Y-m-d H:i:s'),
+                'open_amount_cash'     => parse_decimals($this->request->getPost('open_amount_cash')),
+                'transfer_amount_cash' => parse_decimals($this->request->getPost('transfer_amount_cash')),
+                'closed_amount_cash'   => 0,
+                'closed_amount_due'    => 0,
+                'closed_amount_card'   => 0,
+                'closed_amount_check'  => 0,
+                'closed_amount_total'  => 0,
+                'note'                 => false,
+                'description'          => '',
+                'open_employee_id'     => $open_employee_id,
+                'close_employee_id'    => $open_employee_id,
+                'deleted'              => false,
+                'status'               => 'open'
+            ];
+        } else {
+            $close_date = $this->request->getPost('close_date');
+            $close_date_formatter = date_create_from_format($this->config['dateformat'] . ' ' . $this->config['timeformat'], $close_date);
+
+            $cash_up_data = [
+                // Opening fields are preserved from the existing record, never
+                // from POST -- they're disabled in the form at this stage and
+                // must not be modifiable here.
+                'open_date'            => $existing->open_date,
+                'open_amount_cash'     => $existing->open_amount_cash,
+                'transfer_amount_cash' => $existing->transfer_amount_cash,
+                'open_employee_id'     => $existing->open_employee_id,
+                'close_date'           => $close_date_formatter->format('Y-m-d H:i:s'),
+                'closed_amount_cash'   => parse_decimals($this->request->getPost('closed_amount_cash')),
+                'closed_amount_due'    => parse_decimals($this->request->getPost('closed_amount_due')),
+                'closed_amount_card'   => parse_decimals($this->request->getPost('closed_amount_card')),
+                'closed_amount_check'  => parse_decimals($this->request->getPost('closed_amount_check')),
+                'closed_amount_total'  => parse_decimals($this->request->getPost('closed_amount_total')),
+                'note'                 => $this->request->getPost('note') != null,
+                'description'          => $this->request->getPost('description', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
+                'close_employee_id'    => $this->request->getPost('close_employee_id', FILTER_SANITIZE_NUMBER_INT),
+                'deleted'              => $this->request->getPost('deleted') != null,
+                'status'               => 'closed'
+            ];
+        }
 
         if ($this->cashup->save_value($cash_up_data, $cashup_id)) {
-            // New cashup_id
-            if ($cashup_id == NEW_ENTRY) {
+            if ($is_new) {
                 return $this->response->setJSON(['success' => true, 'message' => lang('Cashups.successful_adding'), 'id' => $cash_up_data['cashup_id']]);
             } else { // Existing Cashup
                 return $this->response->setJSON(['success' => true, 'message' => lang('Cashups.successful_updating'), 'id' => $cashup_id]);
@@ -239,6 +269,29 @@ class Cashups extends Secure_Controller
         } else { // Failure
             return $this->response->setJSON(['success' => false, 'message' => lang('Cashups.error_adding_updating'), 'id' => NEW_ENTRY]);
         }
+    }
+
+    /**
+     * Reopens closed cashups so their close-phase fields become editable again.
+     * Admin-only -- cashiers must ask an admin to reopen a closed turno.
+     *
+     * @return ResponseInterface
+     */
+    public function postReopen(): ResponseInterface
+    {
+        $current_person_id = (int) $this->employee->get_logged_in_employee_info()->person_id;
+
+        if (!$this->employee->isAdmin($current_person_id)) {
+            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Cashups.reopen_admin_only')]);
+        }
+
+        $ids = $this->request->getPost('ids', FILTER_SANITIZE_FULL_SPECIAL_CHARS) ?? [];
+
+        if ($this->cashup->reopen_list($ids)) {
+            return $this->response->setJSON(['success' => true, 'message' => lang('Cashups.successful_reopen'), 'ids' => $ids]);
+        }
+
+        return $this->response->setJSON(['success' => false, 'message' => lang('Cashups.error_adding_updating'), 'ids' => $ids]);
     }
 
     /**

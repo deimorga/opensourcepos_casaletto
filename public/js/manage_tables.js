@@ -260,6 +260,7 @@
         enable_actions();
         init_delete();
         init_restore();
+        init_reopen();
         toggle_column_visibility();
         dialog_support.init("button.modal-dlg");
     };
@@ -273,6 +274,12 @@
     var init_restore = function (confirmMessage) {
         $("#restore").click(function(event) {
             do_action("restore")();
+        });
+    };
+
+    var init_reopen = function () {
+        $("#reopen").click(function(event) {
+            do_action("reopen")();
         });
     };
 
