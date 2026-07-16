@@ -7,7 +7,8 @@
  * @var array $config
  * @var string|null $start_date
  * @var string|null $end_date
- * @var bool $is_admin
+ * @var bool $can_delete
+ * @var bool $can_reopen
  */
 ?>
 
@@ -58,10 +59,12 @@
 
 <div id="toolbar">
     <div class="pull-left form-inline" role="toolbar">
+        <?php if ($can_delete): ?>
         <button id="delete" class="btn btn-default btn-sm print_hide">
             <span class="glyphicon glyphicon-trash">&nbsp;</span><?= lang('Common.delete') ?>
         </button>
-        <?php if ($is_admin): ?>
+        <?php endif; ?>
+        <?php if ($can_reopen): ?>
         <button id="reopen" class="btn btn-default btn-sm print_hide">
             <span class="glyphicon glyphicon-open">&nbsp;</span><?= lang('Cashups.reopen') ?>
         </button>

@@ -32,7 +32,9 @@ class Cashups extends Secure_Controller
     public function getIndex(): string
     {
         $data['table_headers'] = get_cashups_manage_table_headers();
-        $data['is_admin'] = $this->employee->isAdmin((int) $this->employee->get_logged_in_employee_info()->person_id);
+        $current_person_id = (int) $this->employee->get_logged_in_employee_info()->person_id;
+        $data['can_delete'] = $this->employee->has_grant('cashups_delete', $current_person_id);
+        $data['can_reopen'] = $this->employee->has_grant('cashups_reopen', $current_person_id);
 
         // filters that will be loaded in the multiselect dropdown
         $data['filters'] = ['is_deleted' => lang('Cashups.is_deleted')];
@@ -273,7 +275,8 @@ class Cashups extends Secure_Controller
 
     /**
      * Reopens closed cashups so their close-phase fields become editable again.
-     * Admin-only -- cashiers must ask an admin to reopen a closed turno.
+     * Gated by the cashups_reopen sub-permission -- an employee with base
+     * Turnos access does not get this unless explicitly granted it.
      *
      * @return ResponseInterface
      */
@@ -281,7 +284,7 @@ class Cashups extends Secure_Controller
     {
         $current_person_id = (int) $this->employee->get_logged_in_employee_info()->person_id;
 
-        if (!$this->employee->isAdmin($current_person_id)) {
+        if (!$this->employee->has_grant('cashups_reopen', $current_person_id)) {
             return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Cashups.reopen_admin_only')]);
         }
 
@@ -299,6 +302,12 @@ class Cashups extends Secure_Controller
      */
     public function postDelete(): ResponseInterface
     {
+        $current_person_id = (int) $this->employee->get_logged_in_employee_info()->person_id;
+
+        if (!$this->employee->has_grant('cashups_delete', $current_person_id)) {
+            return $this->response->setStatusCode(403)->setJSON(['success' => false, 'message' => lang('Cashups.delete_not_allowed')]);
+        }
+
         $cash_ups_to_delete = $this->request->getPost('ids', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
 
         if ($this->cashup->delete_list($cash_ups_to_delete)) {
