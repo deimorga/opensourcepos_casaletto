@@ -425,10 +425,17 @@ class Employee extends Person
         $builder = $this->db->table('grants');
         $builder->like('permission_id', $permission_id, 'after');
         $builder->where('person_id', $person_id);
-        $result_count = $builder->get()->getNumRows();
+        $result = $builder->get()->getResultArray();
 
-        if ($result_count != 1) {
-            return ($result_count != 0);
+        if (count($result) != 1) {
+            return (count($result) != 0);
+        }
+
+        // The sole matching grant is the base module permission itself, so access is
+        // granted regardless of whether the module also defines separate sub-permissions
+        // (e.g. cashups_delete) that this employee wasn't additionally given.
+        if ($result[0]['permission_id'] === $permission_id) {
+            return true;
         }
 
         return $this->has_subpermissions($permission_id);
