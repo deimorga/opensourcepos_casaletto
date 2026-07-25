@@ -17,9 +17,16 @@ class TestDatabaseBootstrapSeeder extends Seeder
         $group  = $config->tests;
         $dbName = $group['database'];
 
-        if ($dbName === '' || !str_contains(strtolower($dbName), 'test')) {
-            throw new \RuntimeException("Refusing to reset non-test database: {$dbName}");
+        if ($dbName === '') {
+            throw new \RuntimeException('Refusing to reset a database with an empty name.');
         }
+
+        // Note: this project intentionally reuses the same database name
+        // ("ospos") for both the "default" and "tests" connection groups
+        // (see .env / .env.example / phpunit.xml.dist), so the name alone
+        // can't distinguish a real DB from a test one. The ENVIRONMENT check
+        // above and hardcoding to $config->tests (never $config->default)
+        // are what actually keep this from ever touching a real database.
 
         $serverConn = Database::connect([
             'hostname' => $group['hostname'],

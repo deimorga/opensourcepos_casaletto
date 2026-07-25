@@ -28,6 +28,16 @@ class ConfigTest extends CIUnitTestCase
         $session->destroy();
         $session->set('person_id', 1);
         $session->set('menu_group', 'office');
+
+        // FeatureTestTrait::call() ignores the real session service above --
+        // it unconditionally overwrites $_SESSION with its own $this->session
+        // property before dispatching the request (see populateGlobals(),
+        // "$_SESSION = $this->session;"). Without this, every request below
+        // runs with an empty session, Secure_Controller sees an anonymous
+        // user and calls exit() (a real exit(), not a redirect/exception),
+        // which silently kills the whole PHPUnit process with no test output
+        // and a misleading exit 0.
+        $this->withSession(['person_id' => 1, 'menu_group' => 'office']);
     }
 
     // ========== Valid Mailpath Tests ==========
