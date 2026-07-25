@@ -67,18 +67,21 @@ $filter_select_id = $options['filter_select_id'] ?? 'filters';
         // Update URL when filter dropdown changes
         $('#' + filter_select_id).on('hidden.bs.select', function(e) {
             update_url();
+            table_support.refresh();
         });
 
         // Update URL when stock location changes (if exists)
         if ($('#stock_location').length) {
             $("#stock_location").change(function() {
                 update_url();
+                table_support.refresh();
             });
         }
 
         // Update URL when daterangepicker changes
         $("#daterangepicker").on('apply.daterangepicker', function(ev, picker) {
             update_url();
+            table_support.refresh();
         });
     });
 </script>

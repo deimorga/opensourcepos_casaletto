@@ -90,6 +90,22 @@ class Item_kit extends Model
     }
 
     /**
+     * Resolves the item_kit_id that a given item represents, if that item
+     * is itself the representative row of an item kit (i.e. item_type == ITEM_KIT).
+     * Used to recursively expand a kit-of-kits when adding it to a sale.
+     */
+    public function get_item_kit_id_for_item_id(int $item_id): ?int
+    {
+        $builder = $this->db->table('item_kits');
+        $builder->select('item_kit_id');
+        $builder->where('item_id', $item_id);
+
+        $row = $builder->get()->getRow();
+
+        return $row !== null ? (int) $row->item_kit_id : null;
+    }
+
+    /**
      * Gets information about a particular item kit
      */
     public function get_info(string $item_kit_id): object

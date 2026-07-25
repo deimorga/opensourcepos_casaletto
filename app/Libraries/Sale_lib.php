@@ -6,6 +6,7 @@ use App\Models\Attribute;
 use App\Models\Customer;
 use App\Models\Dinner_table;
 use App\Models\Item;
+use App\Models\Item_kit;
 use App\Models\Item_kit_items;
 use App\Models\Item_quantity;
 use App\Models\Item_taxes;
@@ -40,6 +41,7 @@ class Sale_lib
     private Customer $customer;
     private Dinner_table $dinner_table;
     private Item $item;
+    private Item_kit $item_kit;
     private Item_kit_items $item_kit_items;
     private Item_quantity $item_quantity;
     private Item_taxes $item_taxes;
@@ -56,6 +58,7 @@ class Sale_lib
         $this->customer = model(Customer::class);
         $this->dinner_table = model(Dinner_table::class);
         $this->item = model(Item::class);
+        $this->item_kit = model(Item_kit::class);
         $this->item_kit_items = model(Item_kit_items::class);
         $this->item_quantity = model(Item_quantity::class);
         $this->item_taxes = model(Item_taxes::class);
@@ -1322,6 +1325,11 @@ class Sale_lib
     }
 
     /**
+     * Adds a kit's items to the sale. When a component is itself the representative
+     * item of another kit (a "kit of kits"), its own components are expanded
+     * recursively instead of adding a single line for it -- so nested kits deduct
+     * stock for their raw ingredients, not just one line for the inner kit's item.
+     *
      * @param string $external_item_kit_id
      * @param int $item_location
      * @param float $discount
@@ -1329,18 +1337,39 @@ class Sale_lib
      * @param bool $kit_price_option
      * @param bool $kit_print_option
      * @param string $stock_warning
+     * @param string $quantity_multiplier Scales component quantities; accumulates across nesting levels.
+     * @param array $ancestor_kit_ids item_kit_ids already being expanded in this call chain, to guard against circular kit references.
      * @return bool
      */
-    public function add_item_kit(string $external_item_kit_id, int $item_location, float $discount, string $discount_type, bool $kit_price_option, bool $kit_print_option, ?string &$stock_warning): bool
+    public function add_item_kit(string $external_item_kit_id, int $item_location, float $discount, string $discount_type, bool $kit_price_option, bool $kit_print_option, ?string &$stock_warning, string $quantity_multiplier = '1', array $ancestor_kit_ids = []): bool
     {
         // KIT #
         $pieces = explode(' ', $external_item_kit_id);
         $item_kit_id = (count($pieces) > 1) ? $pieces[1] : $external_item_kit_id;
+
+        // Guard against circular kit-of-kits references (kit A contains kit B which contains kit A).
+        if (in_array((int) $item_kit_id, $ancestor_kit_ids, true)) {
+            return false;
+        }
+        $ancestor_kit_ids[] = (int) $item_kit_id;
+
         $result = true;
         $applied_discount = $discount;
 
         foreach ($this->item_kit_items->get_info($item_kit_id) as $item_kit_item) {
-            $result &= $this->add_item($item_kit_item['item_id'], $item_location, $item_kit_item['quantity'], $discount, $discount_type, PRICE_MODE_KIT, $kit_price_option, $kit_print_option);
+            $component_quantity = bcmul((string) $item_kit_item['quantity'], $quantity_multiplier, 4);
+
+            if ((int) $item_kit_item['item_type'] === ITEM_KIT) {
+                $nested_item_kit_id = $this->item_kit->get_item_kit_id_for_item_id((int) $item_kit_item['item_id']);
+
+                if ($nested_item_kit_id !== null) {
+                    $result &= $this->add_item_kit((string) $nested_item_kit_id, $item_location, $discount, $discount_type, $kit_price_option, $kit_print_option, $stock_warning, $component_quantity, $ancestor_kit_ids);
+
+                    continue;
+                }
+            }
+
+            $result &= $this->add_item($item_kit_item['item_id'], $item_location, $component_quantity, $discount, $discount_type, PRICE_MODE_KIT, $kit_price_option, $kit_print_option);
 
             if ($stock_warning == null) {
                 $stock_warning = $this->out_of_stock($item_kit_item['item_id'], $item_location);

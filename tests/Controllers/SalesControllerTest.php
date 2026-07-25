@@ -107,7 +107,17 @@ class SalesControllerTest extends CIUnitTestCase
         // (see postReq()/getReq()), every request after the first would wipe
         // out whatever the app itself just wrote to session (dinner_table,
         // sale_id, ...), silently resetting state mid-test.
-        $this->withSession(['person_id' => 1, 'menu_group' => 'home']);
+        //
+        // getReq()/postReq() re-arm from the real $_SESSION superglobal, not
+        // from $this->session -- on the very first request of the whole
+        // PHPUnit process that superglobal is still empty/unset, so it must
+        // be seeded here directly too. Otherwise the getReq('sales') call
+        // below immediately overwrites person_id/menu_group with nothing,
+        // Secure_Controller sees an anonymous session, and calls exit()
+        // (not a redirect/exception -- a real exit()), silently killing the
+        // whole PHPUnit process with no test output and a misleading exit 0.
+        $_SESSION = ['person_id' => 1, 'menu_group' => 'home'];
+        $this->withSession($_SESSION);
 
         // A real cashier always lands on Sales::getIndex() first, which seeds
         // sale_id/cart state in session via clear_all(). Sale_lib::get_sale_id()

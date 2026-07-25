@@ -3,6 +3,7 @@
 namespace App\Controllers;
 
 use App\Models\Module;
+use CodeIgniter\HTTP\Exceptions\RedirectException;
 use CodeIgniter\HTTP\ResponseInterface;
 use Config\Services;
 
@@ -79,8 +80,7 @@ class Employees extends Persons
         $current_user = $this->employee->get_logged_in_employee_info();
 
         if ($employee_id != NEW_ENTRY && !$this->employee->canModifyEmployee($person_info->person_id, $current_user->person_id)) {
-            header('Location: ' . base_url('no_access/employees/employees'));
-            exit();
+            throw new RedirectException('no_access/employees/employees');
         }
 
         foreach (get_object_vars($person_info) as $property => $value) {
@@ -176,15 +176,15 @@ class Employees extends Persons
                 'username'      => $this->request->getPost('username', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
                 'password'      => password_hash($this->request->getPost('password'), PASSWORD_DEFAULT),
                 'hash_version'  => 2,
-                'language_code' => $exploded[0],
-                'language'      => $exploded[1]
+                'language_code' => $exploded[0] ?? '',
+                'language'      => $exploded[1] ?? ''
             ];
         } else { // Password not changed
             $exploded = explode(":", $this->request->getPost('language', FILTER_SANITIZE_FULL_SPECIAL_CHARS));
             $employee_data = [
                 'username'      => $this->request->getPost('username', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
-                'language_code' => $exploded[0],
-                'language'      => $exploded[1]
+                'language_code' => $exploded[0] ?? '',
+                'language'      => $exploded[1] ?? ''
             ];
         }
 

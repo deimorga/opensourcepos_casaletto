@@ -36,6 +36,18 @@ class ItemsCsvImportTest extends CIUnitTestCase
     {
         $seeder = Database::seeder('tests');
         $seeder->call('TestDatabaseBootstrapSeeder');
+
+        // TestDatabaseBootstrapSeeder DROPs and CREATEs the database through
+        // its own separate, unshared connection (Database::connect([...], false)).
+        // The main 'tests' connection used by DatabaseTestTrait/MigrationRunner
+        // below still has its pre-wipe table list cached (listTables()/
+        // tableExists() cache and don't get invalidated by another
+        // connection's raw DDL), so without this reset, the next regress()'s
+        // ensureTable() wrongly believes the migrations table still exists
+        // and skips recreating it -- then the very next query against it
+        // fails with "Table 'ospos_migrations' doesn't exist", since the
+        // seeder really did just drop it.
+        db_connect()->resetDataCache();
     }
 
 

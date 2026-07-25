@@ -42,6 +42,45 @@ class CustomersCsvImportTest extends CIUnitTestCase
         $session = Services::session();
         $session->set('person_id', 1);
         $session->set('menu_group', 'office');
+
+        // FeatureTestTrait::call() ignores the real session service above --
+        // it unconditionally overwrites $_SESSION with its own $this->session
+        // property before dispatching the request (see populateGlobals(),
+        // "$_SESSION = $this->session;"). Without this, every request below
+        // runs with an empty session, Secure_Controller sees an anonymous
+        // user and calls exit() (a real exit(), not a redirect/exception),
+        // which silently kills the whole PHPUnit process with no test output
+        // and a misleading exit 0.
+        $this->withSession(['person_id' => 1, 'menu_group' => 'office']);
+    }
+
+    /**
+     * Finds a customer by exact email. Email lives on `people`, not
+     * `customers` (see Customer::check_email_exists() for the same join),
+     * so a bare $this->customer->where('email', ...) fails with an
+     * "Unknown column" error.
+     */
+    protected function findCustomerByEmail(string $email): ?object
+    {
+        $builder = $this->customer->builder();
+        $builder->join('people', 'people.person_id = customers.person_id');
+        $builder->where('people.email', $email);
+
+        return $builder->get()->getRow();
+    }
+
+    /**
+     * Finds a customer whose email ends with the given suffix -- used to
+     * look up a row whose exact email was sanitized/changed by the import
+     * (e.g. stripped of XSS/quote characters) so it can't be matched exactly.
+     */
+    protected function findCustomerByEmailSuffix(string $suffix): ?object
+    {
+        $builder = $this->customer->builder();
+        $builder->join('people', 'people.person_id = customers.person_id');
+        $builder->like('people.email', $suffix, 'before');
+
+        return $builder->get()->getRow();
     }
 
     protected function createCsvFile(array $rows): string
@@ -79,9 +118,9 @@ class CustomersCsvImportTest extends CIUnitTestCase
         $result = $this->post('/customers/importCsvFile');
 
         $result->assertOK();
-        $result->assertJSONExact(['success' => true, 'message' => 'Customers imported successfully']);
+        $result->assertJSONExact(['success' => true, 'message' => lang('Customers.csv_import_success')]);
 
-        $importedCustomer = $this->customer->where('email', 'john.doe@example.com')->first();
+        $importedCustomer = $this->findCustomerByEmail('john.doe@example.com');
         $this->assertNotNull($importedCustomer);
 
         unlink($tempFile);
@@ -115,7 +154,7 @@ class CustomersCsvImportTest extends CIUnitTestCase
         $this->assertStringContainsString('Row 1', $resultBody['message'], 'Error message should reference failing row');
         $this->assertStringContainsString('Invalid email format', $resultBody['message'], 'Error message should mention email validation');
 
-        $importedCustomer = $this->customer->where('email', 'not-an-email')->first();
+        $importedCustomer = $this->findCustomerByEmail('not-an-email');
         $this->assertNull($importedCustomer, 'Customer with invalid email should not be imported');
 
         unlink($tempFile);
@@ -146,8 +185,8 @@ class CustomersCsvImportTest extends CIUnitTestCase
 
         $result->assertOK();
 
-        $importedCustomer = $this->customer->where('email LIKE', '%example.com')->first();
-        
+        $importedCustomer = $this->findCustomerByEmailSuffix('example.com');
+
         $this->assertNotNull($importedCustomer, 'Customer should be imported after sanitization');
         $this->assertStringNotContainsString('<script>', $importedCustomer->email, 'Script tags should be removed');
         $this->assertStringNotContainsString('</script>', $importedCustomer->email, 'Script tags should be removed');
@@ -180,13 +219,13 @@ class CustomersCsvImportTest extends CIUnitTestCase
 
         $result->assertOK();
 
-        $validCustomer1 = $this->customer->where('email', 'valid@example.com')->first();
+        $validCustomer1 = $this->findCustomerByEmail('valid@example.com');
         $this->assertNotNull($validCustomer1, 'Valid customer should be imported');
 
-        $validCustomer2 = $this->customer->where('email', 'another@example.com')->first();
+        $validCustomer2 = $this->findCustomerByEmail('another@example.com');
         $this->assertNotNull($validCustomer2, 'Another valid customer should be imported');
 
-        $invalidCustomer = $this->customer->where('email', 'invalid-email')->first();
+        $invalidCustomer = $this->findCustomerByEmail('invalid-email');
         $this->assertNull($invalidCustomer, 'Invalid email customer should not be imported');
 
         unlink($tempFile);
@@ -216,8 +255,8 @@ class CustomersCsvImportTest extends CIUnitTestCase
 
         $result->assertOK();
 
-        $importedCustomer = $this->customer->where('email LIKE', '%example.com')->first();
-        
+        $importedCustomer = $this->findCustomerByEmailSuffix('example.com');
+
         $this->assertNotNull($importedCustomer, 'Sanitized email should be imported');
         $this->assertStringNotContainsString('"', $importedCustomer->email, 'Quote characters should be sanitized');
 
@@ -228,10 +267,15 @@ class CustomersCsvImportTest extends CIUnitTestCase
     {
         $this->loginAsEmployee();
 
-        // Empty email should be allowed - customers may not have email addresses
+        // Empty email should be allowed - customers may not have email addresses.
+        // Distinct name from other tests in this class: DatabaseTestTrait here
+        // has $refresh=false and doesn't wrap each test in its own rollback
+        // transaction, so rows from earlier tests (e.g. the "John Doe" from
+        // testValidEmailIsAccepted) are still present and would otherwise be
+        // matched by a name-only lookup below.
         $csvContent = [
             ['First Name', 'Last Name', 'Gender', 'Consent', 'Email', 'Phone', 'Address 1', 'Address 2', 'City', 'State', 'Zip', 'Country', 'Comments', 'Company', 'Account Number', 'Discount', 'Discount Type', 'Taxable'],
-            ['John', 'Doe', '1', '1', '', '555-1234', '123 Main St', '', 'Springfield', 'IL', '62701', 'US', '', '', '', '', '', '']
+            ['EmptyEmail', 'Tester', '1', '1', '', '555-1234', '123 Main St', '', 'Springfield', 'IL', '62701', 'US', '', '', '', '', '', '']
         ];
 
         $tempFile = $this->createCsvFile($csvContent);
@@ -252,12 +296,13 @@ class CustomersCsvImportTest extends CIUnitTestCase
         $this->assertTrue($resultBody['success'], 'Import should succeed with empty email');
 
         // Find customer by name since email is empty
-        $importedCustomer = $this->customer->select('customers.*, people.*')
-            ->join('people', 'people.person_id = customers.person_id')
-            ->where('first_name', 'John')
-            ->where('last_name', 'Doe')
-            ->first();
-        
+        $builder = $this->customer->builder();
+        $builder->select('customers.*, people.*');
+        $builder->join('people', 'people.person_id = customers.person_id');
+        $builder->where('first_name', 'EmptyEmail');
+        $builder->where('last_name', 'Tester');
+        $importedCustomer = $builder->get()->getRow();
+
         $this->assertNotNull($importedCustomer, 'Customer with empty email should be imported');
         $this->assertEquals('', $importedCustomer->email, 'Email should be empty string');
 

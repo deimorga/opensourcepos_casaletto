@@ -81,10 +81,12 @@ class Home extends Secure_Controller
 
         if (!empty($this->request->getPost('current_password')) && $employeeId != NEW_ENTRY) {
             if ($this->employee->check_password($this->request->getPost('username', FILTER_SANITIZE_FULL_SPECIAL_CHARS), $this->request->getPost('current_password'))) {
-                // Validate password length BEFORE hashing
+                // Validate password length BEFORE hashing. Trimmed length so a
+                // whitespace-only password (e.g. 8 spaces) can't satisfy the
+                // minimum by padding -- it has no real entropy.
                 $new_password = $this->request->getPost('password');
 
-                if (strlen($new_password) < 8) {
+                if (strlen(trim($new_password)) < 8) {
                     return $this->response->setJSON([
                         'success' => false,
                         'message' => lang('Employees.password_minlength'),
