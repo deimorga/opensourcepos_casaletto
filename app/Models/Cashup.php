@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Libraries\Item_lib;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Model;
 use Config\OSPOS;
@@ -32,7 +33,8 @@ class Cashup extends Model
         'close_employee_id',
         'deleted',
         'closed_amount_due',
-        'status'
+        'status',
+        'location_id'
     ];
 
     /**
@@ -231,6 +233,8 @@ class Cashup extends Model
     public function save_value(array &$cash_up_data, $cashup_id = NEW_ENTRY): bool
     {
         if (!$cashup_id == NEW_ENTRY || !$this->exists($cashup_id)) {
+            $cash_up_data['location_id'] = (int) (new Item_lib())->get_item_location();
+
             $builder = $this->db->table('cash_up');
             if ($builder->insert($cash_up_data)) {
                 $cash_up_data['cashup_id'] = $this->db->insertID();
