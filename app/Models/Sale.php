@@ -5,6 +5,7 @@ namespace App\Models;
 use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Model;
+use App\Libraries\Item_lib;
 use App\Libraries\Sale_lib;
 use Config\OSPOS;
 use ReflectionException;
@@ -28,7 +29,8 @@ class Sale extends Model
         'invoice_number',
         'dinner_table_id',
         'work_order_number',
-        'sale_type'
+        'sale_type',
+        'location_id'
     ];
 
     public function __construct()
@@ -564,6 +566,8 @@ class Sale extends Model
         $this->db->transStart();
 
         if ($sale_id == NEW_ENTRY) {
+            $sales_data['location_id'] = (int) (new Item_lib())->get_item_location();
+
             $builder = $this->db->table('sales');
             $builder->insert($sales_data);
             $sale_id = $this->db->insertID();

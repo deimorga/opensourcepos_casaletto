@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Libraries\Item_lib;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Model;
 use Config\OSPOS;
@@ -23,7 +24,8 @@ class Receiving extends Model
         'comment',
         'receiving_id',
         'payment_type',
-        'reference'
+        'reference',
+        'location_id'
     ];
 
     /**
@@ -118,7 +120,8 @@ class Receiving extends Model
             'employee_id'    => $employee_id,
             'payment_type'   => $payment_type,
             'comment'        => $comment,
-            'reference'      => $reference
+            'reference'      => $reference,
+            'location_id'    => (int) (new Item_lib())->get_item_location()
         ];
 
         // Run these queries as a transaction, we want to make sure we do all or nothing
