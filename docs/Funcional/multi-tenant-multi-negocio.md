@@ -60,7 +60,9 @@ Cada negocio sigue pudiendo tener varias sedes, gestionarlas, y filtrar reportes
 
 ## 6. Estado de avance
 
-Fase 0 (documentación) y Fase 1 (cerrar huecos de sede en ventas, turnos, gastos, recepciones y mesas) completas — sin impacto visible para el usuario final, cierra una inconsistencia que ya existía en el modelo de sede actual. Detalle técnico en `docs/Tecnico/multi-tenant-arquitectura.md`.
+Fase 0 (documentación), Fase 1 (cerrar huecos de sede en ventas, turnos, gastos, recepciones y mesas) y Fase 2 (actualización de MariaDB y PHP a versiones con soporte vigente) completas — sin impacto visible para el usuario final. Detalle técnico en `docs/Tecnico/multi-tenant-arquitectura.md`.
+
+**Importante para el despliegue de la Fase 2 en staging/producción** (no en desarrollo local): el salto de versión de MariaDB requiere un procedimiento cuidadoso porque esos ambientes tienen datos reales de Casaletto — no es un cambio que se aplique solo con el deploy automático, hay que planificarlo como una ventana de mantenimiento explícita.
 
 ## 7. Continuidad de Casaletto
 

@@ -35,7 +35,7 @@ jobs:
             git clean -fd
 
             echo "Instalando dependencias PHP/JS y compilando assets (el Dockerfile solo copia, no compila)..."
-            docker run --rm -v "$PWD":/app -w /app php:8.2-cli bash -c "
+            docker run --rm -v "$PWD":/app -w /app php:8.4-cli bash -c "
               set -e
               apt-get update -qq
               apt-get install -y -qq --no-install-recommends unzip libicu-dev git curl ca-certificates gnupg > /dev/null
