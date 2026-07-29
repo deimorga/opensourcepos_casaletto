@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Libraries\Item_lib;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Model;
 use Config\OSPOS;
@@ -26,7 +27,8 @@ class Expense extends Model
         'deleted',
         'supplier_tax_code',
         'tax_amount',
-        'supplier_id'
+        'supplier_id',
+        'location_id'
     ];
 
     /**
@@ -264,6 +266,8 @@ class Expense extends Model
         $builder = $this->db->table('expenses');
 
         if ($expense_id == NEW_ENTRY || !$this->exists($expense_id)) {
+            $expense_data['location_id'] = (int) (new Item_lib())->get_item_location();
+
             if ($builder->insert($expense_data)) {
                 $expense_data['expense_id'] = $this->db->insertID();
 

@@ -122,3 +122,10 @@ Secuenciado **antes** de la complejidad multi-tenant, validado en staging primer
 ## 14. Estrategia de rama y despliegue
 
 Todo este trabajo se desarrolla en la rama `feature/multi-tenant-saas` (creada desde `develop`), y no se mergea a `develop` hasta que la validación en staging con tenants ficticios pase completa. Después de eso, sigue el flujo ya existente: `develop` → staging, `master` → producción.
+
+## 15. Estado de avance
+
+- **Fase 0 (documentación)**: completa.
+- **Fase 1 (huecos de sede)**: completa. `sales`, `cash_up`, `expenses`, `receivings` y `dinner_tables` ahora tienen `location_id` (FK a `stock_locations`), con backfill de filas existentes al `MIN(location_id)` disponible. Migración: `app/Database/Migrations/20260729120000_AddLocationIdToSedeHeaders.php` + `app/Database/Migrations/sqlscripts/add_location_id_to_sede_headers.sql`. Los Models `Sale`, `Cashup`, `Expense`, `Receiving` y `Dinner_table` pueblan `location_id` en cada alta nueva reusando `Item_lib::get_item_location()` (la misma sede activa que ya usa el resto del sistema vía sesión). Validado con MariaDB 10.5 real (esquema fresco y esquema histórico de dev), y con la suite `SalesControllerTest`/`SalesKitControllerTest` (6/6 verdes) corriendo dentro del contenedor `ospos_dev` (PHP 8.2).
+- **Nota de entorno de pruebas local**: `phpunit.xml.dist` fuerza `MYSQL_HOST_NAME=127.0.0.1` (pensado para el runner de GitHub Actions, donde el servicio `mysql` se expone en esa IP). Esto no coincide con `docker-compose.dev.yml`, donde MySQL vive en el hostname `mysql` de la red de Docker. Para correr PHPUnit localmente contra ese compose hace falta un puente de puerto (ej. `socat TCP-LISTEN:3306,fork,reuseaddr TCP:mysql:3306` dentro del contenedor de la app) — no se modificó `phpunit.xml.dist` porque esa configuración es correcta para CI. Vale la pena tenerlo en cuenta en fases futuras que necesiten correr la suite completa localmente.
+- **Fases 2-10**: pendientes.

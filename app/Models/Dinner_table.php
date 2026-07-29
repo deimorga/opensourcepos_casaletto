@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Libraries\Item_lib;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Model;
 
@@ -17,7 +18,8 @@ class Dinner_table extends Model
     protected $allowedFields = [
         'name',
         'status',
-        'deleted'
+        'deleted',
+        'location_id'
     ];
 
     /**
@@ -41,7 +43,12 @@ class Dinner_table extends Model
     public function create(string $name): int
     {
         $builder = $this->db->table('dinner_tables');
-        $builder->insert(['name' => $name, 'status' => 0, 'deleted' => 0]);
+        $builder->insert([
+            'name'        => $name,
+            'status'      => 0,
+            'deleted'     => 0,
+            'location_id' => (int) (new Item_lib())->get_item_location()
+        ]);
 
         return (int) $this->db->insertID();
     }
@@ -57,6 +64,8 @@ class Dinner_table extends Model
 
         $builder = $this->db->table('dinner_tables');
         if (!$this->exists($dinner_table_id)) {
+            $table_data_to_save['location_id'] = (int) (new Item_lib())->get_item_location();
+
             return $builder->insert($table_data_to_save);
         }
 

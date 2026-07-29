@@ -58,6 +58,10 @@ Cada negocio sigue pudiendo tener varias sedes, gestionarlas, y filtrar reportes
 - "Entrar como" un negocio-cliente desde el panel de administrador de plataforma (impersonation de soporte).
 - Analítica o reportes consolidados entre varios negocios-cliente (se podría resolver más adelante con una integración separada, sin necesidad de rediseñar el aislamiento de datos).
 
-## 6. Continuidad de Casaletto
+## 6. Estado de avance
+
+Fase 0 (documentación) y Fase 1 (cerrar huecos de sede en ventas, turnos, gastos, recepciones y mesas) completas — sin impacto visible para el usuario final, cierra una inconsistencia que ya existía en el modelo de sede actual. Detalle técnico en `docs/Tecnico/multi-tenant-arquitectura.md`.
+
+## 7. Continuidad de Casaletto
 
 Un punto central de este proyecto: **Casaletto no migra datos a ningún lado.** El negocio actual se convierte en el primer negocio-cliente de la plataforma usando su base de datos actual tal cual está. El resto de los negocios se suman después, cada uno con sus propios datos, sin tocar los de Casaletto.
