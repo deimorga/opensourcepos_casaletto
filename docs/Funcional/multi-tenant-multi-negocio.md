@@ -64,6 +64,8 @@ Fase 0 (documentación), Fase 1 (cerrar huecos de sede en ventas, turnos, gastos
 
 **Importante para el despliegue de la Fase 2 en staging/producción** (no en desarrollo local): el salto de versión de MariaDB requiere un procedimiento cuidadoso porque esos ambientes tienen datos reales de Casaletto — no es un cambio que se aplique solo con el deploy automático, hay que planificarlo como una ventana de mantenimiento explícita.
 
+**Actualización (2026-07-29)**: ya se ejecutó en **staging**, con verificación de que ningún dato se perdió (comparación de checksums entre la BD vieja y la nueva antes de dar el cambio por bueno) — staging corre en PHP 8.4 + MariaDB 11.4 desde ahora. **Producción** queda con el mismo procedimiento ya probado, pendiente de una ventana sin operación que el usuario confirmará.
+
 ## 7. Continuidad de Casaletto
 
 Un punto central de este proyecto: **Casaletto no migra datos a ningún lado.** El negocio actual se convierte en el primer negocio-cliente de la plataforma usando su base de datos actual tal cual está. El resto de los negocios se suman después, cada uno con sus propios datos, sin tocar los de Casaletto.
