@@ -16,9 +16,22 @@
 include:
     - docker/docker-mysql.yml
 
+volumes:
+    # Apunta al volumen ya migrado a MariaDB 11.4 (dump/restore verificado
+    # con checksums idénticos al 10.5 original) en vez de dejar que Compose
+    # cree/reuse el volumen por defecto (docker/docker-mysql.yml declara
+    # `mysql` con driver:local, que no se puede mezclar con external: true
+    # -- por eso esto usa una clave de volumen aparte). El volumen viejo
+    # sigue intacto en pos_casaletto_mysql como respaldo.
+    mysql_11_4:
+        external: true
+        name: pos_casaletto_mysql_11_4
+
 services:
     mysql:
         container_name: mysql-casaletto-prod
+        volumes: !override
+            - mysql_11_4:/var/lib/mysql:rw
         environment:
             - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
             - MYSQL_DATABASE=${MYSQL_DB_NAME}
