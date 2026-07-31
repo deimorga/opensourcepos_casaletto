@@ -22,7 +22,7 @@ class ItemsCsvImportTest extends CIUnitTestCase
     protected $seed = '';
     protected $seedOnce = true;
     protected $refresh = true;
-    protected $namespace = null;
+    protected $namespace = 'App';
 
     protected $item;
     protected $item_quantity;

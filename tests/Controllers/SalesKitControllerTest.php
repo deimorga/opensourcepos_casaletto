@@ -25,7 +25,7 @@ class SalesKitControllerTest extends CIUnitTestCase
     protected $migrate     = true;
     protected $migrateOnce = true;
     protected $refresh     = true;
-    protected $namespace   = null;
+    protected $namespace   = 'App';
 
     protected function setUp(): void
     {
