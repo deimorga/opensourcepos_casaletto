@@ -11,16 +11,19 @@ use CodeIgniter\HTTP\ResponseInterface;
 
 /**
  * Resolves which tenant a request belongs to from the Host header and,
- * if found, swaps the `default` connection's schema before anything
- * else touches the database -- Config\Session's constructor connects
- * as soon as session() is first called (typically inside
- * Secure_Controller), so this must run before that, which is why it's
- * the first entry in required.before rather than a global filter.
+ * if found, swaps the `default` connection's schema (and, since Fase 7
+ * provisioning gives each tenant its own MySQL user, credentials too)
+ * before anything else touches the database -- Config\Session's
+ * constructor connects as soon as session() is first called (typically
+ * inside Secure_Controller), so this must run before that, which is
+ * why it's the first entry in required.before rather than a global
+ * filter.
  *
- * Only `database` is swapped, not host/user/password: every tenant
- * shares the same DB server and credentials until Fase 7 (provisioning)
- * gives each one its own MySQL user with a GRANT limited to its own
- * schema.
+ * A tenant row without db_user/db_password (shouldn't happen for
+ * anything provisioned via tenant:create, but tolerated rather than
+ * fatal) falls back to whatever MYSQL_* env vars already configure for
+ * host/user/password, only swapping `database` -- the pre-Fase-7
+ * behavior.
  *
  * A Host that doesn't match any active tenant (including Casaletto's
  * own current subdomain, which isn't registered as a tenant yet) is
@@ -50,7 +53,13 @@ class TenantResolver implements FilterInterface
             return;
         }
 
-        config(Database::class)->default['database'] = $tenant->db_name;
+        $defaultGroup = &config(Database::class)->default;
+        $defaultGroup['database'] = $tenant->db_name;
+
+        if (!empty($tenant->db_user) && !empty($tenant->db_password)) {
+            $defaultGroup['username'] = $tenant->db_user;
+            $defaultGroup['password'] = service('encrypter')->decrypt(base64_decode($tenant->db_password));
+        }
 
         TenantContext::set((int) $tenant->id, $tenant->slug, $tenant->db_name);
     }
