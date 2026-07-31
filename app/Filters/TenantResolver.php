@@ -53,12 +53,27 @@ class TenantResolver implements FilterInterface
             return;
         }
 
-        $defaultGroup = &config(Database::class)->default;
+        // Mutate whichever group is actually active (Config\Database's
+        // constructor points $defaultGroup at 'development'/'tests' outside
+        // production), not a hardcoded 'default' -- otherwise this swap is
+        // silently a no-op under CI_ENVIRONMENT=development (used by
+        // docker-compose.dev.yml), where every Database::connect() call
+        // resolves through the 'development' array instead. Confirmed
+        // empirically while testing Fase 8's tenant login locally: the
+        // config array showed the right tenant schema, but the actual
+        // connection stayed on the untouched 'development' array. Both
+        // docker-compose.staging.yml and docker-compose.prod.yml set
+        // CI_ENVIRONMENT=production, where defaultGroup is 'default', so
+        // this was never reachable there -- but local reproduction of any
+        // tenant-specific issue needs this to work too.
+        $dbConfig = config(Database::class);
+        $activeGroup = $dbConfig->defaultGroup;
+        $defaultGroup = &$dbConfig->{$activeGroup};
         $defaultGroup['database'] = $tenant->db_name;
 
         if (!empty($tenant->db_user) && !empty($tenant->db_password)) {
             $defaultGroup['username'] = $tenant->db_user;
-            $defaultGroup['password'] = service('encrypter')->decrypt(base64_decode($tenant->db_password));
+            $defaultGroup['password'] = service('encrypter')->decrypt($tenant->db_password);
         }
 
         TenantContext::set((int) $tenant->id, $tenant->slug, $tenant->db_name);

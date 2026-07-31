@@ -25,6 +25,13 @@ class Login extends BaseController
         $this->employee = model(Employee::class);
         if (!$this->employee->is_logged_in()) {
             $migration = new MY_Migration(config('Migrations'));
+            // Scope to the App namespace, same reason as the fix in
+            // app/Events/Load_config.php: since Fase 3 registered the
+            // Platform namespace, an unscoped findMigrations() here
+            // would report Platform's (numerically higher) migrations
+            // as the "latest" available, which App's own schema could
+            // never match.
+            $migration->setNamespace('App');
             $config = config(OSPOS::class)->settings;
 
             $gcaptcha_enabled = array_key_exists('gcaptcha_enable', $config)

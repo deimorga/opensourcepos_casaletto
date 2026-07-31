@@ -29,17 +29,33 @@ class MY_Migration extends MigrationRunner
     }
 
     /**
-     * Gets the database version number
+     * Gets the database version number for a given migration namespace.
+     *
+     * Defaults to 'App' because the migration history table is shared
+     * across every registered namespace (App, and since the Fase 3
+     * multi-tenant work, Platform too -- see
+     * docs/Tecnico/multi-tenant-arquitectura.md section 4.1), even
+     * though each namespace's actual DDL runs against its own separate
+     * schema via its migrations' own $DBGroup. Without this filter, a
+     * schema that has only ever run App migrations would still see
+     * Platform's (numerically higher) version numbers the moment
+     * Platform migrations are run anywhere against the same connection
+     * -- confirmed empirically: it made is_latest() never match,
+     * silently destroying every request's session (see the long
+     * comment in app/Events/Load_config.php).
      *
      * @return int The version number of the last successfully run database migration.
      */
-    public static function get_current_version(): int
+    public static function get_current_version(string $namespace = 'App'): int
     {
         try {
             $db = Database::connect();
             if ($db->tableExists('migrations')) {
                 $builder = $db->table('migrations');
-                $builder->select('version')->orderBy('version', 'DESC')->limit(1);
+                $builder->select('version')
+                    ->where('namespace', $namespace)
+                    ->orderBy('version', 'DESC')
+                    ->limit(1);
                 $result = $builder->get()->getRow();
                 return $result ? (int) $result->version : 0;
             }

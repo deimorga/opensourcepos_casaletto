@@ -53,11 +53,6 @@ class Filters extends BaseFilters
      */
     public array $required = [
         'before' => [
-            // Must stay first: resolves which tenant schema this request
-            // uses before anything else (including Config\Session's
-            // constructor, triggered by the first session() call) opens
-            // a `default` connection. See app/Filters/TenantResolver.php.
-            'tenantresolver',
             'forcehttps', // Force Global Secure Requests
             'pagecache',  // Web Page Caching
         ],
@@ -79,6 +74,32 @@ class Filters extends BaseFilters
      */
     public array $globals = [
         'before' => [
+            // Must stay first, and must live in $globals (not $required)
+            // to actually run first: resolves which tenant schema this
+            // request uses before anything else opens a `default`
+            // connection. See app/Filters/TenantResolver.php.
+            //
+            // Confirmed empirically (not assumed) that this had to move
+            // here: CodeIgniter's Filters::initialize(), with the
+            // project's default Config\Feature::$oldFilterOrder = false,
+            // builds the final filter list as
+            // array_merge($globals['before'], $required['before']) --
+            // i.e. $globals['before'] entries run BEFORE $required['before']
+            // ones, the opposite of what "required" suggests. With
+            // tenantresolver in $required['before'], the 'csrf' filter
+            // below ran first, and its session() call opened the
+            // `default` connection against the UNRESOLVED (pre-swap)
+            // schema; CodeIgniter\Database\Config::connect() then caches
+            // that connection by group name, so every later
+            // Database::connect('default') in the same request kept
+            // returning that stale connection even after TenantResolver
+            // correctly mutated the config array -- config(Database::class)
+            // ->default['database'] showed the right tenant schema, but
+            // the actual connected database did not. Found while testing
+            // Fase 8's tenant login end to end: a freshly provisioned
+            // tenant's own login page rendered Casaletto's app_config
+            // instead of the new tenant's.
+            'tenantresolver',
             'honeypot',
             'csrf' => ['except' => 'login|migrate'],
             'invalidchars',
