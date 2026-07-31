@@ -61,15 +61,34 @@ services:
             - MYSQL_DB_NAME=${MYSQL_DB_NAME}
             - MYSQL_HOST_NAME=mysql
             - ALLOWED_HOSTNAMES=pos-casaletto.micronuba.net
+            # Fase 6 (multi-tenant): subdominio de cada negocio-cliente, ej.
+            # clientex.pos-casaletto.micronuba.net. Con punto inicial -- ver
+            # App::$allowedHostnameWildcards. "staging" queda reservado (no
+            # se asigna nunca como slug de tenant, ver Fase 7) para no
+            # ambiguar con staging.pos-casaletto.micronuba.net.
+            - ALLOWED_HOSTNAME_WILDCARDS=.pos-casaletto.micronuba.net
             # Ver NOTA en docker/docker-mysql.yml comment above: Sales.php
             # crashea sin esto (Email_lib -> Services::encrypter()). Clave
             # única por ambiente, definida en el .env del VPS, nunca en git.
             - encryption_key=${ENCRYPTION_KEY}
         labels:
             - "traefik.enable=true"
-            - "traefik.http.routers.pos-casaletto.rule=Host(`pos-casaletto.micronuba.net`)"
+            # Fase 6 (multi-tenant): agrega el wildcard de subdominios de
+            # negocios-cliente al router existente, sin tocar el host
+            # exacto de Casaletto. certresolver pasa a le-dns (DNS-01 vía
+            # Cloudflare, ya en uso real por otro proyecto en este mismo
+            # Traefik) porque HostRegexp no es validable con HTTP-01 de
+            # forma confiable a medida que se agregan tenants. priority
+            # más bajo que el de staging (docker-compose.staging.yml) para
+            # que, en el único caso ambiguo posible (el string literal
+            # "staging.pos-casaletto.micronuba.net", que matchea este
+            # wildcard de un solo nivel), el router de staging le gane
+            # siempre -- refuerzo adicional a que "staging" nunca se
+            # asigne como slug real (Fase 7).
+            - "traefik.http.routers.pos-casaletto.rule=Host(`pos-casaletto.micronuba.net`) || HostRegexp(`^[a-z0-9-]+\\.pos-casaletto\\.micronuba\\.net$`)"
             - "traefik.http.routers.pos-casaletto.entrypoints=websecure"
-            - "traefik.http.routers.pos-casaletto.tls.certresolver=le"
+            - "traefik.http.routers.pos-casaletto.tls.certresolver=le-dns"
+            - "traefik.http.routers.pos-casaletto.priority=10"
             - "traefik.http.services.pos-casaletto.loadbalancer.server.port=80"
             - "traefik.docker.network=micronuba_public"
 
