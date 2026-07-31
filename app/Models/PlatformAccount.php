@@ -36,6 +36,10 @@ class PlatformAccount extends Model
             return null;
         }
 
+        // Regenerate the session id on successful auth (and destroy the old
+        // session's data server-side) so a pre-auth id an attacker may have
+        // fixed on the victim can't be reused post-login.
+        session()->regenerate(true);
         session()->set(self::SESSION_KEY, $account->id);
 
         return $account;
@@ -43,7 +47,7 @@ class PlatformAccount extends Model
 
     public function logout(): void
     {
-        session()->remove(self::SESSION_KEY);
+        session()->destroy();
     }
 
     public function isLoggedIn(): bool
