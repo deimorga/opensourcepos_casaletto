@@ -83,6 +83,9 @@ services:
             - "traefik.http.routers.pos-casaletto-staging.rule=Host(`staging.pos-casaletto.micronuba.net`)"
             - "traefik.http.routers.pos-casaletto-staging.entrypoints=websecure"
             - "traefik.http.routers.pos-casaletto-staging.tls.certresolver=le-dns"
+            # Enlace explícito router->service -- ver docker-compose.prod.yml
+            # para el porqué (confirmado con un 404 real sin esto).
+            - "traefik.http.routers.pos-casaletto-staging.service=pos-casaletto-staging"
             - "traefik.http.services.pos-casaletto-staging.loadbalancer.server.port=80"
             # Router nuevo (corrección 2026-07-31): wildcard de tenants
             # ficticios de prueba (Fase 9) en el dominio propio del SaaS,
@@ -94,6 +97,7 @@ services:
             - "traefik.http.routers.ospos-saas-staging.entrypoints=websecure"
             - "traefik.http.routers.ospos-saas-staging.tls.certresolver=le-dns"
             - "traefik.http.routers.ospos-saas-staging.priority=10"
+            - "traefik.http.routers.ospos-saas-staging.service=ospos-saas-staging"
             - "traefik.http.services.ospos-saas-staging.loadbalancer.server.port=80"
             - "traefik.docker.network=micronuba_public"
 
