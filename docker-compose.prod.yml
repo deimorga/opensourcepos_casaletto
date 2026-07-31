@@ -3,7 +3,10 @@
 #
 # Requiere en el VPS:
 #   - Red externa `micronuba_public` (creada por micronuba-infra)
-#   - DNS: pos-casaletto.micronuba.net -> IP del VPS (pendiente de crear)
+#   - DNS: pos-casaletto.micronuba.net -> IP del VPS (URL legacy de Casaletto)
+#   - DNS: *.ospos-saas.micronuba.net -> IP del VPS (wildcard de negocios-
+#     cliente del SaaS -- se crea recién cuando haya un tenant real que
+#     provisionar, Fase 7+; el router ya existe y es inerte sin este DNS)
 #   - Un archivo `.env` (NO versionado, chmod 600) junto a este compose con:
 #       MYSQL_ROOT_PASSWORD=...
 #       MYSQL_USERNAME=admin
@@ -48,35 +51,39 @@ services:
             - MYSQL_DB_NAME=${MYSQL_DB_NAME}
             - MYSQL_HOST_NAME=mysql
             - ALLOWED_HOSTNAMES=pos-casaletto.micronuba.net
-            # Fase 6 (multi-tenant): subdominio de cada negocio-cliente, ej.
-            # clientex.pos-casaletto.micronuba.net. Con punto inicial -- ver
-            # App::$allowedHostnameWildcards. "staging" queda reservado (no
-            # se asigna nunca como slug de tenant, ver Fase 7) para no
-            # ambiguar con staging.pos-casaletto.micronuba.net.
-            - ALLOWED_HOSTNAME_WILDCARDS=.pos-casaletto.micronuba.net
+            # Fase 6 (multi-tenant), corregido 2026-07-31: la marca del
+            # SaaS NO puede ser "pos-casaletto" -- Casaletto es un cliente
+            # más de la plataforma, no la plataforma misma. Subdominio de
+            # cada negocio-cliente, ej. clientex.ospos-saas.micronuba.net
+            # (Casaletto mismo pasará a ser casaletto.ospos-saas.micronuba.net
+            # cuando se provisione como tenant, Fase 10 -- su URL actual
+            # arriba no se toca, sigue funcionando igual mientras tanto).
+            # Con punto inicial -- ver App::$allowedHostnameWildcards.
+            # "staging"/"www"/"admin"/"platform"/"login"/"api"/"app"
+            # quedan reservados, nunca asignables a un tenant (Fase 7).
+            - ALLOWED_HOSTNAME_WILDCARDS=.ospos-saas.micronuba.net
             # Ver NOTA en docker/docker-mysql.yml comment above: Sales.php
             # crashea sin esto (Email_lib -> Services::encrypter()). Clave
             # única por ambiente, definida en el .env del VPS, nunca en git.
             - encryption_key=${ENCRYPTION_KEY}
         labels:
             - "traefik.enable=true"
-            # Fase 6 (multi-tenant): agrega el wildcard de subdominios de
-            # negocios-cliente al router existente, sin tocar el host
-            # exacto de Casaletto. certresolver pasa a le-dns (DNS-01 vía
-            # Cloudflare, ya en uso real por otro proyecto en este mismo
-            # Traefik) porque HostRegexp no es validable con HTTP-01 de
-            # forma confiable a medida que se agregan tenants. priority
-            # más bajo que el de staging (docker-compose.staging.yml) para
-            # que, en el único caso ambiguo posible (el string literal
-            # "staging.pos-casaletto.micronuba.net", que matchea este
-            # wildcard de un solo nivel), el router de staging le gane
-            # siempre -- refuerzo adicional a que "staging" nunca se
-            # asigne como slug real (Fase 7).
-            - "traefik.http.routers.pos-casaletto.rule=Host(`pos-casaletto.micronuba.net`) || HostRegexp(`^[a-z0-9-]+\\.pos-casaletto\\.micronuba\\.net$`)"
+            # Router de siempre: SOLO la URL propia de Casaletto (legacy,
+            # sin corte de servicio). Ya no dobla como wildcard del SaaS
+            # -- ver router "ospos-saas" más abajo, dominio separado.
+            - "traefik.http.routers.pos-casaletto.rule=Host(`pos-casaletto.micronuba.net`)"
             - "traefik.http.routers.pos-casaletto.entrypoints=websecure"
             - "traefik.http.routers.pos-casaletto.tls.certresolver=le-dns"
-            - "traefik.http.routers.pos-casaletto.priority=10"
             - "traefik.http.services.pos-casaletto.loadbalancer.server.port=80"
+            # Router nuevo (corrección 2026-07-31): wildcard de negocios-
+            # cliente en un dominio propio del SaaS, desacoplado de la marca
+            # Casaletto. Mismo servicio/contenedor que el router de arriba
+            # -- un solo `ospos` sirve a todos los negocios y a Casaletto.
+            - "traefik.http.routers.ospos-saas.rule=HostRegexp(`^[a-z0-9-]+\\.ospos-saas\\.micronuba\\.net$`)"
+            - "traefik.http.routers.ospos-saas.entrypoints=websecure"
+            - "traefik.http.routers.ospos-saas.tls.certresolver=le-dns"
+            - "traefik.http.routers.ospos-saas.priority=10"
+            - "traefik.http.services.ospos-saas.loadbalancer.server.port=80"
             - "traefik.docker.network=micronuba_public"
 
 networks:

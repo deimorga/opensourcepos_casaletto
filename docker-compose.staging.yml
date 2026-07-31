@@ -3,7 +3,10 @@
 #
 # Requiere en el VPS:
 #   - Red externa `micronuba_public` (creada por micronuba-infra)
-#   - DNS: staging.pos-casaletto.micronuba.net -> IP del VPS (pendiente de crear)
+#   - DNS: staging.pos-casaletto.micronuba.net -> IP del VPS (URL legacy)
+#   - DNS: *.staging.ospos-saas.micronuba.net -> IP del VPS (wildcard de
+#     tenants ficticios de prueba, Fase 9 -- se crea cuando haga falta
+#     probar; el router ya existe y es inerte sin este DNS)
 #   - Un archivo `.env` (NO versionado, chmod 600) junto a este compose con:
 #       MYSQL_ROOT_PASSWORD=...
 #       MYSQL_USERNAME=admin
@@ -48,30 +51,37 @@ services:
             - MYSQL_DB_NAME=${MYSQL_DB_NAME}
             - MYSQL_HOST_NAME=mysql
             - ALLOWED_HOSTNAMES=staging.pos-casaletto.micronuba.net
-            # Fase 6 (multi-tenant): subdominios de tenants ficticios de
-            # prueba (Fase 9), ej. demo1.staging.pos-casaletto.micronuba.net.
-            # Con punto inicial -- ver App::$allowedHostnameWildcards.
-            - ALLOWED_HOSTNAME_WILDCARDS=.staging.pos-casaletto.micronuba.net
+            # Fase 6 (multi-tenant), corregido 2026-07-31: dominio del SaaS
+            # desacoplado de la marca Casaletto (ver docker-compose.prod.yml
+            # para el razonamiento completo). Subdominios de tenants
+            # ficticios de prueba (Fase 9), ej.
+            # demo1.staging.ospos-saas.micronuba.net. Con punto inicial --
+            # ver App::$allowedHostnameWildcards.
+            - ALLOWED_HOSTNAME_WILDCARDS=.staging.ospos-saas.micronuba.net
             # Ver NOTA en docker/docker-mysql.yml comment above: Sales.php
             # crashea sin esto (Email_lib -> Services::encrypter()). Clave
             # única por ambiente, definida en el .env del VPS, nunca en git.
             - encryption_key=${ENCRYPTION_KEY}
         labels:
             - "traefik.enable=true"
-            # Fase 6 (multi-tenant): agrega el wildcard de subdominios de
-            # tenants ficticios de prueba (Fase 9) al router existente, sin
-            # tocar el host exacto de siempre. certresolver pasa a le-dns
-            # (DNS-01 vía Cloudflare, ya en uso real por otro proyecto en
-            # este mismo Traefik) porque HostRegexp no es validable con
-            # HTTP-01 de forma confiable a medida que se agregan tenants.
-            # priority alto para que este router (host exacto de staging)
-            # le gane, en caso de ambigüedad, al wildcard de producción
-            # (docker-compose.prod.yml), que comparte el mismo Traefik.
-            - "traefik.http.routers.pos-casaletto-staging.rule=Host(`staging.pos-casaletto.micronuba.net`) || HostRegexp(`^[a-z0-9-]+\\.staging\\.pos-casaletto\\.micronuba\\.net$`)"
+            # Router de siempre: SOLO la URL de staging de Casaletto
+            # (legacy). Ya no dobla como wildcard de tenants de prueba --
+            # ver router "ospos-saas-staging" más abajo, dominio separado.
+            - "traefik.http.routers.pos-casaletto-staging.rule=Host(`staging.pos-casaletto.micronuba.net`)"
             - "traefik.http.routers.pos-casaletto-staging.entrypoints=websecure"
             - "traefik.http.routers.pos-casaletto-staging.tls.certresolver=le-dns"
-            - "traefik.http.routers.pos-casaletto-staging.priority=20"
             - "traefik.http.services.pos-casaletto-staging.loadbalancer.server.port=80"
+            # Router nuevo (corrección 2026-07-31): wildcard de tenants
+            # ficticios de prueba (Fase 9) en el dominio propio del SaaS,
+            # desacoplado de la marca Casaletto. El nivel ".staging." extra
+            # hace que esta regex nunca pueda matchear el wildcard de
+            # producción (docker-compose.prod.yml) ni viceversa -- dominios
+            # ya estructuralmente separados, sin necesitar priority.
+            - "traefik.http.routers.ospos-saas-staging.rule=HostRegexp(`^[a-z0-9-]+\\.staging\\.ospos-saas\\.micronuba\\.net$`)"
+            - "traefik.http.routers.ospos-saas-staging.entrypoints=websecure"
+            - "traefik.http.routers.ospos-saas-staging.tls.certresolver=le-dns"
+            - "traefik.http.routers.ospos-saas-staging.priority=10"
+            - "traefik.http.services.ospos-saas-staging.loadbalancer.server.port=80"
             - "traefik.docker.network=micronuba_public"
 
 networks:
