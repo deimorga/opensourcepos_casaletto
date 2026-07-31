@@ -75,6 +75,25 @@ services:
             # crashea sin esto (Email_lib -> Services::encrypter()). Clave
             # única por ambiente, definida en el .env del VPS, nunca en git.
             - encryption_key=${ENCRYPTION_KEY}
+            # Fase 9: grupo de conexión fijo al schema de control (registro
+            # de tenants, cuentas de plataforma) -- reusa el usuario
+            # compartido de siempre, que necesita un GRANT explícito sobre
+            # platform_control además del suyo propio sobre `ospos` (el
+            # usuario que crea la imagen oficial de MariaDB solo recibe
+            # privilegios sobre la BD declarada en MYSQL_DATABASE al
+            # iniciar el contenedor, nunca sobre esquemas creados después
+            # a mano -- confirmado al validar esto en local). Ver runbook
+            # en docs/Tecnico/multi-tenant-arquitectura.md sección 16.
+            - PLATFORM_DB_HOST_NAME=mysql
+            - PLATFORM_DB_USERNAME=${MYSQL_USERNAME}
+            - PLATFORM_DB_PASSWORD=${MYSQL_PASSWORD}
+            - PLATFORM_DB_NAME=platform_control
+            # Fase 8: usuario MySQL dedicado y acotado para que la
+            # plataforma de gestión de negocios pueda aprovisionar
+            # tenants en caliente -- nunca el usuario admin compartido ni
+            # root. Ver runbook, sección 16 del mismo documento.
+            - PLATFORM_PROVISION_USERNAME=platform_provisioner
+            - PLATFORM_PROVISION_PASSWORD=${PLATFORM_PROVISION_PASSWORD}
         labels:
             - "traefik.enable=true"
             # Router de siempre: SOLO la URL de staging de Casaletto

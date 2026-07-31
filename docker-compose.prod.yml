@@ -79,6 +79,18 @@ services:
             # crashea sin esto (Email_lib -> Services::encrypter()). Clave
             # única por ambiente, definida en el .env del VPS, nunca en git.
             - encryption_key=${ENCRYPTION_KEY}
+            # Fase 9/10: grupo de conexión fijo al schema de control y
+            # usuario de aprovisionamiento acotado -- mismo razonamiento
+            # documentado en docker-compose.staging.yml y en
+            # docs/Tecnico/multi-tenant-arquitectura.md sección 16. No
+            # activo todavía en producción real (esta fase sigue sin
+            # desplegarse aquí), pero el compose queda listo.
+            - PLATFORM_DB_HOST_NAME=mysql
+            - PLATFORM_DB_USERNAME=${MYSQL_USERNAME}
+            - PLATFORM_DB_PASSWORD=${MYSQL_PASSWORD}
+            - PLATFORM_DB_NAME=platform_control
+            - PLATFORM_PROVISION_USERNAME=platform_provisioner
+            - PLATFORM_PROVISION_PASSWORD=${PLATFORM_PROVISION_PASSWORD}
         labels:
             - "traefik.enable=true"
             # Router de siempre: SOLO la URL propia de Casaletto (legacy,
