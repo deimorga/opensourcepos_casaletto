@@ -12,6 +12,7 @@ use CodeIgniter\Filters\InvalidChars;
 use CodeIgniter\Filters\PageCache;
 use CodeIgniter\Filters\PerformanceMetrics;
 use CodeIgniter\Filters\SecureHeaders;
+use App\Filters\TenantResolver;
 
 class Filters extends BaseFilters
 {
@@ -34,6 +35,7 @@ class Filters extends BaseFilters
         'forcehttps'    => ForceHTTPS::class,
         'pagecache'     => PageCache::class,
         'performance'   => PerformanceMetrics::class,
+        'tenantresolver' => TenantResolver::class,
     ];
 
     /**
@@ -51,6 +53,11 @@ class Filters extends BaseFilters
      */
     public array $required = [
         'before' => [
+            // Must stay first: resolves which tenant schema this request
+            // uses before anything else (including Config\Session's
+            // constructor, triggered by the first session() call) opens
+            // a `default` connection. See app/Filters/TenantResolver.php.
+            'tenantresolver',
             'forcehttps', // Force Global Secure Requests
             'pagecache',  // Web Page Caching
         ],
