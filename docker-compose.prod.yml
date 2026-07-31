@@ -87,6 +87,13 @@ services:
             - "traefik.http.routers.pos-casaletto.rule=Host(`pos-casaletto.micronuba.net`)"
             - "traefik.http.routers.pos-casaletto.entrypoints=websecure"
             - "traefik.http.routers.pos-casaletto.tls.certresolver=le-dns"
+            # Enlace EXPLICITO router->service: con un solo service por
+            # contenedor, Traefik lo infiere solo; con dos (como aquí, desde
+            # que se separó el router del wildcard), hay que decirlo o
+            # ninguno de los dos routers queda operativo (confirmado con
+            # un 404 real en producción -- sin esto, Traefik no puede
+            # resolver la ambigüedad y descarta la config).
+            - "traefik.http.routers.pos-casaletto.service=pos-casaletto"
             - "traefik.http.services.pos-casaletto.loadbalancer.server.port=80"
             # Router nuevo (corrección 2026-07-31): wildcard de negocios-
             # cliente en un dominio propio del SaaS, desacoplado de la marca
@@ -96,6 +103,7 @@ services:
             - "traefik.http.routers.ospos-saas.entrypoints=websecure"
             - "traefik.http.routers.ospos-saas.tls.certresolver=le-dns"
             - "traefik.http.routers.ospos-saas.priority=10"
+            - "traefik.http.routers.ospos-saas.service=ospos-saas"
             - "traefik.http.services.ospos-saas.loadbalancer.server.port=80"
             - "traefik.docker.network=micronuba_public"
 
