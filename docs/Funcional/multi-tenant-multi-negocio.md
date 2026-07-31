@@ -69,7 +69,17 @@ Fase 6 (la infraestructura de enrutamiento que permitirá que cada negocio tenga
 
 Fase 7 (la herramienta interna que da de alta un negocio nuevo con un solo comando: crea su espacio de datos separado, sus propias credenciales de acceso a base de datos, aplica la estructura de tablas completa, y reemplaza el usuario/contraseña de administrador por defecto por uno nuevo y aleatorio, nunca reutilizando ninguna credencial de Casaletto) completa, solo en la rama de desarrollo. Probada de punta a punta creando un negocio de prueba real y confirmando que sus datos quedan completamente separados de los de Casaletto, incluso si algo en el código fallara. Detalle técnico en `docs/Tecnico/multi-tenant-arquitectura.md`.
 
-Fase 8 (login de dueño + **plataforma de gestión de negocios**, el panel web para crear/modificar/suspender/eliminar negocios-cliente) pendiente de implementar. Su alcance quedó confirmado y ampliado explícitamente el 2026-07-31, a raíz de que el usuario preguntó directamente cómo se manejarían distintas empresas, si cada una tendría su propia URL de login, y si existiría algún módulo o plataforma para gestionar la creación, modificación o eliminación de negocios — la respuesta es sí, y ese panel es ahora un requisito confirmado de esta fase, no un extra.
+Fase 8 (login de dueño + **plataforma de gestión de negocios**, el panel web para crear/modificar/suspender/eliminar negocios-cliente) **completa**, solo en la rama de desarrollo (sin desplegar). Su alcance quedó confirmado y ampliado explícitamente el 2026-07-31, a raíz de que el usuario preguntó directamente cómo se manejarían distintas empresas, si cada una tendría su propia URL de login, y si existiría algún módulo o plataforma para gestionar la creación, modificación o eliminación de negocios — la respuesta es sí, y ese panel quedó como requisito confirmado de esta fase, no un extra.
+
+Probado de punta a punta con un negocio de prueba real: login del administrador de plataforma, alta de un negocio nuevo **desde el panel web** (no desde la línea de comandos), suspensión y reactivación, y confirmación de que el negocio nuevo, al entrar por su propia dirección, ve sus propios datos (no los de Casaletto ni los de ningún otro negocio).
+
+**Durante esta prueba de punta a punta se encontraron y corrigieron 4 fallas reales**, 2 de ellas preexistentes desde antes de este proyecto de negocios múltiples y potencialmente graves si hubieran llegado a producción sin corregir:
+- Una falla que, de no haberse corregido, habría hecho que **ningún empleado pudiera mantener la sesión iniciada** en ningún negocio (incluido Casaletto) tan pronto el registro de negocios (Fase 3) se desplegara a un ambiente real — la sesión se cerraba sola en cada acción.
+- Una falla en el mecanismo que detecta a qué negocio pertenece cada visita, que hacía que a veces no se aplicara correctamente.
+- Una falla en cómo se guardaba la contraseña de acceso a la base de datos de cada negocio, que se guardaba incompleta y por lo tanto no servía.
+- Un ajuste al diseño original de permisos del panel de gestión, tras confirmar con el usuario cómo prefería resolver una limitación real de la base de datos.
+
+Las cuatro quedaron corregidas y verificadas de nuevo con el mismo negocio de prueba antes de dar la fase por cerrada. Detalle técnico completo en `docs/Tecnico/multi-tenant-arquitectura.md`.
 
 **Importante para el despliegue de la Fase 2 en staging/producción** (no en desarrollo local): el salto de versión de MariaDB requiere un procedimiento cuidadoso porque esos ambientes tienen datos reales de Casaletto — no es un cambio que se aplique solo con el deploy automático, hay que planificarlo como una ventana de mantenimiento explícita.
 
