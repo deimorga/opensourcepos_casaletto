@@ -81,6 +81,12 @@ Probado de punta a punta con un negocio de prueba real: login del administrador 
 
 Las cuatro quedaron corregidas y verificadas de nuevo con el mismo negocio de prueba antes de dar la fase por cerrada. Detalle técnico completo en `docs/Tecnico/multi-tenant-arquitectura.md`.
 
+**Fase 9 (validación en staging) completa — primer ensayo real de cómo será el paso de Casaletto a producción (2026-07-31).** Con autorización explícita del usuario, y con el cuidado explícito de no perder ni un dato de la Casaletto real que ya vive en staging: se tomó respaldo completo antes de tocar nada (tres copias independientes), se desplegó toda esta fase al ambiente de staging por primera vez, y se ejecutó ahí el mismo procedimiento que se usará en producción: **registrar la Casaletto real de staging como el primer negocio del SaaS, sin migrar ni tocar un solo dato suyo.**
+
+Verificado exhaustivamente después: los conteos de empleados, ventas, artículos y personas quedaron **exactamente iguales** a los de antes de empezar; el usuario administrador de Casaletto no se tocó; la dirección web de siempre de Casaletto en staging siguió funcionando idéntica todo el tiempo; y entrando por la nueva dirección de negocio, se ve exactamente la misma información que por la dirección de siempre — confirmando que "convertir a Casaletto en un negocio más del SaaS" no mueve ni copia ningún dato, solo activa una nueva forma de llegar a los mismos datos de siempre.
+
+También se probó el panel de gestión de negocios funcionando de verdad en staging (no solo en una prueba local), mostrando a Casaletto ya listado como negocio activo.
+
 **Importante para el despliegue de la Fase 2 en staging/producción** (no en desarrollo local): el salto de versión de MariaDB requiere un procedimiento cuidadoso porque esos ambientes tienen datos reales de Casaletto — no es un cambio que se aplique solo con el deploy automático, hay que planificarlo como una ventana de mantenimiento explícita.
 
 **Actualización (2026-07-30)**: ejecutado en **staging y producción**, ambos con verificación de que ningún dato se perdió (checksums idénticos entre la BD vieja y la nueva antes de dar cada cambio por bueno). Los dos ambientes corren en PHP 8.4 + MariaDB 11.4 desde ahora. Los volúmenes viejos en MariaDB 10.5 se conservan sin tocar en el VPS como respaldo adicional.
