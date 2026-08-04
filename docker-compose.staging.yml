@@ -101,7 +101,16 @@ services:
             # ver router "ospos-saas-staging" más abajo, dominio separado.
             - "traefik.http.routers.pos-casaletto-staging.rule=Host(`staging.pos-casaletto.micronuba.net`)"
             - "traefik.http.routers.pos-casaletto-staging.entrypoints=websecure"
-            - "traefik.http.routers.pos-casaletto-staging.tls.certresolver=le-dns"
+            # certresolver=le (HTTP-01), NO le-dns: confirmado 2026-08-03 que
+            # el token de Cloudflare que ya usa Traefik para le-dns está
+            # limitado a la zona plagie.cloud, sin ningún acceso a
+            # micronuba.net -- el certificado actual sigue sirviéndose
+            # porque se emitió antes del cambio a le-dns, pero la próxima
+            # renovación habría fallado en silencio. Revertido a le hasta
+            # que alguien con acceso a Cloudflare amplíe ese token (o cree
+            # uno nuevo) para micronuba.net -- ver
+            # docs/Tecnico/multi-tenant-arquitectura.md sección 16.
+            - "traefik.http.routers.pos-casaletto-staging.tls.certresolver=le"
             # Enlace explícito router->service -- ver docker-compose.prod.yml
             # para el porqué (confirmado con un 404 real sin esto).
             - "traefik.http.routers.pos-casaletto-staging.service=pos-casaletto-staging"
@@ -114,7 +123,13 @@ services:
             # ya estructuralmente separados, sin necesitar priority.
             - "traefik.http.routers.ospos-saas-staging.rule=HostRegexp(`^[a-z0-9-]+\\.staging\\.ospos-saas\\.micronuba\\.net$`)"
             - "traefik.http.routers.ospos-saas-staging.entrypoints=websecure"
-            - "traefik.http.routers.ospos-saas-staging.tls.certresolver=le-dns"
+            # le, no le-dns -- ver nota larga en pos-casaletto-staging arriba.
+            # HTTP-01 no puede emitir un certificado wildcard único, pero sí
+            # emite uno por subdominio exacto a medida que cada negocio
+            # recibe tráfico real -- suficiente a esta escala; el límite de
+            # tasa de Let's Encrypt solo importaría con muchos negocios
+            # nuevos por día.
+            - "traefik.http.routers.ospos-saas-staging.tls.certresolver=le"
             - "traefik.http.routers.ospos-saas-staging.priority=10"
             - "traefik.http.routers.ospos-saas-staging.service=ospos-saas-staging"
             - "traefik.http.services.ospos-saas-staging.loadbalancer.server.port=80"

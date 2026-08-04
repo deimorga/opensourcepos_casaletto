@@ -98,7 +98,16 @@ services:
             # -- ver router "ospos-saas" más abajo, dominio separado.
             - "traefik.http.routers.pos-casaletto.rule=Host(`pos-casaletto.micronuba.net`)"
             - "traefik.http.routers.pos-casaletto.entrypoints=websecure"
-            - "traefik.http.routers.pos-casaletto.tls.certresolver=le-dns"
+            # certresolver=le (HTTP-01), NO le-dns: confirmado 2026-08-03 que
+            # el token de Cloudflare que ya usa Traefik para le-dns está
+            # limitado a la zona plagie.cloud, sin ningún acceso a
+            # micronuba.net -- el certificado actual sigue sirviéndose
+            # porque se emitió antes del cambio a le-dns, pero la próxima
+            # renovación habría fallado en silencio. Revertido a le hasta
+            # que alguien con acceso a Cloudflare amplíe ese token (o cree
+            # uno nuevo) para micronuba.net -- ver
+            # docs/Tecnico/multi-tenant-arquitectura.md sección 16.
+            - "traefik.http.routers.pos-casaletto.tls.certresolver=le"
             # Enlace EXPLICITO router->service: con un solo service por
             # contenedor, Traefik lo infiere solo; con dos (como aquí, desde
             # que se separó el router del wildcard), hay que decirlo o
@@ -113,7 +122,11 @@ services:
             # -- un solo `ospos` sirve a todos los negocios y a Casaletto.
             - "traefik.http.routers.ospos-saas.rule=HostRegexp(`^[a-z0-9-]+\\.ospos-saas\\.micronuba\\.net$`)"
             - "traefik.http.routers.ospos-saas.entrypoints=websecure"
-            - "traefik.http.routers.ospos-saas.tls.certresolver=le-dns"
+            # le, no le-dns -- ver nota larga en pos-casaletto arriba. HTTP-01
+            # no puede emitir un certificado wildcard único, pero sí emite
+            # uno por subdominio exacto a medida que cada negocio recibe
+            # tráfico real -- suficiente a esta escala.
+            - "traefik.http.routers.ospos-saas.tls.certresolver=le"
             - "traefik.http.routers.ospos-saas.priority=10"
             - "traefik.http.routers.ospos-saas.service=ospos-saas"
             - "traefik.http.services.ospos-saas.loadbalancer.server.port=80"
