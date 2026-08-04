@@ -75,6 +75,25 @@ services:
             # crashea sin esto (Email_lib -> Services::encrypter()). Clave
             # única por ambiente, definida en el .env del VPS, nunca en git.
             - encryption_key=${ENCRYPTION_KEY}
+            # Fase 9: grupo de conexión fijo al schema de control (registro
+            # de tenants, cuentas de plataforma) -- reusa el usuario
+            # compartido de siempre, que necesita un GRANT explícito sobre
+            # platform_control además del suyo propio sobre `ospos` (el
+            # usuario que crea la imagen oficial de MariaDB solo recibe
+            # privilegios sobre la BD declarada en MYSQL_DATABASE al
+            # iniciar el contenedor, nunca sobre esquemas creados después
+            # a mano -- confirmado al validar esto en local). Ver runbook
+            # en docs/Tecnico/multi-tenant-arquitectura.md sección 16.
+            - PLATFORM_DB_HOST_NAME=mysql
+            - PLATFORM_DB_USERNAME=${MYSQL_USERNAME}
+            - PLATFORM_DB_PASSWORD=${MYSQL_PASSWORD}
+            - PLATFORM_DB_NAME=platform_control
+            # Fase 8: usuario MySQL dedicado y acotado para que la
+            # plataforma de gestión de negocios pueda aprovisionar
+            # tenants en caliente -- nunca el usuario admin compartido ni
+            # root. Ver runbook, sección 16 del mismo documento.
+            - PLATFORM_PROVISION_USERNAME=platform_provisioner
+            - PLATFORM_PROVISION_PASSWORD=${PLATFORM_PROVISION_PASSWORD}
         labels:
             - "traefik.enable=true"
             # Router de siempre: SOLO la URL de staging de Casaletto
@@ -82,7 +101,16 @@ services:
             # ver router "ospos-saas-staging" más abajo, dominio separado.
             - "traefik.http.routers.pos-casaletto-staging.rule=Host(`staging.pos-casaletto.micronuba.net`)"
             - "traefik.http.routers.pos-casaletto-staging.entrypoints=websecure"
-            - "traefik.http.routers.pos-casaletto-staging.tls.certresolver=le-dns"
+            # certresolver=le (HTTP-01), deliberadamente NO le-dns: Traefik sí
+            # puede extraer el dominio exacto de un Host() literal como este,
+            # así que HTTP-01 ya funciona solo, sin depender de Cloudflare.
+            # (Nota histórica: el 2026-08-03 este router pasó brevemente por
+            # le-dns con un token de Cloudflare sin acceso a esta zona, lo
+            # que habría roto la próxima renovación -- corregido revirtiendo
+            # a le. Luego, para el router ospos-saas-staging de abajo, que sí
+            # necesita le-dns por ser wildcard, se amplió el token real; ver
+            # docs/Tecnico/multi-tenant-arquitectura.md sección 15.)
+            - "traefik.http.routers.pos-casaletto-staging.tls.certresolver=le"
             # Enlace explícito router->service -- ver docker-compose.prod.yml
             # para el porqué (confirmado con un 404 real sin esto).
             - "traefik.http.routers.pos-casaletto-staging.service=pos-casaletto-staging"
@@ -95,7 +123,18 @@ services:
             # ya estructuralmente separados, sin necesitar priority.
             - "traefik.http.routers.ospos-saas-staging.rule=HostRegexp(`^[a-z0-9-]+\\.staging\\.ospos-saas\\.micronuba\\.net$`)"
             - "traefik.http.routers.ospos-saas-staging.entrypoints=websecure"
+            # le-dns (2026-08-04): vuelto a DNS-01 ahora que el token de
+            # Cloudflare (CF_API_TOKEN en micronuba-infra) cubre también la
+            # zona micronuba.net, no solo plagie.cloud -- una sola credencial
+            # para ambas zonas, porque Traefik no soporta credenciales
+            # distintas por resolver del mismo proveedor (issue conocido de
+            # Traefik, nunca implementado). tls.domains explícito, mismo
+            # patrón ya probado en este Traefik para *.plagie.cloud (label
+            # real en el contenedor saas-frontend-prod) -- sin esto, un
+            # router HostRegexp no tiene de dónde sacar el dominio a pedir.
             - "traefik.http.routers.ospos-saas-staging.tls.certresolver=le-dns"
+            - "traefik.http.routers.ospos-saas-staging.tls.domains[0].main=staging.ospos-saas.micronuba.net"
+            - "traefik.http.routers.ospos-saas-staging.tls.domains[0].sans=*.staging.ospos-saas.micronuba.net"
             - "traefik.http.routers.ospos-saas-staging.priority=10"
             - "traefik.http.routers.ospos-saas-staging.service=ospos-saas-staging"
             - "traefik.http.services.ospos-saas-staging.loadbalancer.server.port=80"

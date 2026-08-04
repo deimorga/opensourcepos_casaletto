@@ -25,7 +25,7 @@ class SalesControllerTest extends CIUnitTestCase
     protected $migrate     = true;
     protected $migrateOnce = true;
     protected $refresh     = true;
-    protected $namespace   = null;
+    protected $namespace   = 'App';
 
     private int $tableA;
     private int $tableB;

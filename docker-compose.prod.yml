@@ -3,7 +3,10 @@
 #
 # Requiere en el VPS:
 #   - Red externa `micronuba_public` (creada por micronuba-infra)
-#   - DNS: pos-casaletto.micronuba.net -> IP del VPS (pendiente de crear)
+#   - DNS: pos-casaletto.micronuba.net -> IP del VPS (URL legacy de Casaletto)
+#   - DNS: *.ospos-saas.micronuba.net -> IP del VPS (wildcard de negocios-
+#     cliente del SaaS -- se crea recién cuando haya un tenant real que
+#     provisionar, Fase 7+; el router ya existe y es inerte sin este DNS)
 #   - Un archivo `.env` (NO versionado, chmod 600) junto a este compose con:
 #       MYSQL_ROOT_PASSWORD=...
 #       MYSQL_USERNAME=admin
@@ -61,43 +64,79 @@ services:
             - MYSQL_DB_NAME=${MYSQL_DB_NAME}
             - MYSQL_HOST_NAME=mysql
             - ALLOWED_HOSTNAMES=pos-casaletto.micronuba.net
-            # Fase 6 (multi-tenant): subdominio de cada negocio-cliente, ej.
-            # clientex.pos-casaletto.micronuba.net. Con punto inicial -- ver
-            # App::$allowedHostnameWildcards. "staging" queda reservado (no
-            # se asigna nunca como slug de tenant, ver Fase 7) para no
-            # ambiguar con staging.pos-casaletto.micronuba.net.
-            - ALLOWED_HOSTNAME_WILDCARDS=.pos-casaletto.micronuba.net
+            # Fase 6 (multi-tenant), corregido 2026-07-31: la marca del
+            # SaaS NO puede ser "pos-casaletto" -- Casaletto es un cliente
+            # más de la plataforma, no la plataforma misma. Subdominio de
+            # cada negocio-cliente, ej. clientex.ospos-saas.micronuba.net
+            # (Casaletto mismo pasará a ser casaletto.ospos-saas.micronuba.net
+            # cuando se provisione como tenant, Fase 10 -- su URL actual
+            # arriba no se toca, sigue funcionando igual mientras tanto).
+            # Con punto inicial -- ver App::$allowedHostnameWildcards.
+            # "staging"/"www"/"admin"/"platform"/"login"/"api"/"app"
+            # quedan reservados, nunca asignables a un tenant (Fase 7).
+            - ALLOWED_HOSTNAME_WILDCARDS=.ospos-saas.micronuba.net
             # Ver NOTA en docker/docker-mysql.yml comment above: Sales.php
             # crashea sin esto (Email_lib -> Services::encrypter()). Clave
             # única por ambiente, definida en el .env del VPS, nunca en git.
             - encryption_key=${ENCRYPTION_KEY}
+            # Fase 9/10: grupo de conexión fijo al schema de control y
+            # usuario de aprovisionamiento acotado -- mismo razonamiento
+            # documentado en docker-compose.staging.yml y en
+            # docs/Tecnico/multi-tenant-arquitectura.md sección 16. No
+            # activo todavía en producción real (esta fase sigue sin
+            # desplegarse aquí), pero el compose queda listo.
+            - PLATFORM_DB_HOST_NAME=mysql
+            - PLATFORM_DB_USERNAME=${MYSQL_USERNAME}
+            - PLATFORM_DB_PASSWORD=${MYSQL_PASSWORD}
+            - PLATFORM_DB_NAME=platform_control
+            - PLATFORM_PROVISION_USERNAME=platform_provisioner
+            - PLATFORM_PROVISION_PASSWORD=${PLATFORM_PROVISION_PASSWORD}
         labels:
             - "traefik.enable=true"
-            # Fase 6 (multi-tenant): agrega el wildcard de subdominios de
-            # negocios-cliente al router existente, sin tocar el host
-            # exacto de Casaletto. certresolver pasa a le-dns (DNS-01 vía
-            # Cloudflare, ya en uso real por otro proyecto en este mismo
-            # Traefik) porque HostRegexp no es validable con HTTP-01 de
-            # forma confiable a medida que se agregan tenants. priority
-            # más bajo que el de staging (docker-compose.staging.yml) para
-            # que, en el único caso ambiguo posible (el string literal
-            # "staging.pos-casaletto.micronuba.net", que matchea este
-            # wildcard de un solo nivel), el router de staging le gane
-            # siempre -- refuerzo adicional a que "staging" nunca se
-            # asigne como slug real (Fase 7).
-            - "traefik.http.routers.pos-casaletto.rule=Host(`pos-casaletto.micronuba.net`) || HostRegexp(`^[a-z0-9-]+\\.pos-casaletto\\.micronuba\\.net$`)"
+            # Router de siempre: SOLO la URL propia de Casaletto (legacy,
+            # sin corte de servicio). Ya no dobla como wildcard del SaaS
+            # -- ver router "ospos-saas" más abajo, dominio separado.
+            - "traefik.http.routers.pos-casaletto.rule=Host(`pos-casaletto.micronuba.net`)"
             - "traefik.http.routers.pos-casaletto.entrypoints=websecure"
-            # certresolver=le (HTTP-01), NO le-dns: confirmado 2026-08-03 que
-            # el token de Cloudflare que ya usa Traefik para le-dns está
-            # limitado a la zona plagie.cloud, sin ningún acceso a
-            # micronuba.net. El certificado actual sigue sirviéndose porque
-            # se emitió antes de este cambio a le-dns, pero la próxima
-            # renovación habría fallado en silencio. Revertido a le hasta
-            # que alguien con acceso a Cloudflare amplíe ese token (o cree
-            # uno nuevo) para micronuba.net.
+            # certresolver=le (HTTP-01), deliberadamente NO le-dns: Traefik sí
+            # puede extraer el dominio exacto de un Host() literal como este,
+            # así que HTTP-01 ya funciona solo, sin depender de Cloudflare.
+            # (Nota histórica: el 2026-08-03 este router pasó brevemente por
+            # le-dns con un token de Cloudflare sin acceso a esta zona, lo
+            # que habría roto la próxima renovación -- corregido revirtiendo
+            # a le. Luego, para el router ospos-saas de abajo, que si
+            # necesita le-dns por ser wildcard, se amplió el token real; ver
+            # docs/Tecnico/multi-tenant-arquitectura.md sección 15.)
             - "traefik.http.routers.pos-casaletto.tls.certresolver=le"
-            - "traefik.http.routers.pos-casaletto.priority=10"
+            # Enlace EXPLICITO router->service: con un solo service por
+            # contenedor, Traefik lo infiere solo; con dos (como aquí, desde
+            # que se separó el router del wildcard), hay que decirlo o
+            # ninguno de los dos routers queda operativo (confirmado con
+            # un 404 real en producción -- sin esto, Traefik no puede
+            # resolver la ambigüedad y descarta la config).
+            - "traefik.http.routers.pos-casaletto.service=pos-casaletto"
             - "traefik.http.services.pos-casaletto.loadbalancer.server.port=80"
+            # Router nuevo (corrección 2026-07-31): wildcard de negocios-
+            # cliente en un dominio propio del SaaS, desacoplado de la marca
+            # Casaletto. Mismo servicio/contenedor que el router de arriba
+            # -- un solo `ospos` sirve a todos los negocios y a Casaletto.
+            - "traefik.http.routers.ospos-saas.rule=HostRegexp(`^[a-z0-9-]+\\.ospos-saas\\.micronuba\\.net$`)"
+            - "traefik.http.routers.ospos-saas.entrypoints=websecure"
+            # le-dns (2026-08-04): vuelto a DNS-01 ahora que el token de
+            # Cloudflare (CF_API_TOKEN en micronuba-infra) cubre también la
+            # zona micronuba.net, no solo plagie.cloud -- una sola credencial
+            # para ambas zonas, porque Traefik no soporta credenciales
+            # distintas por resolver del mismo proveedor (issue conocido de
+            # Traefik, nunca implementado). tls.domains explícito, mismo
+            # patrón ya probado en este Traefik para *.plagie.cloud (label
+            # real en el contenedor saas-frontend-prod) -- sin esto, un
+            # router HostRegexp no tiene de dónde sacar el dominio a pedir.
+            - "traefik.http.routers.ospos-saas.tls.certresolver=le-dns"
+            - "traefik.http.routers.ospos-saas.tls.domains[0].main=ospos-saas.micronuba.net"
+            - "traefik.http.routers.ospos-saas.tls.domains[0].sans=*.ospos-saas.micronuba.net"
+            - "traefik.http.routers.ospos-saas.priority=10"
+            - "traefik.http.routers.ospos-saas.service=ospos-saas"
+            - "traefik.http.services.ospos-saas.loadbalancer.server.port=80"
             - "traefik.docker.network=micronuba_public"
 
 networks:
