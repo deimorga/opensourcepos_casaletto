@@ -79,6 +79,18 @@ services:
             # crashea sin esto (Email_lib -> Services::encrypter()). Clave
             # única por ambiente, definida en el .env del VPS, nunca en git.
             - encryption_key=${ENCRYPTION_KEY}
+            # Fase 9/10: grupo de conexión fijo al schema de control y
+            # usuario de aprovisionamiento acotado -- mismo razonamiento
+            # documentado en docker-compose.staging.yml y en
+            # docs/Tecnico/multi-tenant-arquitectura.md sección 16. No
+            # activo todavía en producción real (esta fase sigue sin
+            # desplegarse aquí), pero el compose queda listo.
+            - PLATFORM_DB_HOST_NAME=mysql
+            - PLATFORM_DB_USERNAME=${MYSQL_USERNAME}
+            - PLATFORM_DB_PASSWORD=${MYSQL_PASSWORD}
+            - PLATFORM_DB_NAME=platform_control
+            - PLATFORM_PROVISION_USERNAME=platform_provisioner
+            - PLATFORM_PROVISION_PASSWORD=${PLATFORM_PROVISION_PASSWORD}
         labels:
             - "traefik.enable=true"
             # Router de siempre: SOLO la URL propia de Casaletto (legacy,
@@ -86,7 +98,16 @@ services:
             # -- ver router "ospos-saas" más abajo, dominio separado.
             - "traefik.http.routers.pos-casaletto.rule=Host(`pos-casaletto.micronuba.net`)"
             - "traefik.http.routers.pos-casaletto.entrypoints=websecure"
-            - "traefik.http.routers.pos-casaletto.tls.certresolver=le-dns"
+            # certresolver=le (HTTP-01), deliberadamente NO le-dns: Traefik sí
+            # puede extraer el dominio exacto de un Host() literal como este,
+            # así que HTTP-01 ya funciona solo, sin depender de Cloudflare.
+            # (Nota histórica: el 2026-08-03 este router pasó brevemente por
+            # le-dns con un token de Cloudflare sin acceso a esta zona, lo
+            # que habría roto la próxima renovación -- corregido revirtiendo
+            # a le. Luego, para el router ospos-saas de abajo, que si
+            # necesita le-dns por ser wildcard, se amplió el token real; ver
+            # docs/Tecnico/multi-tenant-arquitectura.md sección 15.)
+            - "traefik.http.routers.pos-casaletto.tls.certresolver=le"
             # Enlace EXPLICITO router->service: con un solo service por
             # contenedor, Traefik lo infiere solo; con dos (como aquí, desde
             # que se separó el router del wildcard), hay que decirlo o
@@ -101,7 +122,18 @@ services:
             # -- un solo `ospos` sirve a todos los negocios y a Casaletto.
             - "traefik.http.routers.ospos-saas.rule=HostRegexp(`^[a-z0-9-]+\\.ospos-saas\\.micronuba\\.net$`)"
             - "traefik.http.routers.ospos-saas.entrypoints=websecure"
+            # le-dns (2026-08-04): vuelto a DNS-01 ahora que el token de
+            # Cloudflare (CF_API_TOKEN en micronuba-infra) cubre también la
+            # zona micronuba.net, no solo plagie.cloud -- una sola credencial
+            # para ambas zonas, porque Traefik no soporta credenciales
+            # distintas por resolver del mismo proveedor (issue conocido de
+            # Traefik, nunca implementado). tls.domains explícito, mismo
+            # patrón ya probado en este Traefik para *.plagie.cloud (label
+            # real en el contenedor saas-frontend-prod) -- sin esto, un
+            # router HostRegexp no tiene de dónde sacar el dominio a pedir.
             - "traefik.http.routers.ospos-saas.tls.certresolver=le-dns"
+            - "traefik.http.routers.ospos-saas.tls.domains[0].main=ospos-saas.micronuba.net"
+            - "traefik.http.routers.ospos-saas.tls.domains[0].sans=*.ospos-saas.micronuba.net"
             - "traefik.http.routers.ospos-saas.priority=10"
             - "traefik.http.routers.ospos-saas.service=ospos-saas"
             - "traefik.http.services.ospos-saas.loadbalancer.server.port=80"

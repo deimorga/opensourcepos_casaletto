@@ -12,6 +12,23 @@ $routes->get('login', 'Login::index');
 $routes->post('login', 'Login::index');
 $routes->post('migrate', 'Login::migrate');
 
+// Fase 8: neutral login for business owners + platform admins (separate
+// from Employee::login() above), and the business-management platform.
+// See docs/Tecnico/multi-tenant-arquitectura.md section 10.
+$routes->get('platform/login', 'PlatformLogin::index');
+$routes->post('platform/login', 'PlatformLogin::index');
+$routes->get('platform/logout', 'PlatformLogin::logout');
+$routes->get('platform/select', 'PlatformLogin::selectIndex');
+$routes->get('platform/select/(:segment)', 'PlatformLogin::select/$1');
+
+$routes->get('platform/admin', 'PlatformAdmin::index');
+$routes->get('platform/admin/new', 'PlatformAdmin::newTenant');
+$routes->post('platform/admin/create', 'PlatformAdmin::create');
+$routes->post('platform/admin/(:segment)/suspend', 'PlatformAdmin::suspend/$1');
+$routes->post('platform/admin/(:segment)/activate', 'PlatformAdmin::activate/$1');
+$routes->get('platform/admin/(:segment)/delete', 'PlatformAdmin::confirmDelete/$1');
+$routes->post('platform/admin/(:segment)/delete', 'PlatformAdmin::delete/$1');
+
 $routes->add('no_access/index/(:segment)', 'No_access::index/$1');
 $routes->add('no_access/index/(:segment)/(:segment)', 'No_access::index/$1/$2');
 

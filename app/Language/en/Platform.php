@@ -1,0 +1,27 @@
+<?php
+
+return [
+    "login"                => "Platform Login",
+    "email"                => "Email",
+    "password"             => "Password",
+    "go"                   => "Go",
+    "invalid_credentials"  => "Invalid email and/or password.",
+    "no_tenants_linked"    => "This account is not linked to any active business yet.",
+    "tenant_not_linked"    => "That business is not linked to this account.",
+    "select_business"      => "Select a business",
+    "logout"               => "Logout",
+    "admin_panel_title"    => "Business Management Platform",
+    "new_business"         => "New business",
+    "slug"                 => "Slug (subdomain)",
+    "company_name"         => "Company name",
+    "create"               => "Create",
+    "status"               => "Status",
+    "actions"              => "Actions",
+    "suspend"              => "Suspend",
+    "activate"             => "Activate",
+    "delete"               => "Delete",
+    "confirm_delete_title" => "Delete business",
+    "confirm_delete_body"  => "This removes the business from the platform registry and revokes its database user. The business's own database is kept by default unless you also choose to drop it.",
+    "drop_schema"          => "Also permanently delete this business's database (cannot be undone)",
+    "cancel"               => "Cancel",
+];

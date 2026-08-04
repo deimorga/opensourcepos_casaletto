@@ -116,6 +116,42 @@ class Database extends Config
         ],
     ];
 
+    /**
+     * Fixed connection to the platform control schema (tenant registry,
+     * platform accounts). Unlike `default`/`tests`/`development`, this
+     * group is never overwritten by the per-tenant connection swap -- it
+     * always points at the one control schema, resolved via its own
+     * PLATFORM_DB_* env vars instead of MYSQL_*.
+     *
+     * @var array<string, mixed>
+     */
+    public array $platform = [
+        'DSN'          => '',
+        'hostname'     => 'localhost',
+        'username'     => 'admin',
+        'password'     => 'pointofsale',
+        'database'     => 'platform_control',
+        'DBDriver'     => 'MySQLi',
+        'DBPrefix'     => '',
+        'pConnect'     => false,
+        'DBDebug'      => (ENVIRONMENT !== 'production'),
+        'charset'      => 'utf8mb4',
+        'DBCollat'     => 'utf8mb4_general_ci',
+        'swapPre'      => '',
+        'encrypt'      => false,
+        'compress'     => false,
+        'strictOn'     => false,
+        'failover'     => [],
+        'port'         => 3306,
+        'foreignKeys'  => true,
+        'busyTimeout'  => 1000,
+        'dateFormat'   => [
+            'date'     => 'Y-m-d',
+            'datetime' => 'Y-m-d H:i:s',
+            'time'     => 'H:i:s',
+        ],
+    ];
+
     public function __construct()
     {
         parent::__construct();
@@ -138,5 +174,10 @@ class Database extends Config
             $config['password'] = !getenv('MYSQL_PASSWORD') ? $config['password'] : getenv('MYSQL_PASSWORD');
             $config['database'] = !getenv('MYSQL_DB_NAME') ? $config['database'] : getenv('MYSQL_DB_NAME');
         }
+
+        $this->platform['hostname'] = !getenv('PLATFORM_DB_HOST_NAME') ? $this->platform['hostname'] : getenv('PLATFORM_DB_HOST_NAME');
+        $this->platform['username'] = !getenv('PLATFORM_DB_USERNAME') ? $this->platform['username'] : getenv('PLATFORM_DB_USERNAME');
+        $this->platform['password'] = !getenv('PLATFORM_DB_PASSWORD') ? $this->platform['password'] : getenv('PLATFORM_DB_PASSWORD');
+        $this->platform['database'] = !getenv('PLATFORM_DB_NAME') ? $this->platform['database'] : getenv('PLATFORM_DB_NAME');
     }
 }

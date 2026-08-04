@@ -68,6 +68,21 @@ class App extends BaseConfig
     public array $allowedHostnames = [];
 
     /**
+     * Wildcard suffixes (each starting with a leading dot, e.g.
+     * ".midominio.com") accepted in addition to the exact matches in
+     * allowedHostnames -- one entry per tenant subdomain, e.g.
+     * casaletto.midominio.com or clientex.midominio.com. The leading
+     * dot is required: it's what stops "evilmidominio.com" (no dot)
+     * from matching a configured ".midominio.com" suffix.
+     *
+     * Configured via ALLOWED_HOSTNAME_WILDCARDS (comma-separated), same
+     * pattern as ALLOWED_HOSTNAMES.
+     *
+     * @var list<string>
+     */
+    public array $allowedHostnameWildcards = [];
+
+    /**
      * --------------------------------------------------------------------------
      * Index File
      * --------------------------------------------------------------------------
@@ -296,6 +311,16 @@ class App extends BaseConfig
             ));
         }
 
+        $envAllowedHostnameWildcards = $this->getEnvString('ALLOWED_HOSTNAME_WILDCARDS')
+            ?? $this->getEnvString('app.allowedHostnameWildcards');
+
+        if ($envAllowedHostnameWildcards !== null) {
+            $this->allowedHostnameWildcards = array_values(array_filter(
+                array_map('trim', explode(',', $envAllowedHostnameWildcards)),
+                static fn (string $suffix): bool => $suffix !== '' && $suffix[0] === '.'
+            ));
+        }
+
         $this->https_on = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] == 'on') || (isset($_ENV['FORCE_HTTPS']) && $_ENV['FORCE_HTTPS'] == 'true');
 
         $host = $this->getValidHost();
@@ -325,7 +350,7 @@ class App extends BaseConfig
         // Check $_SERVER first, then $_ENV, then fall back to 'production'
         $environment = $_SERVER['CI_ENVIRONMENT'] ?? $_ENV['CI_ENVIRONMENT'] ?? getenv('CI_ENVIRONMENT') ?: 'production';
 
-        if (empty($this->allowedHostnames)) {
+        if (empty($this->allowedHostnames) && empty($this->allowedHostnameWildcards)) {
             $errorMessage =
                 'Security: allowedHostnames is not configured. ' .
                 'Host header injection protection is disabled. ' .
@@ -345,6 +370,12 @@ class App extends BaseConfig
 
         if (in_array($httpHost, $this->allowedHostnames, true)) {
             return $httpHost;
+        }
+
+        foreach ($this->allowedHostnameWildcards as $suffix) {
+            if (str_ends_with($httpHost, $suffix)) {
+                return $httpHost;
+            }
         }
 
         // Host not in whitelist - use first configured hostname as fallback

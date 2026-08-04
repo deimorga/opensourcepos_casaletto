@@ -40,7 +40,13 @@ class Autoload extends AutoloadConfig
     public $psr4 = [
         APP_NAMESPACE => APPPATH,
         'Config'      => APPPATH . 'Config',
-        'dompdf'      => APPPATH . 'ThirdParty/dompdf/src'
+        'dompdf'      => APPPATH . 'ThirdParty/dompdf/src',
+        // Platform control schema (tenant registry, platform accounts) --
+        // kept out of the App namespace so `php spark migrate` (App's
+        // migrations, per-tenant schema) and `php spark migrate -n
+        // Platform` (this namespace, platform_control schema) never mix.
+        // See docs/Tecnico/multi-tenant-arquitectura.md section 4.
+        'Platform'    => APPPATH . 'Platform'
     ];
 
     /**

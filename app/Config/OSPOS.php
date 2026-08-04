@@ -2,6 +2,7 @@
 
 namespace Config;
 
+use App\Libraries\TenantContext;
 use App\Models\Appconfig;
 use CodeIgniter\Cache\CacheInterface;
 use CodeIgniter\Config\BaseConfig;
@@ -30,7 +31,8 @@ class OSPOS extends BaseConfig
      */
     public function set_settings(): void
     {
-        $cache = $this->cache->get('settings');
+        $cacheKey = $this->settingsCacheKey();
+        $cache = $this->cache->get($cacheKey);
 
         if ($cache) {
             $this->settings = decode_array($cache);
@@ -49,10 +51,23 @@ class OSPOS extends BaseConfig
             foreach ($appconfig->get_all()->getResult() as $app_config) {
                 $this->settings[$app_config->key] = $app_config->value;
             }
-            $this->cache->save('settings', encode_array($this->settings));
+            $this->cache->save($cacheKey, encode_array($this->settings));
         } catch (\Exception $e) {
             $this->settings = $this->getDefaultSettings();
         }
+    }
+
+    /**
+     * "settings" alone would leak one tenant's config (name, logo,
+     * currency, taxes) into another's if they share this cache backend
+     * -- suffixed by the resolved tenant slug when there is one,
+     * unchanged ("settings") for the single-tenant/unresolved case.
+     */
+    private function settingsCacheKey(): string
+    {
+        return TenantContext::isResolved()
+            ? 'settings_' . TenantContext::slug()
+            : 'settings';
     }
 
     private function getDefaultSettings(): array
@@ -70,7 +85,7 @@ class OSPOS extends BaseConfig
      */
     public function update_settings(): void
     {
-        $this->cache->delete('settings');
+        $this->cache->delete($this->settingsCacheKey());
         $this->set_settings();
     }
 }
