@@ -122,11 +122,18 @@ services:
             # -- un solo `ospos` sirve a todos los negocios y a Casaletto.
             - "traefik.http.routers.ospos-saas.rule=HostRegexp(`^[a-z0-9-]+\\.ospos-saas\\.micronuba\\.net$`)"
             - "traefik.http.routers.ospos-saas.entrypoints=websecure"
-            # le, no le-dns -- ver nota larga en pos-casaletto arriba. HTTP-01
-            # no puede emitir un certificado wildcard único, pero sí emite
-            # uno por subdominio exacto a medida que cada negocio recibe
-            # tráfico real -- suficiente a esta escala.
-            - "traefik.http.routers.ospos-saas.tls.certresolver=le"
+            # le-dns (2026-08-04): vuelto a DNS-01 ahora que el token de
+            # Cloudflare (CF_API_TOKEN en micronuba-infra) cubre también la
+            # zona micronuba.net, no solo plagie.cloud -- una sola credencial
+            # para ambas zonas, porque Traefik no soporta credenciales
+            # distintas por resolver del mismo proveedor (issue conocido de
+            # Traefik, nunca implementado). tls.domains explícito, mismo
+            # patrón ya probado en este Traefik para *.plagie.cloud (label
+            # real en el contenedor saas-frontend-prod) -- sin esto, un
+            # router HostRegexp no tiene de dónde sacar el dominio a pedir.
+            - "traefik.http.routers.ospos-saas.tls.certresolver=le-dns"
+            - "traefik.http.routers.ospos-saas.tls.domains[0].main=ospos-saas.micronuba.net"
+            - "traefik.http.routers.ospos-saas.tls.domains[0].sans=*.ospos-saas.micronuba.net"
             - "traefik.http.routers.ospos-saas.priority=10"
             - "traefik.http.routers.ospos-saas.service=ospos-saas"
             - "traefik.http.services.ospos-saas.loadbalancer.server.port=80"
