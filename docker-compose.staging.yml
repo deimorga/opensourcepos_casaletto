@@ -101,15 +101,15 @@ services:
             # ver router "ospos-saas-staging" más abajo, dominio separado.
             - "traefik.http.routers.pos-casaletto-staging.rule=Host(`staging.pos-casaletto.micronuba.net`)"
             - "traefik.http.routers.pos-casaletto-staging.entrypoints=websecure"
-            # certresolver=le (HTTP-01), NO le-dns: confirmado 2026-08-03 que
-            # el token de Cloudflare que ya usa Traefik para le-dns está
-            # limitado a la zona plagie.cloud, sin ningún acceso a
-            # micronuba.net -- el certificado actual sigue sirviéndose
-            # porque se emitió antes del cambio a le-dns, pero la próxima
-            # renovación habría fallado en silencio. Revertido a le hasta
-            # que alguien con acceso a Cloudflare amplíe ese token (o cree
-            # uno nuevo) para micronuba.net -- ver
-            # docs/Tecnico/multi-tenant-arquitectura.md sección 16.
+            # certresolver=le (HTTP-01), deliberadamente NO le-dns: Traefik sí
+            # puede extraer el dominio exacto de un Host() literal como este,
+            # así que HTTP-01 ya funciona solo, sin depender de Cloudflare.
+            # (Nota histórica: el 2026-08-03 este router pasó brevemente por
+            # le-dns con un token de Cloudflare sin acceso a esta zona, lo
+            # que habría roto la próxima renovación -- corregido revirtiendo
+            # a le. Luego, para el router ospos-saas-staging de abajo, que sí
+            # necesita le-dns por ser wildcard, se amplió el token real; ver
+            # docs/Tecnico/multi-tenant-arquitectura.md sección 15.)
             - "traefik.http.routers.pos-casaletto-staging.tls.certresolver=le"
             # Enlace explícito router->service -- ver docker-compose.prod.yml
             # para el porqué (confirmado con un 404 real sin esto).
