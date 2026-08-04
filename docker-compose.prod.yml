@@ -87,7 +87,15 @@ services:
             # asigne como slug real (Fase 7).
             - "traefik.http.routers.pos-casaletto.rule=Host(`pos-casaletto.micronuba.net`) || HostRegexp(`^[a-z0-9-]+\\.pos-casaletto\\.micronuba\\.net$`)"
             - "traefik.http.routers.pos-casaletto.entrypoints=websecure"
-            - "traefik.http.routers.pos-casaletto.tls.certresolver=le-dns"
+            # certresolver=le (HTTP-01), NO le-dns: confirmado 2026-08-03 que
+            # el token de Cloudflare que ya usa Traefik para le-dns está
+            # limitado a la zona plagie.cloud, sin ningún acceso a
+            # micronuba.net. El certificado actual sigue sirviéndose porque
+            # se emitió antes de este cambio a le-dns, pero la próxima
+            # renovación habría fallado en silencio. Revertido a le hasta
+            # que alguien con acceso a Cloudflare amplíe ese token (o cree
+            # uno nuevo) para micronuba.net.
+            - "traefik.http.routers.pos-casaletto.tls.certresolver=le"
             - "traefik.http.routers.pos-casaletto.priority=10"
             - "traefik.http.services.pos-casaletto.loadbalancer.server.port=80"
             - "traefik.docker.network=micronuba_public"
