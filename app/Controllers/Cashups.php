@@ -217,6 +217,14 @@ class Cashups extends Secure_Controller
         if ($is_new) {
             $open_date = $this->request->getPost('open_date');
             $open_date_formatter = date_create_from_format($this->config['dateformat'] . ' ' . $this->config['timeformat'], $open_date);
+
+            // date_create_from_format() returns false when the posted date does
+            // not match the configured format, and calling ->format() on that
+            // is a fatal, not a validation failure.
+            if ($open_date_formatter === false) {
+                return $this->response->setJSON(['success' => false, 'message' => lang('Cashups.error_adding_updating'), 'id' => NEW_ENTRY]);
+            }
+
             $open_employee_id = $this->request->getPost('open_employee_id', FILTER_SANITIZE_NUMBER_INT);
 
             $cash_up_data = [
@@ -239,6 +247,10 @@ class Cashups extends Secure_Controller
         } else {
             $close_date = $this->request->getPost('close_date');
             $close_date_formatter = date_create_from_format($this->config['dateformat'] . ' ' . $this->config['timeformat'], $close_date);
+
+            if ($close_date_formatter === false) {
+                return $this->response->setJSON(['success' => false, 'message' => lang('Cashups.error_adding_updating'), 'id' => $cashup_id]);
+            }
 
             $cash_up_data = [
                 // Opening fields are preserved from the existing record, never
@@ -325,12 +337,12 @@ class Cashups extends Secure_Controller
      */
     public function postAjax_cashup_total(): ResponseInterface
     {
-        $open_amount_cash = parse_decimals($this->request->getPost('open_amount_cash'));
-        $transfer_amount_cash = parse_decimals($this->request->getPost('transfer_amount_cash'));
-        $closed_amount_cash = parse_decimals($this->request->getPost('closed_amount_cash'));
-        $closed_amount_due = parse_decimals($this->request->getPost('closed_amount_due'));
-        $closed_amount_card = parse_decimals($this->request->getPost('closed_amount_card'));
-        $closed_amount_check = parse_decimals($this->request->getPost('closed_amount_check'));
+        $open_amount_cash = $this->_posted_amount('open_amount_cash');
+        $transfer_amount_cash = $this->_posted_amount('transfer_amount_cash');
+        $closed_amount_cash = $this->_posted_amount('closed_amount_cash');
+        $closed_amount_due = $this->_posted_amount('closed_amount_due');
+        $closed_amount_card = $this->_posted_amount('closed_amount_card');
+        $closed_amount_check = $this->_posted_amount('closed_amount_check');
 
         $total = $this->_calculate_total($open_amount_cash, $transfer_amount_cash, $closed_amount_due, $closed_amount_cash, $closed_amount_card, $closed_amount_check);    // TODO: hungarian notation
 
@@ -338,9 +350,26 @@ class Cashups extends Secure_Controller
     }
 
     /**
+     * Reads a posted amount as a usable float.
+     *
+     * parse_decimals() returns values that are not floats in three cases, and
+     * the cash-up form hits all of them: '' for an untouched field, the literal
+     * '0' (empty('0') is true in PHP, so it is returned unparsed), and false for
+     * a number that fails to parse or exceeds MAX_PRECISION. An empty string is
+     * the only one PHP will not coerce into a float parameter, which is why
+     * leaving "card" blank used to blow up _calculate_total() with a TypeError
+     * (a 500 on every keystroke, silently freezing the read-only total) while
+     * leaving "check" blank did not -- that argument simply had no type.
+     */
+    private function _posted_amount(string $field): float
+    {
+        return (float) (parse_decimals($this->request->getPost($field)) ?: 0);
+    }
+
+    /**
      * Calculate total
      */
-    private function _calculate_total(float $open_amount_cash, float $transfer_amount_cash, float $closed_amount_due, float $closed_amount_cash, float $closed_amount_card, $closed_amount_check): float    // TODO: need to get rid of hungarian notation here. Also, the signature is pretty long.  Perhaps they need to go into an object or array?
+    private function _calculate_total(float $open_amount_cash, float $transfer_amount_cash, float $closed_amount_due, float $closed_amount_cash, float $closed_amount_card, float $closed_amount_check): float    // TODO: need to get rid of hungarian notation here. Also, the signature is pretty long.  Perhaps they need to go into an object or array?
     {
         return ($closed_amount_cash - $open_amount_cash - $transfer_amount_cash + $closed_amount_due + $closed_amount_card + $closed_amount_check);
     }
