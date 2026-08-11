@@ -242,3 +242,35 @@ Ciclo completo repetido en el contenedor local tras ambos cambios (delete-on-clo
 - Creada "Mesa 5" vía "+ New table", agregado un item (Empanadas, $6.00), agregado pago en efectivo por el monto exacto, **Complete**.
 - Tras completar y volver a `/sales`: la barra de pestañas no muestra "Mesa 5" (ya no hay pestañas abiertas) y el dropdown "Table" vuelve a mostrar solo Delivery/Take Away — confirma que la mesa fue borrada (no solo liberada) y que `get_empty_tables()` ya no filtra mal.
 - ✅ Comportamiento esperado por el usuario: la lista de mesas arranca vacía sin pedidos, y cada mesa (incluidas las numeradas) desaparece por completo al pagarse o cancelarse, quedando disponible para recrearse con "+ New table" la próxima vez.
+
+## 13. Bug real en producción: pestañas "Delivery" fantasma que se multiplican (2026-08-10)
+
+**Síntoma reportado por el usuario:** la barra de pestañas del Register en producción mostraba ~20 pestañas idénticas llamadas "Delivery", y hacer clic en cualquiera de ellas no cargaba nada.
+
+### 13.1 Evidencia recogida en la BD de producción (solo lectura)
+
+- 20 ventas con `sale_status = 3` (`OPENED`), **todas con `dinner_table_id = 1` (Delivery)**, del 2026-07-15 al 2026-08-08, aproximadamente una por día operativo.
+- Esas filas **sí tenían artículos** (entre 1 y 38 cada una): lo vacío era lo que la UI mostraba al hacer clic, no la fila.
+- 504 de las 511 ventas completadas también están sobre `dinner_table_id = 1`: para este negocio, Delivery no es una mesa, es el modo normal de venta. Las mesas reales (ids 3-11) solo se usaron entre el 11 y el 18 de julio de 2026.
+
+### 13.2 Causa raíz — tres piezas que se combinan
+
+1. **Delivery es la mesa por defecto de toda venta nueva.** `Sale_lib::get_dinner_table()` devuelve `1` cuando la sesión no tiene mesa, y `clear_all()` borra la mesa de la sesión — o sea, después de cada pago o cancelación la sesión vuelve a Delivery.
+2. **Delivery y Take Away son pseudo-mesas eternas.** `Dinner_table::occupy()`/`release()` ignoran a propósito los ids `<= 2` ("Delivery and Takeaway 'tables'. They should never be occupied"), y `postComplete()`/`postCancel()` tampoco las borran (ambos guardan con `> 2`). Delivery siempre figura libre y nunca desaparece.
+3. **`Sales::_autosave_open_tab()` no verificaba si esa mesa ya tenía una pestaña abierta.** Nada en el sistema imponía el invariante "una mesa = una venta `OPENED`". En las mesas reales se cumplía por accidente (se borran al pagar, y cada pestaña nueva nace con id nuevo); en Delivery no se cumplía nunca.
+
+Resultado: cada vez que la sesión perdía el `sale_id` (cierre de sesión, expiración, `clear_all()` tras pagar, dos pestañas del navegador compartiendo una misma sesión de PHP) y se agregaba un artículo estando en Delivery, se **insertaba otra fila `OPENED` sobre la mesa 1**.
+
+**Por qué eran irrecuperables:** la barra dibuja una pestaña **por venta abierta**, pero las identifica por `dinner_table_id` (`register.php`), así que las 20 salían con el mismo `data-dinner-table-id="1"`. El handler de clic pone ese valor en el `<select name="dinner_table">` y envía `mode_form` → `Sales::postChangeMode()` compara la mesa pedida (1) contra la actual (1, el default de sesión), **no ve cambio de mesa y no hace nada**. Y aun viniendo de otra mesa, `Sale::get_open_sale_by_table()` no tenía `ORDER BY` ni `LIMIT`: devolvía una fila arbitraria, así que solo una de las 20 era alcanzable.
+
+**Impacto real:** ninguno sobre dinero ni inventario. Los reportes filtran explícitamente por `COMPLETED`/`SUSPENDED`/`CANCELED`, la grilla de Ventas filtra `sales.sale_status = 0`, y el stock solo se descuenta cuando `sale_status == COMPLETED`. Las filas `OPENED` eran ruido de UI y carritos huérfanos, nada más.
+
+### 13.3 Corrección aplicada
+
+1. **`Sales::_autosave_open_tab()` sale temprano cuando `$dinner_table <= 2`.** Delivery y Take Away dejan de generar pestañas y vuelven al comportamiento original de OSPOS: el carrito vive en sesión hasta Complete/Suspend. Es coherente con el resto de la feature, que ya trata `> 2` como "mesa real" (borrado al pagar/cancelar, ocultamiento del botón Suspend en `register.php`, `occupy()`/`release()`).
+2. **`Sale::get_open_sale_by_table()` fija el orden** (`ORDER BY sale_id ASC LIMIT 1`), para que una mesa que por cualquier motivo termine con dos filas `OPENED` resuelva siempre a la misma pestaña y no cambie entre requests.
+3. **Migración `20260810210000_CancelPseudoTableOpenTabs`**: marca como `CANCELED` (2) las ventas `OPENED` con `dinner_table_id <= 2` que ya estaban en disco. Acotada a `<= 2` a propósito — las `OPENED` sobre mesas reales son pestañas vivas sin pagar y no se tocan. Idempotente (una segunda corrida no matchea nada).
+
+**Descartado durante la implementación:** "adoptar" la venta `OPENED` existente de la mesa cuando la sesión pierde el `sale_id`. Sería peor que el bug: `Sale::save_value()` llama a `clear_suspended_sale_detail()` y borra los ítems de la venta antes de reinsertar el carrito actual, así que adoptar una pestaña con un carrito nuevo (que es justo lo que hay tras un `clear_all()`) le destruiría el contenido a la pestaña vieja. Crear una fila de más es preferible a perder datos.
+
+**Efecto secundario conocido y aceptado:** un carrito de Delivery a medio armar ya no sobrevive a una caída del navegador o del servidor (vuelve a ser lo que era antes de la feature). En la práctica no cambia nada para este negocio: antes tampoco se recuperaba — quedaba como una fila `OPENED` inalcanzable.

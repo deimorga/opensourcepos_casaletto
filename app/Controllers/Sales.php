@@ -1247,8 +1247,8 @@ class Sales extends Secure_Controller
      * Persists the active cart immediately when it belongs to an open
      * restaurant table tab, so it survives a disconnect/restart instead of
      * only living in session until Suspend/Complete. No-op outside of
-     * dinner-table mode. See docs/Tecnico/ventas-en-paralelo-pestanas.md
-     * section 3.
+     * dinner-table mode, and on the Delivery/Take Away pseudo-tables. See
+     * docs/Tecnico/ventas-en-paralelo-pestanas.md sections 3 and 13.
      */
     private function _autosave_open_tab(): void
     {
@@ -1259,6 +1259,22 @@ class Sales extends Secure_Controller
         $dinner_table = $this->sale_lib->get_dinner_table();
 
         if ($dinner_table === null) {
+            return;
+        }
+
+        // Delivery (1) and Take Away (2) are pseudo-tables, not tabs: they are
+        // never occupied nor released (Dinner_table::occupy()/release() ignore
+        // ids <= 2), never deleted on payment (postComplete()/postCancel() both
+        // guard on > 2), and id 1 is what Sale_lib::get_dinner_table() falls
+        // back to for EVERY new sale once clear_all() has run. Autosaving them
+        // as open tabs therefore breaks the one-table-one-tab invariant the tab
+        // bar relies on: each cart that started after a lost sale_id inserted
+        // yet another OPENED row on table 1, rendering as an extra identical
+        // "Delivery" tab that could never be reopened (they all carry the same
+        // data-dinner-table-id, so postChangeMode() sees no table change and
+        // no-ops). Pseudo-tables keep the stock OSPOS behaviour instead: the
+        // cart lives in session until Complete/Suspend.
+        if ($dinner_table <= 2) {
             return;
         }
 

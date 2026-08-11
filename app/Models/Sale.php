@@ -1214,6 +1214,12 @@ class Sale extends Model
         $builder->select('sale_id');
         $builder->where('dinner_table_id', $dinner_table_id);
         $builder->where('sale_status', OPENED);
+        // A table is only ever supposed to have one open tab, but pin the
+        // ordering anyway: without it, a table that somehow ended up with two
+        // OPENED rows resolves to whichever row the engine happens to return
+        // first, so the tab you land on could change between requests.
+        $builder->orderBy('sale_id', 'ASC');
+        $builder->limit(1);
 
         $row = $builder->get()->getRow();
 

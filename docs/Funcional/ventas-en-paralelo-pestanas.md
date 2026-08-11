@@ -65,6 +65,14 @@ En consecuencia:
 - El dropdown de "mesa libre" y la lista de pestañas abiertas arrancan **vacíos** si no hay ninguna cuenta en curso; nunca muestran mesas ya cerradas.
 - Esto responde además a la pregunta abierta de la sección 8 sobre "número máximo de pestañas": al no existir una lista fija ni acumularse mesas cerradas, no hay un límite artificial que gestionar — el único tope práctico es la cantidad de cuentas realmente abiertas en un momento dado.
 
+### 5.4 Aclaración: "Delivery" y "Take Away" no son pestañas (2026-08-10)
+
+Delivery y Take Away no son mesas del negocio: son dos entradas fijas que OSPOS trae de fábrica para marcar una venta que no ocurre en una mesa. El sistema las trata distinto en todos lados — nunca se ocupan, nunca se liberan y nunca se borran al pagar — y, sobre todo, **Delivery es la opción a la que vuelve el Register después de cada venta pagada o cancelada**, así que es donde cae toda venta normal de mostrador.
+
+Por eso **no generan pestaña**. Una pestaña representa una cuenta abierta que se atiende en paralelo y se cobra al final; una venta de Delivery o Take Away se arma y se cobra de una sola vez.
+
+Durante julio y agosto de 2026 esto no se cumplía y el negocio veía una fila de pestañas idénticas llamadas "Delivery" que no abrían nada. Eran carritos que habían quedado abiertos sobre esa entrada fija (al cerrar sesión, al vencerse la sesión, o al tener el Register abierto en dos pestañas del navegador) y que la pantalla ya no podía ni recuperar ni cerrar. No afectaban ventas, turnos ni inventario — eran ruido en pantalla. Corregido el 2026-08-10: ver sección 13 del documento técnico.
+
 ## 6. Actores
 
 - **Cajero / mesero (Employee):** abre, alterna y cierra las cuentas por mesa.

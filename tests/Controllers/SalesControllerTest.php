@@ -252,4 +252,52 @@ class SalesControllerTest extends CIUnitTestCase
         $openTableIds = array_column($openTabs, 'dinner_table_id');
         $this->assertNotContains($this->tableA, $openTableIds);
     }
+
+    /**
+     * Regression test for the phantom "Delivery" tabs found in production
+     * 2026-08-10 (docs/Tecnico/ventas-en-paralelo-pestanas.md section 13):
+     * Delivery (1) and Take Away (2) are pseudo-tables, never occupied, never
+     * deleted on payment, and table 1 is what every new sale falls back to
+     * after clear_all(). Autosaving them as tabs left one unreachable OPENED
+     * row per abandoned cart, all rendering as identical, un-openable tabs.
+     */
+    public function testPseudoTablesNeverBecomeOpenTabs(): void
+    {
+        foreach ([1, 2] as $pseudoTableId) {
+            $this->openTableWithItem($pseudoTableId, $this->itemNumberA);
+
+            $this->assertNull(
+                model(Sale::class)->get_open_sale_by_table($pseudoTableId),
+                "Delivery/Take Away (id {$pseudoTableId}) must not persist an OPENED sale row -- their cart stays in session until Complete/Suspend."
+            );
+        }
+
+        $openTableIds = array_column(model(Sale::class)->get_all_opened(), 'dinner_table_id');
+
+        $this->assertNotContains(1, $openTableIds);
+        $this->assertNotContains(2, $openTableIds);
+    }
+
+    /**
+     * The multiplication itself: after a cart is abandoned on Delivery and the
+     * session starts over (what a logout, a session expiry or a second browser
+     * tab does), the register must not accumulate a second phantom tab.
+     */
+    public function testRestartingACartOnDeliveryDoesNotAccumulateTabs(): void
+    {
+        $this->openTableWithItem(1, $this->itemNumberA);
+
+        // Session forgets the in-progress sale, exactly as clear_all() leaves
+        // it after a payment/cancel, and the cashier starts the next order --
+        // which lands on Delivery again because that is get_dinner_table()'s
+        // fallback.
+        $this->postReq('sales/cancel', []);
+        $this->postReq('sales/add', ['item' => $this->itemNumberB]);
+
+        $this->assertCount(
+            0,
+            model(Sale::class)->get_all_opened(),
+            'A new cart started on Delivery must not leave another open tab behind.'
+        );
+    }
 }
