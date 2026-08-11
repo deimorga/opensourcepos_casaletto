@@ -1461,7 +1461,6 @@ class Sale extends Model
         $builder->groupBy('payments.sale_id');
 
         $sub_query = $builder->getCompiledSelect();
-        log_message('error', $sub_query);
 
         $this->db->query('CREATE TEMPORARY TABLE IF NOT EXISTS '
             . $this->db->prefixTable('sales_payments_temp')
