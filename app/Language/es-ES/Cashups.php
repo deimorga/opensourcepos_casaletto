@@ -27,6 +27,7 @@ return [
     "error_adding_updating"      => "Error al agregar/actualizar Turno",
     "giftcard"                   => "Tarjetas de Regalo de Efectivo",
     "id"                         => "Id",
+    "invalid_amount"             => "Escriba un importe válido en {0} -- no puede quedar vacío ni ilegible.",
     "info"                       => "Información del Turno",
     "info_employee"              => "Empleado Información de Efectivo",
     "is_deleted"                 => "Borrado",

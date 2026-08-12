@@ -31,6 +31,7 @@ return [
     "error_adding_updating"      => "Error adding/updating Cashup",
     "giftcard"                   => "",
     "id"                         => "Id",
+    "invalid_amount"             => "Enter a valid amount for {0} -- it cannot be left blank or unreadable.",
     "info"                       => "Cashups Info",
     "info_employee"              => "",
     "is_deleted"                 => "Deleted",

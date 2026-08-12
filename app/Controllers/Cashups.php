@@ -214,6 +214,26 @@ class Cashups extends Secure_Controller
             }
         }
 
+        // Amounts are stored straight from parse_decimals(), which yields ''
+        // for a blank field and false for anything it cannot parse -- both land
+        // in a DECIMAL column as 0.00 without a word to the cashier. That is how
+        // turno 29 (2026-08-11) was opened with 0 instead of 217,000, and since
+        // getView() seeds the closing cash from the opening amount, the whole
+        // close came out short by exactly that much. Refuse the save instead.
+        $amount_fields = $is_new
+            ? ['open_amount_cash' => true, 'transfer_amount_cash' => false]
+            : ['closed_amount_cash' => true, 'closed_amount_due' => false, 'closed_amount_card' => false, 'closed_amount_check' => false];
+
+        foreach ($amount_fields as $field => $is_required) {
+            if (!$this->_amount_is_valid($field, $is_required)) {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => lang('Cashups.invalid_amount', [lang('Cashups.' . $field)]),
+                    'id'      => $is_new ? NEW_ENTRY : $cashup_id
+                ]);
+            }
+        }
+
         if ($is_new) {
             $open_date = $this->request->getPost('open_date');
             $open_date_formatter = date_create_from_format($this->config['dateformat'] . ' ' . $this->config['timeformat'], $open_date);
@@ -347,6 +367,23 @@ class Cashups extends Secure_Controller
         $total = $this->_calculate_total($open_amount_cash, $transfer_amount_cash, $closed_amount_due, $closed_amount_cash, $closed_amount_card, $closed_amount_check);    // TODO: hungarian notation
 
         return $this->response->setJSON(['total' => to_currency_no_money($total)]);
+    }
+
+    /**
+     * Checks that a posted amount is something we can store without quietly
+     * turning it into zero. A blank field is only acceptable where the form
+     * treats "nothing" as "none"; a value parse_decimals() rejects (unparseable
+     * for the configured locale, or past MAX_PRECISION) is never acceptable.
+     */
+    private function _amount_is_valid(string $field, bool $is_required): bool
+    {
+        $raw = trim((string) $this->request->getPost($field));
+
+        if ($raw === '') {
+            return !$is_required;
+        }
+
+        return parse_decimals($raw) !== false;
     }
 
     /**

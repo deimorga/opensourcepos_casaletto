@@ -31,6 +31,7 @@ return [
     "error_adding_updating"      => "Error al agregar/actualizar el turno",
     "giftcard"                   => "",
     "id"                         => "Id",
+    "invalid_amount"             => "Escriba un importe válido en {0} -- no puede quedar vacío ni ilegible.",
     "info"                       => "Info Turno",
     "info_employee"              => "",
     "is_deleted"                 => "Eliminado(s)",
