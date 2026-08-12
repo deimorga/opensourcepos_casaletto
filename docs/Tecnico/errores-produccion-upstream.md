@@ -70,3 +70,30 @@ _calculate_total(3511000.0, 0.0, 0.0, 3866450.0, '', 30750.0)
 ## Otro hallazgo, sin corregir
 
 `ErrorException: Undefined array key "cash_adjustment"` en `Sale.php` durante `sales/complete`. Tres veces, todas el 2026-07-15, sin repetirse en el mes siguiente. Un pago llegó al bucle de guardado sin esa clave. No se investigó a fondo por no ser reproducible; queda anotado por si reaparece.
+
+---
+
+## 4. El efectivo de apertura se guardaba como cero sin avisar (corregido 2026-08-11)
+
+**Incidente:** el turno 29 (2026-08-11) se abrió a las 12:01:43 con `open_amount_cash = 0.00` cuando debía ser 217.000. Nadie lo notó hasta después de cerrar el turno esa noche.
+
+**No hubo ningún error registrado.** El log no tiene una sola línea a esa hora: la aplicación aceptó el cero en silencio.
+
+**Causa:** `Cashups::postSave()` **no tenía validación de ninguna clase** — ni reglas registradas en `app/Config/Validation*`, ni una llamada a `validate()`. Los importes iban directo de `parse_decimals()` a columnas `DECIMAL`, y ese helper devuelve `''` para un campo vacío y `false` para lo que no logra parsear. MySQL guarda ambos como `0.00` sin chistar.
+
+**Por qué duele:** `Cashups::getView()` siembra el efectivo de cierre con `open_amount_cash + transfer_amount_cash`. Una apertura en cero arrastra el faltante hasta el cierre, así que el turno cerró corto por exactamente esos 217.000 y el descuadre solo se vio al revisar a mano.
+
+**Primera vez en 29 turnos.** Los otros 28 abrieron con el efectivo de cierre del turno anterior.
+
+**Corrección de datos** (autorizada explícitamente por el usuario, con respaldo previo de la tabla):
+
+```sql
+UPDATE ospos_cash_up SET open_amount_cash = 217000.00, closed_amount_cash = 375500.00
+ WHERE cashup_id = 29 AND open_amount_cash = 0.00 AND closed_amount_cash = 158500.00;
+```
+
+**`closed_amount_total` NO se tocó, a propósito.** La fórmula del app resta la apertura (`closed_amount_cash - open_amount_cash - transfer + due + card + check`), así que subir 217.000 tanto la apertura como el cierre se cancela: el total sigue siendo 1.082.775, que es justo lo que la fórmula produce. El neto del día siempre estuvo bien; lo que estaba mal era la composición del cajón. Verificado después: los 29 turnos cuadran, cero descuadrados.
+
+**Corrección de código:** `Cashups::_amount_is_valid()` rechaza el guardado en vez de dejar pasar un cero silencioso. Un campo vacío solo se tolera donde el formulario de verdad significa "ninguno" (`transfer_amount_cash` al abrir; adeudo/datafono/banco al cerrar); un valor que `parse_decimals()` rechaza no se tolera nunca. El mensaje nombra el campo culpable, con la clave `Cashups.invalid_amount` agregada a `en` (el fallback), `es-ES` y `es-MX` — que es el idioma que corre esta instalación.
+
+**Lección:** el punto ciego no era la falta de un arreglo puntual sino que **un controlador que escribe plata no tenía ninguna validación**. Vale la pena revisar con la misma lupa los otros formularios que guardan importes (`Expenses`, `Receivings`, `Giftcards`), donde `parse_decimals()` se usa con el mismo patrón de guardar el retorno tal cual.
