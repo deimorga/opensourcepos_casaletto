@@ -415,6 +415,38 @@ Quitar el filtro sin auditar la salida cambiaría un problema de datos por uno d
 orden dentro de cada módulo no es negociable: primero se escapa la salida, después se quita el
 filtro.** Nunca al revés, ni siquiera "por un rato".
 
+**Alcance real, medido el 2026-08-22 — no son 143 usos equivalentes.** Al desglosar los usos por
+campo aparece que la mitad son parámetros que nunca llevan tilde y que el filtro no puede corromper:
+
+| Campo | Usos | ¿Corrompe datos? |
+|---|---|---|
+| `sort`, `order` | 30 | No — nombres de columna, validados además contra lista blanca |
+| `ids`, `filters`, `start_date`, `end_date`, `date`, `mode`, `language` | ~25 | No — identificadores, fechas y claves ASCII |
+| **`search`** | **2** | **Sí, y es lo más visible** — ver abajo |
+| `description`, `comment`, `comments`, `message` | 13 | Sí — texto libre |
+| `first_name`, `last_name`, `address_1`, `address_2`, `city`, `state`, `country` | 18 | Sí — datos de persona |
+| `item_name`, `item_description`, `tax_code_name`, `jurisdiction_name`, `reporting_authority`… | ~12 | Sí — catálogos |
+| Resto (`username`, `phone`, `zip`, códigos, números) | ~45 | Improbable, ASCII en la práctica |
+
+**El peor caso no es el que parecía.** `Items.php:105` y `Sales.php:144` pasan el **término de
+búsqueda** por el filtro. Comprobado en staging el 2026-08-22 sobre los 275 artículos importados de
+Siigo:
+
+| Búsqueda en Artículos | Resultados |
+|---|---|
+| "Jamón" (con tilde) | **0 registros** |
+| "Jamon" (sin tilde) | **12 registros** |
+
+Los doce artículos existen. Buscar con tilde no encuentra ninguno porque el término se convierte en
+`Jam&oacute;n` antes de llegar a la consulta. Y no hace falta que nadie escriba con tildes en la
+aplicación para sufrirlo: **basta con que los datos las tengan**, y los 26 nombres de artículo que
+entraron por el import de Siigo las tienen.
+
+**Esto reordena la fase 1b.** El orden por módulos que sigue abajo asumía que el riesgo estaba en los
+nombres propios. El primer objetivo real son **las dos lecturas de `search`**: cuestan dos líneas,
+no requieren auditoría de salida (el término no se imprime en crudo en ninguna parte) y arreglan una
+falla que el negocio puede encontrarse hoy mismo buscando "Jamón".
+
 **Procedimiento por módulo:**
 
 1. Auditar las salidas del módulo —sus vistas y sus funciones en `tabular_helper.php`— y escapar con
