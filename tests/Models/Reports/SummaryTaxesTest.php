@@ -40,8 +40,8 @@ class SummaryTaxesTest extends CIUnitTestCase
         $now = date('Y-m-d H:i:s');
 
         $itemData = [
-            ['name' => 'Test Item Tax Test 1', 'category' => 'Test', 'supplier_id' => 1, 'item_number' => 'TEST001', 'description' => 'Test item for tax report', 'cost_price' => 10.00, 'unit_price' => 100.00, 'reorder_level' => 0, 'receiving_quantity' => 1, 'stock_type' => 0, 'item_type' => 0, 'tax_category_id' => 1, 'deleted' => 0],
-            ['name' => 'Test Item Tax Test 2', 'category' => 'Test', 'supplier_id' => 1, 'item_number' => 'TEST002', 'description' => 'Test item for tax report', 'cost_price' => 20.00, 'unit_price' => 200.00, 'reorder_level' => 0, 'receiving_quantity' => 1, 'stock_type' => 0, 'item_type' => 0, 'tax_category_id' => 1, 'deleted' => 0],
+            ['name' => 'Test Item Tax Test 1', 'category' => 'Test', 'supplier_id' => null, 'item_number' => 'TEST001', 'description' => 'Test item for tax report', 'cost_price' => 10.00, 'unit_price' => 100.00, 'reorder_level' => 0, 'receiving_quantity' => 1, 'stock_type' => 0, 'item_type' => 0, 'tax_category_id' => 1, 'deleted' => 0],
+            ['name' => 'Test Item Tax Test 2', 'category' => 'Test', 'supplier_id' => null, 'item_number' => 'TEST002', 'description' => 'Test item for tax report', 'cost_price' => 20.00, 'unit_price' => 200.00, 'reorder_level' => 0, 'receiving_quantity' => 1, 'stock_type' => 0, 'item_type' => 0, 'tax_category_id' => 1, 'deleted' => 0],
         ];
 
         foreach ($itemData as $item) {
