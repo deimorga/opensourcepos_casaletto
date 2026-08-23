@@ -50,9 +50,9 @@ class SummaryTaxesTest extends CIUnitTestCase
         }
 
         $saleData = [
-            ['sale_time' => $now, 'customer_id' => 1, 'employee_id' => 1, 'comment' => 'Test sale 1', 'sale_status' => 1, 'invoice_number' => 'TEST-INV-001', 'sale_type' => 0],
-            ['sale_time' => $now, 'customer_id' => 1, 'employee_id' => 1, 'comment' => 'Test sale 2', 'sale_status' => 1, 'invoice_number' => 'TEST-INV-002', 'sale_type' => 0],
-            ['sale_time' => $now, 'customer_id' => 1, 'employee_id' => 1, 'comment' => 'Test sale 3', 'sale_status' => 1, 'invoice_number' => 'TEST-INV-003', 'sale_type' => 0],
+            ['sale_time' => $now, 'customer_id' => null, 'employee_id' => 1, 'comment' => 'Test sale 1', 'sale_status' => 1, 'invoice_number' => 'TEST-INV-001', 'sale_type' => 0],
+            ['sale_time' => $now, 'customer_id' => null, 'employee_id' => 1, 'comment' => 'Test sale 2', 'sale_status' => 1, 'invoice_number' => 'TEST-INV-002', 'sale_type' => 0],
+            ['sale_time' => $now, 'customer_id' => null, 'employee_id' => 1, 'comment' => 'Test sale 3', 'sale_status' => 1, 'invoice_number' => 'TEST-INV-003', 'sale_type' => 0],
         ];
 
         foreach ($saleData as $sale) {
