@@ -116,8 +116,14 @@ más interesan.
 ### 5.1 Fecha y granularidad
 
 El partial `partial/daterangepicker` ya entrega `start_date`/`end_date` en `Y-m-d` o
-`Y-m-d H:i:s` según `date_or_time_format`. La granularidad viaja como un parámetro más en
-`queryParams`, junto con las fechas y los filtros, igual que en `sales/manage.php`.
+`Y-m-d H:i:s` según `date_or_time_format`, y trae **14 presets**. La granularidad viaja como un
+parámetro más en `queryParams`, junto con las fechas y los filtros, igual que en `sales/manage.php`.
+
+**La granularidad se deriva del tamaño del rango**, no de la etiqueta del preset (razón en el
+documento funcional, 5.5): `≤ 14 días → día`, `15–92 → semana`, `> 92 → mes`. El cálculo vive en el
+callback del daterangepicker, que ya recibe `(start, end, label)`; se usan `start` y `end`, nunca
+`label`. Una vez que el usuario toca el selector a mano, se marca como manual y deja de
+recalcularse.
 
 Expresiones de agrupación (aplicadas a `sale_date` del lado ingresos y a `expenses.date` del lado
 gastos):
@@ -131,6 +137,10 @@ gastos):
 `YEARWEEK` con modo 3 es el que corresponde a ISO-8601. El modo por defecto (0) empieza la semana en
 domingo y numera distinto — usarlo produciría semanas que no coinciden con las del calendario que
 usa el negocio.
+
+**La granularidad recibida en el servidor se valida contra una lista blanca** (`day`/`week`/`month`)
+antes de tocar el SQL. Es un parámetro que entra en una cláusula `GROUP BY`, así que no puede
+interpolarse tal como llega.
 
 ### 5.2 Persistencia en URL
 
@@ -207,101 +217,190 @@ subtítulo cambia. Ver sección 9.
   etiqueta — lo que solo es posible después de la corrección de la sección 7. Ese es el orden de
   implementación obligatorio: primero la corrección, después el filtro.
 
-## 7. Corrección del medio de pago en Gastos
+## 7. Corrección de los medios de pago (Ventas y Gastos)
 
-Defecto descrito en la sección 7 del documento funcional. Resumen técnico:
+Las dos fallas están descritas en la sección 7 del documento funcional. Resumen técnico y plan.
 
-- Se **escribe** `lang('Sales.*')` — `get_payment_options()` en `app/Helpers/locale_helper.php:239`
+### 7.1 Falla A — entidades HTML en `sales_payments.payment_type`
+
+Verificado contra producción el 2026-08-22, a nivel de bytes:
+
+```
+HEX('Tarjeta de d&eacute;bito') = 5461726A6574612064652064 26 6561637574653B 6269746F
+                                                              ^^ &          ^^ ;
+```
+
+El `&` (0x26) y el `;` (0x3B) están literalmente almacenados. `Sale::search()` y
+`Sale::get_payments_summary()` filtran con `like('payment_type', lang('Sales.debit'))`, donde la
+etiqueta lleva la `é` real. **No coincide, y no es un problema de colación**: `utf8_general_ci`
+equipara `é` con `e`, pero no expande una entidad de ocho caracteres a uno.
+
+Medido sobre los datos reales: `only_debit` → **0** coincidencias (194 pagos, 12.715.730);
+`only_creditcard` → **0** (6 pagos, 362.120). `only_cash` (444) y `only_bank_transfer` (91)
+funcionan porque sus etiquetas no llevan tilde.
+
+**Origen aún no ubicado.** Descartados: `form_dropdown()` de CI4 usa `htmlspecialchars()`, que no
+toca la `é`; `FILTER_SANITIZE_FULL_SPECIAL_CHARS` es equivalente a `htmlspecialchars` con
+`ENT_QUOTES` y tampoco; no hay ningún `esc(..., 'attr')` en el flujo de pago. Que sean entidades
+**con nombre** (`&eacute;`, no `&#233;`) apunta a `htmlentities()` o al `escapeHtmlAttr()` de
+Laminas, no a una recodificación del navegador. **Encontrar la línea exacta es el paso 2 y es
+trabajo pendiente, no un hecho establecido.**
+
+### 7.2 Falla B — dos diccionarios distintos en Gastos
+
+- Se **escribe** `lang('Sales.*')` — `get_payment_options()` (`app/Helpers/locale_helper.php:239`)
   arma el dropdown con siete opciones desde las claves `Sales.*`.
 - Se **filtra** contra `lang('Expenses.*')` — diez comparaciones en `app/Models/Expense.php`
   (cinco en `search()`, cinco en `get_payments_summary()`), todas con `LIKE`.
-- En es-MX, `Sales.due` = "Adeudo" y `Expenses.due` = "A Crédito": **el filtro nunca coincide**.
-- Los otros cuatro coinciden **solo** porque `ospos_expenses` usa `utf8_general_ci`, que ignora
-  mayúsculas y tildes ("Tarjeta de débito" ≈ "Tarjeta de Débito").
+- En es-MX, `Sales.due` = "Adeudo" y `Expenses.due` = "A Crédito": nunca coincide. Hoy no oculta
+  nada porque no hay gastos con ese medio de pago.
 - Dos de los siete medios que el formulario permite guardar — **Transferencia Bancaria** y
-  **Monedero** — no tienen filtro en la grilla.
+  **Monedero** — no tienen filtro en la grilla. Los 2 gastos por 1.650.000 pagados por
+  transferencia son inalcanzables.
 
-### 7.1 Corrección: guardar un código, mostrar una etiqueta
+### 7.3 Plan de corrección, en tres pasos
 
-Nueva columna `payment_type_code VARCHAR(20) NULL` con índice. Valores estables e independientes del
-idioma: `cash`, `debit`, `credit`, `due`, `check`, `bank_transfer`, `wallet`, `upi`.
+**Paso 1 — reparar los datos.** Migración que decodifica las entidades en
+`sales_payments.payment_type`. Devuelve los filtros de Ventas de inmediato, sin depender de los
+otros dos pasos.
 
-- **Escritura** (`Expenses::postSave()`): guarda el código. El `form_dropdown` pasa a tener el código
-  como clave y la etiqueta traducida como valor — que es como ya funciona `form_dropdown`, sin
-  cambios en la vista más allá del arreglo que recibe.
-- **Lectura** (columna de la grilla y resumen de pagos, en `tabular_helper.php`): resuelve la
-  etiqueta con `lang()` en el momento de mostrar. Un cambio de idioma deja de romper el histórico.
-- **Filtros**: comparación por igualdad contra el código, no `LIKE`. Desaparece la dependencia de la
-  colación.
+Se decodifica con una lista explícita de las entidades presentes, **no con un `REPLACE` genérico de
+`&` ni con `html_entity_decode()` sobre todo el campo**: el campo también guarda tipos compuestos
+(tarjetas de regalo con número, ajustes de caja), y una decodificación amplia podría alterar valores
+que no están rotos. La migración **imprime cuántas filas tocó y cuántas quedaron con `&` residual**.
+
+**Paso 2 — tapar la causa.** Sin esto, el paso 1 se deshace con la primera venta con tarjeta. Es
+trabajo de diagnóstico: reproducir un pago con tilde en local, seguir el valor desde el POST hasta
+el `INSERT`, y corregir donde se introduzca. **No se despliega el paso 1 a producción sin el 2**, o
+se repara algo que se vuelve a romper esa misma noche.
+
+**Paso 3 — códigos estables.** Nueva columna `payment_type_code VARCHAR(20) NULL` con índice, en
+`expenses` y en `sales_payments`. Valores independientes del idioma: `cash`, `debit`, `credit`,
+`due`, `check`, `bank_transfer`, `wallet`, `upi`.
+
+- **Escritura**: se guarda el código. El `form_dropdown` pasa a tener el código como clave y la
+  etiqueta traducida como valor — que es como ya funciona `form_dropdown`.
+- **Lectura**: la etiqueta se resuelve con `lang()` al mostrar. Un cambio de idioma deja de romper
+  el histórico.
+- **Filtros**: igualdad contra el código, no `LIKE`. Desaparece la dependencia de la colación.
 - **Búsqueda de texto libre** (`orLike('expenses.payment_type', $search)`): pasa a resolver primero
-  qué códigos tienen una etiqueta que coincide con el término buscado, y filtra por esos códigos.
-  Si no se hace, buscar "efectivo" deja de encontrar nada.
-- **Filtros de la grilla**: de cinco a siete, para que coincidan con lo que el formulario permite
-  guardar.
+  qué códigos tienen una etiqueta que coincide con el término, y filtra por esos códigos. Sin esto,
+  buscar "efectivo" deja de encontrar nada.
+- **Filtros de la grilla de Gastos**: de cinco a siete, para que coincidan con lo que el formulario
+  permite guardar.
 
-### 7.2 Backfill del histórico
+### 7.4 Backfill: trivial en Gastos, acotado en Ventas
 
-La migración mapea cada valor distinto de `payment_type` a su código, comparando contra la unión de
-las etiquetas `Sales.*` y `Expenses.*` **de todos los idiomas instalados** (47 directorios en
-`app/Language/`) — el histórico pudo escribirse bajo cualquier idioma activo en su momento.
+Los datos reales de producción (2026-08-22) hacen esto mucho más simple de lo previsto:
+
+| Tabla | Valores distintos | Mapeo |
+|---|---|---|
+| `expenses` | 2 — "Efectivo" (54), "Transferencia Bancaria" (2) | sin ambigüedad |
+| `sales_payments` | 4 — Efectivo, Tarjeta de d&eacute;bito, Transferencia Bancaria, Tarjeta de Cr&eacute;dito | sin ambigüedad **después del paso 1** |
+
+El mapeo se hace contra la unión de las etiquetas `Sales.*` y `Expenses.*` de **todos los idiomas
+instalados** (47 directorios en `app/Language/`) — no porque haga falta hoy, sino porque el mismo
+código correrá en los tenants nuevos de la plataforma, que pueden estar en otro idioma.
 
 **Los valores que no mapeen quedan en `NULL` y se registran en el log de la migración, con su
-conteo.** No se les asigna un código por defecto. Esta regla es directamente la lección del turno 29:
-un dato que no se pudo interpretar tiene que hacer ruido, no convertirse en silencio en el valor más
+conteo.** No se les asigna un código por defecto. Es directamente la lección del turno 29: un dato
+que no se pudo interpretar tiene que hacer ruido, no convertirse en silencio en el valor más
 inocente disponible.
 
 `payment_type` se conserva intacta como columna heredada. La lectura usa `payment_type_code` y cae
-al texto original cuando es `NULL`, así que ningún gasto histórico desaparece de la grilla aunque su
-medio de pago no se haya podido clasificar.
+al texto original cuando es `NULL`, así que ningún registro histórico desaparece de la grilla aunque
+su medio de pago no se haya podido clasificar.
 
-### 7.3 Alcance del cambio
+### 7.5 Alcance del cambio
 
-Contenido y verificado: 10 sitios de comparación en `app/Models/Expense.php`, 1 de escritura en
-`app/Controllers/Expenses.php`, 2 de presentación en `app/Helpers/tabular_helper.php`, 1 dropdown en
+**Gastos** (verificado): 10 comparaciones en `app/Models/Expense.php`, 1 escritura en
+`app/Controllers/Expenses.php`, 2 presentaciones en `app/Helpers/tabular_helper.php`, 1 dropdown en
 `app/Views/expenses/form.php`.
 
-**`get_payment_options()` no se toca.** Tiene usos fuera de Gastos (el registro de ventas, entre
-otros) y cambiarle el contrato es una superficie de riesgo desproporcionada — mismo criterio que se
-aplicó con `parse_decimals()` al corregir el cierre de caja. La conversión código↔etiqueta vive en
-un helper propio del módulo de Gastos.
+**Ventas**: 7 comparaciones en `Sale::get_payments_summary()` más las de `Sale::search()`, la
+escritura en `Sales::postAdd_payment()` y en la edición de venta, y la presentación en
+`tabular_helper.php` y `register.php`.
 
-## 8. Archivos a tocar
+**`get_payment_options()` no se toca.** La usan el registro de ventas, gastos y recepciones;
+cambiarle el contrato es una superficie de riesgo desproporcionada — mismo criterio que se aplicó
+con `parse_decimals()` al corregir el cierre de caja. La conversión código↔etiqueta vive en un
+helper nuevo.
 
-**Reporte**
-1. `app/Models/Reports/Income_expenses.php` — nuevo.
-2. `app/Controllers/Reports.php` — vista + endpoint `search`.
-3. `app/Config/Routes.php` — dos rutas.
-4. `app/Views/reports/analytical_income_expenses.php` — nueva.
-5. `app/Views/reports/graphs/multiline.php` — nueva.
-6. `app/Views/reports/listing.php` — cuarto panel.
-7. `app/Helpers/report_helper.php` — excluir `analytics` en `can_show_report()`.
-8. `app/Helpers/tabular_helper.php` — cabeceras y filas del reporte.
-9. Migración del permiso `reports_analytics`.
+**Cuidado con las comparaciones sueltas**: `Sales.php` y `register.php` comparan `$payment_type`
+contra `lang('Sales.giftcard')`, `lang('Sales.cash')` y otras, tanto en PHP como en JavaScript. Hoy
+funcionan porque esas etiquetas no llevan tilde. Todas tienen que migrar al código en el mismo
+cambio, o quedarán como la próxima falla silenciosa de esta misma familia.
 
-**Corrección del medio de pago**
-10. Migración: columna `payment_type_code` + backfill con reporte de no mapeados.
-11. `app/Models/Expense.php` — 10 comparaciones + búsqueda libre.
-12. `app/Controllers/Expenses.php` — escritura y lista de filtros (5 → 7).
-13. `app/Helpers/tabular_helper.php` — resolución de etiqueta.
-14. `app/Views/expenses/form.php` — dropdown por código.
+## 8. Orden de implementación y archivos a tocar
+
+**La fase 1 bloquea la fase 2.** El modo caja del reporte cruza ingresos y gastos por medio de pago;
+sobre los datos actuales daría cero para débito y crédito.
+
+### Fase 1 — medios de pago
+
+1. Migración: **reparar** las entidades HTML en `sales_payments.payment_type`, informando filas
+   tocadas y residuales.
+2. **Diagnóstico y corrección de la causa** (paso 2 de 7.3). Trabajo de investigación, sin alcance
+   cerrado todavía. **No se despliega el punto 1 sin este.**
+3. Migración: columna `payment_type_code` en `expenses` y `sales_payments` + backfill con reporte de
+   no mapeados.
+4. `app/Helpers/payment_type_helper.php` — nuevo, conversión código↔etiqueta.
+5. `app/Models/Expense.php` — 10 comparaciones + búsqueda libre.
+6. `app/Controllers/Expenses.php` — escritura y lista de filtros (5 → 7).
+7. `app/Models/Sale.php` — comparaciones de `search()` y `get_payments_summary()`.
+8. `app/Controllers/Sales.php` — escritura y comparaciones sueltas contra `lang('Sales.*')`.
+9. `app/Helpers/tabular_helper.php` — resolución de etiqueta en ambas grillas.
+10. `app/Views/expenses/form.php` y `app/Views/sales/register.php` — dropdowns por código, incluidas
+    las comparaciones en JavaScript.
+
+### Fase 2 — reporte
+
+11. `app/Models/Reports/Income_expenses.php` — nuevo.
+12. `app/Controllers/Reports.php` — vista + endpoint `search`.
+13. `app/Config/Routes.php` — dos rutas.
+14. `app/Views/reports/analytical_income_expenses.php` — nueva.
+15. `app/Views/reports/graphs/multiline.php` — nueva.
+16. `app/Views/reports/listing.php` — cuarto panel.
+17. `app/Helpers/report_helper.php` — excluir `analytics` en `can_show_report()`.
+18. `app/Helpers/tabular_helper.php` — cabeceras y filas del reporte.
+19. Migración del permiso `reports_analytics`.
 
 **Idiomas:** `en` (fallback), `es-ES` y **`es-MX`** (el que corre esta instalación).
 
+**Commits separados por concern**: la corrección de medios de pago y el reporte son dos temas
+distintos y van en commits distintos, aunque se trabajen en la misma sesión.
+
 ## 9. Pruebas
 
-Siguiendo el patrón de `tests/Models/Reports/Summary_taxes_test.php`:
+Siguiendo el patrón de `tests/Models/Reports/Summary_taxes_test.php`.
 
-- El total de ingresos del reporte **coincide con `Summary_sales::getSummaryData()`** para el mismo
-  rango. Es la prueba que protege el principio rector.
+**Medios de pago (fase 1)**
+
+- **Regresión de la falla A**: un pago guardado como "Tarjeta de d&eacute;bito" es encontrado por el
+  filtro de débito. Hoy esa prueba falla — 0 coincidencias sobre 194 pagos reales.
+- **Regresión de la falla B**: un gasto guardado como "Adeudo" es encontrado por el filtro de adeudo.
+  Hoy esa prueba falla.
+- Un gasto pagado por Transferencia Bancaria es alcanzable por un filtro de la grilla. Hoy no existe
+  ese filtro.
+- **Mapeo del backfill**: cada etiqueta de `Sales.*` y `Expenses.*` de en/es-ES/es-MX cae en su
+  código; un valor desconocido queda en `NULL` y se reporta.
+- La reparación de entidades **no altera** los tipos compuestos (tarjeta de regalo con número,
+  ajuste de caja).
+- La búsqueda de texto libre por "efectivo" sigue encontrando los gastos en efectivo después de
+  migrar a códigos.
+
+**Reporte (fase 2)**
+
+- El total de ingresos **coincide con `Summary_sales::getSummaryData()`** para el mismo rango. Es la
+  prueba que protege el principio rector.
 - Agrupación correcta en las tres granularidades, incluyendo un rango que cruza fin de año (donde
   `YEARWEEK` es más fácil de equivocar).
+- La granularidad derivada: 7 días → día, 30 días → semana, 365 días → mes; y la elección manual del
+  usuario no se sobrescribe al mover el rango.
+- Una granularidad inválida recibida en el servidor se rechaza contra la lista blanca.
 - Un período con ventas y sin gastos, y uno con gastos y sin ventas, aparecen ambos.
 - `margen %` es `null`, no `0`, cuando no hay ingresos.
 - Los gastos eliminados quedan fuera por defecto y dentro con el filtro activo.
-- **Mapeo del backfill**: cada etiqueta de `Sales.*` y `Expenses.*` de en/es-ES/es-MX cae en su
-  código; un valor desconocido queda en `NULL` y se reporta.
-- **Regresión del bug**: un gasto guardado como "Adeudo" es encontrado por el filtro de adeudo.
-  Hoy esa prueba falla.
 
 **Los dos modos del reporte** (sección 6) se prueban por separado:
 
@@ -317,7 +416,8 @@ Siguiendo el patrón de `tests/Models/Reports/Summary_taxes_test.php`:
 
 ## 10. Despliegue
 
-Dos migraciones, así que el despliegue **no termina con el workflow**. Después de desplegar:
+Varias migraciones, así que el despliegue **no termina con el workflow** — los pipelines solo
+sincronizan código y construyen assets. Después de desplegar:
 
 ```bash
 ssh -i ~/.ssh/ospos_deploy root@148.230.82.172
@@ -325,11 +425,23 @@ cd /root/POS_Casaletto_staging   # /root/POS_Casaletto en producción
 docker compose -f docker-compose.staging.yml exec ospos php spark migrate
 ```
 
-Y antes de cualquier `docker compose up --build` manual, correr el build de assets — la vista nueva
-entra por los bloques de gulp-inject de `header.php`, y saltarse ese paso deja la página sin JS con
-un HTTP 200 que ningún smoke test detecta.
+Y antes de cualquier `docker compose up --build` manual, correr el build de assets — las vistas
+nuevas entran por los bloques de gulp-inject de `header.php`, y saltarse ese paso deja la página sin
+JS con un HTTP 200 que ningún smoke test detecta.
 
 **Producción solo después de las 10pm hora Colombia**, salvo autorización puntual.
 
-**Verificación con datos reales:** la migración de backfill imprime cuántos gastos quedaron sin
-mapear. Si ese número no es cero hay que revisar esos valores antes de dar el reporte por bueno.
+### Respaldo antes de la reparación de datos
+
+La migración del punto 1 **escribe sobre datos de dinero ya existentes**. Antes de correrla en
+producción: respaldo de `ospos_sales_payments`, igual que se hizo antes de corregir el turno 29.
+
+### Verificación después de migrar
+
+- La migración de reparación imprime filas tocadas y residuales con `&`. Si quedan residuales, hay
+  que mirarlas una por una antes de seguir.
+- El backfill imprime cuántas filas quedaron sin mapear. Sobre los datos actuales **debe ser cero**
+  (2 valores distintos en gastos, 4 en pagos de venta); cualquier otra cosa es una señal de que
+  apareció un valor no previsto.
+- Contraste de solo lectura contra la cifra conocida: los filtros de débito y crédito de la grilla
+  de Ventas deben pasar de 0 a 194 y 6 coincidencias respectivamente.

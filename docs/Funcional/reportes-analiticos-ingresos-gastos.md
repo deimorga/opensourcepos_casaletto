@@ -33,6 +33,28 @@ Verificado el 2026-08-22 revisando los 21 modelos de `app/Models/Reports/`, los 
 | Reporte Resumido de Gastos por Categoría (`summary_expenses_categories`) | Por categoría: conteo, monto, impuesto | Pantalla aparte, sin ninguna referencia a ventas. Ignora el filtro de ubicación y recibe `sale_type` en la firma pero nunca lo usa. |
 | Reporte de Pagos (`summary_payments`) | Dinero cobrado por medio de pago, con saldo pendiente y devoluciones | Solo el lado del ingreso. |
 
+### 3.1 Datos reales de producción (consultados 2026-08-22, solo lectura)
+
+El sistema lleva operando poco: **las ventas empiezan el 2026-07-15 y los gastos el 2026-07-16**.
+Ambos lados cubren prácticamente el mismo período, así que **el reporte tiene datos desde el primer
+día** — no nace como una vitrina vacía.
+
+| Mes | Ventas | Cobrado | Gastos | Monto gastos | Resultado | Margen |
+|---|---|---|---|---|---|---|
+| Julio (desde el 15) | 314 | 14.311.235 | 20 | 5.691.800 | 8.619.435 | 60,2% |
+| Agosto (al 22) | 414 | 18.539.057 | 36 | 6.471.550 | 12.067.507 | 65,1% |
+
+56 gastos activos y 2 eliminados. **Siete categorías en uso** de ocho definidas: Carnes Frías
+(4.763.000), Pago de Nómina (1.980.000), Insumos Casaletto (1.950.000), Insumos Cocacola
+(1.239.250), Compras Insumos Supermercado (1.235.700), Personal de Apoyo (755.400) y Compensación
+por festivos (240.000).
+
+**`tax_amount` es 0,00 en los 56 gastos.** La columna de impuesto no se usa, así que el reporte no
+la muestra.
+
+**Solo hay dos medios de pago en gastos**: Efectivo (54 gastos, 10.513.350) y Transferencia Bancaria
+(2 gastos, 1.650.000). Esto vuelve trivial el backfill descrito en el documento técnico.
+
 ## 4. Decisiones de producto (tomadas con el usuario el 2026-08-22)
 
 ### 4.1 Qué cuenta como "ingreso"
@@ -103,7 +125,7 @@ los días, permite cambiar filtros sin volver a empezar, y deja la vista filtrad
   comparativos contra el año anterior). Se aplica a ambos lados por igual.
 - **Medio de pago** — multiselect combinable, aplicado a ingresos y gastos. **Activarlo cambia lo
   que el reporte mide, y el reporte lo dice en pantalla** (ver 5.4).
-- **Granularidad** — Día / Semana / Mes.
+- **Granularidad** — Día / Semana / Mes, **derivada automáticamente del rango elegido** (ver 5.5).
 - **Incluir gastos eliminados** — apagado por defecto.
 
 ### 5.3 Qué queda deliberadamente fuera, y por qué
@@ -136,11 +158,35 @@ Un reporte que cambia lo que mide sin decirlo es justo lo que produjo el descuad
 Como efecto secundario, el modo de caja responde algo que hoy ningún reporte responde: *"¿cuánto
 entró y cuánto salió en efectivo este mes?"*.
 
-### 5.5 Por qué la granularidad importa
+### 5.5 La granularidad se deriva del rango elegido
 
-Los gastos son irregulares: un arriendo pagado el día 5 hunde ese día en pérdida aunque el mes
-cierre bien. El comparativo diario es ruidoso; el mensual es el que dice la verdad. Por eso la
-granularidad es un control visible y no una decisión fija.
+El selector de fechas trae **14 presets**: Hoy, Hoy año pasado, Ayer, Últimos 7, Últimos 30, Este
+mes, Mismo mes hasta el mismo día del año pasado, Mismo mes del año pasado, Mes pasado, Este año,
+Año pasado, Este año fiscal, Año fiscal pasado y Todo el tiempo.
+
+Pedirle al usuario que **además** elija la granularidad a mano es pedirle que resuelva dos veces la
+misma pregunta: quien elige "Todo el tiempo" no quiere una fila por día, y quien elige "Ayer" no
+quiere una fila por mes. **La granularidad se calcula del tamaño del rango:**
+
+| Rango seleccionado | Granularidad |
+|---|---|
+| Hasta 14 días | Día |
+| De 15 a 92 días | Semana |
+| Más de 92 días | Mes |
+
+Así "Hoy", "Ayer" y "Últimos 7" abren en días; "Últimos 30", "Este mes" y "Mes pasado" en semanas;
+"Este año", los dos años fiscales y "Todo el tiempo" en meses.
+
+**Se calcula del tamaño y no de la etiqueta del preset, a propósito.** Las etiquetas son cadenas
+traducidas, y compararlas es exactamente el mecanismo que hoy tiene rotos los filtros de medio de
+pago (sección 7). El número de días no depende del idioma.
+
+El selector sigue visible y editable. **Si el usuario lo cambia a mano, su elección manda** y deja de
+recalcularse al mover el rango.
+
+**Por qué importa:** los gastos son irregulares — un arriendo pagado el día 5 hunde ese día en
+pérdida aunque el mes cierre bien. Con las cinco semanas de historia que hay hoy, la vista semanal es
+la única que muestra una tendencia legible: mensual da dos filas y diaria da ruido.
 
 ## 6. Salida esperada
 
@@ -159,10 +205,45 @@ Con exportación a Excel / PDF / CSV, búsqueda y ordenamiento, igual que las de
 
 Dos series sobre el mismo eje temporal — ingresos y gastos — para ver de un vistazo dónde se cruzan.
 
-## 7. Defecto preexistente que este trabajo corrige
+## 7. Defectos preexistentes que este trabajo corrige
 
-Al inventariar los filtros se encontró un **bug real, hoy en producción**, en el filtro de medio de
-pago de la grilla de Gastos.
+Inventariar los filtros para diseñar el reporte destapó **dos fallas vivas en producción** en los
+filtros de medio de pago. Ninguna viene de nuestro trabajo; ambas hay que corregirlas antes del
+reporte, porque su modo caja (5.4) cruza ingresos y gastos justamente por medio de pago.
+
+### 7.1 En Ventas: los acentos están guardados como entidades HTML
+
+Los medios de pago con tilde se guardaron en `ospos_sales_payments` con el acento convertido en
+entidad HTML — verificado a nivel de bytes el 2026-08-22:
+
+```
+Tarjeta de d&eacute;bito      en lugar de   Tarjeta de débito
+Tarjeta de Cr&eacute;dito     en lugar de   Tarjeta de Crédito
+```
+
+Los filtros de la grilla comparan contra la etiqueta traducida, con el acento de verdad. Ejecutando
+la consulta exacta que genera cada filtro contra los datos reales:
+
+| Filtro de la grilla de Ventas | Coincidencias |
+|---|---|
+| Tarjeta de Débito | **0** |
+| Tarjeta de Crédito | **0** |
+| Efectivo | 444 ✅ |
+| Transferencia Bancaria | 91 ✅ |
+
+**En la grilla de Ventas, los filtros de Tarjeta de Débito y Tarjeta de Crédito no devuelven nada.**
+Son 194 pagos por 12.715.730 y 6 pagos por 362.120: **13 millones de los 32,8 cobrados — el 39% del
+dinero — invisible a los filtros.** Los dos que funcionan son precisamente los dos que no llevan
+tilde.
+
+Como siempre en esta familia de fallas, no hay mensaje de error: una lista vacía que se lee como un
+dato ("no hubo pagos con tarjeta") cuando es una falla.
+
+**El origen exacto de la codificación todavía no está ubicado.** El efecto y los bytes están
+verificados; encontrar la línea que la introduce es parte del trabajo de corrección, no algo ya
+resuelto.
+
+### 7.2 En Gastos: se guarda con un diccionario y se filtra con otro
 
 El formulario de gastos guarda el medio de pago como **texto traducido** tomado de las claves
 `Sales.*`, pero los filtros de la grilla comparan contra las claves `Expenses.*`. Son dos archivos
@@ -174,35 +255,45 @@ de idioma distintos, y no dicen lo mismo:
 | es-ES | "Adeudado" | "Hasta" | ❌ |
 | **es-MX** (el que corre esta instalación) | **"Adeudo"** | **"A Crédito"** | ❌ |
 
-**Efecto para el usuario:** en la grilla de Gastos, el filtro **"A Crédito" no devuelve nada nunca**
-— aunque existan gastos registrados con ese medio de pago. Sin mensaje de error: una lista vacía que
-parece un dato ("no hubo gastos a crédito") cuando en realidad es una falla.
+En inglés funciona; por eso upstream nunca lo vio.
 
-Hay dos problemas más en el mismo sitio:
+**Impacto real hoy, medido:** ninguno por este camino — no hay ningún gasto registrado con ese medio
+de pago. Los 56 gastos activos usan solo Efectivo (54) y Transferencia Bancaria (2).
 
-1. **El formulario ofrece 7 medios de pago; la grilla solo filtra por 5.** Los gastos pagados por
-   **Transferencia Bancaria** o **Monedero** no son alcanzables por ningún filtro. En Colombia la
-   transferencia bancaria es un medio de pago corriente, así que esto no es hipotético.
-2. **Los otros cuatro filtros funcionan de casualidad.** Coinciden solo porque la tabla usa la
-   colación `utf8_general_ci`, que ignora mayúsculas y tildes: se guarda "Tarjeta de débito" y se
-   busca "Tarjeta de Débito". El día que alguien migre a una colación sensible, se rompen los cinco.
+**Pero el daño existe por otro lado:** el formulario ofrece **siete** medios de pago y la grilla
+filtra por **cinco**. **Transferencia Bancaria y Monedero no tienen filtro** — así que los 2 gastos
+por 1.650.000 pagados por transferencia no son alcanzables por ningún filtro de la grilla.
 
-**Se corrige de fondo** (decisión del usuario, 2026-08-22): el medio de pago deja de guardarse como
-texto traducido y pasa a guardarse como un código estable, con la etiqueta traducida resuelta al
-mostrar. Detalle en el documento técnico.
+Y los otros cuatro filtros **coinciden de casualidad**: solo porque la tabla usa la colación
+`utf8_general_ci`, que ignora mayúsculas y tildes (se guarda "Tarjeta de débito", se busca "Tarjeta
+de Débito"). El día que alguien migre a una colación sensible, se rompen los cinco.
 
-**Por qué no se puede dejar para después:** el reporte nuevo va a filtrar gastos por medio de pago.
-Construirlo encima de este mecanismo sería heredar un comparativo que devuelve cifras incompletas
-sin avisar.
+### 7.3 Qué se corrige (decidido con el usuario, 2026-08-22)
+
+En **los dos módulos**, en tres pasos:
+
+1. **Reparar los datos existentes** decodificando las entidades HTML. Devuelve los filtros de Ventas
+   de inmediato, sin esperar al resto.
+2. **Ubicar y tapar la causa**, para que no se vuelvan a escribir así.
+3. **Guardar un código estable** (`cash`, `due`, `bank_transfer`…) en vez de texto traducido, y
+   resolver la etiqueta al mostrar. Un cambio de idioma deja de romper el histórico, y desaparece la
+   dependencia de la colación.
+
+Se añaden además los filtros faltantes en la grilla de Gastos, para que coincidan con lo que el
+formulario permite guardar.
+
+**Sin esto el reporte nace roto:** su modo caja daría cero para débito y crédito, que son 13 de los
+32,8 millones cobrados.
 
 ## 8. Preguntas abiertas
 
-- **No se ha verificado con qué regularidad y bajo qué categorías se registran los gastos en
-  producción.** El usuario confirmó que se registran, pero no se pudo consultar la base (la consulta
-  de solo lectura fue bloqueada por permisos de la herramienta). Antes de dar el reporte por bueno
-  hay que contrastarlo contra el histórico real.
+- Ninguna bloqueante. Los datos de producción quedaron verificados (3.1) y las decisiones de
+  producto tomadas.
 - Si con el tiempo el negocio quiere el resultado neto real (restando costo de mercancía), sería un
   segundo reporte dentro de la misma categoría analítica, no un cambio a este.
+- Con solo cinco semanas de historia, las comparaciones contra el año anterior que ofrece el
+  selector de fechas (cuatro de los catorce presets) no devolverán nada hasta julio de 2027. No es un
+  defecto; conviene saberlo antes de que alguien lo reporte como tal.
 
 ## 9. Referencia técnica
 
