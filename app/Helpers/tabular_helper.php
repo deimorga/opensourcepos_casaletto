@@ -358,7 +358,11 @@ function get_supplier_data_row(object $supplier): array
 
     return [
         'people.person_id' => $supplier->person_id,
-        'company_name'     => html_entity_decode($supplier->company_name),
+        // No html_entity_decode() here any more. It was an upstream band-aid for the input filter
+        // that used to store "Ron &amp; Cola" as "Ron &amp;amp; Cola"; with Suppliers no longer
+        // filtering on input, decoding would corrupt a company name someone legitimately typed with
+        // an ampersand. The column is rendered with escape: true by transform_headers().
+        'company_name'     => $supplier->company_name,
         'agency_name'      => $supplier->agency_name,
         'category'         => $supplier->category,
         'last_name'        => $supplier->last_name,

@@ -338,7 +338,12 @@ class Receivings extends Secure_Controller
         $data['mode'] = $this->receiving_lib->get_mode();
         $data['comment'] = $this->receiving_lib->get_comment();
         $data['reference'] = $this->receiving_lib->get_reference();
-        $data['payment_type'] = $this->request->getPost('payment_type', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+        // Read without FILTER_SANITIZE_FULL_SPECIAL_CHARS, same as the sales and expenses payment
+        // reads: it encodes accents as HTML entities. Receivings needs no payment_type_code column
+        // to go with it -- unlike the sales and expenses grids, this one has no payment-method
+        // filters, so nothing ever compares this value against a translated label.
+        // See docs/Tecnico/errores-produccion-upstream.md section 5.
+        $data['payment_type'] = $this->request->getPost('payment_type');
         $data['show_stock_locations'] = $this->stock_location->show_locations('receivings');
         $data['stock_location'] = $this->receiving_lib->get_stock_source();
         if ($this->request->getPost('amount_tendered') != null) {
