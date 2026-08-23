@@ -389,7 +389,12 @@ class Sales extends Secure_Controller
      */
     public function postSetPaymentType(): ResponseInterface|string    // TODO: This function does not appear to be called anywhere in the code.
     {
-        $this->sale_lib->set_payment_type($this->request->getPost('selected_payment_type', FILTER_SANITIZE_FULL_SPECIAL_CHARS));
+        // Read without FILTER_SANITIZE_FULL_SPECIAL_CHARS on purpose. PHP documents that filter as
+        // htmlspecialchars() with ENT_QUOTES, but it calls php_escape_html_entities_ex() with all=1,
+        // so accented labels came back as HTML entities: "Tarjeta de débito" was stored as
+        // "Tarjeta de d&eacute;bito" and stopped matching the grid filters. Escaping belongs to the
+        // output, which now handles it. See docs/Tecnico/errores-produccion-upstream.md section 5.
+        $this->sale_lib->set_payment_type($this->request->getPost('selected_payment_type'));
         return $this->_reload();    // TODO: Hungarian notation.
     }
 
@@ -440,7 +445,12 @@ class Sales extends Secure_Controller
     {
         $data = [];
         $giftcard = model(Giftcard::class);
-        $payment_type = $this->request->getPost('payment_type', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+        // Read without FILTER_SANITIZE_FULL_SPECIAL_CHARS on purpose. PHP documents that filter as
+        // htmlspecialchars() with ENT_QUOTES, but it calls php_escape_html_entities_ex() with all=1,
+        // so accented labels came back as HTML entities: "Tarjeta de débito" was stored as
+        // "Tarjeta de d&eacute;bito" and stopped matching the grid filters. Escaping belongs to the
+        // output, which now handles it. See docs/Tecnico/errores-produccion-upstream.md section 5.
+        $payment_type = $this->request->getPost('payment_type');
 
         if ($payment_type !== lang('Sales.giftcard')) {
             $rules = ['amount_tendered' => 'trim|required|decimal_locale',];
@@ -1591,7 +1601,12 @@ class Sales extends Secure_Controller
         $number_of_payments = $this->request->getPost('number_of_payments', FILTER_SANITIZE_NUMBER_INT);
         for ($i = 0; $i < $number_of_payments; ++$i) {
             $payment_id = $this->request->getPost("payment_id_$i", FILTER_SANITIZE_NUMBER_INT);
-            $payment_type = $this->request->getPost("payment_type_$i", FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+            // Read without FILTER_SANITIZE_FULL_SPECIAL_CHARS on purpose. PHP documents that filter as
+        // htmlspecialchars() with ENT_QUOTES, but it calls php_escape_html_entities_ex() with all=1,
+        // so accented labels came back as HTML entities: "Tarjeta de débito" was stored as
+        // "Tarjeta de d&eacute;bito" and stopped matching the grid filters. Escaping belongs to the
+        // output, which now handles it. See docs/Tecnico/errores-produccion-upstream.md section 5.
+        $payment_type = $this->request->getPost("payment_type_$i");
             $payment_amount = parse_decimals($this->request->getPost("payment_amount_$i"));
             $refund_type = $this->request->getPost("refund_type_$i", FILTER_SANITIZE_FULL_SPECIAL_CHARS);
             $cash_refund = parse_decimals($this->request->getPost("refund_amount_$i"));
@@ -1622,7 +1637,12 @@ class Sales extends Secure_Controller
 
         $payment_id = NEW_ENTRY;
         $payment_amount_new = $this->request->getPost('payment_amount_new');
-        $payment_type = $this->request->getPost('payment_type_new', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+        // Read without FILTER_SANITIZE_FULL_SPECIAL_CHARS on purpose. PHP documents that filter as
+        // htmlspecialchars() with ENT_QUOTES, but it calls php_escape_html_entities_ex() with all=1,
+        // so accented labels came back as HTML entities: "Tarjeta de débito" was stored as
+        // "Tarjeta de d&eacute;bito" and stopped matching the grid filters. Escaping belongs to the
+        // output, which now handles it. See docs/Tecnico/errores-produccion-upstream.md section 5.
+        $payment_type = $this->request->getPost('payment_type_new');
 
         if ($payment_type != PAYMENT_TYPE_UNASSIGNED && !empty($payment_amount_new)) {
             $payment_amount = parse_decimals($payment_amount_new);

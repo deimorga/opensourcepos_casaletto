@@ -549,7 +549,7 @@ helper('url');
                             <?php foreach ($payments as $payment_id => $payment) { ?>
                                 <tr>
                                     <td><?= anchor("$controller_name/deletePayment/". esc(base64url_encode($payment_id), 'url'), '<span class="glyphicon glyphicon-trash"></span>') ?></td>
-                                    <td><?= $payment['payment_type'] ?></td>
+                                    <td><?= esc($payment['payment_type']) ?></td>
                                     <td style="text-align: right;"><?= to_currency($payment['payment_amount']) ?></td>
                                 </tr>
                             <?php } ?>

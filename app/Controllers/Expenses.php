@@ -180,7 +180,7 @@ class Expenses extends Secure_Controller
             'supplier_tax_code'   => $this->request->getPost('supplier_tax_code', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
             'amount'              => parse_decimals($this->request->getPost('amount')),
             'tax_amount'          => parse_decimals($this->request->getPost('tax_amount')),
-            'payment_type'        => $this->request->getPost('payment_type', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
+            'payment_type'        => $this->request->getPost('payment_type'),    // Sin FILTER_SANITIZE_FULL_SPECIAL_CHARS: codifica las tildes como entidades HTML. Ver errores-produccion-upstream.md seccion 5.
             'expense_category_id' => $this->request->getPost('expense_category_id', FILTER_SANITIZE_NUMBER_INT),
             'description'         => $this->request->getPost('description', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
             'employee_id'         => $employee_id,
