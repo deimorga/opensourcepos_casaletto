@@ -10,8 +10,9 @@
  * @var string $table_headers
  * @var array  $payment_options
  * @var array  $granularities
- * @var array  $selected_filters
- * @var array  $config
+ * @var array       $selected_filters
+ * @var string|null $granularity
+ * @var array       $config
  */
 ?>
 
@@ -24,7 +25,7 @@
     <div class="pull-left form-inline" role="toolbar">
         <?= form_input(['name' => 'daterangepicker', 'class' => 'form-control input-sm', 'id' => 'daterangepicker']) ?>
 
-        <?= form_dropdown('granularity', esc($granularities), 'month', [
+        <?= form_dropdown('granularity', esc($granularities), $granularity ?? 'month', [
             'id'          => 'granularity',
             'class'       => 'selectpicker show-menu-arrow',
             'data-style'  => 'btn-default btn-sm',
@@ -59,10 +60,18 @@
 
         <?= view('partial/bootstrap_tables_locale') ?>
 
+        <?php if (!empty($start_date)) { ?>
+        start_date = "<?= esc($start_date) ?>";
+        <?php } ?>
+        <?php if (!empty($end_date)) { ?>
+        end_date = "<?= esc($end_date) ?>";
+        <?php } ?>
+
         // Once the user picks a grouping by hand it stops being recalculated. Until then the range
         // decides it: nobody choosing "All time" wants a row per day, and nobody choosing
         // "Yesterday" wants a row per month.
-        var granularity_touched = false;
+        // A grouping restored from the URL was already an explicit choice, so it is not recalculated.
+        var granularity_touched = <?= $granularity === null ? 'false' : 'true' ?>;
 
         $('#granularity').on('changed.bs.select', function() {
             granularity_touched = true;

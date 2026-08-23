@@ -151,8 +151,19 @@ class Reports extends Secure_Controller
                 'week'  => lang('Reports.granularity_week'),
                 'month' => lang('Reports.granularity_month')
             ],
-            'selected_filters' => []
+            'selected_filters' => [],
+            'granularity'      => null
         ];
+
+        // partial/table_filter_persistence writes the active filters into the URL so a filtered view
+        // can be shared or survive a back navigation. Reading them here is the other half of that:
+        // without it the URL carries state nobody restores.
+        $data = array_merge($data, restoreTableFilters($this->request));
+
+        $requested_granularity = $this->request->getGet('granularity', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+        if (in_array($requested_granularity, Income_expenses::GRANULARITIES, true)) {
+            $data['granularity'] = $requested_granularity;
+        }
 
         return view('reports/income_expenses_analytics', $data);
     }
