@@ -32,6 +32,11 @@ $routes->post('platform/admin/(:segment)/delete', 'PlatformAdmin::delete/$1');
 $routes->add('no_access/index/(:segment)', 'No_access::index/$1');
 $routes->add('no_access/index/(:segment)/(:segment)', 'No_access::index/$1/$2');
 
+// Analytical reports. Declared before the wildcards below: they do not collide today, but an
+// explicit order costs nothing and survives whoever adds the next (:any) pattern.
+$routes->add('reports/analytical_income_expenses', 'Reports::analytical_income_expenses');
+$routes->add('reports/analytical_income_expenses/search', 'Reports::getIncome_expenses_search');
+
 $routes->add('reports/summary_(:any)/(:any)/(:any)', 'Reports::Summary_$1/$2/$3/$4');
 $routes->add('reports/summary_expenses_categories', 'Reports::date_input_only');
 $routes->add('reports/summary_payments', 'Reports::date_input_only');

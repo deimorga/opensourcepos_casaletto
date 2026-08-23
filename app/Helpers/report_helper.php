@@ -41,6 +41,14 @@ function can_show_report(string $permission_id, array $restrict_views = []): boo
         return false;
     }
 
+    // The graphical and summary panels build their links by iterating every reports_* permission, so
+    // a permission without a matching reports/graphical_x and reports/summary_x route would appear
+    // there on its own, pointing at nothing. Analytical reports have their own panel and their own
+    // route, so they are excluded here the way inventory and receiving already are.
+    if (str_contains($permission_id, 'analytics')) {
+        return false;
+    }
+
     foreach ($restrict_views as $restrict_view) {
         if (str_contains($permission_id, $restrict_view)) {
             return false;

@@ -8,6 +8,7 @@ use App\Models\Stock_location;
 use App\Models\Supplier;
 use App\Models\Reports\Detailed_receivings;
 use App\Models\Reports\Detailed_sales;
+use App\Models\Reports\Income_expenses;
 use App\Models\Reports\Inventory_low;
 use App\Models\Reports\Inventory_summary;
 use App\Models\Reports\Specific_customer;
@@ -32,6 +33,7 @@ use Config\Services;
 class Reports extends Secure_Controller
 {
     private Attribute $attribute;
+    private Income_expenses $income_expenses;
     private array $config;
     private Customer $customer;
     private Stock_location $stock_location;
@@ -66,6 +68,7 @@ class Reports extends Secure_Controller
         $this->summary_sales_taxes = model(Summary_sales_taxes::class);
         $this->summary_categories = model(Summary_categories::class);
         $this->summary_expenses_categories = model(Summary_expenses_categories::class);
+        $this->income_expenses = model(Income_expenses::class);
         $this->summary_customers = model(Summary_customers::class);
         $this->summary_items = model(Summary_items::class);
         $this->summary_suppliers = model(Summary_suppliers::class);
@@ -118,6 +121,94 @@ class Reports extends Secure_Controller
         ];
 
         return view('reports/listing', $data);
+    }
+
+    /**
+     * Analytical report: income against operating expenses over the same period.
+     *
+     * Unlike the other twenty reports this one does not take its filters from a form that reloads
+     * the page. It uses the toolbar the Sales and Expenses grids use, so the table has to be able to
+     * re-query, which is what getIncome_expenses_search() below is for.
+     *
+     * @return string
+     * @noinspection PhpUnused
+     */
+    public function analytical_income_expenses(): string
+    {
+        $this->clearCache();
+
+        $payment_options = [];
+        foreach (payment_type_options() as $code => $label) {
+            $payment_options[$code] = $label;
+        }
+
+        $data = [
+            'controller_name'  => 'reports/analytical_income_expenses',
+            'table_headers'    => get_income_expenses_manage_table_headers(),
+            'payment_options'  => $payment_options,
+            'granularities'    => [
+                'day'   => lang('Reports.granularity_day'),
+                'week'  => lang('Reports.granularity_week'),
+                'month' => lang('Reports.granularity_month')
+            ],
+            'selected_filters' => []
+        ];
+
+        return view('reports/analytical_income_expenses', $data);
+    }
+
+    /**
+     * JSON feed for the analytical report's table and chart. Used in app/Config/Routes.php.
+     *
+     * @return ResponseInterface
+     * @noinspection PhpUnused
+     */
+    public function getIncome_expenses_search(): ResponseInterface
+    {
+        $inputs = [
+            'start_date'      => $this->request->getGet('start_date', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
+            'end_date'        => $this->request->getGet('end_date', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
+            'granularity'     => $this->request->getGet('granularity', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
+            'include_deleted' => false,
+            'payment_codes'   => []
+        ];
+
+        // The multiselect posts filter keys, not labels. Anything not on the whitelist is dropped
+        // rather than passed through: these values decide which rows a money figure is built from.
+        $requested = $this->request->getGet('filters', FILTER_SANITIZE_FULL_SPECIAL_CHARS) ?? [];
+        $known_codes = array_keys(payment_type_code_map());
+
+        foreach ($requested as $filter) {
+            if ($filter === 'include_deleted') {
+                $inputs['include_deleted'] = true;
+            } elseif (in_array($filter, $known_codes, true)) {
+                $inputs['payment_codes'][] = $filter;
+            }
+        }
+
+        $rows = $this->income_expenses->getData($inputs);
+        $summary = $this->income_expenses->getSummaryData($inputs);
+        $cash_mode = $this->income_expenses->isCashMode($inputs);
+
+        $data_rows = [];
+        foreach ($rows as $row) {
+            $data_rows[] = get_income_expenses_data_row($row);
+        }
+
+        return $this->response->setJSON([
+            'total'     => count($data_rows),
+            'rows'      => $data_rows,
+            'chart'     => [
+                'labels'   => array_column($rows, 'period'),
+                'income'   => array_map(static fn ($row) => round($row['income'], 2), $rows),
+                'expenses' => array_map(static fn ($row) => round($row['expenses'], 2), $rows)
+            ],
+            'summary'   => get_income_expenses_summary($summary, $cash_mode),
+            'cash_mode' => $cash_mode,
+            'subtitle'  => $this->_get_subtitle_report(['start_date' => $inputs['start_date'], 'end_date' => $inputs['end_date']])
+                . ($cash_mode ? ' — ' . lang('Reports.cash_mode_notice') : ''),
+            'income_header' => $cash_mode ? lang('Reports.income_collected') : lang('Reports.income')
+        ]);
     }
 
     /**

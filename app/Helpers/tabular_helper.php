@@ -964,3 +964,57 @@ function restoreTableFilters(IncomingRequest $request): array
         return $value !== null && $value !== [];
     });
 }
+
+/**
+ * Column headers for the analytical income-vs-expenses report.
+ *
+ * The income header is decided in the browser instead of here: the report changes what it measures
+ * when a payment method is selected, and the JSON feed sends the right wording with each response.
+ */
+function get_income_expenses_manage_table_headers(): string
+{
+    // transform_headers_readonly() takes a flat field => title map, not the nested shape the
+    // other header builders in this file use.
+    return transform_headers_readonly([
+        'period'   => lang('Reports.period'),
+        'income'   => lang('Reports.income'),
+        'expenses' => lang('Reports.expenses'),
+        'result'   => lang('Reports.result'),
+        'margin'   => lang('Reports.margin')
+    ]);
+}
+
+/**
+ * One period of the analytical report, formatted for display.
+ */
+function get_income_expenses_data_row(array $row): array
+{
+    return [
+        'period'   => $row['period'],
+        'income'   => to_currency($row['income']),
+        'expenses' => to_currency($row['expenses']),
+        // Plain text, no markup: the table renders with escape: true, so any HTML here would be
+        // shown to the user as literal tags. The minus sign carries the meaning on its own.
+        'result'   => to_currency($row['result']),
+        // Null, not zero: a period with no income shows a dash. "0%" would read as breaking even.
+        'margin'   => $row['margin'] === null ? '—' : number_format($row['margin'], 1) . '%'
+    ];
+}
+
+/**
+ * The totals block under the analytical report's table.
+ */
+function get_income_expenses_summary(array $summary, bool $cash_mode): string
+{
+    $income_label = $cash_mode ? lang('Reports.income_collected') : lang('Reports.income');
+
+    $table  = '<div id="report_summary">';
+    $table .= '<div class="summary_row">' . esc($income_label) . ': ' . to_currency($summary['total_income']) . '</div>';
+    $table .= '<div class="summary_row">' . lang('Reports.expenses') . ': ' . to_currency($summary['total_expenses']) . '</div>';
+    $table .= '<div class="summary_row"><b>' . lang('Reports.result') . ': ' . to_currency($summary['total_result']) . '</b></div>';
+    $table .= '<div class="summary_row">' . lang('Reports.margin') . ': '
+        . ($summary['total_margin'] === null ? '—' : number_format($summary['total_margin'], 1) . '%') . '</div>';
+    $table .= '</div>';
+
+    return $table;
+}

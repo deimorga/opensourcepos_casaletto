@@ -84,6 +84,17 @@ if (isset($error)) {
             </div>
         </div>
 
+        <?php if (in_array('reports_analytics', $permission_ids, true)) { ?>
+            <div class="panel panel-primary">
+                <div class="panel-heading">
+                    <h3 class="panel-title"><span class="glyphicon glyphicon-scale">&nbsp;</span><?= lang('Reports.analytical_reports') ?></h3>
+                </div>
+                <div class="list-group">
+                    <a class="list-group-item" href="<?= site_url('reports/analytical_income_expenses') ?>"><?= lang('Reports.income_expenses') ?></a>
+                </div>
+            </div>
+        <?php } ?>
+
         <?php if (in_array('reports_inventory', $permission_ids, true)) { ?>
             <div class="panel panel-primary">
                 <div class="panel-heading">
