@@ -30,7 +30,8 @@ class Sale extends Model
         'dinner_table_id',
         'work_order_number',
         'sale_type',
-        'location_id'
+        'location_id',
+        'cashup_id'
     ];
 
     public function __construct()
@@ -457,6 +458,13 @@ class Sale extends Model
         $builder->where('sale_id', $sale_id);
         $update_data = $sale_data;
         unset($update_data['payments']);
+
+        // Editing a sale never moves it to another shift. The stamp records where the money
+        // physically went, and correcting a customer or a comment months later does not change
+        // that. Dropping the key here rather than trusting every caller to leave it out means the
+        // edit form cannot re-attribute cash even by accident.
+        unset($update_data['cashup_id']);
+
         $success = $builder->update($update_data);
 
         // Touch payment only if update sale is successful and there is a payments object otherwise the result would be to delete all the payments associated to the sale
@@ -515,6 +523,57 @@ class Sale extends Model
     }
 
     /**
+     * The cash-up shift a sale is already sealed with, or null when it carries none. A sale that
+     * does not exist yet carries none either.
+     */
+    public function get_cashup_id(int $sale_id): ?int
+    {
+        if ($sale_id == NEW_ENTRY) {
+            return null;
+        }
+
+        $builder = $this->db->table('sales');
+        $builder->select('cashup_id');
+        $builder->where('sale_id', $sale_id);
+
+        $row = $builder->get()->getRow();
+
+        return $row === null || $row->cashup_id === null ? null : (int) $row->cashup_id;
+    }
+
+    /**
+     * The cash-up shift that is open right now, or null when none is.
+     *
+     * Only one shift is supposed to be open at a time. Until that is enforced at the Cashups end
+     * the history says otherwise -- shift 32 was opened while 31 was still running -- so this picks
+     * the one opened most recently, which is the drawer the cashier is actually standing at, and
+     * says out loud that it had to choose.
+     */
+    public function get_open_cashup_id(): ?int
+    {
+        $builder = $this->db->table('cash_up');
+        $builder->select('cashup_id');
+        $builder->where('status', 'open');
+        $builder->where('deleted', 0);
+        $builder->orderBy('open_date', 'desc');
+        $builder->orderBy('cashup_id', 'desc');
+
+        $rows = $builder->get()->getResultArray();
+
+        if ($rows === []) {
+            return null;
+        }
+
+        if (count($rows) > 1) {
+            // Error rather than warning: the production log threshold is 4, which throws warnings
+            // away, and money landing in the wrong drawer is not something to find out later.
+            log_message('error', count($rows) . ' cash-up shifts are open at once. Sales are being sealed with the most recently opened one, ' . $rows[0]['cashup_id'] . '. Close the others.');
+        }
+
+        return (int) $rows[0]['cashup_id'];
+    }
+
+    /**
      * Save the sale information after the sales is complete but before the final document is printed
      * The sales_taxes variable needs to be initialized to an empty array before calling
      * @throws ReflectionException
@@ -563,6 +622,25 @@ class Sale extends Model
             'dinner_table_id'   => $dinner_table_id,
             'sale_type'         => $sale_type
         ];
+
+        // Seal the sale with the cash-up shift that is open right now. This is the only moment the
+        // answer is knowable: shifts overlap each other and sale_time can be edited afterwards, so
+        // reading the shift back off the dates later gives the wrong one or several at once.
+        //
+        // A sale that is only suspended, quoted or sitting open on a table has not put any cash in
+        // a drawer yet, so nothing is stamped until it is completed -- if a sale is not closed in
+        // the shift it was rung up in, it counts for whichever shift is alive when it is closed.
+        // Once stamped it keeps that shift for good, including when it comes back through here.
+        //
+        // The column is looked for rather than assumed because the deploy workflows do not run
+        // migrations (see AGENTS.md): this code goes live minutes before somebody runs
+        // "php spark migrate" over SSH, and selling has to keep working in that gap instead of
+        // dying on an unknown column. Whatever is sold meanwhile is picked up by the backfill.
+        if ($sale_status == COMPLETED && $this->db->fieldExists('cashup_id', 'sales') && $this->get_cashup_id($sale_id) === null) {
+            // Null when no shift is open. A sale with no shift is a real answer the reports show as
+            // such, and it beats inventing an attribution nobody could tell from a genuine one.
+            $sales_data['cashup_id'] = $this->get_open_cashup_id();
+        }
 
         // Run these queries as a transaction, we want to make sure we do all or nothing
         $this->db->transStart();
