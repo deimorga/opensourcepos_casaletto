@@ -83,9 +83,12 @@ class Tax_categories extends Secure_Controller
      */
     public function postSave(int $tax_category_id = NEW_ENTRY): ResponseInterface
     {
+        // No input filter on the free-text fields below: FILTER_SANITIZE_FULL_SPECIAL_CHARS
+        // stores accented vowels as named HTML entities ("debito" -> "d&eacute;bito").
+        // Escaping is the output's job. See docs/Tecnico/errores-produccion-upstream.md section 5.
         $tax_category_data = [
-            'tax_category'       => $this->request->getPost('tax_category', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
-            'tax_category_code'  => $this->request->getPost('tax_category_code', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
+            'tax_category'       => $this->request->getPost('tax_category'),
+            'tax_category_code'  => $this->request->getPost('tax_category_code'),
             'tax_group_sequence' => $this->request->getPost('tax_group_sequence', FILTER_SANITIZE_NUMBER_INT)
         ];
 
@@ -107,7 +110,7 @@ class Tax_categories extends Secure_Controller
         } else {
             return $this->response->setJSON([
                 'success' => false,
-                'message' => lang('Tax_categories.error_adding_updating') . ' ' . $tax_category_data['tax_category'],
+                'message' => lang('Tax_categories.error_adding_updating') . ' ' . esc($tax_category_data['tax_category']),
                 'id'      => NEW_ENTRY
             ]);
         }

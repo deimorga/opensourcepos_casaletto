@@ -435,10 +435,13 @@ class Taxes extends Secure_Controller
     public function postSave_tax_codes(): ResponseInterface
     {
         $tax_code_id = $this->request->getPost('tax_code_id', FILTER_SANITIZE_NUMBER_INT);
-        $tax_code = $this->request->getPost('tax_code', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
-        $tax_code_name = $this->request->getPost('tax_code_name', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
-        $city = $this->request->getPost('city', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
-        $state = $this->request->getPost('state', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+        // No input filter on the free-text fields below: FILTER_SANITIZE_FULL_SPECIAL_CHARS
+        // stores accented vowels as named HTML entities ("debito" -> "d&eacute;bito").
+        // Escaping is the output's job. See docs/Tecnico/errores-produccion-upstream.md section 5.
+        $tax_code = $this->request->getPost('tax_code');
+        $tax_code_name = $this->request->getPost('tax_code_name');
+        $city = $this->request->getPost('city');
+        $state = $this->request->getPost('state');
 
         $array_save = [];    // TODO: the naming of this variable is not good.
         foreach ($tax_code_id as $key => $val) {
@@ -468,10 +471,10 @@ class Taxes extends Secure_Controller
     public function postSave_tax_jurisdictions(): ResponseInterface
     {
         $jurisdiction_id = $this->request->getPost('jurisdiction_id', FILTER_SANITIZE_NUMBER_INT);
-        $jurisdiction_name = $this->request->getPost('jurisdiction_name', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
-        $tax_group = $this->request->getPost('tax_group', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+        $jurisdiction_name = $this->request->getPost('jurisdiction_name');
+        $tax_group = $this->request->getPost('tax_group');
         $tax_type = $this->request->getPost('tax_type', FILTER_SANITIZE_NUMBER_INT);
-        $reporting_authority = $this->request->getPost('reporting_authority', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+        $reporting_authority = $this->request->getPost('reporting_authority');
         $tax_group_sequence = $this->request->getPost('tax_group_sequence', FILTER_SANITIZE_NUMBER_INT);
         $cascade_sequence = $this->request->getPost('cascade_sequence', FILTER_SANITIZE_NUMBER_INT);
 
@@ -492,7 +495,7 @@ class Taxes extends Secure_Controller
             if (in_array($tax_group[$key], $unique_tax_groups)) {    // TODO: This can be replaced with `in_array($tax_group[$key], $unique_tax_groups)`
                 return $this->response->setJSON([
                     'success' => false,
-                    'message' => lang('Taxes.tax_group_not_unique', [$tax_group[$key]])
+                    'message' => lang('Taxes.tax_group_not_unique', [esc($tax_group[$key])])
                 ]);
             } else {
                 $unique_tax_groups[] = $tax_group[$key];
@@ -516,7 +519,7 @@ class Taxes extends Secure_Controller
     public function postSave_tax_categories(): ResponseInterface
     {
         $tax_category_id = $this->request->getPost('tax_category_id', FILTER_SANITIZE_NUMBER_INT);
-        $tax_category = $this->request->getPost('tax_category', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+        $tax_category = $this->request->getPost('tax_category');
         $tax_group_sequence = $this->request->getPost('tax_group_sequence', FILTER_SANITIZE_NUMBER_INT);
 
         $array_save = [];

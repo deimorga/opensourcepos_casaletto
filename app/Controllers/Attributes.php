@@ -65,7 +65,7 @@ class Attributes extends Secure_Controller
     public function postSaveAttributeValue(): ResponseInterface
     {
         $success = $this->attribute->saveAttributeValue(
-            html_entity_decode($this->request->getPost('attribute_value')),
+            $this->request->getPost('attribute_value'),
             $this->request->getPost('definition_id', FILTER_SANITIZE_NUMBER_INT),
             $this->request->getPost('item_id', FILTER_SANITIZE_NUMBER_INT) ?? false,
             $this->request->getPost('attribute_id', FILTER_SANITIZE_NUMBER_INT) ?? false
@@ -82,7 +82,7 @@ class Attributes extends Secure_Controller
     public function postDeleteDropdownAttributeValue(): ResponseInterface
     {
         $success = $this->attribute->deleteDropdownAttributeValue(
-            html_entity_decode($this->request->getPost('attribute_value')),
+            $this->request->getPost('attribute_value'),
             $this->request->getPost('definition_id', FILTER_SANITIZE_NUMBER_INT)
         );
 
@@ -100,10 +100,16 @@ class Attributes extends Secure_Controller
     {
         $definition_flags = 0;
 
-        $flags = (empty($this->request->getPost('definition_flags'))) ? [] : $this->request->getPost('definition_flags', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+        // No input filter on user text in this file: FILTER_SANITIZE_FULL_SPECIAL_CHARS
+        // stores accented vowels as named HTML entities ("debito" -> "d&eacute;bito"),
+        // and escaping is the output's job. It stays only on the ASCII-only sort, order
+        // and ids parameters. See docs/Tecnico/errores-produccion-upstream.md section 5.
+        // definition_flags carries integer bitmask ids, so cast instead of filtering:
+        // a non-numeric value would make the |= below raise a TypeError.
+        $flags = (array)$this->request->getPost('definition_flags');
 
         foreach ($flags as $flag) {
-            $definition_flags |= $flag;
+            $definition_flags |= (int)$flag;
         }
 
         // Validate definition_group (definition_fk) foreign key
@@ -135,7 +141,13 @@ class Attributes extends Secure_Controller
         if ($this->attribute->saveDefinition($definition_data, $definition_id)) {
             // New definition
             if ($definition_id == NO_DEFINITION_ID) {
-                $definition_values = json_decode(html_entity_decode($this->request->getPost('definition_values')));
+                // The form posts JSON.stringify() output, so decoding entities here would
+                // rewrite a value such as "&quot;" into a quote and break the JSON.
+                $definition_values = json_decode($this->request->getPost('definition_values') ?? '[]');
+
+                if (!is_array($definition_values)) {
+                    $definition_values = [];
+                }
 
                 foreach ($definition_values as $definition_value) {
                     $this->attribute->saveAttributeValue($definition_value, $definition_data['definition_id']);
@@ -143,20 +155,20 @@ class Attributes extends Secure_Controller
 
                 return $this->response->setJSON([
                     'success' => true,
-                    'message' => lang('Attributes.definition_successful_adding') . ' ' . $definition_name,
+                    'message' => lang('Attributes.definition_successful_adding') . ' ' . esc($definition_name),
                     'id'      => $definition_data['definition_id']
                 ]);
             } else { // Existing definition
                 return $this->response->setJSON([
                     'success' => true,
-                    'message' => lang('Attributes.definition_successful_updating') . ' ' . $definition_name,
+                    'message' => lang('Attributes.definition_successful_updating') . ' ' . esc($definition_name),
                     'id'      => $definition_id
                 ]);
             }
         } else { // Failure
             return $this->response->setJSON([
                 'success' => false,
-                'message' => lang('Attributes.definition_error_adding_updating', [$definition_name]),
+                'message' => lang('Attributes.definition_error_adding_updating', [esc($definition_name)]),
                 'id'      => NEW_ENTRY
             ]);
         }
@@ -196,6 +208,10 @@ class Attributes extends Secure_Controller
      */
     public function getSuggestAttribute(int $definition_id): ResponseInterface
     {
+        // Kept on purpose, unlike the other html_entity_decode() calls in this file:
+        // app/Views/attributes/item.php passes the TEXT input's value through esc()
+        // before form_input() escapes it again, so the term really does arrive
+        // entity-encoded. Removing the decode requires fixing that double escape first.
         $suggestions = $this->attribute->get_suggestions($definition_id, html_entity_decode($this->request->getGet('term')));
 
         return $this->response->setJSON($suggestions);

@@ -204,20 +204,20 @@ class Item_kits extends Secure_Controller
             if ($new_item) {
                 return $this->response->setJSON([
                     'success' => $success,
-                    'message' => lang('Item_kits.successful_adding') . ' ' . $item_kit_data['name'],
+                    'message' => lang('Item_kits.successful_adding') . ' ' . esc($item_kit_data['name']),
                     'id'      => $item_kit_id
                 ]);
             } else {
                 return $this->response->setJSON([
                     'success' => $success,
-                    'message' => lang('Item_kits.successful_updating') . ' ' . $item_kit_data['name'],
+                    'message' => lang('Item_kits.successful_updating') . ' ' . esc($item_kit_data['name']),
                     'id'      => $item_kit_id
                 ]);
             }
         } else { // Failure
             return $this->response->setJSON([
                 'success' => false,
-                'message' => lang('Item_kits.error_adding_updating') . ' ' . $item_kit_data['name'],
+                'message' => lang('Item_kits.error_adding_updating') . ' ' . esc($item_kit_data['name']),
                 'id'      => NEW_ENTRY
             ]);
         }
@@ -248,7 +248,11 @@ class Item_kits extends Secure_Controller
      */
     public function postCheckItemNumber(): ResponseInterface
     {
-        $exists = $this->item_kit->item_number_exists($this->request->getPost('item_kit_number', FILTER_SANITIZE_FULL_SPECIAL_CHARS), $this->request->getPost('item_kit_id', FILTER_SANITIZE_NUMBER_INT));
+        // No input filter on item_kit_number: FILTER_SANITIZE_FULL_SPECIAL_CHARS stores
+        // accented vowels as named HTML entities, and postSave() already reads this field
+        // unfiltered, so filtering here would check a different string than the one stored.
+        // See docs/Tecnico/errores-produccion-upstream.md section 5.
+        $exists = $this->item_kit->item_number_exists($this->request->getPost('item_kit_number'), $this->request->getPost('item_kit_id', FILTER_SANITIZE_NUMBER_INT));
         return $this->response->setJSON(!$exists ? 'true' : 'false');
     }
 

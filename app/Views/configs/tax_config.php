@@ -98,7 +98,7 @@
                 <div class="col-xs-2">
                     <?= form_dropdown(
                         'default_tax_code',
-                        $tax_code_options,
+                        esc($tax_code_options),
                         $config['default_tax_code'],
                         'class="form-control input-sm"'
                     ) ?>
@@ -110,7 +110,7 @@
                 <div class="col-xs-2">
                     <?= form_dropdown(
                         'default_tax_category',
-                        $tax_category_options,
+                        esc($tax_category_options),
                         $config['default_tax_category'],
                         'class="form-control input-sm"'
                     ) ?>
@@ -122,7 +122,7 @@
                 <div class="col-xs-2">
                     <?= form_dropdown(
                         'default_tax_jurisdiction',
-                        $tax_jurisdiction_options,
+                        esc($tax_jurisdiction_options),
                         $config['default_tax_jurisdiction'],
                         'class="form-control input-sm"'
                     ) ?>
