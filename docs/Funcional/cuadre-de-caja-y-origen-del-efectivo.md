@@ -1,6 +1,7 @@
 # Alcance funcional — Cuadre de caja: origen del efectivo, conciliación del turno y reporte
 
-> **Estado a 2026-08-23: en definición.** Sin implementar. Documento en construcción con el usuario.
+> **Estado a 2026-08-23: alcance cerrado.** Sin implementar. Diseño técnico en
+> `docs/Tecnico/cuadre-de-caja-y-origen-del-efectivo.md`.
 
 ---
 
@@ -299,4 +300,4 @@ partir de él.** El valor real está en cargarlo como movimiento.
 
 ## 8. Referencia técnica
 
-Pendiente. Se escribirá cuando se cierren las preguntas de la sección 7.
+`docs/Tecnico/cuadre-de-caja-y-origen-del-efectivo.md`
