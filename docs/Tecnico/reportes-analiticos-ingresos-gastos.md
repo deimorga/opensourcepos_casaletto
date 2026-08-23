@@ -790,6 +790,71 @@ Hay 33 sitios que llaman a `$.notify` repartidos entre vistas y JS compartido, a
 único sink donde arreglarlo de una vez. Escapar en el controlador queda como el patrón a seguir en
 los módulos que faltan.
 
+### Pruebas profundas en staging con navegador real (2026-08-22) — ✅
+
+A pedido del usuario, que prefiere concentrar el esfuerzo de pruebas antes de desplegar en vez de
+encadenar despliegues. Todo manejado con Chrome real vía `chrome-devtools`, con sesión iniciada por
+el usuario.
+
+**Barrido de errores de JavaScript.** 11 pantallas tocadas por los agentes (`employees`, `suppliers`,
+`items`, `item_kits`, `expenses`, `expenses_categories`, `cashups`, `receivings`, `sales`, `taxes`,
+`attributes`): **cero errores de JS** en todas. El único mensaje de consola es un aviso de
+accesibilidad preexistente.
+
+*Nota de método:* el primer intento de este barrido dio "0 errores" en las 14 páginas, pero era un
+falso positivo — mi patrón de conteo no leía el formato de salida real. Se detectó contrastando con
+la salida cruda. Es la misma trampa ya documentada en [[verificacion-staging-headless-curl]]: **un
+conteo que sale demasiado limpio hay que contrastarlo antes de darlo por bueno.**
+
+**Guardados con caracteres difíciles, por la aplicación real:**
+
+| Dato guardado | Verificación |
+|---|---|
+| Empleado "José Andrés Muñoz Peña", Bogotá, `ñ á é í ó ú ü ¿ ¡` | `hex 4A6F73 C3A9 …` ✅ |
+| Proveedor "Ron **&** Cola Distribución S.A.S." | `&` = `0x26` literal ✅ |
+| Comentario de venta "Pedido para José Muñoz **—** … cebolla **&** con ají" | tildes, `ñ`, **raya em de 3 bytes** (`E28094`) y `&` ✅ |
+| Gasto "Compra de jamón, café **&** azúcar **—** proveedor del rincón" | todos los bytes correctos ✅ |
+| Categoría de gasto "Insumos Panadería & Café" / "…ñoño, **açaí**, ¿qué?" | incluye `ç` y `¿?` ✅ |
+
+**Barrido final de entidades en toda la base de staging: cero** en pagos, comentarios de venta,
+líneas de venta, gastos, categorías, personas, proveedores y descripciones de artículo.
+
+**Verificación del lado de la salida** (el riesgo opuesto: sobre-escapar):
+
+- Grilla de empleados muestra `José Andrés`, sin entidades.
+- Grilla de proveedores muestra `Ron & Cola`; el HTML lleva `&amp;` **una sola vez**, sin doble
+  escapado.
+- El selector de empleados del reporte específico muestra `José Andrés Muñoz Peña` correctamente —
+  confirma en vivo el escapado de etiquetas de `form_dropdown` que agregaron los agentes.
+- El desplegable de categorías del formulario de gastos muestra `Insumos Panadería & Café`.
+- Buscar "Muñoz" encuentra al empleado recién creado: el circuito guardar → mostrar → buscar cierra.
+
+**Cero errores PHP de peticiones web** en todo el ejercicio (el único `CRITICAL` del log es un
+`migrate:rollback` por CLI provocado durante las pruebas de la migración).
+
+**Sobre el camino de PDF/correo:** de las plantillas de correo, los agentes tocaron **una sola línea**
+— un `esc()` sobre `tax_group` en `receipt_email.php`. `esc()` en contexto html es
+`htmlspecialchars`, que deja las tildes intactas, y las tablas de impuestos están vacías, así que ese
+bucle ni se ejecuta. No se generó un PDF de verdad porque el único endpoint que lo produce
+(`getSendPdf`) envía correo, y no correspondía dispararlo desde staging.
+
+### Hallazgo aparte: hay 500 que no se registran en ningún log
+
+Reproducido durante estas pruebas: un POST incompleto a `item_kits/save` devuelve **HTTP 500** y el
+log de la aplicación **no crece ni una línea**; tampoco aparece nada en el stderr del contenedor. El
+500 solo consta en el log de acceso del servidor web.
+
+`app/Config/Exceptions.php` tiene `$log = true` y solo ignora el código 404, así que debería
+registrarse. **No está diagnosticado.**
+
+**No es una regresión de este trabajo** — verificado leyendo el diff: en `Item_kits.php` solo
+cambiaron tres mensajes de notificación y el filtro de `item_kit_number` en la comprobación de
+duplicados; la ruta de datos de `postSave` no se tocó, y esos campos ya se leían sin filtro desde
+antes. El mismo endpoint con el POST completo responde 200.
+
+Pero importa: **un 500 que no llega al log es exactamente el punto ciego que este trabajo viene
+persiguiendo.** Queda anotado para investigarlo aparte.
+
 ### Fase 1b — erradicación del filtro (ver 7.6)
 
 Módulo por módulo, en el orden de la tabla de 7.6. Cada módulo es un commit propio: auditoría de
