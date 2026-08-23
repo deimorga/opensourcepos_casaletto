@@ -442,6 +442,26 @@ Los doce artículos existen. Buscar con tilde no encuentra ninguno porque el té
 aplicación para sufrirlo: **basta con que los datos las tengan**, y los 26 nombres de artículo que
 entraron por el import de Siigo las tienen.
 
+**Corregido y verificado en staging el 2026-08-22** (commit `00c595492`), adelantado al despliegue
+de la fase 1 por ser el caso más grave y a la vez el más barato:
+
+| Búsqueda en Artículos | Antes | Después |
+|---|---|---|
+| "Jamón" (con tilde) | **0** | **12** ✅ |
+| "Jamon" (sin tilde) | 12 | 12 ✅ |
+| "navideño" (con ñ) | 0 | 2 ✅ |
+| "Tocineta" (control, sin tildes) | 2 | 2 ✅ |
+
+Y sin efectos colaterales: la grilla de Ventas sigue devolviendo sus 5 filas, y los filtros de medio
+de pago siguen dando `Tarjeta de débito: $68.000`, `Transferencia Bancaria: $17.000` y
+`Efectivo: $37.500` — este último sin arrastrar el ajuste de caja.
+
+**Por qué este caso no necesitó auditoría de salida**, a diferencia del resto de la fase 1b: el
+término solo llega a SQL por el query builder, que lo escapa, y no se imprime en ninguna vista ni se
+devuelve en ninguna respuesta JSON. Rastreado uno por uno: en `Items` va a `search()` y
+`get_found_rows()`; en `Sales`, además, a `isValidReceipt()` y `get_payments_summary()`. No hay
+salida que escapar primero.
+
 **Esto reordena la fase 1b.** El orden por módulos que sigue abajo asumía que el riesgo estaba en los
 nombres propios. El primer objetivo real son **las dos lecturas de `search`**: cuestan dos líneas,
 no requieren auditoría de salida (el término no se imprime en crudo en ninguna parte) y arreglan una
