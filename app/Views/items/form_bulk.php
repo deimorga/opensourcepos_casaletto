@@ -42,7 +42,8 @@
         <div class="form-group form-group-sm">
             <?= form_label(lang('Items.supplier'), 'supplier', ['class' => 'control-label col-xs-3']) ?>
             <div class="col-xs-8">
-                <?= form_dropdown('supplier_id', $suppliers, '', ['class' => 'form-control']) ?>
+                <?php // form_dropdown() escapes option values but not option labels, so the supplier company names must be escaped here. ?>
+                <?= form_dropdown('supplier_id', esc($suppliers), '', ['class' => 'form-control']) ?>
             </div>
         </div>
 

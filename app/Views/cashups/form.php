@@ -47,7 +47,8 @@ $close_field_attrs = $is_closed ? ['disabled' => 'disabled'] : [];
         <div class="form-group form-group-sm">
             <?= form_label(lang('Cashups.open_employee'), 'open_employee', ['class' => 'control-label col-xs-3']) ?>
             <div class="col-xs-6">
-                <?= form_dropdown('open_employee_id', $employees, $cash_ups_info->open_employee_id, array_merge(['id' => 'open_employee_id', 'class' => 'form-control'], $open_field_attrs)) ?>
+                <?php // form_dropdown() escapes option values but not option labels, so the employee names must be escaped here. ?>
+                <?= form_dropdown('open_employee_id', esc($employees), $cash_ups_info->open_employee_id, array_merge(['id' => 'open_employee_id', 'class' => 'form-control'], $open_field_attrs)) ?>
             </div>
         </div>
 
@@ -113,7 +114,7 @@ $close_field_attrs = $is_closed ? ['disabled' => 'disabled'] : [];
         <div class="form-group form-group-sm">
             <?= form_label(lang('Cashups.close_employee'), 'close_employee', ['class' => 'control-label col-xs-3']) ?>
             <div class="col-xs-6">
-                <?= form_dropdown('close_employee_id', $employees, $cash_ups_info->close_employee_id, array_merge(['id' => 'close_employee_id', 'class' => 'form-control'], $close_field_attrs)) ?>
+                <?= form_dropdown('close_employee_id', esc($employees), $cash_ups_info->close_employee_id, array_merge(['id' => 'close_employee_id', 'class' => 'form-control'], $close_field_attrs)) ?>
             </div>
         </div>
 

@@ -42,7 +42,8 @@ if (isset($error)) {
     <div class="form-group form-group-sm" id="report_specific_input_data">
         <?= form_label($specific_input_name, 'specific_input_name_label', ['class' => 'required control-label col-xs-2']) ?>
         <div class="col-xs-3 discount_percent">
-            <?= form_dropdown('specific_input_data', $specific_input_data, '', 'id="specific_input_data" class="form-control"') ?>
+            <?php // form_dropdown() escapes option values but not option labels, and these labels are employee/supplier/item names. ?>
+            <?= form_dropdown('specific_input_data', esc($specific_input_data), '', 'id="specific_input_data" class="form-control"') ?>
         </div>
 
         <?php if (isset($discount_type_options)) { ?>

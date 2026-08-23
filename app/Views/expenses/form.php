@@ -127,7 +127,8 @@
             <?= form_label(lang('Expenses.employee'), 'employee', ['class' => 'control-label col-xs-3']) ?>
             <div class="col-xs-6">
                 <?php if ($can_assign_employee): ?>
-                    <?= form_dropdown('employee_id', $employees, $expenses_info->employee_id, 'id="employee_id" class="form-control"') ?>
+                    <?php // form_dropdown() escapes option values but not option labels, so the employee names must be escaped here. ?>
+                    <?= form_dropdown('employee_id', esc($employees), $expenses_info->employee_id, 'id="employee_id" class="form-control"') ?>
                 <?php else: ?>
                     <?= form_hidden('employee_id', $expenses_info->employee_id) ?>
                     <?= form_input(['name' => 'employee_name', 'value' => esc($employees[$expenses_info->employee_id] ?? ''), 'class' => 'form-control', 'readonly' => 'readonly']) ?>
