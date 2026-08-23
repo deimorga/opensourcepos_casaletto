@@ -65,12 +65,33 @@ decide el valor así:
 
 ```
 si el medio de pago no es efectivo        -> null
-si quien registra NO tiene 'config'       -> 'register'   (ignora lo que venga en el POST)
+si quien registra NO tiene 'config'
+      y el gasto ya tenía un origen        -> se conserva el que ya tenía
+      y no tenía ninguno                   -> 'register'   (ignora lo que venga en el POST)
 si tiene 'config'                          -> lo que eligió, y si no eligió, se rechaza el guardado
 ```
 
 Rechazar es deliberado: es la lección del turno 29 — **un dato que no se pudo determinar tiene que
 hacer ruido, no convertirse en el valor más inocente disponible.**
+
+**Editar no es decidir** *(corregido el 2026-08-23, ver 3.4)*. La primera versión de esta regla decía
+que quien no tiene `config` siempre escribe `'register'`. Eso es correcto al **crear** un gasto y
+equivocado al **editarlo**: un cajero que abre un gasto que un administrador marcó como `collected` y
+le corrige la descripción se lo voltearía a `register`, y el cajón de ese día aparecería corto sin
+nada en el registro que lo explique.
+
+`'register'` queda como respaldo solo cuando **no hay ninguna decisión previa que conservar** — un
+gasto nuevo, o uno que era transferencia y pasa a efectivo — que es además el único bolsillo que un
+cajero alcanza. Un valor guardado nunca contesta por el administrador: si tiene `config` y no eligió,
+se rechaza igual, haya lo que haya en la columna.
+
+### 3.4 Por qué esta regla espeja a la de `employee_id`
+
+`Expenses::postSave()` ya resolvía exactamente el mismo problema tres líneas más arriba, para el
+empleado al que se le imputa el gasto: lee el POST, y si quien guarda no tiene el permiso `employees`,
+usa su propio id **al crear** y **conserva el almacenado al editar**. La regla del origen del efectivo
+sigue esa misma forma a propósito. Cualquier campo con sesgo por rol en este formulario debería
+seguirla: es la que distingue *no puedes decidir esto* de *no puedes conservar lo que otro decidió*.
 
 ## 4. Registro de recogidas de caja
 

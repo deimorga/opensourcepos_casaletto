@@ -87,6 +87,13 @@ tarjetas del negocio. Para él el campo no se pregunta: se fija en "efectivo de 
 
 **Un administrador elige**, porque sí puede pagar de cualquier origen.
 
+**Un cajero que edita un gasto ajeno no le cambia el origen** *(añadido el 2026-08-23)*. Si un
+administrador marcó un gasto como pagado con efectivo recolectado y luego un cajero le corrige la
+descripción, el gasto **conserva** el origen que el administrador le puso. Lo contrario dejaría que
+una corrección de texto moviera dinero de un bolsillo al otro, y el cuadre de ese día saldría corto
+sin nada que lo explique. Se fija en "efectivo de caja" únicamente cuando no hay una decisión previa
+que conservar.
+
 **Validado con los datos**: de los 59 gastos registrados, el cajero Juan David Nieto registró **los 55
 en efectivo, sin excepción**, y el administrador Deiby Moreno las 2 transferencias. La separación ya
 existe en la práctica.
