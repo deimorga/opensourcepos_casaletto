@@ -374,7 +374,13 @@ class Sales extends Secure_Controller
      */
     public function postSetComment(): ResponseInterface
     {
-        $this->sale_lib->set_comment($this->request->getPost('comment', FILTER_SANITIZE_FULL_SPECIAL_CHARS));
+        // Free-text fields in this controller are read without FILTER_SANITIZE_FULL_SPECIAL_CHARS:
+        // despite what the manual says, it behaves like htmlentities() and stores accented letters as
+        // named HTML entities ("Jamón" -> "Jam&oacute;n"). Escaping is the output's job and every
+        // place these values are rendered -- register, receipts, invoices, quotes, work orders, the
+        // e-mailed/PDF templates and the grids -- already escapes them. See
+        // docs/Tecnico/errores-produccion-upstream.md section 5.
+        $this->sale_lib->set_comment($this->request->getPost('comment'));
         return $this->response->setJSON(['success' => true]);
     }
 
@@ -581,7 +587,7 @@ class Sales extends Secure_Controller
             }
         }
 
-        $item_id_or_number_or_item_kit_or_receipt = $this->request->getPost('item', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+        $item_id_or_number_or_item_kit_or_receipt = $this->request->getPost('item');
         $this->token_lib->parse_barcode($quantity, $price, $item_id_or_number_or_item_kit_or_receipt);
         $mode = $this->sale_lib->get_mode();
         $quantity = ($mode == 'return') ? -$quantity : $quantity;
@@ -665,8 +671,8 @@ class Sales extends Secure_Controller
         ];
 
         if ($this->validate($rules, $messages)) {
-            $description = $this->request->getPost('description', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
-            $serialnumber = $this->request->getPost('serialnumber', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+            $description = $this->request->getPost('description');
+            $serialnumber = $this->request->getPost('serialnumber');
             $price = parse_decimals($this->request->getPost('price'));
             $quantity = parse_decimals($this->request->getPost('quantity'));
             $discount_type = $this->request->getPost('discount_type', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
@@ -1598,8 +1604,8 @@ class Sales extends Secure_Controller
             'sale_time'      => $sale_time,
             'customer_id'    => $this->request->getPost('customer_id') != '' ? $this->request->getPost('customer_id', FILTER_SANITIZE_NUMBER_INT) : null,
             'employee_id'    => $this->request->getPost('employee_id') != '' ? $this->request->getPost('employee_id', FILTER_SANITIZE_NUMBER_INT) : null,
-            'comment'        => $this->request->getPost('comment', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
-            'invoice_number' => $this->request->getPost('invoice_number') != '' ? $this->request->getPost('invoice_number', FILTER_SANITIZE_FULL_SPECIAL_CHARS) : null
+            'comment'        => $this->request->getPost('comment'),
+            'invoice_number' => $this->request->getPost('invoice_number') != '' ? $this->request->getPost('invoice_number') : null
         ];
 
         // In order to maintain tradition the only element that can change on prior payments is the payment type
@@ -1835,7 +1841,7 @@ class Sales extends Secure_Controller
     public function postCheckInvoiceNumber(): ResponseInterface
     {
         $sale_id = $this->request->getPost('sale_id', FILTER_SANITIZE_NUMBER_INT);
-        $invoice_number = $this->request->getPost('invoice_number', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+        $invoice_number = $this->request->getPost('invoice_number');
         $exists = !empty($invoice_number) && $this->sale->check_invoice_number_exists($invoice_number, $sale_id);
         return $this->response->setJSON(!$exists ? 'true' : 'false');
     }
@@ -1870,7 +1876,7 @@ class Sales extends Secure_Controller
     public function postChangeItemNumber(): ResponseInterface
     {
         $item_id = $this->request->getPost('item_id', FILTER_SANITIZE_NUMBER_INT);
-        $item_number = $this->request->getPost('item_number', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+        $item_number = $this->request->getPost('item_number');
         $this->item->update_item_number($item_id, $item_number);
         $cart = $this->sale_lib->get_cart();
         $x = $this->search_cart_for_item_id($item_id, $cart);
@@ -1890,7 +1896,7 @@ class Sales extends Secure_Controller
     public function postChangeItemName(): ResponseInterface
     {
         $item_id = $this->request->getPost('item_id', FILTER_SANITIZE_NUMBER_INT);
-        $name = $this->request->getPost('item_name', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+        $name = $this->request->getPost('item_name');
 
         $this->item->update_item_name($item_id, $name);
 
@@ -1914,7 +1920,7 @@ class Sales extends Secure_Controller
     public function postChangeItemDescription(): ResponseInterface
     {
         $item_id = $this->request->getPost('item_id', FILTER_SANITIZE_NUMBER_INT);
-        $description = $this->request->getPost('item_description', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+        $description = $this->request->getPost('item_description');
 
         $this->item->update_item_description($item_id, $description);
 

@@ -108,7 +108,12 @@ class Receivings extends Secure_Controller
      */
     public function postChangeMode(): string
     {
-        $stock_destination = $this->request->getPost('stock_destination', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+        // Free-text fields in this controller are read without FILTER_SANITIZE_FULL_SPECIAL_CHARS:
+        // despite what the manual says, it behaves like htmlentities() and stores accented letters as
+        // named HTML entities ("Jamón" -> "Jam&oacute;n"). Escaping is the output's job and the
+        // receiving register, the receipt and the grid already escape these values. See
+        // docs/Tecnico/errores-produccion-upstream.md section 5.
+        $stock_destination = $this->request->getPost('stock_destination');
         $stock_source = $this->request->getPost('stock_source', FILTER_SANITIZE_NUMBER_INT);
 
         if ((!$stock_source || $stock_source == $this->receiving_lib->get_stock_source()) &&
@@ -132,7 +137,7 @@ class Receivings extends Secure_Controller
      */
     public function postSetComment(): ResponseInterface
     {
-        $this->receiving_lib->set_comment($this->request->getPost('comment', FILTER_SANITIZE_FULL_SPECIAL_CHARS));
+        $this->receiving_lib->set_comment($this->request->getPost('comment'));
         return $this->response->setJSON(['success' => true]);
     }
 
@@ -154,7 +159,7 @@ class Receivings extends Secure_Controller
      */
     public function postSetReference(): ResponseInterface
     {
-        $this->receiving_lib->set_reference($this->request->getPost('recv_reference', FILTER_SANITIZE_FULL_SPECIAL_CHARS));
+        $this->receiving_lib->set_reference($this->request->getPost('recv_reference'));
         return $this->response->setJSON(['success' => true]);
     }
 
@@ -169,7 +174,7 @@ class Receivings extends Secure_Controller
         $data = [];
 
         $mode = $this->receiving_lib->get_mode();
-        $item_id_or_number_or_item_kit_or_receipt = $this->request->getPost('item', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+        $item_id_or_number_or_item_kit_or_receipt = $this->request->getPost('item');
         $this->token_lib->parse_barcode($quantity, $price, $item_id_or_number_or_item_kit_or_receipt);
         $quantity = ($mode == 'receive' || $mode == 'requisition') ? $quantity : -$quantity;
         $item_location = $this->receiving_lib->get_stock_source();
@@ -208,8 +213,8 @@ class Receivings extends Secure_Controller
         $quantity = parse_quantity($this->request->getPost('quantity'));
         $raw_receiving_quantity = parse_quantity($this->request->getPost('receiving_quantity'));
 
-        $description = $this->request->getPost('description', FILTER_SANITIZE_FULL_SPECIAL_CHARS);    // TODO: Duplicated code
-        $serialnumber = $this->request->getPost('serialnumber', FILTER_SANITIZE_FULL_SPECIAL_CHARS) ?? '';
+        $description = $this->request->getPost('description');    // TODO: Duplicated code
+        $serialnumber = $this->request->getPost('serialnumber') ?? '';
         $discount_type = $this->request->getPost('discount_type', FILTER_SANITIZE_NUMBER_INT);
         $discount = $discount_type
             ? parse_quantity(filter_var($this->request->getPost('discount'), FILTER_SANITIZE_NUMBER_FLOAT, FILTER_FLAG_ALLOW_FRACTION))
@@ -518,8 +523,8 @@ class Receivings extends Secure_Controller
             'receiving_time' => $receiving_time,
             'supplier_id'    => $this->request->getPost('supplier_id') ? $this->request->getPost('supplier_id', FILTER_SANITIZE_NUMBER_INT) : null,
             'employee_id'    => $employee_id,
-            'comment'        => $this->request->getPost('comment', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
-            'reference'      => $this->request->getPost('reference') != '' ? $this->request->getPost('reference', FILTER_SANITIZE_FULL_SPECIAL_CHARS) : null
+            'comment'        => $this->request->getPost('comment'),
+            'reference'      => $this->request->getPost('reference') != '' ? $this->request->getPost('reference') : null
         ];
 
         $this->inventory->update('RECV ' . $receiving_id, ['trans_date' => $receiving_time]);
