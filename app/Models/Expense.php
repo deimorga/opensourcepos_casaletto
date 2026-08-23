@@ -22,6 +22,10 @@ class Expense extends Model
         'amount',
         'payment_type',
         'payment_type_code',
+        // CodeIgniter drops any field that is not listed here without a word. That is how
+        // payment_type_code was silently discarded on its first attempt, and the cash source is the
+        // one column the cash-up is going to subtract with.
+        'cash_source',
         'expense_category_id',
         'description',
         'employee_id',
@@ -125,6 +129,7 @@ class Expense extends Model
                 MAX(expenses.amount) AS amount,
                 MAX(expenses.tax_amount) AS tax_amount,
                 MAX(expenses.payment_type) AS payment_type,
+                MAX(expenses.cash_source) AS cash_source,
                 MAX(expenses.description) AS description,
                 MAX(employees.first_name) AS first_name,
                 MAX(employees.last_name) AS last_name,
@@ -182,6 +187,8 @@ class Expense extends Model
             }
         }
 
+        $this->apply_cash_source_filters($builder, $filters, 'expenses.cash_source');
+
         if ($count_only) {    // TODO: replace this with `if ($count_only)`
             return $builder->get()->getRow()->count;
         }
@@ -195,6 +202,33 @@ class Expense extends Model
         }
 
         return $builder->get();
+    }
+
+    /**
+     * Narrows a query down to one or both cash sources, matched on the stored code.
+     *
+     * Unlike the payment type filters above, picking both of these returns the union rather than
+     * nothing: "register or collected" is the natural reading of ticking both boxes, and it is also
+     * the useful one -- it isolates the cash expenses from the transfers.
+     *
+     * $column is passed in because the two callers build their query differently: search() aliases
+     * the table and has to qualify the column, get_payments_summary() does not.
+     *
+     * @param mixed $builder
+     */
+    private function apply_cash_source_filters($builder, array $filters, string $column): void
+    {
+        $cash_sources = [];
+
+        foreach (['only_register' => 'register', 'only_collected' => 'collected'] as $filter => $code) {
+            if (!empty($filters[$filter])) {
+                $cash_sources[] = $code;
+            }
+        }
+
+        if ($cash_sources !== []) {
+            $builder->whereIn($column, $cash_sources);
+        }
     }
 
     /**
@@ -212,6 +246,7 @@ class Expense extends Model
             expenses.amount AS amount,
             expenses.tax_amount AS tax_amount,
             expenses.payment_type AS payment_type,
+            expenses.cash_source AS cash_source,
             expenses.description AS description,
             expenses.employee_id AS employee_id,
             expenses.deleted AS deleted,
@@ -342,6 +377,10 @@ class Expense extends Model
         if ($filters['only_debit']) {
             $builder->where('payment_type_code', 'debit');
         }
+
+        // Kept in step with search() so the totals under the grid describe the rows the grid is
+        // actually showing.
+        $this->apply_cash_source_filters($builder, $filters, 'cash_source');
 
         $builder->groupBy('payment_type');
 

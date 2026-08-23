@@ -210,6 +210,7 @@ class Autoload extends AutoloadConfig
         'tabular',
         'locale',
         'security',
-        'payment_type'
+        'payment_type',
+        'cash_source'
     ];
 }
