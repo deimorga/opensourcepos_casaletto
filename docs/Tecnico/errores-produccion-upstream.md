@@ -97,3 +97,84 @@ UPDATE ospos_cash_up SET open_amount_cash = 217000.00, closed_amount_cash = 3755
 **Corrección de código:** `Cashups::_amount_is_valid()` rechaza el guardado en vez de dejar pasar un cero silencioso. Un campo vacío solo se tolera donde el formulario de verdad significa "ninguno" (`transfer_amount_cash` al abrir; adeudo/datafono/banco al cerrar); un valor que `parse_decimals()` rechaza no se tolera nunca. El mensaje nombra el campo culpable, con la clave `Cashups.invalid_amount` agregada a `en` (el fallback), `es-ES` y `es-MX` — que es el idioma que corre esta instalación.
 
 **Lección:** el punto ciego no era la falta de un arreglo puntual sino que **un controlador que escribe plata no tenía ninguna validación**. Vale la pena revisar con la misma lupa los otros formularios que guardan importes (`Expenses`, `Receivings`, `Giftcards`), donde `parse_decimals()` se usa con el mismo patrón de guardar el retorno tal cual.
+
+---
+
+## 5. `FILTER_SANITIZE_FULL_SPECIAL_CHARS` convierte las tildes en entidades HTML (diagnosticado 2026-08-22, sin corregir)
+
+**Síntoma:** en la grilla de Ventas, los filtros "Tarjeta de Débito" y "Tarjeta de Crédito" no
+devuelven nada. Nunca. Sin mensaje de error: una lista vacía que se lee como un dato.
+
+**Qué hay en la base**, verificado con `HEX()` sobre producción:
+
+```
+Tarjeta de d&eacute;bito     195 pagos    12.715.730
+Tarjeta de Cr&eacute;dito      6 pagos       362.120
+Efectivo                     444 pagos    (correcto)
+Transferencia Bancaria        91 pagos    (correcto)
+```
+
+El `&` (0x26) y el `;` (0x3B) están literalmente almacenados. Los filtros comparan con
+`like('payment_type', lang('Sales.debit'))`, donde la etiqueta lleva la `é` real, así que no
+coinciden. **No es un problema de colación**: `utf8_general_ci` equipara `é` con `e`, pero no expande
+una entidad de ocho caracteres a uno. Los dos medios que sí funcionan son exactamente los dos cuyas
+etiquetas no llevan tilde.
+
+**Causa raíz.** `app/Controllers/Sales.php:443` lee el medio de pago así:
+
+```php
+$payment_type = $this->request->getPost('payment_type', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+```
+
+La documentación de PHP describe ese filtro como *"equivalente a llamar `htmlspecialchars()` con
+`ENT_QUOTES`"*. **Eso es falso.** Internamente invoca `php_escape_html_entities_ex()` con el flag
+`all = 1`, que es el comportamiento de `htmlentities()`: codifica **todos** los caracteres con
+entidad conocida, incluidas las vocales acentuadas.
+
+Comprobado ejecutando PHP dentro del contenedor de producción:
+
+```
+$s = "Tarjeta de débito";
+htmlspecialchars($s, ENT_QUOTES)                       → 5461726a...64 c3a9 6269746f   (é intacta)
+filter_var($s, FILTER_SANITIZE_FULL_SPECIAL_CHARS)     → 5461726a...64 266561637574653b 6269746f
+                                                                        ^^^^^^^^^^^^^^^^  &eacute;
+```
+
+Descartados en el camino, para que nadie los vuelva a revisar: el archivo de idioma tiene la `é`
+real (`c3 a9`) tanto en el repo como en el contenedor desplegado; `form_dropdown()` de CI4 usa
+`htmlspecialchars()`, que no la toca; el `esc()` de CI4 (Laminas) produce entidades **numéricas**
+(`&#xE9;`), no con nombre; `bootstrap-select` no reescribe el `value` de los `<option>` y su
+`htmlEscape` solo cubre `&<>"'`; la página declara `<meta charset="utf-8">` y el formulario se envía
+con un POST nativo del navegador; y la configuración de PHP del contenedor es limpia
+(`default_charset=UTF-8`, sin `mbstring.http_output`, sin `output_handler`).
+
+**No hay ningún servicio externo ni integración involucrada.** El problema está enteramente en el
+código de la aplicación, así que es controlable — lo cual importa de cara al modelo SaaS.
+
+**Alcance real: mucho más que los medios de pago.** El filtro se usa **147 veces en 19
+controladores**: `Sales` (25), `Employees` (19), `Suppliers` (16), `Receivings` (11), `Taxes` (10),
+`Expenses` (10), `Cashups` (8), `Items` (6), y así. **Cualquier texto acentuado que un usuario
+escriba en la aplicación se guarda codificado.** Un cliente llamado "José" queda como
+`Jos&eacute;`, y no volverá a aparecer en una búsqueda por "José".
+
+**Por qué casi no se nota hoy:** los usuarios de Casaletto escriben sin tildes. En producción,
+`ospos_people`, `ospos_expenses.description`, `ospos_expense_categories` y `ospos_sales.comment`
+tienen **cero** filas con tilde — reales o codificadas. Los 26 artículos con tilde real
+("Jamón Serrano", "Pavo relleno navideño") entraron por los scripts de importación de Siigo, que no
+pasan por este filtro. Las únicas 50 descripciones de artículo con entidad
+("Unidad: n&uacute;mero de unidades internacionales") vienen del propio archivo de Siigo, no de
+aquí: en esas mismas filas el nombre conserva su tilde real.
+
+O sea: **hoy el daño está contenido en los medios de pago porque son el único texto acentuado que
+la aplicación genera por sí misma.** En cuanto un tenant nuevo tenga usuarios que escriban con
+tildes, el problema se vuelve general.
+
+**Upstream conoce el síntoma y lo parchó por partes.** Hay seis `html_entity_decode()` repartidos
+justo donde les dolió: cuatro en `Attributes.php`, uno en `suppliers/form.php` y uno en
+`tabular_helper.php` para `company_name`. Ninguno toca la causa.
+
+**Corrección pendiente.** No está hecha. El criterio, para cuando se aborde: el saneamiento de
+entrada no debe cambiar el dato — escapar es responsabilidad de la **salida** (`esc()` en las
+vistas, que ya se usa). Cambiar los 147 usos de golpe es una superficie enorme; el orden razonable
+es empezar por los campos que hoy están rotos (medios de pago), reparar los datos existentes y
+avanzar por módulo. Ver `docs/Tecnico/reportes-analiticos-ingresos-gastos.md` sección 7.

@@ -239,12 +239,26 @@ Medido sobre los datos reales: `only_debit` → **0** coincidencias (194 pagos, 
 `only_creditcard` → **0** (6 pagos, 362.120). `only_cash` (444) y `only_bank_transfer` (91)
 funcionan porque sus etiquetas no llevan tilde.
 
-**Origen aún no ubicado.** Descartados: `form_dropdown()` de CI4 usa `htmlspecialchars()`, que no
-toca la `é`; `FILTER_SANITIZE_FULL_SPECIAL_CHARS` es equivalente a `htmlspecialchars` con
-`ENT_QUOTES` y tampoco; no hay ningún `esc(..., 'attr')` en el flujo de pago. Que sean entidades
-**con nombre** (`&eacute;`, no `&#233;`) apunta a `htmlentities()` o al `escapeHtmlAttr()` de
-Laminas, no a una recodificación del navegador. **Encontrar la línea exacta es el paso 2 y es
-trabajo pendiente, no un hecho establecido.**
+**Causa raíz encontrada (2026-08-22).** `app/Controllers/Sales.php:443`:
+
+```php
+$payment_type = $this->request->getPost('payment_type', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+```
+
+La documentación de PHP describe ese filtro como *"equivalente a `htmlspecialchars()` con
+`ENT_QUOTES`"*. **Es falso**: internamente usa `php_escape_html_entities_ex()` con `all = 1`, o sea
+el comportamiento de `htmlentities()`, que codifica las vocales acentuadas. Comprobado ejecutando
+PHP dentro del contenedor de producción:
+
+```
+htmlspecialchars("Tarjeta de débito", ENT_QUOTES)                    → ...64 c3a9 62...  (é intacta)
+filter_var("Tarjeta de débito", FILTER_SANITIZE_FULL_SPECIAL_CHARS)  → ...64 266561637574653b 62...
+```
+
+**No hay ningún servicio externo ni integración involucrada**: está enteramente en el código, así que
+es controlable de cara al modelo SaaS. El diagnóstico completo, con todo lo que se descartó en el
+camino y el alcance real (147 usos en 19 controladores), está en
+`docs/Tecnico/errores-produccion-upstream.md` sección 5.
 
 ### 7.2 Falla B — dos diccionarios distintos en Gastos
 
@@ -269,10 +283,24 @@ Se decodifica con una lista explícita de las entidades presentes, **no con un `
 (tarjetas de regalo con número, ajustes de caja), y una decodificación amplia podría alterar valores
 que no están rotos. La migración **imprime cuántas filas tocó y cuántas quedaron con `&` residual**.
 
-**Paso 2 — tapar la causa.** Sin esto, el paso 1 se deshace con la primera venta con tarjeta. Es
-trabajo de diagnóstico: reproducir un pago con tilde en local, seguir el valor desde el POST hasta
-el `INSERT`, y corregir donde se introduzca. **No se despliega el paso 1 a producción sin el 2**, o
-se repara algo que se vuelve a romper esa misma noche.
+**Paso 2 — tapar la causa.** Sin esto, el paso 1 se deshace con la primera venta con tarjeta esa
+misma noche. **No se despliega el paso 1 a producción sin el 2.**
+
+La causa ya está identificada (7.1): `FILTER_SANITIZE_FULL_SPECIAL_CHARS` al leer el POST. El
+criterio de corrección es que **el saneamiento de entrada no debe cambiar el dato** — escapar es
+responsabilidad de la salida, y las vistas ya usan `esc()`.
+
+**Aquí no se corrigen los 147 usos.** Este trabajo toca solo las cuatro lecturas de medio de pago
+(`Sales.php:443`, `Sales.php:1594`, `Sales.php:1625` y `Expenses.php:183`). Y una vez hecho el paso
+3 esas lecturas dejan de necesitar saneamiento de ningún tipo: el valor posteado pasa a ser un
+**código de una lista blanca conocida**, así que se valida contra la lista y se rechaza lo que no
+esté. Es más seguro que sanear, y no deforma el dato.
+
+El resto de los 147 usos queda documentado en `errores-produccion-upstream.md` sección 5 como deuda
+conocida, para abordarse por módulo. **Hoy el daño está contenido** porque los usuarios de Casaletto
+escriben sin tildes: en producción no hay una sola fila con tilde en `people`,
+`expenses.description`, `expense_categories` ni `sales.comment`. Deja de estar contenido en cuanto un
+tenant nuevo tenga usuarios que sí las escriban.
 
 **Paso 3 — códigos estables.** Nueva columna `payment_type_code VARCHAR(20) NULL` con índice, en
 `expenses` y en `sales_payments`. Valores independientes del idioma: `cash`, `debit`, `credit`,
@@ -430,6 +458,27 @@ nuevas entran por los bloques de gulp-inject de `header.php`, y saltarse ese pas
 JS con un HTTP 200 que ningún smoke test detecta.
 
 **Producción solo después de las 10pm hora Colombia**, salvo autorización puntual.
+
+### Lineamientos del usuario para esta fase (2026-08-22)
+
+**No se puede perder información de producción.** De ahí lo que sigue.
+
+**Staging hoy NO ejercita el bug.** Su tabla `sales_payments` tiene 2 pagos, ambos "Efectivo", sin
+una sola tilde. Una migración de reparación pasaría en staging sin tocar nada, y eso no probaría
+absolutamente nada. **Antes de probar hay que sembrar staging con datos representativos**: los cuatro
+valores reales de producción (`Efectivo`, `Transferencia Bancaria`, `Tarjeta de d&eacute;bito`,
+`Tarjeta de Cr&eacute;dito`) más los compuestos (tarjeta de regalo con número, ajuste de caja), en
+volumen suficiente para que los conteos sean verificables.
+
+**Criterio de aceptación en staging, antes de tocar producción:**
+
+- Conteos por medio de pago idénticos antes y después. La reparación cambia la *forma* del valor,
+  nunca el número de filas ni los importes.
+- La suma de `payment_amount` y de `cash_refund` no cambia en un solo peso.
+- Los tipos compuestos quedan intactos.
+- Los filtros de la grilla pasan de 0 a la cifra esperada.
+- La migración es **idempotente**: correrla dos veces no vuelve a transformar nada.
+- Existe y se prueba el camino de vuelta (`down()`), no solo el de ida.
 
 ### Respaldo antes de la reparación de datos
 

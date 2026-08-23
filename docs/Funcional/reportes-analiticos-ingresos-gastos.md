@@ -239,9 +239,18 @@ tilde.
 Como siempre en esta familia de fallas, no hay mensaje de error: una lista vacía que se lee como un
 dato ("no hubo pagos con tarjeta") cuando es una falla.
 
-**El origen exacto de la codificación todavía no está ubicado.** El efecto y los bytes están
-verificados; encontrar la línea que la introduce es parte del trabajo de corrección, no algo ya
-resuelto.
+**El origen está ubicado (2026-08-22): es nuestro propio código, no un servicio externo.** Al leer
+el formulario, el controlador de ventas usa el filtro `FILTER_SANITIZE_FULL_SPECIAL_CHARS`, que —pese
+a lo que dice la documentación de PHP— convierte las vocales acentuadas en entidades HTML.
+Comprobado ejecutando PHP dentro del contenedor de producción. Que esté en el código y no en una
+integración externa importa para el modelo SaaS: es controlable.
+
+**El mismo filtro se usa 147 veces en 19 controladores**, así que cualquier texto acentuado que un
+usuario escriba se guarda codificado — un cliente llamado "José" quedaría como `Jos&eacute;` y no
+aparecería al buscarlo. Hoy no se nota porque en Casaletto nadie escribe con tildes: en producción no
+hay una sola fila con tilde en clientes, descripciones de gasto, categorías ni comentarios de venta.
+Deja de estar contenido en cuanto un negocio nuevo tenga usuarios que sí las usen. Diagnóstico
+completo en `docs/Tecnico/errores-produccion-upstream.md` sección 5.
 
 ### 7.2 En Gastos: se guarda con un diccionario y se filtra con otro
 
