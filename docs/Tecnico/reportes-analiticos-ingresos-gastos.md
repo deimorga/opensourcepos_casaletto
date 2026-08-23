@@ -552,6 +552,57 @@ escrita en `AGENTS.md`.
 10. `app/Views/expenses/form.php` y `app/Views/sales/register.php` — dropdowns por código, incluidas
     las comparaciones en JavaScript.
 
+### Verificación de los pasos 1 y 2 en staging (2026-08-22) — ✅
+
+Ejecutado sobre staging sembrado con los cuatro valores reales de producción más los compuestos.
+
+**Migración de reparación**, salida real en consola:
+
+```
+  sales_payments.payment_type: 4 repaired, 0 unresolved
+  expenses.payment_type: 1 repaired, 0 unresolved
+  items.description: 50 repaired, 0 unresolved
+RepairHtmlEntities: 55 row(s) repaired, 0 unresolved.
+```
+
+Contra el criterio de aceptación: 13 filas antes y después; `SUM(payment_amount)` 257.000,00 y
+`SUM(cash_refund)` 2.000,00 sin variar un peso; compuestos intactos; **el guarda-raíl
+`Tarjeta de regalo:A&B123` sin tocar, verificado por `HEX`**; segunda corrida no toca nada; `down()`
+restauró las 55 filas a su forma con entidades y eliminó la tabla de respaldo.
+
+**Prueba de punta a punta por la aplicación real** (navegador con sesión iniciada por el usuario):
+venta de $18.000 pagada con "Tarjeta de débito" a través del registro. Lo que llegó a la base:
+
+```
+payment_type = Tarjeta de débito
+hex          = 5461726A6574612064652064 C3A9 6269746F
+                                        ^^^^ é real en UTF-8, no 266561637574653B (&eacute;)
+```
+
+Cero entidades nuevas. **La causa quedó tapada, verificado por comportamiento y no por lectura de
+código.**
+
+**En la grilla de Ventas**, con el filtro "Tarjeta de débito": 2 registros y
+`Tarjeta de débito: $68.000,00` en el resumen (18.000 de la venta nueva + 50.000 del sembrado). Ese
+filtro devolvía cero. El resumen de pagos —el punto de salida que se escapó— se muestra correcto,
+sin entidades en pantalla.
+
+**Defectos que siguen abiertos, reproducidos en vivo y que resuelve el paso 3:**
+
+- El filtro **"A Crédito"** de Gastos devuelve *"No hay gastos a mostrar"* con un gasto de 70.000 en
+  `Adeudo` visible en el resumen de la misma pantalla. Los filtros de esa grilla se etiquetan desde
+  `Expenses.*` y los datos se guardan desde `Sales.*`.
+- **"Transferencia Bancaria" (250.000) y "Monedero" no tienen filtro**: la grilla ofrece seis
+  (`only_cash`, `only_due`, `only_check`, `only_credit`, `only_debit`, `is_deleted`) y el formulario
+  permite guardar siete medios.
+- `only_cash` captura además **"Ajuste de efectivo"**, porque el `LIKE` es por substring y la
+  colación ignora mayúsculas.
+
+**Nota operativa:** los cambios se probaron con `docker cp` sobre el contenedor de staging, no por el
+workflow de despliegue. Se pierden si ese contenedor se reconstruye. Los datos sembrados siguen en
+staging, marcados con `reference_code = 'SEED-ENC'`, y hay respaldo previo en
+`/root/backups_encoding_fix/staging_pre_seed_20260822.sql`.
+
 ### Fase 1b — erradicación del filtro (ver 7.6)
 
 Módulo por módulo, en el orden de la tabla de 7.6. Cada módulo es un commit propio: auditoría de
