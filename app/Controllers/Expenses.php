@@ -178,6 +178,17 @@ class Expenses extends Secure_Controller
 
         $date_formatter = date_create_from_format($config['dateformat'] . ' ' . $config['timeformat'], $newdate);
 
+        // date_create_from_format() returns false when the posted date does not match the
+        // configured format, and calling ->format() on that is a fatal, not a validation failure.
+        // Cashups::postSave() already guards its two date fields the same way.
+        if ($date_formatter === false) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => lang('Expenses.error_adding_updating'),
+                'id'      => $expense_id
+            ]);
+        }
+
         $current_employee_id = $this->employee->get_logged_in_employee_info()->person_id;
         $submitted_employee_id = $this->request->getPost('employee_id', FILTER_SANITIZE_NUMBER_INT);
 
