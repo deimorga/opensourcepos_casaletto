@@ -309,6 +309,30 @@ hasta que las ventas de ese día —el único con dos turnos— queden separadas
 - Backfill: los 55 quedan `register`, las 2 transferencias `NULL`, y el conteo se reporta.
 - Los turnos 35 y 39 pasan de −$1.002.900 y −$800.370 a −$2.900 y −$370.
 
+## 9b. Trampas operativas confirmadas al desplegar en staging (2026-08-23)
+
+**El `php spark migrate` como root deja la aplicación ciega el resto del día.** El log del día queda
+con dueño `root` y permisos `-rw-rw----`; Apache corre como `www-data` y **no puede escribir en él**,
+así que a partir de ese momento ninguna excepción web deja rastro. Es la explicación del 500 de
+`item_kits/save` que quedó sin diagnosticar, y de dos 500 de este trabajo.
+
+Después de migrar, devolver el dueño:
+
+```
+docker compose exec ospos chown www-data:www-data writable/logs/*.log
+```
+
+**La compilación de assets no es opcional en ningún despliegue**, ni siquiera cuando "solo cambió
+PHP". `git reset --hard` restaura `app/Views/partial/header.php` a la versión del repositorio y borra
+los tags que inyecta gulp-inject: jQuery deja de cargar y la aplicación queda inservible. Confirmado
+en staging.
+
+**Guardar un gasto exige el permiso `items_stock`.** `Expense::save_value()` pasa por
+`Item_lib::get_item_location()`, que resuelve la ubicación desde los permisos del usuario y
+desreferencia el resultado sin comprobarlo (hay un TODO en `Stock_location.php` admitiéndolo). Un
+empleado con `expenses` pero sin `items_stock` produce un 500 al guardar. **Los seis empleados de
+producción lo tienen**, así que hoy nadie está expuesto; queda anotado como fragilidad latente.
+
 ## 10. Despliegue
 
 Varias migraciones, así que **no termina con el workflow**: hay que lanzar `php spark migrate` por
