@@ -102,7 +102,13 @@ class Items extends Secure_Controller
      **/
     public function getSearch(): ResponseInterface
     {
-        $search = $this->request->getGet('search', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+        // Read without FILTER_SANITIZE_FULL_SPECIAL_CHARS: it encodes accented characters as named
+        // HTML entities, so searching for "Jamón" became "Jam&oacute;n" and matched nothing while the
+        // rows were sitting right there. The term only ever reaches SQL through the query builder,
+        // which escapes it, and is never echoed into a page. The suggestion endpoints in this same
+        // controller already read it unfiltered, which is why the register's autocomplete found
+        // accented items and the grid did not. See errores-produccion-upstream.md section 5.
+        $search = $this->request->getGet('search');
         $limit = $this->request->getGet('limit', FILTER_SANITIZE_NUMBER_INT);
         $offset = $this->request->getGet('offset', FILTER_SANITIZE_NUMBER_INT);
         $sort = $this->sanitizeSortColumn(item_headers(), $this->request->getGet('sort', FILTER_SANITIZE_FULL_SPECIAL_CHARS), 'item_id');
