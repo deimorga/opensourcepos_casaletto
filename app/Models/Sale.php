@@ -1495,7 +1495,11 @@ class Sale extends Model
     {
         $config = config(OSPOS::class)->settings;
 
-        if (!empty($customer_id) && $config['customer_reward_enable']) {
+        // Coalesced rather than read straight: settings come from app_config rows, so a missing
+        // row means a missing key, and Config\OSPOS falls back to just four keys when the database
+        // cannot be reached. Completing a sale is the last place that should fatal over a setting
+        // nobody configured -- absent means the feature is off.
+        if (!empty($customer_id) && !empty($config['customer_reward_enable'])) {
             $customer = model(Customer::class);
             $customer_rewards = model(Customer_rewards::class);
             $rewards = model(Rewards::class);

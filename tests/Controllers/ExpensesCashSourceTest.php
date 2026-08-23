@@ -91,7 +91,13 @@ class ExpensesCashSourceTest extends CIUnitTestCase
         $session->set('person_id', $personId);
         $session->set('menu_group', 'office');
 
-        $this->withSession(['person_id' => $personId, 'menu_group' => 'office']);
+        // item_location travels with the session because saving reaches Item_lib, which asks
+        // Stock_location for a default and dereferences the row without checking. A cashier holds
+        // only the expenses grant, so that lookup finds nothing and fatals. Which location it is
+        // has no bearing on what these tests check.
+        $session->set('item_location', 1);
+
+        $this->withSession(['person_id' => $personId, 'menu_group' => 'office', 'item_location' => 1]);
     }
 
     /**
