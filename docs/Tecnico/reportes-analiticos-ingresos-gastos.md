@@ -733,6 +733,63 @@ registro. Quedó `payment_type = 'Transferencia Bancaria'` **y**
 La lista de filtros de Gastos pasó de 6 entradas a 8 (siete medios de pago más "Eliminado"), y la
 etiqueta del filtro de adeudo pasó de "A Crédito" —que no coincidía con ningún dato— a "Adeudo".
 
+### Verificación de la fase 1b en staging (2026-08-22) — ✅
+
+Tres agentes en paralelo cubrieron 15 controladores: Personas (`Employees`, `Suppliers`), Catálogos e
+Impuestos (`Taxes`, `Tax_codes`, `Tax_jurisdictions`, `Tax_categories`, `Expenses_categories`,
+`Item_kits`, `Attributes`) y Transaccional (`Sales`, `Receivings`, `Expenses`, `Cashups`, `Items`,
+`Messages`). **63 lecturas liberadas del filtro** y una veintena de salidas escapadas. Las tres ramas
+mezclaron sin un solo conflicto.
+
+**Dos huecos en la fase 1, encontrados por los agentes y confirmados por mí:**
+
+1. **Tres de seis plantillas de recibo imprimían el medio de pago en crudo** (`receipt_short`,
+   `quote`, `tax_invoice`). Al revisar la fase 1 miré `receipt_default`, vi que escapaba y
+   **extrapolé al resto**. Como las lecturas de `payment_type` ya estaban sin filtro en producción,
+   era una ruta sin escapar viva, no hipotética.
+2. **El barrido de producción estaba incompleto**: faltaban `ospos_receivings` y
+   `ospos_sales_items`. `sales_items.description` tenía **1297 filas** con
+   `Unidad: n&uacute;mero de unidades internacionales` — la descripción del artículo se copia a cada
+   línea al completar la venta, así que reparar los 50 artículos no reparó el histórico de 17
+   productos ya vendidos. Cubierto por `20260823020000_RepairHtmlEntitiesRound2`.
+
+Además, `Receivings.php` seguía leyendo `payment_type` con el filtro. Esa tabla está vacía, y su
+grilla **no tiene filtros por medio de pago**, así que no necesita columna de código.
+
+**Dos hallazgos sistémicos, encontrados por dos agentes de forma independiente:**
+
+- **`$.notify` es un sink de HTML.** `bootstrap-notify` interpola el mensaje en una plantilla y se la
+  pasa a `$()`, que la parsea. Verificado en el fuente. Los nombres de kit y de definición de
+  atributo **nunca estuvieron filtrados**, así que eso ya era explotable antes de este trabajo.
+- **`form_dropdown()` escapa el `value` de la opción pero escribe la etiqueta en crudo.** Aparece en
+  medios de pago, categorías, ubicaciones, mesas, códigos de impuesto y atributos. Es un patrón de
+  toda la aplicación, no de estos módulos.
+
+**Pruebas de punta a punta por la aplicación real:**
+
+| Prueba | Resultado |
+|---|---|
+| Empleado "José Andrés Muñoz Peña", Bogotá, comentarios con `ñ á é í ó ú ü ¿ ¡` | Guardado con caracteres reales — `hex 4A6F73 C3A9 …` ✅ |
+| Proveedor "Ron **&** Cola Distribución S.A.S." | `&` guardado como `0x26` literal, no `&amp;` ✅ |
+| Grilla de empleados | Muestra `José Andrés`, sin entidades ✅ |
+| Grilla de proveedores | Muestra `Ron & Cola`; el HTML lleva `&amp;` **una sola vez**, sin doble escapado ✅ |
+| Buscar "Muñoz" | Encuentra al empleado recién creado ✅ |
+| `RepairHtmlEntitiesRound2` | 12 líneas de venta reparadas en staging, 0 sin resolver ✅ |
+| Entidades nuevas en `people` y `suppliers` | **0** ✅ |
+
+El caso del `&` es el que valida haber retirado el `html_entity_decode()` de proveedores: antes se
+guardaba `&amp;` y el decode lo "arreglaba" al mostrar, corrompiendo el dato en la ida y en la
+vuelta.
+
+**Un tropiezo propio durante la prueba, para constancia:** el primer intento de guardar el proveedor
+falló. No era el cambio — `ospos_suppliers.tax_id` es `NOT NULL` y mi POST de prueba no lo enviaba.
+El formulario real siempre lo manda.
+
+**Decisión pendiente:** los tres agentes escaparon el mensaje de `$.notify` **en cada controlador**.
+Hay 33 sitios que llaman a `$.notify` repartidos entre vistas y JS compartido, así que no existe un
+único sink donde arreglarlo de una vez. Escapar en el controlador queda como el patrón a seguir en
+los módulos que faltan.
+
 ### Fase 1b — erradicación del filtro (ver 7.6)
 
 Módulo por módulo, en el orden de la tabla de 7.6. Cada módulo es un commit propio: auditoría de
