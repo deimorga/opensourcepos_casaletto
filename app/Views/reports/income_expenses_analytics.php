@@ -22,7 +22,7 @@
 <style>
     /* The chart is a summary, not the subject. ct-golden-section keeps a 100:61.8 ratio, which on a
        wide screen pushes everything else off the fold. A fixed height keeps the figures visible. */
-    #income_expenses_chart { height: 260px; margin: 0 0 1.5em 0; }
+    #income_expenses_chart { height: 210px; margin: 0 0 1em 0; }
     #income_expenses_chart .ct-label { fill: currentColor; color: inherit; font-size: .8rem; }
     #income_expenses_chart .ct-label.ct-horizontal { transform: none; text-anchor: middle; }
     #income_expenses_chart .ct-series-a .ct-line,
@@ -34,13 +34,13 @@
     #chart_legend span { margin: 0 1em; }
     #chart_legend i { display: inline-block; width: 14px; height: 4px; vertical-align: middle; margin-right: .4em; }
 
-    #report_filters { margin: 0 0 1.5em 0; }
+    #report_filters { margin: 0 0 1em 0; }
     #report_filters .form-inline > * { margin-right: .5em; }
 
-    #summary_cards { display: flex; flex-wrap: wrap; gap: 1em; margin-bottom: 1.5em; }
-    #summary_cards .summary_card { flex: 1 1 160px; padding: .9em 1.1em; border: 1px solid rgba(127,127,127,.3); border-radius: 4px; }
+    #summary_cards { display: flex; flex-wrap: wrap; gap: .8em; margin-bottom: 1em; }
+    #summary_cards .summary_card { flex: 1 1 160px; padding: .7em 1em; border: 1px solid rgba(127,127,127,.3); border-radius: 4px; }
     #summary_cards .summary_card .label { display: block; font-size: .8em; opacity: .75; margin-bottom: .25em; }
-    #summary_cards .summary_card .value { display: block; font-size: 1.5em; font-weight: 600; }
+    #summary_cards .summary_card .value { display: block; font-size: 1.35em; font-weight: 600; }
     #summary_cards .summary_card.is_negative .value { color: #c0392b; }
     #summary_cards .summary_card.is_positive .value { color: #2e9e5b; }
 
@@ -110,6 +110,20 @@
         <?php } ?>
         <?php if (!empty($end_date)) { ?>
         end_date = <?= json_encode((string) $end_date) ?>;
+        <?php } ?>
+
+        <?php if (!empty($start_date) || !empty($end_date)) { ?>
+        // The picker has to show the range the report is actually displaying. Restoring only the
+        // variables left the widget reading "today" while the table showed something else -- and any
+        // change the user then made would have been computed from the wrong starting point.
+        (function() {
+            var picker = $('#daterangepicker').data('daterangepicker');
+
+            if (picker) {
+                picker.setStartDate(moment(start_date));
+                picker.setEndDate(moment(end_date));
+            }
+        })();
         <?php } ?>
 
         // A grouping restored from the URL was already an explicit choice, so it is not recalculated.
