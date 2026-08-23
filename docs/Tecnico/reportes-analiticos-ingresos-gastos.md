@@ -510,6 +510,26 @@ Cada fase cierra con su documentación al día:
 **La fase 1 bloquea la fase 2.** El modo caja del reporte cruza ingresos y gastos por medio de pago;
 sobre los datos actuales daría cero para débito y crédito.
 
+### Cómo se ejecuta cada fase (decidido 2026-08-22)
+
+**Fase 1: secuencial, un solo hilo.** Son cuatro lecturas y tres migraciones; el trabajo de escribir
+código no es la parte cara. La parte cara es sembrar staging con datos representativos y verificar
+que la migración no movió un peso, y eso es secuencial por naturaleza: sembrar → migrar → verificar →
+desplegar. Repartirlo en agentes paralelos añadiría un paso de integración sin acortar el camino
+crítico.
+
+**Fase 1b: tres agentes en paralelo, un módulo cada uno.** Ahí el trabajo sí es repetitivo y disjunto
+—19 controladores, el mismo procedimiento en cada uno— y los módulos no comparten archivos salvo
+`tabular_helper.php`. Cada agente en su propio worktree, cargando la skill `security-and-hardening`
+para la auditoría de escapado de salida, que es la parte que exige criterio y no puede ser mecánica.
+
+**Regla que no cambia en ninguna fase:** todo lo que toque staging o producción —sembrado,
+migraciones, despliegue, verificación— lo ejecuta un solo hilo, nunca un agente paralelo. Son datos
+de dinero y la reparación los reescribe.
+
+**Fuera del alcance de los agentes en fase 1b:** `app/Helpers/tabular_helper.php`. Lo tocan varios
+módulos; se integra en un paso aparte para no arbitrar conflictos entre worktrees.
+
 ### Fase 0 — documentación (hecha)
 
 Ver 7bis. Corregidos `docs/Funcional/multi-tenant-multi-negocio.md` y `AGENTS.md`; regla permanente
