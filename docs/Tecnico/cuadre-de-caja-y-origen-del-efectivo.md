@@ -1,6 +1,9 @@
 # Diseño técnico — Cuadre de caja: origen del efectivo, recogidas y conciliación del turno
 
-> **Estado a 2026-08-23: diseñado, sin implementar.**
+> **Estado a 2026-08-23: construido en `develop`, sin probar contra base de datos ni desplegar.**
+> Las migraciones no se han ejecutado en ningún ambiente. Las pruebas que no necesitan base (27 del
+> helper de origen del efectivo, 14 del backfill de ventas) están en verde; las 29 que sí la
+> necesitan están escritas y sin correr.
 
 Alcance funcional en `docs/Funcional/cuadre-de-caja-y-origen-del-efectivo.md`.
 
@@ -205,7 +208,38 @@ con el histórico. Se agregan las piezas que faltan, no se altera lo que ya exis
 **Las vueltas ya están contempladas**: `cash_refund` es el cambio que se le devuelve al cliente
 (`Sales.php:855`, `'cash_refund' => $data['amount_change']`), no una devolución de venta.
 
-### 6.3 El campo "Entrada/Salida de Efectivo" se retira
+### 6.3 El autocompletado del cierre sigue usando el rango de fechas *(decidido el 2026-08-23)*
+
+La conciliación lee los ingresos **del sello** (`cashup_id`), como dice 6.2. El autocompletado que
+prellena `closed_amount_cash` **no se cambió** y sigue leyendo un rango de fechas.
+
+**Por qué no se unificó.** Ese prellenado alimenta `closed_amount_total`, y el Total es justo lo que
+se decidió no tocar (6.1). Cambiarle la fuente movería el Total guardado de cualquier turno que se
+reabra.
+
+**La consecuencia, dicha en voz alta:** en la misma pantalla conviven dos cifras de origen distinto.
+Con la configuración de solo-fecha, `Cashups::getView()` trunca la ventana a días completos con
+`substr($open_date, 0, 10)`, así que un turno de 14:26 a 20:54 se autocompleta con **todas** las
+ventas del día; y el 31/07, el único día con dos turnos, cada uno tomaría las ventas del otro. **La
+conciliación no tiene ese defecto**, y la diferencia entre ambas cifras es precisamente lo que
+delata el problema.
+
+Unificarlos es un trabajo aparte, porque exige decidir qué pasa con el Total histórico.
+
+### 6.4 El bloque se refresca solo, sin recargar el formulario
+
+Agregar o borrar una recogida repinta **únicamente** la tabla de recogidas y las filas de la
+conciliación, vía un endpoint que devuelve JSON ya formateado.
+
+No se recarga el formulario a propósito: el cajero puede estar a mitad de escribir los importes de
+cierre cuando anota una recogida, y recargar se los llevaría. Es el mismo problema que hace
+obligatoria la validación de cliente en 3.3.
+
+El descuadre se calcula **en el servidor**, no en el navegador. Los importes llegan formateados según
+el idioma del operador y `parse_decimals()` es lo único que los lee bien; hacer esa aritmética en
+JavaScript sería reintroducir el bug de comparar contra representaciones traducidas.
+
+### 6.5 El campo "Entrada/Salida de Efectivo" se retira
 
 `transfer_amount_cash` sale del formulario. Su reemplazo es el registro de recogidas.
 

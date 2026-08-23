@@ -1,7 +1,12 @@
 # Alcance funcional — Cuadre de caja: origen del efectivo, conciliación del turno y reporte
 
-> **Estado a 2026-08-23: alcance cerrado.** Sin implementar. Diseño técnico en
-> `docs/Tecnico/cuadre-de-caja-y-origen-del-efectivo.md`.
+> **Estado a 2026-08-23: alcance cerrado y construido en la rama `develop`.** Las cuatro piezas
+> están escritas: origen del efectivo en gastos, registro de recogidas, un solo turno abierto con la
+> venta sellada, y el bloque de conciliación en el cierre.
+>
+> **Todavía NO se ha probado contra una base de datos ni se ha desplegado.** Las migraciones no se
+> han ejecutado en ningún ambiente y las pruebas que necesitan base están escritas pero sin correr.
+> Diseño técnico en `docs/Tecnico/cuadre-de-caja-y-origen-del-efectivo.md`.
 
 ---
 
