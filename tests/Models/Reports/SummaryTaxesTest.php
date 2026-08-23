@@ -8,7 +8,7 @@ use App\Models\Reports\Summary_taxes;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 
-class Summary_taxes_test extends CIUnitTestCase
+class SummaryTaxesTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
 

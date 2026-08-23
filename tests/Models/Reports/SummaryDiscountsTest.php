@@ -5,7 +5,7 @@ namespace Tests\Models\Reports;
 use CodeIgniter\Test\CIUnitTestCase;
 use App\Models\Reports\Summary_discounts;
 
-class Summary_discounts_test extends CIUnitTestCase
+class SummaryDiscountsTest extends CIUnitTestCase
 {
     public function testCurrencySymbolEscaping(): void
     {

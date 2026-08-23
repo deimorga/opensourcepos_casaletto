@@ -5,7 +5,7 @@ namespace Tests\Models;
 use CodeIgniter\Test\CIUnitTestCase;
 use App\Models\Item;
 
-class Item_test extends CIUnitTestCase
+class ItemTest extends CIUnitTestCase
 {
     public function testSuggestionsColumnValidationRejectsSQLInjection(): void
     {
