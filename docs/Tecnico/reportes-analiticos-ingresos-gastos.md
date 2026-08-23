@@ -598,10 +598,24 @@ sin entidades en pantalla.
 - `only_cash` captura además **"Ajuste de efectivo"**, porque el `LIKE` es por substring y la
   colación ignora mayúsculas.
 
-**Nota operativa:** los cambios se probaron con `docker cp` sobre el contenedor de staging, no por el
-workflow de despliegue. Se pierden si ese contenedor se reconstruye. Los datos sembrados siguen en
-staging, marcados con `reference_code = 'SEED-ENC'`, y hay respaldo previo en
-`/root/backups_encoding_fix/staging_pre_seed_20260822.sql`.
+**Desplegado de verdad a staging (2026-08-22).** La primera ronda se probó con `docker cp` para
+iterar rápido; después se hizo el despliegue completo replicando `deploy-staging.yml` paso por paso:
+`git reset --hard origin/develop`, build de assets en un contenedor `php:8.4-cli` y
+`docker compose up -d --build`. **El build de assets inyectó 20 archivos CSS más el JS en
+`header.php`** — el paso que, omitido, deja la página sin estilos detrás de un HTTP 200.
+
+Verificado después de reconstruir el contenedor:
+
+- Las cinco lecturas de medio de pago están sin el filtro en el contenedor; cero lecturas de
+  `payment_type` conservan `FILTER_SANITIZE_FULL_SPECIAL_CHARS`.
+- La migración figura aplicada (lote 7) y **no volvió a correr** — la base vive en otro contenedor
+  con su volumen, así que ni los datos ni el registro de migraciones se pierden al reconstruir.
+- Datos intactos: 14 pagos por 275.000,00 (los 13 sembrados más la venta de prueba de 18.000), cero
+  entidades, `items.description` en cero, 55 filas en la tabla de respaldo.
+- La aplicación responde 200.
+
+Los datos sembrados siguen en staging, marcados con `reference_code = 'SEED-ENC'`, y hay respaldo
+previo en `/root/backups_encoding_fix/staging_pre_seed_20260822.sql`.
 
 ### Fase 1b — erradicación del filtro (ver 7.6)
 
