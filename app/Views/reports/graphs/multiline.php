@@ -38,11 +38,9 @@ $currency_suffix = is_right_side_currency_symbol() ? $currency_symbol : '';
             chartPadding: { top: 20, bottom: 40 },
             axisX: { offset: 60, position: 'end', labelOffset: { x: 0, y: 8 } },
             axisY: { offset: 90, labelOffset: { x: -20, y: 0 }, labelInterpolationFnc: money },
+            // No ctAxisTitle here: that plugin throws when given empty titles, and both axes are
+            // self-evident with the table sitting right below -- periods across, money up.
             plugins: [
-                Chartist.plugins.ctAxisTitle({
-                    axisX: { axisTitle: '', axisClass: 'ct-axis-title', offset: { x: 0, y: 40 }, textAnchor: 'middle' },
-                    axisY: { axisTitle: '', axisClass: 'ct-axis-title', offset: { x: 0, y: 0 }, textAnchor: 'middle', flipTitle: false }
-                }),
                 Chartist.plugins.tooltip({
                     pointClass: 'ct-tooltip-point',
                     transformTooltipTextFnc: money
