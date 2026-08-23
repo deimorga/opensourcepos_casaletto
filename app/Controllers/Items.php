@@ -645,7 +645,12 @@ class Items extends Secure_Controller
         // Save item data
         $item_data = [
             'name'                  => $this->request->getPost('name'),
-            'description'           => $this->request->getPost('description', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
+            // Free text read without FILTER_SANITIZE_FULL_SPECIAL_CHARS: despite what the manual
+            // says, it behaves like htmlentities() and stores accented letters as named HTML
+            // entities -- that is where the 50 "Unidad: n&uacute;mero..." descriptions came from.
+            // The item form, the register and every receipt/invoice template escape this value.
+            // See docs/Tecnico/errores-produccion-upstream.md section 5.
+            'description'           => $this->request->getPost('description'),
             'category'              => $this->request->getPost('category'),
             'item_type'             => $item_type,
             'stock_type'            => $this->request->getPost('stock_type') === null ? HAS_STOCK : intval($this->request->getPost('stock_type')),
@@ -1019,7 +1024,7 @@ class Items extends Secure_Controller
                         $itemData = [
                             'item_id'       => $itemId,
                             'name'          => $row['Item Name'],
-                            'description'   => filter_var($row['Description'], FILTER_SANITIZE_FULL_SPECIAL_CHARS),
+                            'description'   => $row['Description'],
                             'category'      => $row['Category'],
                             'cost_price'    => $row['Cost Price'],
                             'unit_price'    => $row['Unit Price'],

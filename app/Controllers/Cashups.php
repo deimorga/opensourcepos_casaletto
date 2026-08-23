@@ -287,7 +287,11 @@ class Cashups extends Secure_Controller
                 'closed_amount_check'  => parse_decimals($this->request->getPost('closed_amount_check')),
                 'closed_amount_total'  => parse_decimals($this->request->getPost('closed_amount_total')),
                 'note'                 => $this->request->getPost('note') != null,
-                'description'          => $this->request->getPost('description', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
+                // Free text read without FILTER_SANITIZE_FULL_SPECIAL_CHARS: despite what the manual
+                // says, it behaves like htmlentities() and stores accented letters as named HTML
+                // entities. The only place this is rendered is the cashup form's textarea, which the
+                // form helper escapes. See docs/Tecnico/errores-produccion-upstream.md section 5.
+                'description'          => $this->request->getPost('description'),
                 'close_employee_id'    => $this->request->getPost('close_employee_id', FILTER_SANITIZE_NUMBER_INT),
                 'deleted'              => $this->request->getPost('deleted') != null,
                 'status'               => 'closed'

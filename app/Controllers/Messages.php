@@ -49,7 +49,11 @@ class Messages extends Secure_Controller
     public function send(): ResponseInterface
     {
         $phone   = $this->request->getPost('phone', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
-        $message = $this->request->getPost('message', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+        // Free text read without FILTER_SANITIZE_FULL_SPECIAL_CHARS: despite what the manual says,
+        // it behaves like htmlentities(), so an SMS body with accents would have gone out to the
+        // gateway as "Jam&oacute;n". The body is never echoed back -- only the phone number is, and
+        // that one is escaped below. See docs/Tecnico/errores-produccion-upstream.md section 5.
+        $message = $this->request->getPost('message');
 
         $response = $this->sms_lib->sendSMS($phone, $message);
 
@@ -70,7 +74,7 @@ class Messages extends Secure_Controller
     public function send_form(int $person_id = NEW_ENTRY): ResponseInterface
     {
         $phone   = $this->request->getPost('phone', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
-        $message = $this->request->getPost('message', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+        $message = $this->request->getPost('message');
 
         $response = $this->sms_lib->sendSMS($phone, $message);
 

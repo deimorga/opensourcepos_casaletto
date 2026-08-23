@@ -184,7 +184,11 @@ class Expenses extends Secure_Controller
         $expense_data = [
             'date'                => $date_formatter->format('Y-m-d H:i:s'),
             'supplier_id'         => $this->request->getPost('supplier_id') == '' ? null : $this->request->getPost('supplier_id', FILTER_SANITIZE_NUMBER_INT),
-            'supplier_tax_code'   => $this->request->getPost('supplier_tax_code', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
+            // Free text read without FILTER_SANITIZE_FULL_SPECIAL_CHARS: despite what the manual
+            // says, it behaves like htmlentities() and stores accented letters as named HTML
+            // entities. The expense form escapes both fields through the form helpers and the grid
+            // escapes every cell. See docs/Tecnico/errores-produccion-upstream.md section 5.
+            'supplier_tax_code'   => $this->request->getPost('supplier_tax_code'),
             'amount'              => parse_decimals($this->request->getPost('amount')),
             'tax_amount'          => parse_decimals($this->request->getPost('tax_amount')),
             // Read without FILTER_SANITIZE_FULL_SPECIAL_CHARS: it encodes accents as HTML entities.
@@ -192,7 +196,7 @@ class Expenses extends Secure_Controller
             'payment_type'        => $this->request->getPost('payment_type'),
             'payment_type_code'   => payment_type_code_from_label($this->request->getPost('payment_type')),
             'expense_category_id' => $this->request->getPost('expense_category_id', FILTER_SANITIZE_NUMBER_INT),
-            'description'         => $this->request->getPost('description', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
+            'description'         => $this->request->getPost('description'),
             'employee_id'         => $employee_id,
             'deleted'             => $this->request->getPost('deleted') != null
         ];
