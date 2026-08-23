@@ -129,8 +129,12 @@ class Employees extends Persons
             }
         }
 
-        $first_name = $this->request->getPost('first_name', FILTER_SANITIZE_FULL_SPECIAL_CHARS);    // TODO: duplicated code
-        $last_name = $this->request->getPost('last_name', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+        // Free-text fields are read without FILTER_SANITIZE_FULL_SPECIAL_CHARS on purpose. Despite what
+        // the PHP manual says, that filter behaves like htmlentities(): it stores "José" as "Jos&eacute;",
+        // which then never matches a search or a grid filter. Sanitizing input must not alter the data;
+        // escaping belongs to the output. See docs/Tecnico/errores-produccion-upstream.md section 5.
+        $first_name = $this->request->getPost('first_name');    // TODO: duplicated code
+        $last_name = $this->request->getPost('last_name');
         $email = strtolower($this->request->getPost('email', FILTER_SANITIZE_EMAIL));
 
         // format first and last name properly
@@ -142,14 +146,14 @@ class Employees extends Persons
             'last_name'    => $last_name,
             'gender'       => $this->request->getPost('gender', FILTER_SANITIZE_NUMBER_INT),
             'email'        => $email,
-            'phone_number' => $this->request->getPost('phone_number', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
-            'address_1'    => $this->request->getPost('address_1', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
-            'address_2'    => $this->request->getPost('address_2', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
-            'city'         => $this->request->getPost('city', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
-            'state'        => $this->request->getPost('state', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
-            'zip'          => $this->request->getPost('zip', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
-            'country'      => $this->request->getPost('country', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
-            'comments'     => $this->request->getPost('comments', FILTER_SANITIZE_FULL_SPECIAL_CHARS)
+            'phone_number' => $this->request->getPost('phone_number'),
+            'address_1'    => $this->request->getPost('address_1'),
+            'address_2'    => $this->request->getPost('address_2'),
+            'city'         => $this->request->getPost('city'),
+            'state'        => $this->request->getPost('state'),
+            'zip'          => $this->request->getPost('zip'),
+            'country'      => $this->request->getPost('country'),
+            'comments'     => $this->request->getPost('comments')
         ];
 
         $grants_array = [];
@@ -173,7 +177,7 @@ class Employees extends Persons
         if (!empty($this->request->getPost('password')) && ENVIRONMENT != 'testing') {
             $exploded = explode(":", $this->request->getPost('language', FILTER_SANITIZE_FULL_SPECIAL_CHARS));
             $employee_data = [
-                'username'      => $this->request->getPost('username', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
+                'username'      => $this->request->getPost('username'),
                 'password'      => password_hash($this->request->getPost('password'), PASSWORD_DEFAULT),
                 'hash_version'  => 2,
                 'language_code' => $exploded[0] ?? '',
@@ -182,18 +186,22 @@ class Employees extends Persons
         } else { // Password not changed
             $exploded = explode(":", $this->request->getPost('language', FILTER_SANITIZE_FULL_SPECIAL_CHARS));
             $employee_data = [
-                'username'      => $this->request->getPost('username', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
+                'username'      => $this->request->getPost('username'),
                 'language_code' => $exploded[0] ?? '',
                 'language'      => $exploded[1] ?? ''
             ];
         }
+
+        // The browser hands these messages to $.notify(), which renders them as HTML, so the name is
+        // escaped here. Escaping at the output is what lets the name be stored with its accents intact.
+        $display_name = esc($first_name) . ' ' . esc($last_name);
 
         if ($this->employee->save_employee($person_data, $employee_data, $grants_array, $employee_id)) {
             // New employee
             if ($employee_id == NEW_ENTRY) {
                 return $this->response->setJSON([
                     'success' => true,
-                    'message' => lang('Employees.successful_adding') . ' ' . $first_name . ' ' . $last_name,
+                    'message' => lang('Employees.successful_adding') . ' ' . $display_name,
                     'id'      => $employee_data['person_id']
                 ]);
             } else { // Existing employee
@@ -204,14 +212,14 @@ class Employees extends Persons
                 }
                 return $this->response->setJSON([
                     'success' => true,
-                    'message' => lang('Employees.successful_updating') . ' ' . $first_name . ' ' . $last_name,
+                    'message' => lang('Employees.successful_updating') . ' ' . $display_name,
                     'id'      => $employee_id
                 ]);
             }
         } else { // Failure
             return $this->response->setJSON([
                 'success' => false,
-                'message' => lang('Employees.error_adding_updating') . ' ' . $first_name . ' ' . $last_name,
+                'message' => lang('Employees.error_adding_updating') . ' ' . $display_name,
                 'id'      => NEW_ENTRY
             ]);
         }
