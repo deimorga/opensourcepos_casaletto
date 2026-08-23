@@ -279,6 +279,37 @@ defensa.
 donde se copió. Se corrigieron también. Vale anotarlo: ninguna prueba de comportamiento lo habría
 encontrado, porque el reporte funcionaba perfectamente.
 
+## 6ter. Diseño de la pantalla (rehecho tras revisión del usuario, 2026-08-23)
+
+La primera versión funcionaba y era **inusable**. El usuario lo señaló con capturas y tenía razón.
+Las causas eran mecánicas, no de gusto, y vale anotarlas porque son fáciles de repetir:
+
+| Problema | Causa | Solución |
+|---|---|---|
+| El gráfico llenaba la pantalla | La clase `ct-golden-section` fuerza proporción 100:61,8 | Alto fijo de 210 px |
+| Los filtros quedaban **debajo** del gráfico | `table_support.init()` tiene cableado `toolbar: '#toolbar'` y bootstrap-table **se lleva ese elemento** a su cabecera | Los filtros viven en `#report_filters`, con otro id |
+| El gráfico se dibujaba vacío, con eje de 0 a 1 | No se comprobaba si había filas | Se oculta cuando no hay datos |
+| Se imprimía `Reports/income_expenses_analytics.no_reports/...` | `partial/bootstrap_tables_locale` arma la clave de idioma concatenando el nombre del recurso, y este lleva **una barra** | Se sobrescribe `formatNoMatches` con una clave propia |
+| Las cifras estaban al final, en cuatro líneas centradas | — | Tarjetas arriba de la tabla, resultado coloreado por signo |
+| El selector de fechas decía "hoy" mientras el reporte mostraba otro rango | La restauración por URL actualizaba las variables pero **no el widget** | Se sincroniza el picker; era un bug real, no estético: un ajuste posterior habría partido de la fecha equivocada |
+
+Otros ajustes: las etiquetas de los ejes heredan el color del tema (`reports.css` las pinta negras,
+invisibles sobre el tema oscuro que corre esta instalación); dos colores con leyenda, verde ingresos
+y rojo gastos; y el aviso del modo caja es un banner propio en vez de un guion pegado al subtítulo —
+que el reporte esté midiendo otra cosa no es una nota al pie.
+
+**El resumen dejó de ser HTML y pasó a ser datos.** La vista construye las tarjetas por DOM, así que
+los valores entran como texto y no como marcado, y recibe el signo del resultado en vez de tener que
+deducirlo de una cadena ya formateada.
+
+**Verificado tras el rediseño:** el selector y el subtítulo coinciden, la tabla queda sobre la línea
+de plegado (928 px de página), y el cambio de modo se anuncia **en los cuatro sitios a la vez** —
+banner, encabezado de columna, etiqueta de tarjeta y leyenda del gráfico. Cero errores de JavaScript.
+
+**Lección de método:** las mediciones por DOM decían que el orden de los elementos era correcto y no
+detectaron nada. El desajuste entre el selector y el subtítulo solo apareció **mirando una captura**.
+Medir posiciones no sustituye ver la pantalla.
+
 ## 7. Orden de implementación
 
 1. `app/Models/Reports/Income_expenses.php` — nuevo. Extiende `Report`, no `Summary_report` (ver 4).
