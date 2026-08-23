@@ -78,12 +78,27 @@ jobs:
             -e MYSQL_PASSWORD=pointofsale \
             -p 3306:3306 \
             mariadb:11.4
-          # Wait for MariaDB to be ready
-          until docker exec mysql mysqladmin ping -h 127.0.0.1 -u root -proot --silent; do
-            echo "Waiting for MariaDB..."
+          # Wait for MariaDB to be ready, but give up rather than spin forever. This loop used to
+          # have no bound: when the container failed to come up, docker exec kept failing and the
+          # step ran until the six-hour job limit, so this workflow reported nothing at all rather
+          # than reporting a failure. Print the container's own logs on the way out, because the
+          # reason is in there and nowhere else.
+          for attempt in $(seq 1 60); do
+            if docker exec mysql mysqladmin ping -h 127.0.0.1 -u root -proot --silent; then
+              echo "MariaDB is ready after ${attempt} attempts."
+              exit 0
+            fi
+            if [ -z "$(docker ps -q -f name=mysql)" ]; then
+              echo "::error::The MariaDB container is no longer running."
+              docker logs mysql || true
+              exit 1
+            fi
+            echo "Waiting for MariaDB... (${attempt}/60)"
             sleep 2
           done
-          echo "MariaDB is ready!"
+          echo "::error::MariaDB did not become ready within 120 seconds."
+          docker logs mysql || true
+          exit 1
 
       - name: Get composer cache directory
         id: composer-cache-dir
