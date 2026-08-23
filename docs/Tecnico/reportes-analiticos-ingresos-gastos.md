@@ -283,6 +283,14 @@ Se decodifica con una lista explícita de las entidades presentes, **no con un `
 (tarjetas de regalo con número, ajustes de caja), y una decodificación amplia podría alterar valores
 que no están rotos. La migración **imprime cuántas filas tocó y cuántas quedaron con `&` residual**.
 
+**La misma migración normaliza `items.description`** (decidido con el usuario, 2026-08-22): 50 filas
+con `Unidad: n&uacute;mero de unidades internacionales`. **Su origen es distinto** — vienen del
+archivo de Siigo, no de este filtro; en esas mismas filas el nombre del artículo conserva su tilde
+real. Se incluyen aquí porque el síntoma y la reparación son idénticos, son datos de solo lectura y
+hoy se ven literalmente como `n&uacute;mero` en pantalla dondequiera que la salida esté escapada.
+Van como un paso separado dentro de la misma migración, con su propio conteo, para poder revertirlas
+por separado.
+
 **Paso 2 — tapar la causa.** Sin esto, el paso 1 se deshace con la primera venta con tarjeta esa
 misma noche. **No se despliega el paso 1 a producción sin el 2.**
 
@@ -359,6 +367,67 @@ contra `lang('Sales.giftcard')`, `lang('Sales.cash')` y otras, tanto en PHP como
 funcionan porque esas etiquetas no llevan tilde. Todas tienen que migrar al código en el mismo
 cambio, o quedarán como la próxima falla silenciosa de esta misma familia.
 
+### 7.6 Fase 1b — erradicar el filtro en el resto de la aplicación
+
+**Decidido con el usuario el 2026-08-22.** La fase 1 arregla los 4 usos de medio de pago; la 1b se
+lleva por delante los 143 restantes.
+
+**Es solo código: no hace falta ninguna migración de datos.** Barrido completo de la base de
+producción (2026-08-22, 15 campos revisados): los únicos con entidades son
+`sales_payments.payment_type` (201, este filtro) e `items.description` (50, origen Siigo). Están en
+**cero** los nombres de proveedor, de agencia, valores y definiciones de atributo, descripciones de
+kit, tarjetas de regalo, nombres de empleado, comentarios de cliente, categorías de artículo,
+comentarios de recepción, nombres de ubicación, nombres de mesa y nombres de artículo. **La fase 1b
+previene, no repara.**
+
+**El obstáculo real son las 255 salidas sin escapar.** Hoy el filtro hace doble oficio: además de
+deformar el dato, es lo único entre lo que se postea y esas salidas. Ejemplo confirmado, en la
+pantalla de venta:
+
+```php
+<td><?= $payment['payment_type'] ?></td>     // app/Views/sales/register.php:552 — crudo
+```
+
+Quitar el filtro sin auditar la salida cambiaría un problema de datos por uno de seguridad. **El
+orden dentro de cada módulo no es negociable: primero se escapa la salida, después se quita el
+filtro.** Nunca al revés, ni siquiera "por un rato".
+
+**Procedimiento por módulo:**
+
+1. Auditar las salidas del módulo —sus vistas y sus funciones en `tabular_helper.php`— y escapar con
+   `esc()` donde falte.
+2. Quitar el filtro de las lecturas de POST/GET de ese módulo.
+3. Probar en staging con texto acentuado de verdad: guardar un "José Muñoz", buscarlo por nombre,
+   verlo en la grilla, editarlo, exportarlo a Excel y verlo en un recibo impreso.
+
+**Orden, por riesgo y beneficio:**
+
+| # | Módulo | Usos | Por qué ahí |
+|---|---|---|---|
+| 1 | `Customers` | 2 | Nombres propios: el primer sitio donde un negocio nuevo escribirá tildes. Alimenta además el autocompletado del registro de venta. |
+| 2 | `Employees` | 19 | Nombres propios, y el más grande de los de arriba. |
+| 3 | `Suppliers` | 16 | Ya carga 2 parches de `html_entity_decode` que hay que **retirar** al corregir el origen. |
+| 4 | `Items` + `Item_kits` | 10 | Ya hay 26 nombres con tilde real desde Siigo. Hoy, editar uno por la web lo corrompe. |
+| 5 | `Expenses` + `Expenses_categories` | 15 | Descripciones de texto libre. |
+| 6 | `Sales` + `Receivings` + `Cashups` | 44 | Comentarios y campos libres. `Sales` queda parcialmente hecho desde la fase 1. |
+| 7 | `Attributes` | 4 | Retirar sus 4 `html_entity_decode` al corregir el origen. |
+| 8 | Resto: `Taxes`, `Tax_codes`, `Tax_jurisdictions`, `Tax_categories`, `Messages`, `Giftcards`, `Home`, `tabular_helper` | 37 | Campos mayormente numéricos o de catálogo. |
+
+**Los 6 `html_entity_decode()` se retiran junto con el filtro que los hizo necesarios**, módulo por
+módulo. Dejarlos sería peor que quitarlos: con el dato entrando limpio, esa llamada pasa a decodificar
+texto legítimo — quien escriba "Ron &amp; Cola" en una descripción vería su texto transformado.
+
+**Regla para no reintroducirlo.** En lecturas de POST/GET:
+
+- **Valor de lista conocida** (medios de pago, tipos, estados): validar contra lista blanca. Es más
+  seguro que sanear y no deforma el dato.
+- **Texto libre**: leer crudo y escapar en la salida.
+- **Números**: los filtros numéricos (`FILTER_SANITIZE_NUMBER_INT`) no deforman y se quedan.
+
+Conviene una prueba que recorra los controladores ya migrados y **falle si el filtro reaparece**.
+Sin eso, la próxima actualización desde upstream lo reintroduce y nadie se entera hasta que un
+cliente se llame "José".
+
 ## 8. Orden de implementación y archivos a tocar
 
 **La fase 1 bloquea la fase 2.** El modo caja del reporte cruza ingresos y gastos por medio de pago;
@@ -380,6 +449,11 @@ sobre los datos actuales daría cero para débito y crédito.
 9. `app/Helpers/tabular_helper.php` — resolución de etiqueta en ambas grillas.
 10. `app/Views/expenses/form.php` y `app/Views/sales/register.php` — dropdowns por código, incluidas
     las comparaciones en JavaScript.
+
+### Fase 1b — erradicación del filtro (ver 7.6)
+
+Módulo por módulo, en el orden de la tabla de 7.6. Cada módulo es un commit propio: auditoría de
+salida + retiro del filtro + prueba en staging. No hay migraciones de datos.
 
 ### Fase 2 — reporte
 

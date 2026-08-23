@@ -291,6 +291,12 @@ En **los dos módulos**, en tres pasos:
 Se añaden además los filtros faltantes en la grilla de Gastos, para que coincidan con lo que el
 formulario permite guardar.
 
+**Y una fase 1b, decidida el 2026-08-22:** erradicar el filtro en los 143 usos restantes, módulo por
+módulo, empezando por Clientes y Empleados —que es donde un negocio nuevo escribirá tildes primero—.
+Es trabajo de código solamente: un barrido completo de la base confirmó que **no hay datos dañados en
+ningún otro campo**, así que esa fase previene en vez de reparar. Cada módulo lleva primero la
+auditoría de escapado en pantalla y solo después el retiro del filtro, nunca al revés.
+
 **Sin esto el reporte nace roto:** su modo caja daría cero para débito y crédito, que son 13 de los
 32,8 millones cobrados.
 

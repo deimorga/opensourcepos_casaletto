@@ -173,8 +173,22 @@ tildes, el problema se vuelve general.
 justo donde les dolió: cuatro en `Attributes.php`, uno en `suppliers/form.php` y uno en
 `tabular_helper.php` para `company_name`. Ninguno toca la causa.
 
-**Corrección pendiente.** No está hecha. El criterio, para cuando se aborde: el saneamiento de
-entrada no debe cambiar el dato — escapar es responsabilidad de la **salida** (`esc()` en las
-vistas, que ya se usa). Cambiar los 147 usos de golpe es una superficie enorme; el orden razonable
-es empezar por los campos que hoy están rotos (medios de pago), reparar los datos existentes y
-avanzar por módulo. Ver `docs/Tecnico/reportes-analiticos-ingresos-gastos.md` sección 7.
+**Corrección: planificada, no ejecutada.** El criterio es que **el saneamiento de entrada no debe
+cambiar el dato** — escapar es responsabilidad de la **salida** (`esc()` en las vistas, que ya se
+usa). El usuario decidió el 2026-08-22 erradicarlo por completo, en dos tramos: primero los medios
+de pago (fase 1) y después los 143 usos restantes módulo por módulo (fase 1b), empezando por
+`Customers` y `Employees`. Plan completo en
+`docs/Tecnico/reportes-analiticos-ingresos-gastos.md` secciones 7.3 y 7.6.
+
+**Obstáculo a tener presente**: el filtro hoy hace doble oficio — es lo único entre lo que se postea
+y las **255 salidas sin escapar** que hay en las vistas (por ejemplo
+`app/Views/sales/register.php:552`, que imprime el medio de pago en crudo). Dentro de cada módulo el
+orden es primero escapar la salida y después quitar el filtro, nunca al revés.
+
+**Alcance de la reparación de datos, medido.** Barrido completo de producción el 2026-08-22 sobre 15
+campos: los únicos con entidades son `sales_payments.payment_type` (201 filas, este filtro) e
+`items.description` (50 filas, que vienen del archivo de Siigo y no de aquí). Están en cero los
+nombres de proveedor y agencia, valores y definiciones de atributo, descripciones de kit, tarjetas de
+regalo, nombres de empleado, comentarios de cliente, categorías, comentarios de recepción, nombres de
+ubicación, nombres de mesa y nombres de artículo. **Reparar esos dos campos regulariza el 100% del
+daño existente**; la fase 1b es prevención.
