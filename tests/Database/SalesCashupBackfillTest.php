@@ -22,7 +22,7 @@ class SalesCashupBackfillTest extends CIUnitTestCase
     {
         parent::setUpBeforeClass();
 
-        require_once APPPATH . 'Database/Migrations/20260823040000_AddCashupIdToSales.php';
+        require_once APPPATH . 'Database/Migrations/20260823050000_AddCashupIdToSales.php';
     }
 
     /**
