@@ -115,8 +115,13 @@ class Suppliers extends Persons
      */
     public function postSave(int $supplier_id = NEW_ENTRY): ResponseInterface
     {
-        $first_name = $this->request->getPost('first_name', FILTER_SANITIZE_FULL_SPECIAL_CHARS);    // TODO: Duplicate code
-        $last_name = $this->request->getPost('last_name', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
+        // Free-text fields are read without FILTER_SANITIZE_FULL_SPECIAL_CHARS on purpose. Despite what
+        // the PHP manual says, that filter behaves like htmlentities(): it stores "Distribuciones Álvarez"
+        // as "Distribuciones &Aacute;lvarez", which then never matches a search or a grid filter.
+        // Sanitizing input must not alter the data; escaping belongs to the output.
+        // See docs/Tecnico/errores-produccion-upstream.md section 5.
+        $first_name = $this->request->getPost('first_name');    // TODO: Duplicate code
+        $last_name = $this->request->getPost('last_name');
         $email = strtolower($this->request->getPost('email', FILTER_SANITIZE_EMAIL));
 
         // Format first and last name properly
@@ -128,44 +133,48 @@ class Suppliers extends Persons
             'last_name'    => $last_name,
             'gender'       => $this->request->getPost('gender'),
             'email'        => $email,
-            'phone_number' => $this->request->getPost('phone_number', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
-            'address_1'    => $this->request->getPost('address_1', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
-            'address_2'    => $this->request->getPost('address_2', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
-            'city'         => $this->request->getPost('city', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
-            'state'        => $this->request->getPost('state', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
-            'zip'          => $this->request->getPost('zip', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
-            'country'      => $this->request->getPost('country', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
-            'comments'     => $this->request->getPost('comments', FILTER_SANITIZE_FULL_SPECIAL_CHARS)
+            'phone_number' => $this->request->getPost('phone_number'),
+            'address_1'    => $this->request->getPost('address_1'),
+            'address_2'    => $this->request->getPost('address_2'),
+            'city'         => $this->request->getPost('city'),
+            'state'        => $this->request->getPost('state'),
+            'zip'          => $this->request->getPost('zip'),
+            'country'      => $this->request->getPost('country'),
+            'comments'     => $this->request->getPost('comments')
         ];
 
         $supplier_data = [
-            'company_name'   => $this->request->getPost('company_name', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
-            'agency_name'    => $this->request->getPost('agency_name', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
-            'category'       => $this->request->getPost('category', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
-            'account_number' => $this->request->getPost('account_number') == '' ? null : $this->request->getPost('account_number', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
+            'company_name'   => $this->request->getPost('company_name'),
+            'agency_name'    => $this->request->getPost('agency_name'),
+            'category'       => $this->request->getPost('category'),
+            'account_number' => $this->request->getPost('account_number') == '' ? null : $this->request->getPost('account_number'),
             'tax_id'         => $this->request->getPost('tax_id', FILTER_SANITIZE_NUMBER_INT)
         ];
+
+        // The browser hands these messages to $.notify(), which renders them as HTML, so the company name
+        // is escaped here. Escaping at the output is what lets the name be stored with its accents intact.
+        $display_company_name = esc($supplier_data['company_name']);
 
         if ($this->supplier->save_supplier($person_data, $supplier_data, $supplier_id)) {
             // New supplier
             if ($supplier_id == NEW_ENTRY) {
                 return $this->response->setJSON([
                     'success' => true,
-                    'message' => lang('Suppliers.successful_adding') . ' ' . $supplier_data['company_name'],
+                    'message' => lang('Suppliers.successful_adding') . ' ' . $display_company_name,
                     'id'      => $supplier_data['person_id']
                 ]);
             } else { // Existing supplier
 
                 return $this->response->setJSON([
                     'success' => true,
-                    'message' => lang('Suppliers.successful_updating') . ' ' . $supplier_data['company_name'],
+                    'message' => lang('Suppliers.successful_updating') . ' ' . $display_company_name,
                     'id'      => $supplier_id
                 ]);
             }
         } else { // Failure
             return $this->response->setJSON([
                 'success' => false,
-                'message' => lang('Suppliers.error_adding_updating') . ' ' .     $supplier_data['company_name'],
+                'message' => lang('Suppliers.error_adding_updating') . ' ' . $display_company_name,
                 'id'      => NEW_ENTRY
             ]);
         }

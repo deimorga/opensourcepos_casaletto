@@ -19,7 +19,7 @@
                     'name'  => 'company_name',
                     'id'    => 'company_name_input',
                     'class' => 'form-control input-sm',
-                    'value' => html_entity_decode($person_info->company_name)
+                    'value' => $person_info->company_name
                 ]) ?>
             </div>
         </div>
