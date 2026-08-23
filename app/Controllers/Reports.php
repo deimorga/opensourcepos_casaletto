@@ -133,7 +133,7 @@ class Reports extends Secure_Controller
      * @return string
      * @noinspection PhpUnused
      */
-    public function analytical_income_expenses(): string
+    public function income_expenses_analytics(): string
     {
         $this->clearCache();
 
@@ -143,7 +143,7 @@ class Reports extends Secure_Controller
         }
 
         $data = [
-            'controller_name'  => 'reports/analytical_income_expenses',
+            'controller_name'  => 'reports/income_expenses_analytics',
             'table_headers'    => get_income_expenses_manage_table_headers(),
             'payment_options'  => $payment_options,
             'granularities'    => [
@@ -154,7 +154,7 @@ class Reports extends Secure_Controller
             'selected_filters' => []
         ];
 
-        return view('reports/analytical_income_expenses', $data);
+        return view('reports/income_expenses_analytics', $data);
     }
 
     /**

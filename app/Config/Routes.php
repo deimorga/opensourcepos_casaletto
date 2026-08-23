@@ -34,8 +34,13 @@ $routes->add('no_access/index/(:segment)/(:segment)', 'No_access::index/$1/$2');
 
 // Analytical reports. Declared before the wildcards below: they do not collide today, but an
 // explicit order costs nothing and survives whoever adds the next (:any) pattern.
-$routes->add('reports/analytical_income_expenses', 'Reports::analytical_income_expenses');
-$routes->add('reports/analytical_income_expenses/search', 'Reports::getIncome_expenses_search');
+//
+// The word order is not cosmetic. Reports::__construct() derives the required permission from the
+// LAST underscore-separated word of URI segment 2, so a path ending in "_expenses" would demand a
+// reports_expenses grant that does not exist. Ending it in "_analytics" derives reports_analytics,
+// which is the permission this report actually has.
+$routes->add('reports/income_expenses_analytics', 'Reports::income_expenses_analytics');
+$routes->add('reports/income_expenses_analytics/search', 'Reports::getIncome_expenses_search');
 
 $routes->add('reports/summary_(:any)/(:any)/(:any)', 'Reports::Summary_$1/$2/$3/$4');
 $routes->add('reports/summary_expenses_categories', 'Reports::date_input_only');
