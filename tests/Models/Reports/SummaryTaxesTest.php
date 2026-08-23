@@ -23,6 +23,14 @@ class SummaryTaxesTest extends CIUnitTestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        // Config\OSPOS caches the settings it read, and when it was first built while the table
+        // list still looked empty it is holding getDefaultSettings() -- four keys. Summary_taxes
+        // reads tax_included straight out of that array, so without this the report dies on an
+        // undefined index before it reads a single row.
+        \Config\Database::connect()->resetDataCache();
+        config(\Config\OSPOS::class)->update_settings();
+
         $this->seedTestData();
     }
 
