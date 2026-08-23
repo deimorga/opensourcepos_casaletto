@@ -1,6 +1,7 @@
 <?php
 
 return [
+    "already_open"               => "Ya hay otro turno abierto. Ciérrelo antes de abrir uno nuevo.",
     "amount"                     => "Monto",
     "amount_number"              => "El monto debe ser un número",
     "amount_required"            => "El monto es un campo requerido.",

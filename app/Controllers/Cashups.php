@@ -214,6 +214,18 @@ class Cashups extends Secure_Controller
             }
         }
 
+        // One shift open at a time. Sales, cash expenses and collections are all attributed to the
+        // shift that was open when they happened, so a second open shift makes that attribution a
+        // guess: two drawers would be claiming the same money. Checked before anything else because
+        // no other answer on this form matters if the shift cannot be opened at all.
+        if ($is_new && $this->cashup->get_open_cashup_id() !== null) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => lang('Cashups.already_open'),
+                'id'      => NEW_ENTRY
+            ]);
+        }
+
         // Amounts are stored straight from parse_decimals(), which yields ''
         // for a blank field and false for anything it cannot parse -- both land
         // in a DECIMAL column as 0.00 without a word to the cashier. That is how

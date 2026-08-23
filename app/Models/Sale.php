@@ -542,38 +542,6 @@ class Sale extends Model
     }
 
     /**
-     * The cash-up shift that is open right now, or null when none is.
-     *
-     * Only one shift is supposed to be open at a time. Until that is enforced at the Cashups end
-     * the history says otherwise -- shift 32 was opened while 31 was still running -- so this picks
-     * the one opened most recently, which is the drawer the cashier is actually standing at, and
-     * says out loud that it had to choose.
-     */
-    public function get_open_cashup_id(): ?int
-    {
-        $builder = $this->db->table('cash_up');
-        $builder->select('cashup_id');
-        $builder->where('status', 'open');
-        $builder->where('deleted', 0);
-        $builder->orderBy('open_date', 'desc');
-        $builder->orderBy('cashup_id', 'desc');
-
-        $rows = $builder->get()->getResultArray();
-
-        if ($rows === []) {
-            return null;
-        }
-
-        if (count($rows) > 1) {
-            // Error rather than warning: the production log threshold is 4, which throws warnings
-            // away, and money landing in the wrong drawer is not something to find out later.
-            log_message('error', count($rows) . ' cash-up shifts are open at once. Sales are being sealed with the most recently opened one, ' . $rows[0]['cashup_id'] . '. Close the others.');
-        }
-
-        return (int) $rows[0]['cashup_id'];
-    }
-
-    /**
      * Save the sale information after the sales is complete but before the final document is printed
      * The sales_taxes variable needs to be initialized to an empty array before calling
      * @throws ReflectionException
@@ -639,7 +607,7 @@ class Sale extends Model
         if ($sale_status == COMPLETED && $this->db->fieldExists('cashup_id', 'sales') && $this->get_cashup_id($sale_id) === null) {
             // Null when no shift is open. A sale with no shift is a real answer the reports show as
             // such, and it beats inventing an attribution nobody could tell from a genuine one.
-            $sales_data['cashup_id'] = $this->get_open_cashup_id();
+            $sales_data['cashup_id'] = model(Cashup::class)->get_open_cashup_id();
         }
 
         // Run these queries as a transaction, we want to make sure we do all or nothing

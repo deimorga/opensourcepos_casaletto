@@ -1,6 +1,7 @@
 <?php
 
 return [
+    "already_open"               => "Another shift is still open. Close it before opening a new one.",
     "amount"                     => "Amount",
     "amount_number"              => "Amount must be a number",
     "amount_required"            => "Amount is a Required Field.",

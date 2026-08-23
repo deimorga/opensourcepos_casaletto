@@ -2,6 +2,7 @@
 
 namespace Tests\Models;
 
+use App\Models\Cashup;
 use App\Models\Sale;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -256,14 +257,14 @@ class SaleCashupStampTest extends CIUnitTestCase
     {
         $this->closedShift('2026-08-13 08:00:00', '2026-08-13 22:00:00');
 
-        $this->assertNull(model(Sale::class)->get_open_cashup_id());
+        $this->assertNull(model(Cashup::class)->get_open_cashup_id());
     }
 
     public function testOpenCashupIdIgnoresDeletedShifts(): void
     {
         $this->insertShift('2026-08-14 08:00:00', '2026-08-14 08:00:00', 'open', 1);
 
-        $this->assertNull(model(Sale::class)->get_open_cashup_id());
+        $this->assertNull(model(Cashup::class)->get_open_cashup_id());
     }
 
     /**
@@ -276,6 +277,6 @@ class SaleCashupStampTest extends CIUnitTestCase
         $this->openShift('2026-08-13 08:00:00');
         $newest = $this->openShift('2026-08-14 13:08:00');
 
-        $this->assertSame($newest, model(Sale::class)->get_open_cashup_id());
+        $this->assertSame($newest, model(Cashup::class)->get_open_cashup_id());
     }
 }
