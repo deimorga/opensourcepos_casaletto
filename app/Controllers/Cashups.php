@@ -248,19 +248,10 @@ class Cashups extends Secure_Controller
             }
         }
 
-        $expense_filters = [
-            'only_cash'     => true,
-            'only_register' => true,
-            'is_deleted'    => false,
-            'start_date'    => $cash_ups_info->open_date,
-            'end_date'      => $cash_ups_info->close_date
-        ];
-
-        $register_expenses = 0.0;
-
-        foreach ($this->expense->get_payments_summary('', $expense_filters) as $row) {
-            $register_expenses += (float)$row['amount'];
-        }
+        $register_expenses = $this->expense->get_register_total_between(
+            $cash_ups_info->open_date,
+            $cash_ups_info->close_date
+        );
 
         $collections = $this->cash_collection->get_total_collected_between(
             $cash_ups_info->open_date,

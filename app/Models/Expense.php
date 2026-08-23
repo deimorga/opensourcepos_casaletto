@@ -179,6 +179,34 @@ class Expense extends Model
     }
 
     /**
+     * What was paid out of the drawer between two moments, for the cash-up reconciliation.
+     *
+     * Deliberately not routed through get_payments_summary(). That one honours the
+     * date_or_time_format setting, and when the setting is empty it compares
+     * DATE_FORMAT(date, '%Y-%m-%d') against the bounds it is handed. Give it a bound carrying a
+     * time and the comparison is between strings of different lengths: '2026-08-23' sorts before
+     * '2026-08-23 15:49:52', so nothing from that very day is ever inside the range and the drawer
+     * comes up with zero expenses no matter how many were paid from it.
+     *
+     * That setting is about how dates are displayed and filtered on the grids. A drawer is
+     * reconciled over a window of time, and a shift that opened at 15:49 did not pay for what was
+     * bought at 09:00 that morning, so the comparison here is always on the full timestamp.
+     */
+    public function get_register_total_between(string $start_date, string $end_date): float
+    {
+        $builder = $this->db->table('expenses');
+        $builder->select('IFNULL(SUM(amount), 0) AS total');
+        $builder->where('deleted', 0);
+        $builder->where('cash_source', 'register');
+        $builder->where('date >=', $start_date);
+        $builder->where('date <=', $end_date);
+
+        $row = $builder->get()->getRow();
+
+        return (float)($row->total ?? 0);
+    }
+
+    /**
      * Narrows a query down to the ticked payment types, matched on the stable code.
      *
      * These filters used to compare the stored label against the Expenses.* keys while the form
