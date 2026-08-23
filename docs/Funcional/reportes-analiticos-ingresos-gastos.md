@@ -1,5 +1,9 @@
 # Alcance funcional — Reportes Analíticos: Ingresos vs Gastos
 
+> **Estado a 2026-08-22: definido y aprobado, sin implementar.** Sin decisiones abiertas.
+> Los defectos que bloqueaban su modo caja ya están corregidos y en producción — ver
+> `docs/Tecnico/correccion-codificacion-tildes.md`.
+
 Requerimiento planteado el 2026-08-22. Documento de alcance funcional; el diseño técnico vive en
 `docs/Tecnico/reportes-analiticos-ingresos-gastos.md`.
 
@@ -205,100 +209,17 @@ Con exportación a Excel / PDF / CSV, búsqueda y ordenamiento, igual que las de
 
 Dos series sobre el mismo eje temporal — ingresos y gastos — para ver de un vistazo dónde se cruzan.
 
-## 7. Defectos preexistentes que este trabajo corrige
+## 7. Los defectos que bloqueaban este reporte, ya corregidos
 
-Inventariar los filtros para diseñar el reporte destapó **dos fallas vivas en producción** en los
-filtros de medio de pago. Ninguna viene de nuestro trabajo; ambas hay que corregirlas antes del
-reporte, porque su modo caja (5.4) cruza ingresos y gastos justamente por medio de pago.
+Al inventariar los filtros para diseñar este reporte aparecieron dos fallas vivas en producción en
+los filtros de medio de pago: los de Tarjeta de Débito y Crédito devolvían **cero** sobre 13,2
+millones de pesos, y el de Adeudo en Gastos devolvía vacío teniendo datos. El modo caja de este
+reporte (5.4) cruza ingresos y gastos justamente por medio de pago, así que construirlo encima
+habría heredado esas cifras incompletas.
 
-### 7.1 En Ventas: los acentos están guardados como entidades HTML
-
-Los medios de pago con tilde se guardaron en `ospos_sales_payments` con el acento convertido en
-entidad HTML — verificado a nivel de bytes el 2026-08-22:
-
-```
-Tarjeta de d&eacute;bito      en lugar de   Tarjeta de débito
-Tarjeta de Cr&eacute;dito     en lugar de   Tarjeta de Crédito
-```
-
-Los filtros de la grilla comparan contra la etiqueta traducida, con el acento de verdad. Ejecutando
-la consulta exacta que genera cada filtro contra los datos reales:
-
-| Filtro de la grilla de Ventas | Coincidencias |
-|---|---|
-| Tarjeta de Débito | **0** |
-| Tarjeta de Crédito | **0** |
-| Efectivo | 444 ✅ |
-| Transferencia Bancaria | 91 ✅ |
-
-**En la grilla de Ventas, los filtros de Tarjeta de Débito y Tarjeta de Crédito no devuelven nada.**
-Son 194 pagos por 12.715.730 y 6 pagos por 362.120: **13 millones de los 32,8 cobrados — el 39% del
-dinero — invisible a los filtros.** Los dos que funcionan son precisamente los dos que no llevan
-tilde.
-
-Como siempre en esta familia de fallas, no hay mensaje de error: una lista vacía que se lee como un
-dato ("no hubo pagos con tarjeta") cuando es una falla.
-
-**El origen está ubicado (2026-08-22): es nuestro propio código, no un servicio externo.** Al leer
-el formulario, el controlador de ventas usa el filtro `FILTER_SANITIZE_FULL_SPECIAL_CHARS`, que —pese
-a lo que dice la documentación de PHP— convierte las vocales acentuadas en entidades HTML.
-Comprobado ejecutando PHP dentro del contenedor de producción. Que esté en el código y no en una
-integración externa importa para el modelo SaaS: es controlable.
-
-**El mismo filtro se usa 147 veces en 19 controladores**, así que cualquier texto acentuado que un
-usuario escriba se guarda codificado — un cliente llamado "José" quedaría como `Jos&eacute;` y no
-aparecería al buscarlo. Hoy no se nota porque en Casaletto nadie escribe con tildes: en producción no
-hay una sola fila con tilde en clientes, descripciones de gasto, categorías ni comentarios de venta.
-Deja de estar contenido en cuanto un negocio nuevo tenga usuarios que sí las usen. Diagnóstico
-completo en `docs/Tecnico/errores-produccion-upstream.md` sección 5.
-
-### 7.2 En Gastos: se guarda con un diccionario y se filtra con otro
-
-El formulario de gastos guarda el medio de pago como **texto traducido** tomado de las claves
-`Sales.*`, pero los filtros de la grilla comparan contra las claves `Expenses.*`. Son dos archivos
-de idioma distintos, y no dicen lo mismo:
-
-| Idioma | Se guarda (`Sales.due`) | Se filtra (`Expenses.due`) | ¿Coincide? |
-|---|---|---|---|
-| en | "Due" | "Due" | ✅ |
-| es-ES | "Adeudado" | "Hasta" | ❌ |
-| **es-MX** (el que corre esta instalación) | **"Adeudo"** | **"A Crédito"** | ❌ |
-
-En inglés funciona; por eso upstream nunca lo vio.
-
-**Impacto real hoy, medido:** ninguno por este camino — no hay ningún gasto registrado con ese medio
-de pago. Los 56 gastos activos usan solo Efectivo (54) y Transferencia Bancaria (2).
-
-**Pero el daño existe por otro lado:** el formulario ofrece **siete** medios de pago y la grilla
-filtra por **cinco**. **Transferencia Bancaria y Monedero no tienen filtro** — así que los 2 gastos
-por 1.650.000 pagados por transferencia no son alcanzables por ningún filtro de la grilla.
-
-Y los otros cuatro filtros **coinciden de casualidad**: solo porque la tabla usa la colación
-`utf8_general_ci`, que ignora mayúsculas y tildes (se guarda "Tarjeta de débito", se busca "Tarjeta
-de Débito"). El día que alguien migre a una colación sensible, se rompen los cinco.
-
-### 7.3 Qué se corrige (decidido con el usuario, 2026-08-22)
-
-En **los dos módulos**, en tres pasos:
-
-1. **Reparar los datos existentes** decodificando las entidades HTML. Devuelve los filtros de Ventas
-   de inmediato, sin esperar al resto.
-2. **Ubicar y tapar la causa**, para que no se vuelvan a escribir así.
-3. **Guardar un código estable** (`cash`, `due`, `bank_transfer`…) en vez de texto traducido, y
-   resolver la etiqueta al mostrar. Un cambio de idioma deja de romper el histórico, y desaparece la
-   dependencia de la colación.
-
-Se añaden además los filtros faltantes en la grilla de Gastos, para que coincidan con lo que el
-formulario permite guardar.
-
-**Y una fase 1b, decidida el 2026-08-22:** erradicar el filtro en los 143 usos restantes, módulo por
-módulo, empezando por Clientes y Empleados —que es donde un negocio nuevo escribirá tildes primero—.
-Es trabajo de código solamente: un barrido completo de la base confirmó que **no hay datos dañados en
-ningún otro campo**, así que esa fase previene en vez de reparar. Cada módulo lleva primero la
-auditoría de escapado en pantalla y solo después el retiro del filtro, nunca al revés.
-
-**Sin esto el reporte nace roto:** su modo caja daría cero para débito y crédito, que son 13 de los
-32,8 millones cobrados.
+**Se corrigieron primero, y están en producción desde el 2026-08-22.** Historia completa en
+`docs/Tecnico/correccion-codificacion-tildes.md` y diagnóstico técnico en
+`docs/Tecnico/errores-produccion-upstream.md` sección 5.
 
 ## 8. Preguntas abiertas
 

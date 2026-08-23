@@ -183,8 +183,7 @@ secciones 7.3 y siguientes. **Los otros 143 usos siguen sin corregir** — es la
 cambiar el dato** — escapar es responsabilidad de la **salida** (`esc()` en las vistas, que ya se
 usa). El usuario decidió el 2026-08-22 erradicarlo por completo, en dos tramos: primero los medios
 de pago (fase 1) y después los 143 usos restantes módulo por módulo (fase 1b), empezando por
-`Customers` y `Employees`. Plan completo en
-`docs/Tecnico/reportes-analiticos-ingresos-gastos.md` secciones 7.3 y 7.6.
+`Customers` y `Employees`. Plan de trabajo, fases y pendientes en `docs/Tecnico/correccion-codificacion-tildes.md`.
 
 **Desplegado a producción el 2026-08-22 (~21:45–21:50 hora Colombia), con la operación ya cerrada.**
 Resultado, contrastado contra el estado tomado justo antes:
