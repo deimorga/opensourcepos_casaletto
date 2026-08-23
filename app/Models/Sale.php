@@ -523,6 +523,35 @@ class Sale extends Model
     }
 
     /**
+     * What a shift took in, broken down by payment method, for the sales sealed with it.
+     *
+     * Net of change given back: cash_refund is the change handed to the customer, not a refunded
+     * sale (Sales.php sets it from $data['amount_change']), so the drawer only ever held the
+     * difference. This is the same formula Summary_payments uses for its trans_amount.
+     *
+     * Keyed off the seal rather than a date range because the two are not the same thing. The
+     * closing screen still autocompletes from a date range, and on a day with two shifts, or with
+     * the date-only setting that truncates the window to whole days, that range takes in sales the
+     * shift never saw.
+     *
+     * Rounding adjustments come back as their own payment type rather than being folded in: they
+     * did move cash, and naming them is what lets a cashier recognise the difference.
+     */
+    public function get_payments_by_cashup(int $cashup_id): array
+    {
+        $builder = $this->db->table('sales_payments');
+        $builder->select('sales_payments.payment_type_code AS payment_type_code');
+        $builder->select('sales_payments.payment_type AS payment_type');
+        $builder->select('SUM(sales_payments.payment_amount - sales_payments.cash_refund) AS trans_amount');
+        $builder->join('sales', 'sales.sale_id = sales_payments.sale_id');
+        $builder->where('sales.cashup_id', $cashup_id);
+        $builder->groupBy('sales_payments.payment_type_code, sales_payments.payment_type');
+        $builder->orderBy('sales_payments.payment_type_code', 'asc');
+
+        return $builder->get()->getResultArray();
+    }
+
+    /**
      * The cash-up shift a sale is already sealed with, or null when it carries none. A sale that
      * does not exist yet carries none either.
      */

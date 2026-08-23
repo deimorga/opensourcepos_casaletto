@@ -2,8 +2,10 @@
 
 namespace App\Controllers;
 
+use App\Models\Cash_collection;
 use App\Models\Cashup;
 use App\Models\Expense;
+use App\Models\Sale;
 use App\Models\Reports\Summary_payments;
 use CodeIgniter\HTTP\ResponseInterface;
 use Config\OSPOS;
@@ -11,8 +13,10 @@ use Config\Services;
 
 class Cashups extends Secure_Controller
 {
+    private Cash_collection $cash_collection;
     private Cashup $cashup;
     private Expense $expense;
+    private Sale $sale;
     private Summary_payments $summary_payments;
     private array $config;
 
@@ -20,8 +24,10 @@ class Cashups extends Secure_Controller
     {
         parent::__construct('cashups');
 
+        $this->cash_collection = model(Cash_collection::class);
         $this->cashup = model(Cashup::class);
         $this->expense = model(Expense::class);
+        $this->sale = model(Sale::class);
         $this->summary_payments = model(Summary_payments::class);
         $this->config = config(OSPOS::class)->settings;
     }
@@ -162,14 +168,18 @@ class Cashups extends Secure_Controller
                 }
             }
 
-            // Lookup expenses paid in cash
+            // Expenses paid out of the drawer. Narrowed to cash_source 'register' because money
+            // paid from cash already collected never sat in this drawer, so subtracting it here
+            // would report the shift short by that much. Every one of the 55 cash expenses on
+            // record backfills to 'register', so no historical total moves.
             $filters = [
-                'only_cash'   => true,
-                'only_due'    => false,
-                'only_check'  => false,
-                'only_credit' => false,
-                'only_debit'  => false,
-                'is_deleted'  => false
+                'only_cash'     => true,
+                'only_register' => true,
+                'only_due'      => false,
+                'only_check'    => false,
+                'only_credit'   => false,
+                'only_debit'    => false,
+                'is_deleted'    => false
             ];
 
             $payments = $this->expense->get_payments_summary('', array_merge($inputs, $filters));
@@ -183,7 +193,95 @@ class Cashups extends Secure_Controller
 
         $data['cash_ups_info'] = $cash_ups_info;
 
+        // Everyone who can reach this screen may write down a collection, but only an
+        // administrator can be named as the one who took the money: a cashier does not have the
+        // keys to the safe or the bank, so naming one would record something that cannot have
+        // happened.
+        $data['collectors'] = [];
+
+        foreach ($this->employee->get_all()->getResult() as $employee) {
+            if ($this->employee->has_grant('config', (int)$employee->person_id)) {
+                $data['collectors'][$employee->person_id] = $employee->first_name . ' ' . $employee->last_name;
+            }
+        }
+
+        $data['is_open'] = $cash_ups_info->cashup_id != NEW_ENTRY && $cash_ups_info->status === 'open';
+        $data['collections'] = [];
+        $data['reconciliation'] = null;
+
+        if ($cash_ups_info->cashup_id != NEW_ENTRY) {
+            $data['collections'] = $this->cash_collection
+                ->get_collected_between($cash_ups_info->open_date, $cash_ups_info->close_date)
+                ->getResultArray();
+
+            $data['reconciliation'] = $this->_build_reconciliation($cash_ups_info);
+        }
+
         return view("cashups/form", $data);
+    }
+
+    /**
+     * The read-only figures under the closing fields: what the shift took in, what left the drawer,
+     * and what should therefore be sitting in it.
+     *
+     * Income is read from the sales sealed with this shift, not from a date range. The two are not
+     * the same: the autocomplete above still uses a range, and with the date-only setting it widens
+     * that range to whole days, so on 31 July -- the one day with two shifts -- each of them would
+     * count the other's sales. Nothing here writes to the cash-up, and the Total is left exactly as
+     * it has been calculated for forty shifts.
+     */
+    private function _build_reconciliation(object $cash_ups_info): array
+    {
+        $income = $this->sale->get_payments_by_cashup((int)$cash_ups_info->cashup_id);
+        $income_cash = 0.0;
+        $income_total = 0.0;
+
+        foreach ($income as $row) {
+            $income_total += (float)$row['trans_amount'];
+
+            if ($row['payment_type_code'] === 'cash') {
+                $income_cash += (float)$row['trans_amount'];
+            }
+        }
+
+        $expense_filters = [
+            'only_cash'     => true,
+            'only_register' => true,
+            'is_deleted'    => false,
+            'start_date'    => $cash_ups_info->open_date,
+            'end_date'      => $cash_ups_info->close_date
+        ];
+
+        $register_expenses = 0.0;
+
+        foreach ($this->expense->get_payments_summary('', $expense_filters) as $row) {
+            $register_expenses += (float)$row['amount'];
+        }
+
+        $collections = $this->cash_collection->get_total_collected_between(
+            $cash_ups_info->open_date,
+            $cash_ups_info->close_date
+        );
+
+        $expected = (float)$cash_ups_info->open_amount_cash
+            + $income_cash
+            - $register_expenses
+            - $collections;
+
+        $counted = (float)$cash_ups_info->closed_amount_cash;
+
+        return [
+            'income'            => $income,
+            'income_cash'       => $income_cash,
+            'income_total'      => $income_total,
+            'open_amount_cash'  => (float)$cash_ups_info->open_amount_cash,
+            'register_expenses' => $register_expenses,
+            'collections'       => $collections,
+            'expected'          => $expected,
+            'counted'           => $counted,
+            'discrepancy'       => $counted - $expected,
+            'sealed_sales'      => $income !== []
+        ];
     }
 
     /**
@@ -233,7 +331,7 @@ class Cashups extends Secure_Controller
         // getView() seeds the closing cash from the opening amount, the whole
         // close came out short by exactly that much. Refuse the save instead.
         $amount_fields = $is_new
-            ? ['open_amount_cash' => true, 'transfer_amount_cash' => false]
+            ? ['open_amount_cash' => true]
             : ['closed_amount_cash' => true, 'closed_amount_due' => false, 'closed_amount_card' => false, 'closed_amount_check' => false];
 
         foreach ($amount_fields as $field => $is_required) {
@@ -263,7 +361,10 @@ class Cashups extends Secure_Controller
                 'open_date'            => $open_date_formatter->format('Y-m-d H:i:s'),
                 'close_date'           => $open_date_formatter->format('Y-m-d H:i:s'),
                 'open_amount_cash'     => parse_decimals($this->request->getPost('open_amount_cash')),
-                'transfer_amount_cash' => parse_decimals($this->request->getPost('transfer_amount_cash')),
+                // The cash in/out field is gone from the form; the collections register replaced
+                // it. The column stays because _calculate_total() reads it and all forty shifts
+                // hold zero there, so dropping it would move historical totals.
+                'transfer_amount_cash' => 0,
                 'closed_amount_cash'   => 0,
                 'closed_amount_due'    => 0,
                 'closed_amount_card'   => 0,
@@ -382,7 +483,188 @@ class Cashups extends Secure_Controller
 
         $total = $this->_calculate_total($open_amount_cash, $transfer_amount_cash, $closed_amount_due, $closed_amount_cash, $closed_amount_card, $closed_amount_check);    // TODO: hungarian notation
 
-        return $this->response->setJSON(['total' => to_currency_no_money($total)]);
+        $response = ['total' => to_currency_no_money($total)];
+
+        // The difference is worked out here rather than in the browser because the amount arrives
+        // formatted for the operator's locale, and parse_decimals() is the only thing that reads it
+        // correctly. Recomputing what the drawer should hold costs three queries on a keystroke
+        // that is already debounced, on a screen used a few times a day.
+        $cashup_id = (int) $this->request->getPost('cashup_id', FILTER_SANITIZE_NUMBER_INT);
+
+        if ($cashup_id !== 0 && $this->cashup->exists($cashup_id)) {
+            $cash_ups_info = $this->cashup->get_info($cashup_id);
+
+            if ($cash_ups_info->status === 'open') {
+                $cash_ups_info->close_date = date('Y-m-d H:i:s');
+            }
+
+            $cash_ups_info->closed_amount_cash = $closed_amount_cash;
+            $reconciliation = $this->_build_reconciliation($cash_ups_info);
+
+            $response['counted'] = to_currency($reconciliation['counted']);
+            $response['discrepancy'] = to_currency($reconciliation['discrepancy']);
+            $response['balanced'] = abs($reconciliation['discrepancy']) < 0.005;
+        }
+
+        return $this->response->setJSON($response);
+    }
+
+    /**
+     * The collections list and the reconciliation figures, as JSON, for refreshing those two blocks
+     * after one is added or removed.
+     *
+     * A narrow endpoint rather than re-fetching the whole form on purpose: a cashier may be part
+     * way through typing the closing amounts when they write down a collection, and replacing the
+     * form would throw that away. Amounts are formatted here so the browser only has to put strings
+     * into cells.
+     */
+    public function getCollections(int $cashup_id = NEW_ENTRY): ResponseInterface
+    {
+        if ($cashup_id === NEW_ENTRY || !$this->cashup->exists($cashup_id)) {
+            return $this->response->setJSON(['success' => false, 'collections' => [], 'reconciliation' => null]);
+        }
+
+        $cash_ups_info = $this->cashup->get_info($cashup_id);
+
+        // An open shift is reconciled up to now: it has no real close_date yet, only the copy of
+        // its open_date that postSave() writes when the shift is created.
+        if ($cash_ups_info->status === 'open') {
+            $cash_ups_info->close_date = date('Y-m-d H:i:s');
+        }
+
+        $collections = [];
+
+        foreach ($this->cash_collection->get_collected_between($cash_ups_info->open_date, $cash_ups_info->close_date)->getResultArray() as $row) {
+            $collections[] = [
+                'collection_id' => (int)$row['collection_id'],
+                'collected_at'  => $row['collected_at'],
+                'collected_by'  => $row['collected_by_first_name'] . ' ' . $row['collected_by_last_name'],
+                'amount'        => to_currency($row['amount']),
+                'note'          => $row['note']
+            ];
+        }
+
+        $reconciliation = $this->_build_reconciliation($cash_ups_info);
+
+        return $this->response->setJSON([
+            'success'        => true,
+            'collections'    => $collections,
+            'reconciliation' => [
+                'register_expenses' => to_currency($reconciliation['register_expenses']),
+                'collections'       => to_currency($reconciliation['collections']),
+                'expected'          => to_currency($reconciliation['expected']),
+                'expected_raw'      => $reconciliation['expected']
+            ]
+        ]);
+    }
+
+    /**
+     * Writes down that cash left the drawer.
+     *
+     * A collection is not an expense: the money was not spent, it moved. It never reaches any
+     * expense total or the income-versus-expenses report; its only effect is on how much cash the
+     * drawer is expected to hold.
+     *
+     * Anyone who can reach the cash-up screen may record one -- the cashier is usually the one
+     * standing there when it happens -- but the person named as having taken the money has to hold
+     * the config grant. That is checked here and not merely by filtering the dropdown, because a
+     * dropdown is a suggestion and a POST is whatever the sender wants it to be.
+     */
+    public function postSaveCollection(): ResponseInterface
+    {
+        if (!$this->_amount_is_valid('amount', true)) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => lang('Cashups.invalid_amount', [lang('Cashups.collection_amount')])
+            ]);
+        }
+
+        $amount = parse_decimals($this->request->getPost('amount'));
+
+        // Zero moves nothing and a negative would silently turn a collection into a deposit, which
+        // is a different event with a different explanation behind it.
+        if ($amount <= 0) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => lang('Cashups.invalid_amount', [lang('Cashups.collection_amount')])
+            ]);
+        }
+
+        $collected_at = $this->request->getPost('collected_at');
+        $collected_at_formatter = date_create_from_format($this->config['dateformat'] . ' ' . $this->config['timeformat'], $collected_at);
+
+        // date_create_from_format() returns false on a format mismatch and calling ->format() on
+        // that is a fatal. The time is the whole point of the record -- it is what decides which
+        // shift the collection belongs to -- so a time we cannot read is a refusal, not a default.
+        if ($collected_at_formatter === false) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => lang('Cashups.collection_invalid_date')
+            ]);
+        }
+
+        $collected_by = (int) $this->request->getPost('collected_by', FILTER_SANITIZE_NUMBER_INT);
+
+        if ($collected_by === 0 || !$this->employee->has_grant('config', $collected_by)) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => lang('Cashups.collection_collector_invalid')
+            ]);
+        }
+
+        $collection_data = [
+            'amount'        => $amount,
+            'collected_at'  => $collected_at_formatter->format('Y-m-d H:i:s'),
+            'collected_by'  => $collected_by,
+            'registered_by' => (int) $this->employee->get_logged_in_employee_info()->person_id,
+            // Free text read without FILTER_SANITIZE_FULL_SPECIAL_CHARS: despite what the manual
+            // says it behaves like htmlentities() and stores accented letters as named HTML
+            // entities. The only place this is rendered is the collections table on this form,
+            // which escapes it. See docs/Tecnico/errores-produccion-upstream.md section 5.
+            'note'          => (string) $this->request->getPost('note'),
+            'deleted'       => 0
+        ];
+
+        if ($this->cash_collection->save_value($collection_data)) {
+            return $this->response->setJSON([
+                'success' => true,
+                'message' => lang('Cashups.collection_saved'),
+                'id'      => $collection_data['collection_id'] ?? NEW_ENTRY
+            ]);
+        }
+
+        return $this->response->setJSON([
+            'success' => false,
+            'message' => lang('Cashups.collection_error')
+        ]);
+    }
+
+    /**
+     * Removes a collection that should not have been written down.
+     *
+     * Soft delete, like everything else that touches money here: the reconciliation stops counting
+     * it, and the row stays for anyone asking later what the drawer was reconciled against.
+     */
+    public function postDeleteCollection(int $collection_id = NEW_ENTRY): ResponseInterface
+    {
+        if ($collection_id === NEW_ENTRY || !$this->cash_collection->exists($collection_id)) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => lang('Cashups.collection_error')
+            ]);
+        }
+
+        if ($this->cash_collection->delete_list([$collection_id])) {
+            return $this->response->setJSON([
+                'success' => true,
+                'message' => lang('Cashups.collection_deleted')
+            ]);
+        }
+
+        return $this->response->setJSON([
+            'success' => false,
+            'message' => lang('Cashups.collection_error')
+        ]);
     }
 
     /**
