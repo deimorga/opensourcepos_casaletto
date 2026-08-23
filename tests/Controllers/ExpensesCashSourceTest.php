@@ -56,23 +56,25 @@ class ExpensesCashSourceTest extends CIUnitTestCase
     {
         $username = 'cashier_' . uniqid();
 
-        model(Employee::class)->save_employee(
-            [
-                'first_name'   => 'Cash',
-                'last_name'    => 'Ier',
-                'email'        => $username . '@test.com',
-                'phone_number' => '555-1234'
-            ],
-            [
-                'username'      => $username,
-                'password'      => password_hash('password123', PASSWORD_DEFAULT),
-                'hash_version'  => 2,
-                'language_code' => 'en',
-                'language'      => 'english'
-            ],
-            [['permission_id' => 'expenses', 'menu_group' => 'office']],
-            NEW_ENTRY
-        );
+        // save_employee() takes all three arrays by reference -- it writes the new ids back into
+        // them -- so they have to be variables. PHP will not bind a literal to a reference
+        // parameter, and passing one is a fatal rather than a notice.
+        $person_data = [
+            'first_name'   => 'Cash',
+            'last_name'    => 'Ier',
+            'email'        => $username . '@test.com',
+            'phone_number' => '555-1234'
+        ];
+        $employee_data = [
+            'username'      => $username,
+            'password'      => password_hash('password123', PASSWORD_DEFAULT),
+            'hash_version'  => 2,
+            'language_code' => 'en',
+            'language'      => 'english'
+        ];
+        $grants_data = [['permission_id' => 'expenses', 'menu_group' => 'office']];
+
+        model(Employee::class)->save_employee($person_data, $employee_data, $grants_data, NEW_ENTRY);
 
         return (int) db_connect()->table('employees')->where('username', $username)->get()->getRow()->person_id;
     }

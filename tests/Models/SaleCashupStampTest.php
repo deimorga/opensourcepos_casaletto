@@ -41,6 +41,18 @@ class SaleCashupStampTest extends CIUnitTestCase
         // Every test states for itself which shifts are open, so start from none.
         $db->table('cash_up')->where('cashup_id > 0')->delete();
 
+        // Saving a sale reaches Item_lib::get_item_location(), which asks Stock_location for the
+        // default location and dereferences the row it gets back without checking -- the model
+        // carries a TODO admitting as much. A model test has no request behind it to carry a
+        // session, so that lookup found no person and fataled before any of these tests reached
+        // what they were written to check.
+        //
+        // person_id 1 is the seeded administrator; item_location is set alongside it so these tests
+        // do not also depend on how grants happen to be seeded. Neither is what is under test here:
+        // the subject is the shift the sale gets sealed with.
+        session()->set('person_id', 1);
+        session()->set('item_location', 1);
+
         $this->createTestItem();
     }
 

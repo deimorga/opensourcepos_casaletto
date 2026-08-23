@@ -130,7 +130,15 @@ jobs:
         run: composer install --ansi --no-interaction
 
       - name: Create .env file
-        run: cp .env.example .env
+        run: |
+          cp .env.example .env
+          # .env.example ships an empty encryption key, and the encrypter refuses to start without
+          # one. Twelve tests that build a request were erroring on "Encrypter needs a starter key"
+          # rather than on anything they were written to check. A throwaway key per run is right
+          # here: nothing in a test database outlives the job.
+          printf 'encryption.key = hex2bin:%s\n' "$(openssl rand -hex 32)" >> .env
+          # Host header protection refuses to guess, and the test requests arrive as localhost.
+          printf "app.allowedHostnames = 'localhost'\n" >> .env
 
       - name: Run PHPUnit tests
         env:
