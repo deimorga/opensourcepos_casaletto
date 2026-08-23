@@ -158,7 +158,20 @@ class Reports extends Secure_Controller
         // partial/table_filter_persistence writes the active filters into the URL so a filtered view
         // can be shared or survive a back navigation. Reading them here is the other half of that:
         // without it the URL carries state nobody restores.
-        $data = array_merge($data, restoreTableFilters($this->request));
+        $restored = restoreTableFilters($this->request);
+
+        // A date has to look like a date before it reaches the view, which prints it into a
+        // JavaScript literal. restoreTableFilters() only runs the URL value through a sanitiser that
+        // leaves a backslash intact, and a backslash is enough to escape the closing quote of that
+        // literal. Anything not matching Y-m-d, optionally with a time, is dropped and the picker
+        // falls back to its default.
+        foreach (['start_date', 'end_date'] as $key) {
+            if (isset($restored[$key]) && preg_match('/^\d{4}-\d{2}-\d{2}( \d{2}:\d{2}:\d{2})?$/', $restored[$key]) !== 1) {
+                unset($restored[$key]);
+            }
+        }
+
+        $data = array_merge($data, $restored);
 
         $requested_granularity = $this->request->getGet('granularity', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
         if (in_array($requested_granularity, Income_expenses::GRANULARITIES, true)) {

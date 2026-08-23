@@ -61,10 +61,13 @@
         <?= view('partial/bootstrap_tables_locale') ?>
 
         <?php if (!empty($start_date)) { ?>
-        start_date = "<?= esc($start_date) ?>";
+        // json_encode, not esc(): this is a JavaScript literal, and esc()'s default html context
+        // neither decodes back to the original value here nor escapes a backslash, which is all it
+        // takes to break out of the string. The encoder emits its own quotes.
+        start_date = <?= json_encode((string) $start_date) ?>;
         <?php } ?>
         <?php if (!empty($end_date)) { ?>
-        end_date = "<?= esc($end_date) ?>";
+        end_date = <?= json_encode((string) $end_date) ?>;
         <?php } ?>
 
         // Once the user picks a grouping by hand it stops being recalculated. Until then the range

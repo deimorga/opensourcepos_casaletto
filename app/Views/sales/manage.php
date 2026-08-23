@@ -30,10 +30,13 @@
 
         // Override dates from server if provided
         <?php if (isset($start_date) && $start_date): ?>
-        start_date = "<?= esc($start_date) ?>";
+        // json_encode, not esc(): this is a JavaScript literal. esc()'s default html context does
+        // not escape a backslash, and a backslash is enough to escape the closing quote and run on
+        // into the rest of the script. The encoder emits its own quotes.
+        start_date = <?= json_encode((string) $start_date) ?>;
         <?php endif; ?>
         <?php if (isset($end_date) && $end_date): ?>
-        end_date = "<?= esc($end_date) ?>";
+        end_date = <?= json_encode((string) $end_date) ?>;
         <?php endif; ?>
 
         table_support.query_params = function() {
