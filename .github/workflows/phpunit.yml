@@ -123,7 +123,11 @@ jobs:
             ${{ runner.os }}-
 
       - name: Install dependencies
-        run: composer update --ansi --no-interaction
+        # install, not update: the lock file is what production runs, so resolving fresh versions
+        # here would test a dependency set nobody deploys. It also keeps the run reproducible --
+        # an unrelated upstream release could turn this workflow red on a commit that changed
+        # nothing.
+        run: composer install --ansi --no-interaction
 
       - name: Create .env file
         run: cp .env.example .env
