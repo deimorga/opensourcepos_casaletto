@@ -186,7 +186,40 @@ de pago (fase 1) y después los 143 usos restantes módulo por módulo (fase 1b)
 `Customers` y `Employees`. Plan completo en
 `docs/Tecnico/reportes-analiticos-ingresos-gastos.md` secciones 7.3 y 7.6.
 
-**Obstáculo a tener presente**: el filtro hoy hace doble oficio — es lo único entre lo que se postea
+**Desplegado a producción el 2026-08-22 (~21:45–21:50 hora Colombia), con la operación ya cerrada.**
+Resultado, contrastado contra el estado tomado justo antes:
+
+```
+  sales_payments.payment_type: 201 repaired, 0 unresolved
+  expenses.payment_type: 0 repaired, 0 unresolved
+  items.description: 50 repaired, 0 unresolved
+RepairHtmlEntities: 251 row(s) repaired, 0 unresolved.
+AddPaymentTypeCode: 341 distinct labels known across all installed languages.
+  sales_payments: 742 row(s) coded, 0 left null.
+  expenses: 59 row(s) coded, 0 left null.
+```
+
+| | Antes | Después |
+|---|---|---|
+| Pagos | 742 filas | **742** ✅ |
+| `SUM(payment_amount)` | 36.098.640,00 | **36.098.640,00** ✅ |
+| `SUM(cash_refund)` | 2.665.132,50 | **2.665.132,50** ✅ |
+| Con entidad HTML | 201 | **0** ✅ |
+| Sin código | — | **0** ✅ |
+| Filtro débito | **0 coincidencias** | **195** (12.856.860) ✅ |
+| Filtro crédito | **0 coincidencias** | **6** (362.120) ✅ |
+| `items.description` con entidad | 50 | **0** ✅ |
+
+**Ni un peso se movió.** Respaldo previo de las tres tablas en
+`/root/backups_encoding_fix/prod_pre_fase1_20260822.sql` (105 KB, contenido verificado), y 251 filas
+en la tabla de respaldo `ospos_html_entity_repair_backup` por si hiciera falta revertir.
+
+Verificado después: cero errores en el log del día, y ambas URLs respondiendo 200 con TLS válido.
+
+**Nota de exactitud:** el plan anticipaba 194 pagos de débito; fueron **195**. La diferencia es una
+venta con tarjeta que ocurrió entre el conteo del análisis y el despliegue, no un error de mapeo.
+
+**Obstáculo a tener presente: el filtro hoy hace doble oficio — es lo único entre lo que se postea
 y las **255 salidas sin escapar** que hay en las vistas (por ejemplo
 `app/Views/sales/register.php:552`, que imprime el medio de pago en crudo). Dentro de cada módulo el
 orden es primero escapar la salida y después quitar el filtro, nunca al revés.
