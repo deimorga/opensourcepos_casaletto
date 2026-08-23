@@ -100,7 +100,7 @@ UPDATE ospos_cash_up SET open_amount_cash = 217000.00, closed_amount_cash = 3755
 
 ---
 
-## 5. `FILTER_SANITIZE_FULL_SPECIAL_CHARS` convierte las tildes en entidades HTML (diagnosticado 2026-08-22, sin corregir)
+## 5. `FILTER_SANITIZE_FULL_SPECIAL_CHARS` convierte las tildes en entidades HTML (diagnosticado 2026-08-22; corregido en medios de pago, pendiente en el resto)
 
 **Síntoma:** en la grilla de Ventas, los filtros "Tarjeta de Débito" y "Tarjeta de Crédito" no
 devuelven nada. Nunca. Sin mensaje de error: una lista vacía que se lee como un dato.
@@ -173,7 +173,13 @@ tildes, el problema se vuelve general.
 justo donde les dolió: cuatro en `Attributes.php`, uno en `suppliers/form.php` y uno en
 `tabular_helper.php` para `company_name`. Ninguno toca la causa.
 
-**Corrección: planificada, no ejecutada.** El criterio es que **el saneamiento de entrada no debe
+**Estado (2026-08-22): corregido en los medios de pago, desplegado y verificado en staging.** Los
+datos históricos quedaron reparados (55 filas), las cinco lecturas de medio de pago ya no usan el
+filtro, y los filtros de ambas grillas comparan contra un código estable en vez de una etiqueta
+traducida. Detalle y verificación en `docs/Tecnico/reportes-analiticos-ingresos-gastos.md`
+secciones 7.3 y siguientes. **Los otros 143 usos siguen sin corregir** — es la fase 1b.
+
+**Criterio de corrección.** El criterio es que **el saneamiento de entrada no debe
 cambiar el dato** — escapar es responsabilidad de la **salida** (`esc()` en las vistas, que ya se
 usa). El usuario decidió el 2026-08-22 erradicarlo por completo, en dos tramos: primero los medios
 de pago (fase 1) y después los 143 usos restantes módulo por módulo (fase 1b), empezando por

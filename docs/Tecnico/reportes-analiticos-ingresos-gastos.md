@@ -310,20 +310,43 @@ escriben sin tildes: en producción no hay una sola fila con tilde en `people`,
 `expenses.description`, `expense_categories` ni `sales.comment`. Deja de estar contenido en cuanto un
 tenant nuevo tenga usuarios que sí las escriban.
 
-**Paso 3 — códigos estables.** Nueva columna `payment_type_code VARCHAR(20) NULL` con índice, en
-`expenses` y en `sales_payments`. Valores independientes del idioma: `cash`, `debit`, `credit`,
-`due`, `check`, `bank_transfer`, `wallet`, `upi`.
+**Paso 3 — códigos estables.** Implementado el 2026-08-22 (commit `ba4153c13`). Nueva columna
+`payment_type_code VARCHAR(20) NULL` con índice, en `expenses` y en `sales_payments`. Trece códigos
+independientes del idioma en `app/Helpers/payment_type_helper.php`: `cash`, `debit`, `credit`, `due`,
+`check`, `bank_transfer`, `wallet`, `upi`, `giftcard`, `rewards`, `cash_adjustment`, `cash_deposit`,
+`credit_deposit`.
 
-- **Escritura**: se guarda el código. El `form_dropdown` pasa a tener el código como clave y la
-  etiqueta traducida como valor — que es como ya funciona `form_dropdown`.
-- **Lectura**: la etiqueta se resuelve con `lang()` al mostrar. Un cambio de idioma deja de romper
-  el histórico.
-- **Filtros**: igualdad contra el código, no `LIKE`. Desaparece la dependencia de la colación.
-- **Búsqueda de texto libre** (`orLike('expenses.payment_type', $search)`): pasa a resolver primero
-  qué códigos tienen una etiqueta que coincide con el término, y filtra por esos códigos. Sin esto,
-  buscar "efectivo" deja de encontrar nada.
-- **Filtros de la grilla de Gastos**: de cinco a siete, para que coincidan con lo que el formulario
-  permite guardar.
+**Cambio de diseño respecto a lo que decía este documento.** El plan original decía guardar el código
+**en** `payment_type`. **No se hizo así**, y la razón importa: diez vistas de recibo hacen
+`explode(':', $payment['payment_type'])` para separar el número de la tarjeta de regalo, que se
+guarda pegado a la etiqueta. Convertir esa columna a códigos habría tocado la salida impresa que ve
+el cliente — un riesgo desproporcionado para el problema que se está resolviendo.
+
+Lo implementado es una columna **al lado**: `payment_type` conserva la etiqueta humana y el número de
+tarjeta; `payment_type_code` es lo único que se compara. Mismo resultado sobre los tres defectos, sin
+acercarse a los recibos.
+
+Consecuencia aceptada y documentada: si algún día cambia el idioma de la instalación, los recibos
+seguirán mostrando la etiqueta con la que se guardó cada pago. El código está ahí para poder derivar
+la etiqueta traducida cuando se quiera, pero hoy no se usa para eso.
+
+- **Escritura**: se guardan los dos. En ventas, en los tres puntos de `Sale::save_value()` (alta,
+  edición y completar venta); en gastos, en `Expenses::postSave()`.
+- **Filtros**: comparación por código. Desaparece la dependencia de la colación.
+- **Ventas**: los códigos viajan en la tabla temporal de pagos como lista separada por comas y se
+  comparan con `FIND_IN_SET`, que compara **elementos completos**. Eso elimina de raíz la colisión
+  por substring que hacía que el filtro de efectivo capturara además "Ajuste de efectivo".
+- **Filtros de la grilla de Gastos**: de cinco a **siete**. Transferencia Bancaria y Monedero no
+  tenían filtro, lo que dejaba 1.650.000 de gastos reales de producción inalcanzables desde esa
+  pantalla aunque el formulario siempre pudo registrarlos.
+- **Búsqueda de texto libre**: sigue operando sobre `payment_type`, que conserva la etiqueta. No hace
+  falta el rodeo por códigos que este documento anticipaba, porque la columna de texto no cambió.
+
+**Trampa real encontrada al implementarlo:** `Expense` es un modelo CI4 con `$allowedFields`, que
+**descarta en silencio** cualquier campo no listado. Sin agregar `payment_type_code` ahí, el código
+nunca se habría guardado y no habría aparecido ningún error — otro fallo silencioso de la misma
+familia que el resto de este trabajo. `Sale` no tiene el problema porque escribe `sales_payments` con
+el query builder, no con el modelo.
 
 ### 7.4 Backfill: trivial en Gastos, acotado en Ventas
 
@@ -616,6 +639,47 @@ Verificado después de reconstruir el contenedor:
 
 Los datos sembrados siguen en staging, marcados con `reference_code = 'SEED-ENC'`, y hay respaldo
 previo en `/root/backups_encoding_fix/staging_pre_seed_20260822.sql`.
+
+### Verificación del paso 3 en staging (2026-08-22) — ✅
+
+**Backfill**, salida real de la migración:
+
+```
+AddPaymentTypeCode: 341 distinct labels known across all installed languages.
+  sales_payments: 14 row(s) coded, 0 left null.
+  expenses: 5 row(s) coded, 0 left null.
+```
+
+**Cero sin resolver.** El mapeo, revisado fila por fila, incluye los casos que más fácil se
+equivocan: `Adeudo → due` (el del filtro roto), `Ajuste de efectivo → cash_adjustment` (distinguido
+correctamente de `cash`), `Deposito de crédito → credit_deposit`, y los compuestos
+`Tarjeta de regalo:1234567890` y `Tarjeta de regalo:A&B123` resueltos ambos a `giftcard` por el
+prefijo antes de los dos puntos.
+
+**La colisión por substring, medida:**
+
+| Método | Coincidencias |
+|---|---|
+| `LIKE '%Efectivo%'` (antes) | **3** — incluye "Ajuste de efectivo" |
+| `payment_type_code = 'cash'` (ahora) | **2** |
+
+**Escritura por la aplicación real:** venta de $17.000 pagada con Transferencia Bancaria desde el
+registro. Quedó `payment_type = 'Transferencia Bancaria'` **y**
+`payment_type_code = 'bank_transfer'`. Integridad: 15 filas, **cero sin código, cero con entidad**.
+
+**Filtros en la interfaz, probados uno por uno:**
+
+| Pantalla · filtro | Antes | Ahora |
+|---|---|---|
+| Gastos · Adeudo | *"No hay gastos a mostrar"* | $70.000 ✅ |
+| Gastos · Transferencia Bancaria | **el filtro no existía** | $250.000 ✅ |
+| Gastos · Efectivo | $100.000 | $100.000 ✅ |
+| Ventas · Tarjeta de débito | 0 coincidencias | $68.000 ✅ |
+| Ventas · Transferencia Bancaria | — | $17.000 ✅ |
+| Ventas · Efectivo | incluía el ajuste de caja | $37.500, **sin el ajuste** ✅ |
+
+La lista de filtros de Gastos pasó de 6 entradas a 8 (siete medios de pago más "Eliminado"), y la
+etiqueta del filtro de adeudo pasó de "A Crédito" —que no coincidía con ningún dato— a "Adeudo".
 
 ### Fase 1b — erradicación del filtro (ver 7.6)
 
