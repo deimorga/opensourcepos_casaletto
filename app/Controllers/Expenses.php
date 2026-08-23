@@ -40,6 +40,10 @@ class Expenses extends Secure_Controller
             'only_check'         => payment_type_label('check'),
             'only_bank_transfer' => payment_type_label('bank_transfer'),
             'only_wallet'        => payment_type_label('wallet'),
+            // Which cash paid for it, which is a different question from how it was paid. Only the
+            // cash-up subtracts register cash, so it needs to be reachable on its own.
+            'only_register'      => cash_source_label('register'),
+            'only_collected'     => cash_source_label('collected'),
             'is_deleted'         => lang('Expenses.is_deleted')
         ];
 
@@ -69,6 +73,8 @@ class Expenses extends Secure_Controller
             'only_debit'         => false,
             'only_bank_transfer' => false,
             'only_wallet'        => false,
+            'only_register'      => false,
+            'only_collected'     => false,
             'is_deleted'         => false
         ];
 
@@ -117,6 +123,11 @@ class Expenses extends Secure_Controller
             $data['employees'][$stored_employee_id] = $stored_employee->first_name . ' ' . $stored_employee->last_name;
         }
         $data['can_assign_employee'] = $can_assign_employee;
+
+        // An administrator -- whoever holds 'config' -- reaches both the till and the cash that has
+        // already been collected, so only they can be asked which one paid. A cashier only ever
+        // reaches the till, and the form shows them that rather than hiding it.
+        $data['can_choose_cash_source'] = $this->employee->has_grant('config', $current_employee_id);
 
         $expense_categories = [];
         foreach ($this->expense_category->get_all(0, 0, true)->getResultArray() as $row) {
@@ -181,6 +192,27 @@ class Expenses extends Secure_Controller
             $employee_id = $submitted_employee_id;
         }
 
+        // Decided here, from the payment method and the permission, never taken from the request as
+        // given. A disabled field is not submitted at all and a hand-made POST can carry anything,
+        // so the browser's answer is read but only honoured when the permission allows it.
+        $payment_type_code = payment_type_code_from_label($this->request->getPost('payment_type'));
+        $cash_source = resolve_expense_cash_source(
+            $payment_type_code,
+            $this->employee->has_grant('config', $current_employee_id),
+            $this->request->getPost('cash_source', FILTER_SANITIZE_FULL_SPECIAL_CHARS)
+        );
+
+        // An administrator who answered nothing. Refusing the save is the point: the source cannot
+        // be deduced for someone who reaches both pockets, and filing it under the most innocent
+        // value available is exactly how cash-up 29 was saved 217,000 pesos short without a word.
+        if ($cash_source === false) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => lang('Expenses.cash_source_required'),
+                'id'      => $expense_id
+            ]);
+        }
+
         $expense_data = [
             'date'                => $date_formatter->format('Y-m-d H:i:s'),
             'supplier_id'         => $this->request->getPost('supplier_id') == '' ? null : $this->request->getPost('supplier_id', FILTER_SANITIZE_NUMBER_INT),
@@ -194,7 +226,8 @@ class Expenses extends Secure_Controller
             // Read without FILTER_SANITIZE_FULL_SPECIAL_CHARS: it encodes accents as HTML entities.
             // See docs/Tecnico/errores-produccion-upstream.md section 5.
             'payment_type'        => $this->request->getPost('payment_type'),
-            'payment_type_code'   => payment_type_code_from_label($this->request->getPost('payment_type')),
+            'payment_type_code'   => $payment_type_code,
+            'cash_source'         => $cash_source,
             'expense_category_id' => $this->request->getPost('expense_category_id', FILTER_SANITIZE_NUMBER_INT),
             'description'         => $this->request->getPost('description'),
             'employee_id'         => $employee_id,

@@ -779,6 +779,7 @@ function expense_headers(): array
         ['amount'            => lang('Expenses.amount')],
         ['tax_amount'        => lang('Expenses.tax_amount')],
         ['payment_type'      => lang('Expenses.payment')],
+        ['cash_source'       => lang('Expenses.cash_source')],
         ['category_name'     => lang('Expenses_categories.name')],
         ['description'       => lang('Expenses.description')],
         ['created_by'        => lang('Expenses.employee')]
@@ -808,6 +809,9 @@ function get_expenses_data_row(object $expense): array
         'amount'            => to_currency($expense->amount),
         'tax_amount'        => to_currency($expense->tax_amount),
         'payment_type'      => $expense->payment_type,
+        // Resolved from the stored code, so the cell says the same thing the form said. An expense
+        // that was not paid in cash reads blank on purpose: it came out of no cash pocket.
+        'cash_source'       => cash_source_label($expense->cash_source ?? null),
         'category_name'     => $expense->category_name,
         'description'       => $expense->description,
         'created_by'        => $expense->first_name . ' ' . $expense->last_name,
