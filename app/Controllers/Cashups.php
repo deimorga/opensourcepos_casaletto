@@ -206,6 +206,10 @@ class Cashups extends Secure_Controller
         }
 
         $data['is_open'] = $cash_ups_info->cashup_id != NEW_ENTRY && $cash_ups_info->status === 'open';
+
+        // The grid's hand-over-cash action links here with ?tab=collections. Reading it rather than
+        // always opening on the shift tab is what lets that action be one click instead of two.
+        $data['active_tab'] = $this->request->getGet('tab') === 'collections' ? 'collections' : 'shift';
         $data['collections'] = [];
         $data['reconciliation'] = null;
 
