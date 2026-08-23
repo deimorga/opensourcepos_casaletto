@@ -121,47 +121,93 @@ comparación con el histórico y confundiría a quien ya lo interpreta a su mane
 faltan 465" **mientras cierra**, no tres semanas después. Es el control que habría hecho visible el
 descuadre del turno 29 el mismo día.
 
-## 5. Lo que apareció al repasar, y qué hacer con cada cosa
+## 5. Decisiones tomadas al repasar los bordes (2026-08-23)
 
-### 5.1 Hay que resolverlo antes de implementar
+### 5.1 Un solo turno abierto a la vez — y con eso, la venta sabe a qué turno pertenece
 
-**a) Tres turnos cruzan medianoche, y dos se solapan.** El turno 31 abre el 13/08 y cierra el 14/08 a
-las 16:21; el turno 32 abre el 14/08 a las 13:08 — **antes de que el 31 cerrara**. Ni el cruce por
-día calendario ni por ventana horaria es limpio.
-**Decisión necesaria:** ¿a qué turno pertenece una venta hecha en ese solape?
+**Decisión del usuario:** *"No se debe permitir abrir un turno sin haber cerrado el anterior."* Y:
+*"Si una venta no se cerró en el turno que era, se aplica para el turno que esté vivo cuando se
+cierre."*
 
-**b) Un día tiene dos turnos** (31/07, turnos 17 y 18). Con cruce por día no se pueden separar.
+Esto resuelve de raíz el problema que parecía más difícil. Hoy los turnos **se solapan** — el 31
+cierra el 14/08 a las 16:21 y el 32 abrió el 14/08 a las 13:08, antes de que el otro cerrara — y por
+eso ni el cruce por día ni por ventana horaria era limpio.
 
-**c) El campo "Entrada/Salida de Efectivo" existe y está en cero en los 40 turnos.** Es exactamente
-el campo para registrar plata que entra o sale del cajón fuera de las ventas — un retiro, una
-consignación. **Probablemente ahí deberían haber ido los ~1,8 millones sin explicar.**
-**Decisión necesaria:** ¿se empieza a usar, o se reemplaza por un registro de movimientos con
-detalle? Un solo número por turno no dice quién sacó, cuándo ni para qué.
+Con la restricción, la atribución es inequívoca. Y la forma correcta de implementarla **no es cruzar
+por fecha sino sellar la venta**: al completarse, la venta guarda el turno que estaba abierto en ese
+momento. Queda fijo para siempre, no depende de fechas que alguien pueda editar después, y no se
+recalcula nunca.
 
-**d) La fecha del gasto la escribe el usuario.** Alguien puede registrar hoy un gasto con fecha de
-ayer, y eso movería el cuadre de un turno ya cerrado.
+**Que haya dos turnos en un mismo día deja de ser un problema** — lo que importa es que no haya dos
+abiertos a la vez.
 
-### 5.2 Vale la pena contemplarlo, sin urgencia
+**Consecuencia para el histórico:** las 792 ventas existentes no tienen turno. Se pueden asignar
+hacia atrás por la ventana horaria donde sea inequívoco, pero **en el solape del 13 al 15 de agosto
+no lo es**. Ahí se dejan sin turno y se reportan, en vez de adivinar.
 
-**e) Un turno cerrado se puede reabrir y editar, y no queda rastro.** Si alguien corrige un importe
-después, la conciliación cambia y nadie se entera. Una bitácora mínima —quién, cuándo, qué cambió—
-haría auditable el cuadre.
+### 5.2 El campo "Entrada/Salida de Efectivo" no sirve, y se retira del alcance
 
-**f) Los turnos no guardan sede.** Hoy hay una sola y no importa. Con dos, el modelo no distingue de
-cuál cajón se habla. Relevante para el proyecto multi-negocio.
+**Verificado en el código** (`app/Views/cashups/form.php:14`):
 
-### 5.3 Revisado y descartado
+```php
+$open_field_attrs = $is_new ? [] : ['disabled' => 'disabled'];
+```
 
-**g) Las vueltas ya están contempladas.** `cash_refund` es el cambio que se le devuelve al cliente
-(no devoluciones de venta): 106 pagos por $2.665.132. El efectivo que entra al cajón es
-`pagado − vueltas`, y así está calculado en todo lo anterior.
+El campo **solo es editable al crear el turno**. Después queda deshabilitado para siempre. Es decir:
+solo se puede declarar una entrada o salida de efectivo **en el instante de abrir**, cuando todavía no
+ha pasado nada. Un retiro a media tarde no tiene dónde registrarse.
 
-**h) El campo "Cuotas" está en cero en los 40 turnos.** No se usa; no entra al alcance.
+*(Se comprobó también que al cerrar el turno el guardado no reescribe esos campos, así que el valor de
+apertura no se corrompe. No hay bug, hay un campo inútil.)*
 
-**i) No hay días con ventas sin turno.** Los 39 días operativos tienen su turno.
+Eso explica por qué está en cero en los 40 turnos, y confirma la lectura del usuario: **no aporta
+valor tal como está.**
 
-**j) Los gastos con tarjeta o cheque no existen** — solo efectivo (55) y transferencia (2). El campo
-de origen no aplica a ninguno de los otros medios.
+**Decisión: no se construye un reemplazo todavía.** Con la conciliación de la sección 4.3, un retiro
+no registrado aparece como **descuadre** — que es exactamente lo que se quiere ver. Construir ahora un
+módulo de movimientos de caja sería resolver un problema que aún no se ha medido.
+
+**Lo que sí hay que hacer:** que el campo deje de ser una trampa. O se retira del formulario, o se
+permite editarlo hasta el cierre. Un campo que solo se puede llenar antes de que ocurra nada invita a
+dejarlo en cero para siempre, que es justo lo que pasó.
+
+**Y queda una pregunta para el usuario:** si los retiros de caja resultan frecuentes, un registro de
+movimientos con detalle —quién, cuándo, cuánto, para qué— es el paso siguiente. La conciliación dirá
+si hace falta: si los descuadres se concentran en días con retiro, la respuesta es sí.
+
+### 5.3 La fecha del gasto: solo los administradores la editan
+
+**Decisión del usuario:** el cajero registra el gasto con la fecha del día en que lo hace, sin poder
+cambiarla. El administrador sí puede ajustarla, solo cuando haga falta corregir un olvido del cajero.
+
+Es la misma separación de rol que la del origen del efectivo (4.2), así que se resuelve con el mismo
+mecanismo y sin costo adicional.
+
+**Por qué importa:** un gasto con fecha de ayer mueve el cuadre de un turno ya cerrado. Que solo un
+administrador pueda hacerlo convierte un accidente en una decisión.
+
+### 5.4 Sigue abierto, sin urgencia
+
+**Un turno cerrado se puede reabrir y editar sin dejar rastro.** Si alguien corrige un importe después,
+la conciliación cambia y nadie se entera. Una bitácora mínima —quién, cuándo, qué cambió— haría
+auditable el cuadre. Cobra más peso ahora que el cierre pasa a ser una conciliación y no solo una
+declaración.
+
+**Los turnos no guardan sede.** Hoy hay una sola. Con dos, el modelo no distingue de cuál cajón se
+habla. Relevante para el proyecto multi-negocio.
+
+### 5.5 Revisado y descartado
+
+**Las vueltas ya están contempladas.** `cash_refund` es el cambio que se le devuelve al cliente, no
+devoluciones de venta: 106 pagos por $2.665.132. El efectivo que entra al cajón es `pagado − vueltas`,
+y así está calculado en todo este documento.
+
+**El campo "Cuotas" está en cero en los 40 turnos.** No se usa; fuera de alcance.
+
+**No hay días con ventas sin turno.** Los 39 días operativos tienen el suyo.
+
+**No existen gastos con tarjeta ni cheque** — solo efectivo (55) y transferencia (2). El origen del
+efectivo no aplica a ningún otro medio.
 
 ## 6. Regularización del histórico
 
@@ -181,13 +227,15 @@ falta un registro que nunca se hizo. Hay que averiguar con quien estuvo presente
 
 ## 7. Preguntas abiertas
 
-1. **¿A qué turno pertenece una venta cuando dos turnos se solapan?** (punto 5.1.a)
-2. **¿El campo Entrada/Salida se empieza a usar, o se reemplaza por un registro con detalle?**
-   (punto 5.1.c)
-3. **Cuando un administrador registra un gasto en efectivo, ¿cuál debería ser el origen por defecto?**
-   Sugerencia: ninguno — obligarlo a elegir, porque para él la deducción no es posible.
-4. **¿El cajero debe ver el campo en gris, o no verlo?** Verlo en gris enseña que existe; no verlo es
-   más simple.
+1. **Cuando un administrador registra un gasto en efectivo, ¿cuál es el origen por defecto?**
+   Sugerencia: ninguno — obligarlo a elegir. Para el cajero se puede deducir; para el administrador
+   no, y un valor por defecto invita a dejarlo mal.
+2. **¿El cajero ve el campo de origen en gris, o no lo ve?** Verlo enseña que existe; no verlo es más
+   simple.
+3. **El campo "Entrada/Salida de Efectivo": ¿se retira del formulario o se habilita hasta el cierre?**
+   (ver 5.2)
+4. **¿Qué se hace con los ~1,8 millones de los turnos 35 y 39?** No es un problema de software: hay
+   que averiguar con quien estuvo presente qué pasó, antes de dar el histórico por regularizado.
 
 ## 8. Referencia técnica
 
