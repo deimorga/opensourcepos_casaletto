@@ -298,4 +298,45 @@ class SaleCashupStampTest extends CIUnitTestCase
 
         $this->assertSame($newest, model(Cashup::class)->get_open_cashup_id());
     }
+
+    /**
+     * The query behind the reconciliation, run for real.
+     *
+     * It shipped broken and every test here still passed, because none of them ran it: the builder
+     * leaves the inside of SUM() unprefixed, the database rejected the query, get() returned false
+     * and the caller fataled on ->getResultArray(). Nothing short of executing it would have said
+     * so, so this executes it.
+     */
+    public function testPaymentsByCashupReturnsWhatTheShiftTookIn(): void
+    {
+        $cashupId = $this->openShift();
+
+        $this->saveSale(NEW_ENTRY, COMPLETED);
+        $this->saveSale(NEW_ENTRY, COMPLETED);
+
+        $rows = model(Sale::class)->get_payments_by_cashup($cashupId);
+
+        $this->assertNotSame([], $rows, 'Two completed sales were sealed with this shift, so it took something in.');
+
+        $total = 0.0;
+
+        foreach ($rows as $row) {
+            $this->assertArrayHasKey('payment_type_code', $row);
+            $this->assertArrayHasKey('payment_type', $row);
+            $this->assertArrayHasKey('trans_amount', $row);
+            $total += (float) $row['trans_amount'];
+        }
+
+        $this->assertSame(20.0, $total, 'Two sales of 10.00 each, net of change given back.');
+    }
+
+    /**
+     * A shift nothing was sold under reports nothing, rather than reporting another shift's money.
+     */
+    public function testPaymentsByCashupIsEmptyForAShiftWithNoSales(): void
+    {
+        $cashupId = $this->openShift();
+
+        $this->assertSame([], model(Sale::class)->get_payments_by_cashup($cashupId));
+    }
 }

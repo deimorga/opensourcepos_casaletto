@@ -539,16 +539,33 @@ class Sale extends Model
      */
     public function get_payments_by_cashup(int $cashup_id): array
     {
+        // The aggregate is written with the prefixed table name and its escaping turned off. The
+        // query builder prefixes identifiers it recognises but leaves the inside of a function
+        // call alone, so an unprefixed sales_payments.payment_amount in here reaches the database
+        // naming a table that does not exist.
+        $payments = $this->db->prefixTable('sales_payments');
+
         $builder = $this->db->table('sales_payments');
         $builder->select('sales_payments.payment_type_code AS payment_type_code');
         $builder->select('sales_payments.payment_type AS payment_type');
-        $builder->select('SUM(sales_payments.payment_amount - sales_payments.cash_refund) AS trans_amount');
+        $builder->select("SUM($payments.payment_amount - $payments.cash_refund) AS trans_amount", false);
         $builder->join('sales', 'sales.sale_id = sales_payments.sale_id');
         $builder->where('sales.cashup_id', $cashup_id);
         $builder->groupBy('sales_payments.payment_type_code, sales_payments.payment_type');
         $builder->orderBy('sales_payments.payment_type_code', 'asc');
 
-        return $builder->get()->getResultArray();
+        $result = $builder->get();
+
+        // get() hands back false when the query itself failed, and with DBDebug off that is the
+        // only sign of it. Saying so in the log beats letting the caller fatal on ->getResultArray()
+        // with nothing written down anywhere -- which is exactly how this method shipped broken.
+        if ($result === false) {
+            log_message('error', 'Sale::get_payments_by_cashup() query failed for cash-up ' . $cashup_id . ': ' . json_encode($this->db->error()));
+
+            return [];
+        }
+
+        return $result->getResultArray();
     }
 
     /**
