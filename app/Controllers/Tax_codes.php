@@ -118,7 +118,7 @@ class Tax_codes extends Secure_Controller
         } else {
             return $this->response->setJSON([
                 'success' => false,
-                'message' => lang('Tax_codes.error_adding_updating') . ' ' . $tax_code_data['tax_code_id'],
+                'message' => lang('Tax_codes.error_adding_updating') . ' ' . esc($tax_code_data['tax_code']),
                 'id'      => NEW_ENTRY
             ]);
         }

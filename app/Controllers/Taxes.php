@@ -492,7 +492,7 @@ class Taxes extends Secure_Controller
             if (in_array($tax_group[$key], $unique_tax_groups)) {    // TODO: This can be replaced with `in_array($tax_group[$key], $unique_tax_groups)`
                 return $this->response->setJSON([
                     'success' => false,
-                    'message' => lang('Taxes.tax_group_not_unique', [$tax_group[$key]])
+                    'message' => lang('Taxes.tax_group_not_unique', [esc($tax_group[$key])])
                 ]);
             } else {
                 $unique_tax_groups[] = $tax_group[$key];

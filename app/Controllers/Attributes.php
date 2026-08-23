@@ -143,20 +143,20 @@ class Attributes extends Secure_Controller
 
                 return $this->response->setJSON([
                     'success' => true,
-                    'message' => lang('Attributes.definition_successful_adding') . ' ' . $definition_name,
+                    'message' => lang('Attributes.definition_successful_adding') . ' ' . esc($definition_name),
                     'id'      => $definition_data['definition_id']
                 ]);
             } else { // Existing definition
                 return $this->response->setJSON([
                     'success' => true,
-                    'message' => lang('Attributes.definition_successful_updating') . ' ' . $definition_name,
+                    'message' => lang('Attributes.definition_successful_updating') . ' ' . esc($definition_name),
                     'id'      => $definition_id
                 ]);
             }
         } else { // Failure
             return $this->response->setJSON([
                 'success' => false,
-                'message' => lang('Attributes.definition_error_adding_updating', [$definition_name]),
+                'message' => lang('Attributes.definition_error_adding_updating', [esc($definition_name)]),
                 'id'      => NEW_ENTRY
             ]);
         }

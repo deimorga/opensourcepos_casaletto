@@ -40,7 +40,7 @@
             <div class="col-xs-8">
                 <?= form_dropdown(
                     'definition_group',
-                    $definition_group,
+                    esc($definition_group),
                     $definition_info->definition_fk,
                     'id="definition_group" class="form-control" ' . (empty($definition_group) ? 'disabled="disabled"' : '')
                 ) ?>

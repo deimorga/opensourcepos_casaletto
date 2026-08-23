@@ -108,7 +108,7 @@ class Tax_jurisdictions extends Secure_Controller
         } else {
             return $this->response->setJSON([
                 'success' => false,
-                'message' => lang('Tax_jurisdictions.error_adding_updating') . ' ' . $tax_jurisdiction_data['jurisdiction_name'],
+                'message' => lang('Tax_jurisdictions.error_adding_updating') . ' ' . esc($tax_jurisdiction_data['jurisdiction_name']),
                 'id'      => NEW_ENTRY
             ]);
         }

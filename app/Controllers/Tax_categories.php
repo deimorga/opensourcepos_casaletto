@@ -107,7 +107,7 @@ class Tax_categories extends Secure_Controller
         } else {
             return $this->response->setJSON([
                 'success' => false,
-                'message' => lang('Tax_categories.error_adding_updating') . ' ' . $tax_category_data['tax_category'],
+                'message' => lang('Tax_categories.error_adding_updating') . ' ' . esc($tax_category_data['tax_category']),
                 'id'      => NEW_ENTRY
             ]);
         }

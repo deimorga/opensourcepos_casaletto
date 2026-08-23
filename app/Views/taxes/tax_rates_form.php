@@ -21,21 +21,21 @@
         <div class="form-group form-group-sm">
             <?= form_label(lang('Taxes.tax_code'), 'rate_tax_code_id', ['class' => 'control-label col-xs-3']) ?>
             <div class="col-xs-5">
-                <?= form_dropdown('rate_tax_code_id', $tax_code_options, $rate_tax_code_id, ['class' => 'form-control input-sm']) ?>
+                <?= form_dropdown('rate_tax_code_id', esc($tax_code_options), $rate_tax_code_id, ['class' => 'form-control input-sm']) ?>
             </div>
         </div>
 
         <div class="form-group form-group-sm">
             <?= form_label(lang('Taxes.tax_category'), 'rate_tax_category_id', ['class' => 'control-label col-xs-3']) ?>
             <div class="col-xs-5">
-                <?= form_dropdown('rate_tax_category_id', $tax_category_options, $rate_tax_category_id, ['class' => 'form-control input-sm']) ?>
+                <?= form_dropdown('rate_tax_category_id', esc($tax_category_options), $rate_tax_category_id, ['class' => 'form-control input-sm']) ?>
             </div>
         </div>
 
         <div class="form-group form-group-sm">
             <?= form_label(lang('Taxes.tax_jurisdiction'), 'rate_jurisdiction_id', ['class' => 'control-label col-xs-3']) ?>
             <div class="col-xs-5">
-                <?= form_dropdown('rate_jurisdiction_id', $tax_jurisdiction_options, $rate_jurisdiction_id, ['class' => 'form-control input-sm']) ?>
+                <?= form_dropdown('rate_jurisdiction_id', esc($tax_jurisdiction_options), $rate_jurisdiction_id, ['class' => 'form-control input-sm']) ?>
             </div>
         </div>
 
