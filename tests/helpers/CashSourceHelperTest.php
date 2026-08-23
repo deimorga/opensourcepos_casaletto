@@ -112,4 +112,53 @@ class CashSourceHelperTest extends CIUnitTestCase
     {
         $this->assertFalse(is_cash_source_code(cash_source_label('register')));
     }
+
+    /**
+     * Editing is not deciding. A cashier who opens an expense an administrator filed as collected
+     * and fixes the description must not move that money back into the drawer: the cash-up would
+     * come up short for a day with nothing on the record to explain it.
+     */
+    public function testEmployeeWhoCannotChooseKeepsTheStoredSource(): void
+    {
+        $this->assertSame('collected', resolve_expense_cash_source('cash', false, 'register', 'collected'));
+        $this->assertSame('register', resolve_expense_cash_source('cash', false, 'collected', 'register'));
+    }
+
+    /**
+     * With nothing on file there is no decision to preserve, and the drawer is the only pocket a
+     * cashier reaches anyway. This is the new-expense path and the was-a-transfer-now-cash path.
+     */
+    public function testEmployeeWhoCannotChooseFallsBackToRegisterWithNothingStored(): void
+    {
+        $this->assertSame('register', resolve_expense_cash_source('cash', false, 'collected', null));
+        $this->assertSame('register', resolve_expense_cash_source('cash', false, 'collected', ''));
+    }
+
+    /**
+     * A stored value that is not a known code carries no decision worth keeping, so it must not
+     * survive into the column the reconciliation reads.
+     */
+    public function testStoredGarbageDoesNotSurvive(): void
+    {
+        $this->assertSame('register', resolve_expense_cash_source('cash', false, null, 'petty_cash'));
+        $this->assertSame('register', resolve_expense_cash_source('cash', false, null, cash_source_label('collected')));
+    }
+
+    /**
+     * The stored value informs the employee who cannot choose; it never answers for the one who
+     * can. An administrator who submits nothing is still refused, whatever is already on file.
+     */
+    public function testStoredValueDoesNotAnswerForAnAdministrator(): void
+    {
+        $this->assertFalse(resolve_expense_cash_source('cash', true, null, 'collected'));
+        $this->assertFalse(resolve_expense_cash_source('cash', true, '', 'register'));
+    }
+
+    /**
+     * A non-cash expense has no source regardless of what an earlier cash version of it stored.
+     */
+    public function testStoredValueIsDroppedWhenThePaymentIsNoLongerCash(): void
+    {
+        $this->assertNull(resolve_expense_cash_source('bank_transfer', false, null, 'collected'));
+    }
 }

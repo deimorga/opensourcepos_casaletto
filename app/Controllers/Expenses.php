@@ -196,10 +196,14 @@ class Expenses extends Secure_Controller
         // given. A disabled field is not submitted at all and a hand-made POST can carry anything,
         // so the browser's answer is read but only honoured when the permission allows it.
         $payment_type_code = payment_type_code_from_label($this->request->getPost('payment_type'));
+        $stored_cash_source = $expense_id == NEW_ENTRY
+            ? null
+            : ($this->expense->get_info($expense_id)->cash_source ?? null);
         $cash_source = resolve_expense_cash_source(
             $payment_type_code,
             $this->employee->has_grant('config', $current_employee_id),
-            $this->request->getPost('cash_source', FILTER_SANITIZE_FULL_SPECIAL_CHARS)
+            $this->request->getPost('cash_source', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
+            $stored_cash_source
         );
 
         // An administrator who answered nothing. Refusing the save is the point: the source cannot
