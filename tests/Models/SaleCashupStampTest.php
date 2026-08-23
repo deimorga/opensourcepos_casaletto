@@ -5,6 +5,7 @@ namespace Tests\Models;
 use App\Models\Cashup;
 use App\Models\Sale;
 use CodeIgniter\Test\CIUnitTestCase;
+use Config\OSPOS;
 use CodeIgniter\Test\DatabaseTestTrait;
 
 /**
@@ -37,6 +38,12 @@ class SaleCashupStampTest extends CIUnitTestCase
         // cached from before the migrations ran, which makes Config\OSPOS fall back to a handful of
         // hardcoded defaults.
         $db->resetDataCache();
+
+        // resetDataCache() alone is not enough: Config\OSPOS caches the settings it read, and if it
+        // was first built while the table list still looked empty it is holding getDefaultSettings()
+        // -- four keys. Everything else then reads as an undefined index, which is how completing a
+        // sale died on dinner_table_enable. ExpensesCashSourceTest::setUp() does the same.
+        config(OSPOS::class)->update_settings();
 
         // Every test states for itself which shifts are open, so start from none.
         $db->table('cash_up')->where('cashup_id > 0')->delete();

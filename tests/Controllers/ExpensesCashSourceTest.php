@@ -28,6 +28,7 @@ class ExpensesCashSourceTest extends CIUnitTestCase
     protected $refresh     = false;
     protected $namespace   = 'App';
 
+    private int $currentPersonId = 1;
     private int $categoryId;
 
     protected function setUp(): void
@@ -86,6 +87,8 @@ class ExpensesCashSourceTest extends CIUnitTestCase
      */
     private function loginAs(int $personId): void
     {
+        $this->currentPersonId = $personId;
+
         $session = Services::session();
         $session->destroy();
         $session->set('person_id', $personId);
@@ -108,6 +111,10 @@ class ExpensesCashSourceTest extends CIUnitTestCase
         $config = config(OSPOS::class)->settings;
 
         $post = [
+            // The form always posts this, and postSave() honours it for anyone holding the
+            // 'employees' grant -- so leaving it out made an administrator's expense try to insert
+            // a null employee_id and take a database exception instead of a decision.
+            'employee_id'         => (string) $this->currentPersonId,
             'date'                => date($config['dateformat'] . ' ' . $config['timeformat']),
             'supplier_id'         => '',
             'supplier_tax_code'   => '',
