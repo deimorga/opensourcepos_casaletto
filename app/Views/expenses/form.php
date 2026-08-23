@@ -4,9 +4,19 @@
  * @var array $payment_options
  * @var array $expense_categories
  * @var array $employees
+ * @var bool $can_assign_employee
+ * @var bool $can_choose_cash_source
  * @var string $controller_name
  * @var array $config
  */
+
+// The payment dropdown submits translated labels, so the browser is handed the label => code map
+// and compares on the code. Comparing against the translated word is precisely the mechanism that
+// left the expenses payment filters matching nothing for months.
+$payment_type_codes = [];
+foreach (array_keys($payment_options) as $payment_option) {
+    $payment_type_codes[$payment_option] = payment_type_code_from_label($payment_option);
+}
 ?>
 
 <div id="required_fields_message"><?= lang('Common.fields_required_message') ?></div>
@@ -116,6 +126,27 @@
             </div>
         </div>
 
+        <?php // Which cash paid for it, asked only when the payment is cash. A bank transfer comes out of no cash pocket, so the question does not apply and the field is hidden rather than answered. ?>
+        <div class="form-group form-group-sm">
+            <?= form_label(lang('Expenses.cash_source'), 'cash_source', ['class' => ($can_choose_cash_source ? 'required ' : '') . 'control-label col-xs-3']) ?>
+            <div class="col-xs-6">
+                <?php if ($can_choose_cash_source): ?>
+                    <?php // Deliberately no preselected option. An administrator reaches both the till and the collected cash, so the source cannot be deduced for them, and a default would invite leaving it wrong. ?>
+                    <?= form_dropdown('cash_source', array_merge(['' => ''], cash_source_options()), $expenses_info->cash_source, ['class' => 'form-control', 'id' => 'cash_source']) ?>
+                <?php else: ?>
+                    <?php // A cashier only ever reaches the till. Shown greyed out instead of hidden so they can see the distinction exists and why their expense always comes out of the drawer. The server ignores this value and decides on its own. ?>
+                    <?= form_hidden('cash_source', 'register') ?>
+                    <?= form_input([
+                        'name'     => 'cash_source_label',
+                        'id'       => 'cash_source',
+                        'class'    => 'form-control input-sm',
+                        'value'    => cash_source_label('register'),
+                        'readonly' => 'readonly'
+                    ]) ?>
+                <?php endif; ?>
+            </div>
+        </div>
+
         <div class="form-group form-group-sm">
             <?= form_label(lang('Expenses_categories.name'), 'category', ['class' => 'control-label col-xs-3']) ?>
             <div class="col-xs-6">
@@ -206,6 +237,21 @@
             $('#remove_supplier_button').css('display', 'inline-block');
         <?php } ?>
 
+        // Keyed by the label the dropdown submits, valued with the stable code. Never compare the
+        // selected text against a translated word -- see the note above this file's markup.
+        var payment_type_codes = <?= json_encode($payment_type_codes, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+
+        var is_cash_payment = function() {
+            return payment_type_codes[$('#payment_type').val()] === 'cash';
+        };
+
+        var show_hide_cash_source = function() {
+            $('#cash_source').parents('.form-group').toggleClass('hidden', !is_cash_payment());
+        };
+
+        $('#payment_type').change(show_hide_cash_source);
+        show_hide_cash_source();
+
         $('#expenses_edit_form').validate($.extend({
             submitHandler: function(form) {
                 $(form).ajaxSubmit({
@@ -234,7 +280,18 @@
                 },
                 tax_amount: {
                     remote: "<?= "$controller_name/checkNumeric" ?>"
-                }
+                }<?php if ($can_choose_cash_source): ?>,
+                // Not a nicety. manage_tables.js calls dialog_support.hide() before it looks at
+                // response.success, so a server rejection closes the modal anyway and the user
+                // loses everything they typed. Catching it here is what keeps that rejection from
+                // happening in normal use; the server check stays as the guard for anyone who
+                // bypasses the form.
+                cash_source: {
+                    required: function() {
+                        return is_cash_payment();
+                    }
+                }<?php endif; ?>
+
             },
 
             messages: {
@@ -250,7 +307,11 @@
                 },
                 tax_amount: {
                     remote: "<?= lang('Expenses.tax_amount_number') ?>"
-                }
+                }<?php if ($can_choose_cash_source): ?>,
+                cash_source: {
+                    required: "<?= esc(lang('Expenses.cash_source_required'), 'js') ?>"
+                }<?php endif; ?>
+
             }
         }, form_support.error));
     });
