@@ -1,8 +1,6 @@
 # Diseño técnico — Reportes Analíticos: Ingresos vs Gastos
 
-> **Estado a 2026-08-22: diseñado y aprobado, SIN implementar.**
->
-> El requerimiento está cerrado y sin decisiones abiertas. Lo que falta es construirlo.
+> **Estado a 2026-08-23: implementado y verificado en staging. Pendiente de desplegar a producción.**
 >
 > Su dependencia técnica ya está resuelta: el modo caja de este reporte cruza ingresos y gastos por
 > medio de pago, y eso exigía que el medio de pago dejara de compararse como etiqueta traducida. Esa
@@ -227,6 +225,59 @@ subtítulo cambia. Ver sección 9.
 - El mapeo entre los medios de pago de ventas y los de gastos se hace **por código**, no por
   etiqueta — lo que solo es posible después de la corrección de la sección 7. Ese es el orden de
   implementación obligatorio: primero la corrección, después el filtro.
+
+## 6bis. Verificación en staging (2026-08-23) — ✅
+
+**La prueba de aceptación, que es la que decide.** Para el rango 01/07–23/08 el Reporte Resumido de
+Transacciones da **$90.500,00** y este reporte da **$90.500,00**. Coinciden al peso, que es lo que
+valida haber llamado a `Summary_sales` en vez de reescribir la fórmula.
+
+| Prueba | Resultado |
+|---|---|
+| Panel "Reportes Analíticos" con su enlace | ✅ |
+| Sin enlaces rotos colados en Gráficos/Resumidos | ✅ |
+| Modo caja: subtítulo agrega "Ingresos = pagos recibidos, no facturación" | ✅ |
+| Modo caja: encabezado cambia a "Ingresos cobrados" | ✅ |
+| Modo caja filtra **ambos lados**: 90.500→55.500 y 578.000→225.000 | ✅ |
+| Granularidad derivada: 7 días→día, 30→semana, 235→mes | ✅ |
+| Elección manual manda y deja de recalcularse | ✅ |
+| Margen sin ingresos muestra "—", no "0%" | ✅ |
+| Período con ingresos y cero gastos aparece igual | ✅ |
+| Filtro de eliminados suma exactamente 15.000, y **no** dispara modo caja | ✅ |
+| Restauración por URL: fechas, filtros y granularidad | ✅ |
+| Etiquetas de mes en el idioma activo ("Julio 2026") | ✅ |
+| Errores de JavaScript | **0** |
+
+### Tres cosas que hubo que corregir, y que el diseño no anticipó
+
+**1. El reporte redirigía a "sin acceso".** `Reports::__construct()` no deriva el permiso del nombre
+del método sino del **último segmento de la URL**: `..._income_expenses` exigía un `reports_expenses`
+inexistente. La ruta se renombró a `reports/income_expenses_analytics`, que deriva
+`reports_analytics`. Se prefirió eso a meter una excepción en la expresión regular que comparten los
+20 reportes. **El orden de palabras de esa ruta no es cosmético** — hay un comentario ahí diciéndolo,
+porque "ordenarlo" a algo más natural volvería a esconder el reporte sin ningún error visible.
+
+**2. El gráfico lanzaba 55 errores por carga.** El plugin `ctAxisTitle` rechaza títulos vacíos. Se
+quitó el plugin en vez de inventar etiquetas: con la tabla justo debajo, los ejes se leen solos.
+
+**3. Los filtros se escribían en la URL pero nadie los leía de vuelta.** Un enlace compartido abría
+en el día de hoy sin filtros. Se agregó `restoreTableFilters()`, y una granularidad que llega por URL
+se trata como elección explícita: quien compartió una vista mensual quiso la mensual.
+
+### Hallazgo de seguridad en el código nuevo
+
+Una revisión automática detectó que la vista imprimía las fechas restauradas con `esc()` en contexto
+**html** dentro de un literal de JavaScript. Ahí las entidades no se decodifican, y ese contexto **no
+escapa la barra invertida**, que basta para escapar la comilla de cierre.
+
+Corregido en dos niveles: la vista usa `json_encode()`, y el controlador **descarta cualquier fecha
+que no tenga forma de fecha** antes de que llegue a la vista — `restoreTableFilters()` solo pasa el
+valor por un saneador que deja intacta la barra invertida, así que la vista no debía ser la única
+defensa.
+
+**El mismo patrón estaba en cuatro grillas anteriores** (`sales`, `expenses`, `cashups`, `items`), de
+donde se copió. Se corrigieron también. Vale anotarlo: ninguna prueba de comportamiento lo habría
+encontrado, porque el reporte funcionaba perfectamente.
 
 ## 7. Orden de implementación
 
