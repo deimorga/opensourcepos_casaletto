@@ -145,35 +145,41 @@ abiertos a la vez.
 hacia atrás por la ventana horaria donde sea inequívoco, pero **en el solape del 13 al 15 de agosto
 no lo es**. Ahí se dejan sin turno y se reportan, en vez de adivinar.
 
-### 5.2 El campo "Entrada/Salida de Efectivo" no sirve, y se retira del alcance
+### 5.2 Registro de recogidas de caja (reemplaza al campo "Entrada/Salida de Efectivo")
 
-**Verificado en el código** (`app/Views/cashups/form.php:14`):
+**El campo actual no sirve**, verificado en el código (`app/Views/cashups/form.php:14`):
 
 ```php
 $open_field_attrs = $is_new ? [] : ['disabled' => 'disabled'];
 ```
 
-El campo **solo es editable al crear el turno**. Después queda deshabilitado para siempre. Es decir:
-solo se puede declarar una entrada o salida de efectivo **en el instante de abrir**, cuando todavía no
-ha pasado nada. Un retiro a media tarde no tiene dónde registrarse.
+Solo es editable **al crear el turno**, cuando todavía no ha pasado nada. Un retiro a media tarde no
+tiene dónde registrarse. Por eso está en cero en los 40 turnos.
 
-*(Se comprobó también que al cerrar el turno el guardado no reescribe esos campos, así que el valor de
-apertura no se corrompe. No hay bug, hay un campo inútil.)*
+**En su lugar va un registro de recogidas**, definido con el usuario el 2026-08-23. Su frase encuadra
+el modelo:
 
-Eso explica por qué está en cero en los 40 turnos, y confirma la lectura del usuario: **no aporta
-valor tal como está.**
+> *"Ese debería ser un momento donde el efectivo de caja se convierte, y lo que se saca se convierte
+> en efectivo recogido."*
 
-**Decisión: no se construye un reemplazo todavía.** Con la conciliación de la sección 4.3, un retiro
-no registrado aparece como **descuadre** — que es exactamente lo que se quiere ver. Construir ahora un
-módulo de movimientos de caja sería resolver un problema que aún no se ha medido.
+**Una recogida no es un gasto: es un traslado entre bolsillos.** El dinero no se gastó, cambió de
+sitio. Por eso no encajaba ni como gasto ni como un campo del turno.
 
-**Lo que sí hay que hacer:** que el campo deje de ser una trampa. O se retira del formulario, o se
-permite editarlo hasta el cierre. Un campo que solo se puede llenar antes de que ocurra nada invita a
-dejarlo en cero para siempre, que es justo lo que pasó.
+Cada recogida registra:
 
-**Y queda una pregunta para el usuario:** si los retiros de caja resultan frecuentes, un registro de
-movimientos con detalle —quién, cuándo, cuánto, para qué— es el paso siguiente. La conciliación dirá
-si hace falta: si los descuadres se concentran en días con retiro, la respuesta es sí.
+- **Monto** recogido
+- **Fecha y hora del movimiento** — la real, no la del turno
+- **Quién recogió el dinero** — obligatoriamente un administrador
+- **Quién registró** el movimiento
+- Nota opcional
+
+**No está atada a la apertura ni al cierre.** Se registra en cualquier momento del día. En el cierre
+**se muestra y se puede editar**, para poder anotar lo que se olvidó durante la jornada.
+
+**Esto cierra el círculo con el origen del efectivo (4.1).** Lo recogido sale del efectivo de caja y
+entra al efectivo recolectado, así que cuando un administrador pague un gasto con "efectivo
+recolectado" esa plata tiene una procedencia trazable: salió del cajón tal día, la recogió tal
+persona. Sin las recogidas, "efectivo recolectado" sería una categoría sin origen.
 
 ### 5.3 La fecha del gasto: solo los administradores la editan
 
@@ -182,6 +188,11 @@ cambiarla. El administrador sí puede ajustarla, solo cuando haga falta corregir
 
 Es la misma separación de rol que la del origen del efectivo (4.2), así que se resuelve con el mismo
 mecanismo y sin costo adicional.
+
+**Decidido también (2026-08-23):** el cajero **ve el campo de origen del efectivo en gris**, fijo en
+"Efectivo de caja" y no modificable. Verlo enseña que la distinción existe y por qué su gasto siempre
+sale del cajón. Y para el administrador **no hay valor por defecto**: tiene que elegir de dónde está
+pagando, porque en su caso la deducción no es posible.
 
 **Por qué importa:** un gasto con fecha de ayer mueve el cuadre de un turno ya cerrado. Que solo un
 administrador pueda hacerlo convierte un accidente en una decisión.
@@ -209,7 +220,50 @@ y así está calculado en todo este documento.
 **No existen gastos con tarjeta ni cheque** — solo efectivo (55) y transferencia (2). El origen del
 efectivo no aplica a ningún otro medio.
 
-## 6. Regularización del histórico
+## 6. Lo que el cuadre destapó en el histórico
+
+Aplicando la conciliación a los 40 turnos aparecen **11 con diferencia mayor a $10.000**, que suman
+**−$2.460.845**. Tres concentran casi todo:
+
+| Turno | Día | Sin explicar | Explicación |
+|---|---|---|---|
+| 35 | 17/08 | −$1.002.900 | **Confirmado**: Rodrigo recogió $1.000.000. Queda $2.900 de residuo. |
+| 39 | 21/08 | −$800.370 | **Confirmado**: Rodrigo recogió $800.000. Queda $370 de residuo. |
+| 18 | 31/07 | −$708.775 | Sin confirmar. Ver la advertencia abajo. |
+
+Los residuos de $2.900 y $370 están en el mismo rango que los turnos que cuadran bien (−465, +240,
++982, −210): **son ruido normal de conteo**. La confirmación del usuario, sacada del chat del equipo,
+cierra el cuadre de esos dos días.
+
+**Advertencia sobre el turno 18:** el 31/07 es el único día con dos turnos, y el cruce por día le
+atribuye a cada uno las ventas del día completo. Esa cifra no es confiable hasta que las ventas se
+puedan separar por turno (5.1). No debe tratarse como una recogida confirmada.
+
+Los ocho restantes están entre −$70.400 y +$35.675 — pueden ser diferencias de conteo o recogidas
+pequeñas. Hay que revisarlos, sin urgencia.
+
+### 6.1 Cómo se ha venido conciliando este efectivo: no se ha conciliado
+
+Pregunta del usuario, y la respuesta importa para dimensionar el problema:
+
+> *"Hemos estado sacando efectivo desde que pusimos el sistema en operación. ¿Cómo se ha venido
+> conciliando? ¿En qué campo lo estamos identificando?"*
+
+**En ninguno.** El cajero cuenta lo que hay físicamente en el cajón y lo escribe. Si esa mañana se
+recogió un millón, cuenta un millón menos y lo anota. El sistema acepta el número **sin poder
+compararlo con nada**, porque hasta hoy no existe la cifra esperada.
+
+**Y hay una consecuencia peor.** El Total del turno se calcula como
+`efectivo cerrado − efectivo abierto − traslados + adeudo + datáfono + banco`. Una recogida baja el
+efectivo cerrado, así que **baja también el Total del turno**.
+
+El turno 35 es el ejemplo extremo: su Total quedó en **−$951.800**. Un día que vendió $321.100 quedó
+registrado con total negativo.
+
+**Las recogidas no solo no se registran: vienen distorsionando hacia abajo la única cifra que sí se
+mira.** Ese es el argumento más fuerte a favor de construir esto.
+
+## 7. Regularización del histórico
 
 **55 gastos en efectivo a marcar como "efectivo de caja"**, y las 2 transferencias no llevan origen.
 
@@ -221,9 +275,15 @@ cajón bajó $3.973.000.
 **Aun así el usuario quiere revisarlos uno por uno**, y es razonable: la regularización toca datos de
 dinero y el valor por defecto debe poder corregirse.
 
-**Los dos turnos descuadrados (35 y 39) son un caso aparte.** No es un problema de clasificación: ahí
-falta un registro que nunca se hizo. Hay que averiguar con quien estuvo presente qué pasó con esos
-~1,8 millones antes de dar el histórico por regularizado.
+**Las recogidas confirmadas se cargan como los dos primeros registros** del nuevo módulo, con fecha
+retroactiva y Rodrigo como quien recogió: $1.000.000 el 17/08 y $800.000 el 21/08. Con eso el cuadre
+de esos días se calcula solo y dejan de aparecer como anomalías.
+
+**Sobre anotar el comentario en los turnos ahora:** se puede, pero hay que reabrirlos —el campo
+Descripción está deshabilitado en un turno cerrado— y **los importes seguirán sin poder corregirse**,
+porque "Entrada/Salida de Efectivo" sigue deshabilitado incluso reabierto. El comentario sirve como
+respaldo mientras la información está fresca, pero **es texto libre: ningún reporte podrá calcular a
+partir de él.** El valor real está en cargarlo como movimiento.
 
 ## 7. Preguntas abiertas
 
