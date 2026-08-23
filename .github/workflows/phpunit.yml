@@ -144,7 +144,11 @@ jobs:
         env:
           CI_ENVIRONMENT: testing
           MYSQL_HOST_NAME: 127.0.0.1
-        run: composer test -- --log-junit test-results/junit.xml
+        # --no-coverage because the PHP setup above deliberately installs no coverage driver, while
+        # phpunit.xml.dist configures coverage and failOnWarning. Those two together turned a green
+        # suite -- 233 tests, no failures -- into a red job over "No code coverage driver
+        # available". Saying it here keeps the job's intent explicit: this one runs tests.
+        run: composer test -- --no-coverage --log-junit test-results/junit.xml
 
       - name: Upload test results
         uses: actions/upload-artifact@v4
