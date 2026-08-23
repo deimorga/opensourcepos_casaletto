@@ -94,11 +94,14 @@ class Tax_codes extends Secure_Controller
      */
     public function postSave(int $tax_code_id = NEW_ENTRY): ResponseInterface
     {
+        // No input filter on the free-text fields below: FILTER_SANITIZE_FULL_SPECIAL_CHARS
+        // stores accented vowels as named HTML entities ("debito" -> "d&eacute;bito").
+        // Escaping is the output's job. See docs/Tecnico/errores-produccion-upstream.md section 5.
         $tax_code_data = [
-            'tax_code'      => $this->request->getPost('tax_code', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
-            'tax_code_name' => $this->request->getPost('tax_code_name', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
-            'city'          => $this->request->getPost('city', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
-            'state'         => $this->request->getPost('state', FILTER_SANITIZE_FULL_SPECIAL_CHARS)
+            'tax_code'      => $this->request->getPost('tax_code'),
+            'tax_code_name' => $this->request->getPost('tax_code_name'),
+            'city'          => $this->request->getPost('city'),
+            'state'         => $this->request->getPost('state')
         ];
 
         if ($this->tax_code->save($tax_code_data)) {

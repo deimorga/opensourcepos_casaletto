@@ -77,9 +77,12 @@ class Expenses_categories extends Secure_Controller    // TODO: Is this class ev
      */
     public function postSave(int $expense_category_id = NEW_ENTRY): ResponseInterface
     {
+        // No input filter on the free-text fields below: FILTER_SANITIZE_FULL_SPECIAL_CHARS
+        // stores accented vowels as named HTML entities ("debito" -> "d&eacute;bito").
+        // Escaping is the output's job. See docs/Tecnico/errores-produccion-upstream.md section 5.
         $expense_category_data = [
-            'category_name'        => $this->request->getPost('category_name', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
-            'category_description' => $this->request->getPost('category_description', FILTER_SANITIZE_FULL_SPECIAL_CHARS)
+            'category_name'        => $this->request->getPost('category_name'),
+            'category_description' => $this->request->getPost('category_description')
         ];
 
         if ($this->expense_category->save_value($expense_category_data, $expense_category_id)) {

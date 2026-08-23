@@ -86,9 +86,12 @@ class Tax_jurisdictions extends Secure_Controller
      */
     public function postSave(int $jurisdiction_id = NEW_ENTRY): ResponseInterface
     {
+        // No input filter on the free-text fields below: FILTER_SANITIZE_FULL_SPECIAL_CHARS
+        // stores accented vowels as named HTML entities ("debito" -> "d&eacute;bito").
+        // Escaping is the output's job. See docs/Tecnico/errores-produccion-upstream.md section 5.
         $tax_jurisdiction_data = [
-            'jurisdiction_name'   => $this->request->getPost('jurisdiction_name', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
-            'reporting_authority' => $this->request->getPost('reporting_authority', FILTER_SANITIZE_FULL_SPECIAL_CHARS)
+            'jurisdiction_name'   => $this->request->getPost('jurisdiction_name'),
+            'reporting_authority' => $this->request->getPost('reporting_authority')
         ];
 
         if ($this->tax_jurisdiction->save_value($tax_jurisdiction_data)) {

@@ -248,7 +248,11 @@ class Item_kits extends Secure_Controller
      */
     public function postCheckItemNumber(): ResponseInterface
     {
-        $exists = $this->item_kit->item_number_exists($this->request->getPost('item_kit_number', FILTER_SANITIZE_FULL_SPECIAL_CHARS), $this->request->getPost('item_kit_id', FILTER_SANITIZE_NUMBER_INT));
+        // No input filter on item_kit_number: FILTER_SANITIZE_FULL_SPECIAL_CHARS stores
+        // accented vowels as named HTML entities, and postSave() already reads this field
+        // unfiltered, so filtering here would check a different string than the one stored.
+        // See docs/Tecnico/errores-produccion-upstream.md section 5.
+        $exists = $this->item_kit->item_number_exists($this->request->getPost('item_kit_number'), $this->request->getPost('item_kit_id', FILTER_SANITIZE_NUMBER_INT));
         return $this->response->setJSON(!$exists ? 'true' : 'false');
     }
 
