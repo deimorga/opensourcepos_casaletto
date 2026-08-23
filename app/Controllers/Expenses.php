@@ -30,12 +30,17 @@ class Expenses extends Secure_Controller
 
         // filters that will be loaded in the multiselect dropdown
         $data['filters'] = [
-            'only_cash'   => lang('Expenses.cash_filter'),
-            'only_due'    => lang('Expenses.due_filter'),
-            'only_check'  => lang('Expenses.check_filter'),
-            'only_credit' => lang('Expenses.credit_filter'),
-            'only_debit'  => lang('Expenses.debit_filter'),
-            'is_deleted'  => lang('Expenses.is_deleted')
+            // Seven filters, matching the seven payment methods the form can actually save.
+            // Bank transfer and wallet had no filter at all, so those expenses -- 1,650,000 pesos
+            // of them in production -- were unreachable from this grid.
+            'only_cash'          => payment_type_label('cash'),
+            'only_debit'         => payment_type_label('debit'),
+            'only_credit'        => payment_type_label('credit'),
+            'only_due'           => payment_type_label('due'),
+            'only_check'         => payment_type_label('check'),
+            'only_bank_transfer' => payment_type_label('bank_transfer'),
+            'only_wallet'        => payment_type_label('wallet'),
+            'is_deleted'         => lang('Expenses.is_deleted')
         ];
 
         // Restore filters from URL
@@ -57,12 +62,14 @@ class Expenses extends Secure_Controller
         $filters  = [
             'start_date'  => $this->request->getGet('start_date', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
             'end_date'    => $this->request->getGet('end_date', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
-            'only_cash'   => false,
-            'only_due'    => false,
-            'only_check'  => false,
-            'only_credit' => false,
-            'only_debit'  => false,
-            'is_deleted'  => false
+            'only_cash'          => false,
+            'only_due'           => false,
+            'only_check'         => false,
+            'only_credit'        => false,
+            'only_debit'         => false,
+            'only_bank_transfer' => false,
+            'only_wallet'        => false,
+            'is_deleted'         => false
         ];
 
         // Check if any filter is set in the multiselect dropdown
@@ -180,7 +187,10 @@ class Expenses extends Secure_Controller
             'supplier_tax_code'   => $this->request->getPost('supplier_tax_code', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
             'amount'              => parse_decimals($this->request->getPost('amount')),
             'tax_amount'          => parse_decimals($this->request->getPost('tax_amount')),
-            'payment_type'        => $this->request->getPost('payment_type'),    // Sin FILTER_SANITIZE_FULL_SPECIAL_CHARS: codifica las tildes como entidades HTML. Ver errores-produccion-upstream.md seccion 5.
+            // Read without FILTER_SANITIZE_FULL_SPECIAL_CHARS: it encodes accents as HTML entities.
+            // See docs/Tecnico/errores-produccion-upstream.md section 5.
+            'payment_type'        => $this->request->getPost('payment_type'),
+            'payment_type_code'   => payment_type_code_from_label($this->request->getPost('payment_type')),
             'expense_category_id' => $this->request->getPost('expense_category_id', FILTER_SANITIZE_NUMBER_INT),
             'description'         => $this->request->getPost('description', FILTER_SANITIZE_FULL_SPECIAL_CHARS),
             'employee_id'         => $employee_id,

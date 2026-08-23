@@ -263,31 +263,31 @@ class Sale extends Model
         }
 
         if ($filters['only_cash']) {
-            $builder->like('payment_type', lang('Sales.cash'));
+            $builder->where('payment_type_code', 'cash');
         }
 
         if ($filters['only_due']) {
-            $builder->like('payment_type', lang('Sales.due'));
+            $builder->where('payment_type_code', 'due');
         }
 
         if ($filters['only_check']) {
-            $builder->like('payment_type', lang('Sales.check'));
+            $builder->where('payment_type_code', 'check');
         }
 
         if ($filters['only_creditcard']) {
-            $builder->like('payment_type', lang('Sales.credit'));
+            $builder->where('payment_type_code', 'credit');
         }
 
         if ($filters['only_debit']) {
-            $builder->like('payment_type', lang('Sales.debit'));
+            $builder->where('payment_type_code', 'debit');
         }
 
         if ($filters['only_bank_transfer']) {
-            $builder->like('payment_type', lang('Sales.bank_transfer'));
+            $builder->where('payment_type_code', 'bank_transfer');
         }
 
         if ($filters['only_wallet']) {
-            $builder->like('payment_type', lang('Sales.wallet'));
+            $builder->where('payment_type_code', 'wallet');
         }
 
         $builder->groupBy('payment_type');
@@ -478,8 +478,9 @@ class Sale extends Model
                 if ($payment_id == NEW_ENTRY && $payment_amount != 0) {
                     // Add a new payment transaction
                     $sales_payments_data = [
-                        'sale_id'         => $sale_id,
-                        'payment_type'    => $payment_type,
+                        'sale_id'           => $sale_id,
+                        'payment_type'      => $payment_type,
+                        'payment_type_code' => payment_type_code_from_label($payment_type),
                         'payment_amount'  => $payment_amount,
                         'cash_refund'     => $cash_refund,
                         'cash_adjustment' => $cash_adjustment,
@@ -490,7 +491,8 @@ class Sale extends Model
                     if ($payment_amount != 0) {
                         // Update existing payment transactions (payment_type only)
                         $sales_payments_data = [
-                            'payment_type'    => $payment_type,
+                            'payment_type'      => $payment_type,
+                            'payment_type_code' => payment_type_code_from_label($payment_type),
                             'payment_amount'  => $payment_amount,
                             'cash_refund'     => $cash_refund,
                             'cash_adjustment' => $cash_adjustment
@@ -593,8 +595,9 @@ class Sale extends Model
             }
 
             $sales_payments_data = [
-                'sale_id'         => $sale_id,
-                'payment_type'    => $payment['payment_type'],
+                'sale_id'           => $sale_id,
+                'payment_type'      => $payment['payment_type'],
+                'payment_type_code' => payment_type_code_from_label($payment['payment_type']),
                 'payment_amount'  => $payment['payment_amount'],
                 'cash_refund'     => $payment['cash_refund'],
                 'cash_adjustment' => $payment['cash_adjustment'],
@@ -1454,7 +1457,11 @@ class Sale extends Model
             'payments.sale_id',
             'SUM(CASE WHEN `payments`.`cash_adjustment` = 0 THEN `payments`.`payment_amount` ELSE 0 END) AS sale_payment_amount',
             'SUM(CASE WHEN `payments`.`cash_adjustment` = 1 THEN `payments`.`payment_amount` ELSE 0 END) AS sale_cash_adjustment',
-            'GROUP_CONCAT(CONCAT(`payments`.`payment_type`, " ", (`payments`.`payment_amount` - `payments`.`cash_refund`)) SEPARATOR ", ") AS payment_type'
+            'GROUP_CONCAT(CONCAT(`payments`.`payment_type`, " ", (`payments`.`payment_amount` - `payments`.`cash_refund`)) SEPARATOR ", ") AS payment_type',
+            // Codes, comma separated with no spaces, so FIND_IN_SET can match one element exactly.
+            // The label column above cannot be filtered reliably: LIKE matches substrings, which is
+            // why the cash filter also caught "Ajuste de efectivo".
+            'GROUP_CONCAT(DISTINCT `payments`.`payment_type_code`) AS payment_type_codes'
         ]);
         $builder->join('sales', 'sales.sale_id = payments.sale_id', 'inner');
         $builder->where($where);
@@ -1539,35 +1546,33 @@ class Sale extends Model
             $builder->where('sales.invoice_number IS NOT NULL');
         }
 
-        if ($filters['only_cash']) {
-            $builder->groupStart();
-            $builder->like('payments.payment_type', lang('Sales.cash'));
-            $builder->orWhere('payments.payment_type IS NULL');
-            $builder->groupEnd();
-        }
+        // Matched on the stable code, never on the translated label. FIND_IN_SET compares whole
+        // elements of the comma separated list, so "cash" no longer also matches
+        // "Ajuste de efectivo" the way LIKE did.
+        $filter_codes = [
+            'only_cash'          => 'cash',
+            'only_creditcard'    => 'credit',
+            'only_debit'         => 'debit',
+            'only_due'           => 'due',
+            'only_check'         => 'check',
+            'only_bank_transfer' => 'bank_transfer',
+            'only_wallet'        => 'wallet',
+        ];
 
-        if ($filters['only_creditcard']) {
-            $builder->like('payments.payment_type', lang('Sales.credit'));
-        }
+        foreach ($filter_codes as $filter => $code) {
+            if (empty($filters[$filter])) {
+                continue;
+            }
 
-        if ($filters['only_debit']) {
-            $builder->like('payments.payment_type', lang('Sales.debit'));
-        }
-
-        if ($filters['only_due']) {
-            $builder->like('payments.payment_type', lang('Sales.due'));
-        }
-
-        if ($filters['only_check']) {
-            $builder->like('payments.payment_type', lang('Sales.check'));
-        }
-
-        if ($filters['only_bank_transfer']) {
-            $builder->like('payments.payment_type', lang('Sales.bank_transfer'));
-        }
-
-        if ($filters['only_wallet']) {
-            $builder->like('payments.payment_type', lang('Sales.wallet'));
+            if ($filter === 'only_cash') {
+                // A sale with no payment rows at all counts as cash, as it always has.
+                $builder->groupStart();
+                $builder->where("FIND_IN_SET('cash', payments.payment_type_codes)", null, false);
+                $builder->orWhere('payments.payment_type_codes IS NULL');
+                $builder->groupEnd();
+            } else {
+                $builder->where("FIND_IN_SET(" . $this->db->escape($code) . ", payments.payment_type_codes)", null, false);
+            }
         }
     }
 }

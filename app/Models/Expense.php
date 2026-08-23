@@ -21,6 +21,7 @@ class Expense extends Model
         'date',
         'amount',
         'payment_type',
+        'payment_type_code',
         'expense_category_id',
         'description',
         'employee_id',
@@ -153,27 +154,32 @@ class Expense extends Model
             $builder->where('expenses.date BETWEEN ' . $this->db->escape(rawurldecode($filters['start_date'])) . ' AND ' . $this->db->escape(rawurldecode($filters['end_date'])));
         }
 
-        if ($filters['only_debit']) {
-            $builder->like('expenses.payment_type', lang('Expenses.debit'));
-        }
+        // Matched on the stable code. These filters used to compare the stored label against the
+        // Expenses.* keys while the form saved the label from the Sales.* keys -- in es-MX "Adeudo"
+        // was stored and "A Crédito" was searched, so only_due never matched a single row.
+        $filter_codes = [
+            'only_cash'          => 'cash',
+            'only_debit'         => 'debit',
+            'only_credit'        => 'credit',
+            'only_due'           => 'due',
+            'only_check'         => 'check',
+            'only_bank_transfer' => 'bank_transfer',
+            'only_wallet'        => 'wallet',
+        ];
 
-        if ($filters['only_credit']) {
-            $builder->like('expenses.payment_type', lang('Expenses.credit'));
-        }
+        foreach ($filter_codes as $filter => $code) {
+            if (empty($filters[$filter])) {
+                continue;
+            }
 
-        if ($filters['only_cash']) {
-            $builder->groupStart();
-            $builder->like('expenses.payment_type', lang('Expenses.cash'));
-            $builder->orWhere('expenses.payment_type IS NULL');
-            $builder->groupEnd();
-        }
-
-        if ($filters['only_due']) {
-            $builder->like('expenses.payment_type', lang('Expenses.due'));
-        }
-
-        if ($filters['only_check']) {
-            $builder->like('expenses.payment_type', lang('Expenses.check'));
+            if ($filter === 'only_cash') {
+                $builder->groupStart();
+                $builder->where('expenses.payment_type_code', 'cash');
+                $builder->orWhere('expenses.payment_type IS NULL');
+                $builder->groupEnd();
+            } else {
+                $builder->where('expenses.payment_type_code', $code);
+            }
         }
 
         if ($count_only) {    // TODO: replace this with `if ($count_only)`
@@ -318,23 +324,23 @@ class Expense extends Model
         }
 
         if ($filters['only_cash']) {
-            $builder->like('payment_type', lang('Expenses.cash'));
+            $builder->where('payment_type_code', 'cash');
         }
 
         if ($filters['only_due']) {
-            $builder->like('payment_type', lang('Expenses.due'));
+            $builder->where('payment_type_code', 'due');
         }
 
         if ($filters['only_check']) {
-            $builder->like('payment_type', lang('Expenses.check'));
+            $builder->where('payment_type_code', 'check');
         }
 
         if ($filters['only_credit']) {
-            $builder->like('payment_type', lang('Expenses.credit'));
+            $builder->where('payment_type_code', 'credit');
         }
 
         if ($filters['only_debit']) {
-            $builder->like('payment_type', lang('Expenses.debit'));
+            $builder->where('payment_type_code', 'debit');
         }
 
         $builder->groupBy('payment_type');
