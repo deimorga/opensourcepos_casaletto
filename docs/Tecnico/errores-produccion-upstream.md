@@ -100,7 +100,7 @@ UPDATE ospos_cash_up SET open_amount_cash = 217000.00, closed_amount_cash = 3755
 
 ---
 
-## 5. `FILTER_SANITIZE_FULL_SPECIAL_CHARS` convierte las tildes en entidades HTML (diagnosticado 2026-08-22; corregido en medios de pago, pendiente en el resto)
+## 5. `FILTER_SANITIZE_FULL_SPECIAL_CHARS` convierte las tildes en entidades HTML (diagnosticado y corregido 2026-08-22; quedan pocos módulos)
 
 **Síntoma:** en la grilla de Ventas, los filtros "Tarjeta de Débito" y "Tarjeta de Crédito" no
 devuelven nada. Nunca. Sin mensaje de error: una lista vacía que se lee como un dato.
@@ -218,6 +218,33 @@ Verificado después: cero errores en el log del día, y ambas URLs respondiendo 
 
 **Nota de exactitud:** el plan anticipaba 194 pagos de débito; fueron **195**. La diferencia es una
 venta con tarjeta que ocurrió entre el conteo del análisis y el despliegue, no un error de mapeo.
+
+### Fase 1b desplegada a producción el 2026-08-22 (~22:55 hora Colombia)
+
+15 controladores, 63 lecturas liberadas del filtro y una veintena de salidas escapadas, tras pruebas
+profundas en staging con navegador real.
+
+```
+  sales_items.description: 1297 repaired, 0 unresolved
+  receivings.payment_type: 0 repaired, 0 unresolved
+RepairHtmlEntitiesRound2: 1297 row(s) repaired, 0 unresolved.
+```
+
+| | Antes | Después |
+|---|---|---|
+| Líneas de venta | 8.937 | **8.937** ✅ |
+| `SUM(quantity_purchased)` | 5.040,652 | **5.040,652** ✅ |
+| `SUM(item_unit_price)` | 39.763.160,00 | **39.763.160,00** ✅ |
+| Líneas con entidad | 1.297 | **0** ✅ |
+| Pagos / suma / devoluciones | 742 / 36.098.640,00 / 2.665.132,50 | **idénticos** ✅ |
+
+Las 1.297 filas ahora leen `Unidad: número de unidades internacionales`. **Barrido completo: cero
+entidades en toda la base.** Cero errores en el log del día. Respaldo en
+`/root/backups_encoding_fix/prod_pre_fase1b_20260822.sql` y **1.548 filas** en
+`ospos_html_entity_repair_backup` (50 artículos + 1.297 líneas + 201 pagos) para revertir.
+
+**Queda pendiente:** `Customers`, `Giftcards`, `Home`, y el doble escapado de `Attributes` que
+bloquea retirar su cuarto `html_entity_decode()`. Pocos usos, ninguno urgente.
 
 **Obstáculo a tener presente: el filtro hoy hace doble oficio — es lo único entre lo que se postea
 y las **255 salidas sin escapar** que hay en las vistas (por ejemplo
