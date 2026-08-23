@@ -83,8 +83,14 @@ jobs:
           # step ran until the six-hour job limit, so this workflow reported nothing at all rather
           # than reporting a failure. Print the container's own logs on the way out, because the
           # reason is in there and nowhere else.
+          # healthcheck.sh is the probe the MariaDB image ships for exactly this, and it is named
+          # the same across versions. The previous probe called mysqladmin, which 11.4 no longer
+          # provides -- the mysql-named symlinks are gone -- so docker exec failed instantly on
+          # every attempt while --silent and the if-condition swallowed "executable file not
+          # found". The database was accepting connections four seconds in; nothing was ever wrong
+          # with it.
           for attempt in $(seq 1 60); do
-            if docker exec mysql mysqladmin ping -h 127.0.0.1 -u root -proot --silent; then
+            if docker exec mysql healthcheck.sh --connect --innodb_initialized; then
               echo "MariaDB is ready after ${attempt} attempts."
               exit 0
             fi
@@ -97,6 +103,9 @@ jobs:
             sleep 2
           done
           echo "::error::MariaDB did not become ready within 120 seconds."
+          echo "--- probe output ---"
+          docker exec mysql healthcheck.sh --connect --innodb_initialized || true
+          echo "--- container logs ---"
           docker logs mysql || true
           exit 1
 
