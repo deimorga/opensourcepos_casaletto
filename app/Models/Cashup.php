@@ -21,8 +21,8 @@ class Cashup extends Model
     protected $allowedFields = [
         'open_date',
         'close_date',
-        'open_cash_amount',
-        'transfer_cash_amount',
+        'open_amount_cash',
+        'transfer_amount_cash',
         'note',
         'closed_amount_cash',
         'closed_amount_card',
