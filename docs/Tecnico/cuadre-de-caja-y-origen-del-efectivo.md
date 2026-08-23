@@ -1,9 +1,8 @@
 # Diseño técnico — Cuadre de caja: origen del efectivo, recogidas y conciliación del turno
 
-> **Estado a 2026-08-23: construido en `develop`, sin probar contra base de datos ni desplegar.**
-> Las migraciones no se han ejecutado en ningún ambiente. Las pruebas que no necesitan base (27 del
-> helper de origen del efectivo, 14 del backfill de ventas) están en verde; las 29 que sí la
-> necesitan están escritas y sin correr.
+> **Estado a 2026-08-23: construido en `develop`, con la suite completa en verde en CI.**
+> 247 pruebas contra una base MariaDB real, en PHP 8.2, 8.3 y 8.4 — incluidas las 29 nuevas de este
+> trabajo. **Todavía sin desplegar**: las migraciones no se han ejecutado en ningún ambiente.
 
 Alcance funcional en `docs/Funcional/cuadre-de-caja-y-origen-del-efectivo.md`.
 
