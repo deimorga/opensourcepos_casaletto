@@ -159,9 +159,48 @@ class Expense extends Model
             $builder->where('expenses.date BETWEEN ' . $this->db->escape(rawurldecode($filters['start_date'])) . ' AND ' . $this->db->escape(rawurldecode($filters['end_date'])));
         }
 
-        // Matched on the stable code. These filters used to compare the stored label against the
-        // Expenses.* keys while the form saved the label from the Sales.* keys -- in es-MX "Adeudo"
-        // was stored and "A Crédito" was searched, so only_due never matched a single row.
+        $this->apply_payment_type_filters($builder, $filters, 'expenses.payment_type_code', 'expenses.payment_type');
+
+        $this->apply_cash_source_filters($builder, $filters, 'expenses.cash_source');
+
+        if ($count_only) {    // TODO: replace this with `if ($count_only)`
+            return $builder->get()->getRow()->count;
+        }
+
+        $builder->groupBy('expense_id');
+
+        $builder->orderBy($sort, $order);
+
+        if ($rows > 0) {
+            $builder->limit($rows, $limit_from);
+        }
+
+        return $builder->get();
+    }
+
+    /**
+     * Narrows a query down to the ticked payment types, matched on the stable code.
+     *
+     * These filters used to compare the stored label against the Expenses.* keys while the form
+     * saved the label from the Sales.* keys -- in es-MX "Adeudo" was stored and "A Crédito" was
+     * searched, so only_due never matched a single row.
+     *
+     * Shared because search() and get_payments_summary() had drifted apart: the summary handled
+     * five of the seven types and left out bank transfer and wallet, and it also left out the null
+     * payment type that counts as cash below. Ticking either of those filters gave a grid of rows
+     * whose totals underneath described a different set. Reading the two lists side by side is what
+     * it takes to notice, so there is now only one list.
+     *
+     * A row saved before the payment type existed has payment_type NULL and counts as cash: that is
+     * what it was, and the code column cannot say so retroactively.
+     *
+     * $column_code and $column_label are passed in because the two callers build their query
+     * differently: search() aliases the table and has to qualify the columns, this one does not.
+     *
+     * @param mixed $builder
+     */
+    private function apply_payment_type_filters($builder, array $filters, string $column_code, string $column_label): void
+    {
         $filter_codes = [
             'only_cash'          => 'cash',
             'only_debit'         => 'debit',
@@ -179,29 +218,13 @@ class Expense extends Model
 
             if ($filter === 'only_cash') {
                 $builder->groupStart();
-                $builder->where('expenses.payment_type_code', 'cash');
-                $builder->orWhere('expenses.payment_type IS NULL');
+                $builder->where($column_code, 'cash');
+                $builder->orWhere($column_label . ' IS NULL');
                 $builder->groupEnd();
             } else {
-                $builder->where('expenses.payment_type_code', $code);
+                $builder->where($column_code, $code);
             }
         }
-
-        $this->apply_cash_source_filters($builder, $filters, 'expenses.cash_source');
-
-        if ($count_only) {    // TODO: replace this with `if ($count_only)`
-            return $builder->get()->getRow()->count;
-        }
-
-        $builder->groupBy('expense_id');
-
-        $builder->orderBy($sort, $order);
-
-        if ($rows > 0) {
-            $builder->limit($rows, $limit_from);
-        }
-
-        return $builder->get();
     }
 
     /**
@@ -358,28 +381,10 @@ class Expense extends Model
             $builder->where('date BETWEEN ' . $this->db->escape(rawurldecode($filters['start_date'])) . ' AND ' . $this->db->escape(rawurldecode($filters['end_date'])));
         }
 
-        if ($filters['only_cash']) {
-            $builder->where('payment_type_code', 'cash');
-        }
+        // Both of these run through the same two helpers search() uses, so the totals under the grid
+        // cannot describe a different set of rows than the grid is showing.
+        $this->apply_payment_type_filters($builder, $filters, 'payment_type_code', 'payment_type');
 
-        if ($filters['only_due']) {
-            $builder->where('payment_type_code', 'due');
-        }
-
-        if ($filters['only_check']) {
-            $builder->where('payment_type_code', 'check');
-        }
-
-        if ($filters['only_credit']) {
-            $builder->where('payment_type_code', 'credit');
-        }
-
-        if ($filters['only_debit']) {
-            $builder->where('payment_type_code', 'debit');
-        }
-
-        // Kept in step with search() so the totals under the grid describe the rows the grid is
-        // actually showing.
         $this->apply_cash_source_filters($builder, $filters, 'cash_source');
 
         $builder->groupBy('payment_type');
