@@ -428,10 +428,92 @@ Conviene una prueba que recorra los controladores ya migrados y **falle si el fi
 Sin eso, la próxima actualización desde upstream lo reintroduce y nadie se entera hasta que un
 cliente se llame "José".
 
+## 7bis. Fase 0 — poner la documentación al día
+
+**Pedido por el usuario el 2026-08-22, antes de arrancar la fase 1.** La auditoría se hizo ese día;
+las correcciones van en el mismo commit que este plan.
+
+### Deriva encontrada, verificada una por una
+
+**1. `docs/Funcional/multi-tenant-multi-negocio.md` describía un proyecto sin desplegar.** Su sección
+"Estado de avance" terminaba en la Fase 9 y afirmaba que las fases 3, 4, 5, 7 y 8 estaban "solo en la
+rama de desarrollo", que "todavía no hay nada visible para ningún usuario" y que el dominio nuevo en
+producción "queda pendiente". La realidad: las once fases cerraron el 2026-08-03 y Casaletto opera
+como tenant real desde entonces. Comprobado el 2026-08-22 con peticiones de solo lectura —
+`casaletto.ospos-saas.micronuba.net` responde 200 con TLS válido y la URL legacy responde 200 en
+paralelo. **Corregido**: bloque de estado actual, correcciones puntuales a las frases que ya eran
+falsas, y la Fase 10 documentada.
+
+**Causa de la deriva, que es lo que importa:** los dos commits que registraron la Fase 10
+(`a9e14b369`, `50db218f9`) tocaron **únicamente** `docs/Tecnico/`. El documento técnico quedó al día
+y el funcional se quedó tres semanas atrás. El funcional es justamente el que leería un socio, un
+cliente o alguien que entra al proyecto.
+
+**2. `AGENTS.md` contradecía la política de ramas.** Decía *"Create a new git worktree for each
+issue, based on the latest state of `origin/master`"* — de upstream, donde `master` es la rama de
+trabajo. Acá el trabajo nuevo va a `develop`. Un agente que siguiera ese archivo al pie de la letra
+ramificaría desde producción. **Corregido**, y de paso se le agregaron las reglas operativas del fork
+que hasta hoy no estaban escritas en ningún archivo del repo: los workflows no corren migraciones, el
+build de assets antes de cualquier `up --build` manual, producción no se toca en horario operativo, y
+nada de secretos en los compose.
+
+Lo verificado que **sí** estaba correcto y no se tocó: `.php-cs-fixer.no-header.php` existe,
+`composer test` ejecuta phpunit, `npm run build` ejecuta gulp, y las rutas de controladores/modelos/
+vistas/migraciones son las reales.
+
+**3. La wiki vendorizada tiene rutas de CodeIgniter 3.**
+`docs/Funcional/referencia-ospos-wiki/How-to-add-a-new-report.md` manda editar
+`application\models\reports\`, `application\controllers\reports.php` y
+`application\helpers\table_helper.php`. En CI4 eso es `app/Models/Reports/`,
+`app/Controllers/Reports.php` y `app/Helpers/tabular_helper.php`.
+
+**No se corrige ahí**: esa carpeta tiene una regla explícita en su README — es una foto congelada de
+upstream al momento del fork y no se edita. La versión válida para este fork son las secciones 2 a 4
+de **este** documento, que además cubren lo que esa página no menciona: que el reporte no aparece sin
+su fila en `ospos_permissions`, y que un permiso `reports_*` nuevo se cuela solo en los paneles
+Gráficos y Resumidos si no se lo excluye en `can_show_report()`.
+
+**4. Sin deriva:** ningún documento propio referencia archivos que no existan. Las cuatro rutas que
+aparecen sin correspondencia (`Income_expenses.php`, `payment_type_helper.php`,
+`analytical_income_expenses.php`, `multiline.php`) son las que este plan propone crear.
+
+### Regla permanente, para que no se repita
+
+**Un cambio no está terminado hasta que la documentación coincide con el código.** En concreto:
+
+- Un cambio de comportamiento se documenta en `docs/Funcional/` **y** en `docs/Tecnico/`, o en
+  ninguno de los dos. Actualizar solo el técnico es exactamente la falla que produjo la deriva de
+  arriba.
+- Un despliegue que cambia lo que el negocio ve —una fase que sale a producción, una URL nueva— se
+  refleja en el documento funcional en el mismo commit.
+- Las frases de estado ("pendiente", "sin desplegar", "solo en desarrollo") llevan **fecha**. Sin
+  fecha no se puede distinguir un pendiente real de un párrafo que envejeció.
+- La wiki vendorizada no se edita nunca. Las correcciones van en `docs/Funcional/` propio.
+
+Esto quedó también escrito en `AGENTS.md`, que es el archivo que lee un agente al entrar al repo —
+la memoria de una sesión de chat no le sirve a nadie más.
+
+### Aplica a las fases de este plan
+
+Cada fase cierra con su documentación al día:
+
+- **Fase 1**: la corrección de medios de pago se registra en
+  `docs/Tecnico/errores-produccion-upstream.md` (ya tiene su entrada 5, hay que marcarla como
+  corregida al terminar) y el cambio visible —que los filtros de tarjeta por fin devuelvan
+  resultados— en `docs/Funcional/`.
+- **Fase 1b**: cada módulo migrado actualiza la tabla de avance de la sección 7.6, con fecha.
+- **Fase 2**: el reporte nuevo necesita su propia página funcional describiendo los dos modos, porque
+  es lo que un usuario del negocio tiene que entender antes de leer una cifra.
+
 ## 8. Orden de implementación y archivos a tocar
 
 **La fase 1 bloquea la fase 2.** El modo caja del reporte cruza ingresos y gastos por medio de pago;
 sobre los datos actuales daría cero para débito y crédito.
+
+### Fase 0 — documentación (hecha)
+
+Ver 7bis. Corregidos `docs/Funcional/multi-tenant-multi-negocio.md` y `AGENTS.md`; regla permanente
+escrita en `AGENTS.md`.
 
 ### Fase 1 — medios de pago
 

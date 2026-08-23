@@ -60,16 +60,29 @@ Cada negocio sigue pudiendo tener varias sedes, gestionarlas, y filtrar reportes
 
 ## 6. Estado de avance
 
-Fase 0 (documentación), Fase 1 (cerrar huecos de sede en ventas, turnos, gastos, recepciones y mesas) y Fase 2 (actualización de MariaDB y PHP a versiones con soporte vigente) completas — sin impacto visible para el usuario final. **Las tres ya están desplegadas en staging y producción reales** (Fase 1 el 2026-07-30, verificado 100% de filas con `location_id`, sin errores). Fase 3 (schema donde vivirá el registro de negocios-cliente), Fase 4 (el mecanismo que detecta a qué negocio pertenece cada visita según la URL, y aísla su conexión a datos) y Fase 5 (la herramienta que, cuando se publique un cambio de base de datos, lo aplica automáticamente a cada negocio registrado, avisando si alguno falla) completas, solo en la rama de desarrollo — todavía no hay nada visible para ningún usuario, y probado a fondo que Casaletto sigue funcionando exactamente igual mientras no esté registrado como negocio-cliente.
+> **Estado actual — verificado el 2026-08-22.** El proyecto está **terminado y en producción**. Las
+> once fases (0 a 10) están completas desde el **2026-08-03**, y Casaletto opera como el primer
+> negocio-cliente real de la plataforma, con certificado HTTPS válido. Comprobado el mismo 2026-08-22
+> con una petición de solo lectura: `casaletto.ospos-saas.micronuba.net` responde 200 con TLS válido,
+> y la dirección de siempre `pos-casaletto.micronuba.net` responde 200 en paralelo, tal como se
+> diseñó. Las tres ramas (`develop`, `master`, `feature/multi-tenant-saas`) quedaron niveladas en el
+> mismo commit el 2026-08-04. **No hay pendientes bloqueantes.**
+>
+> Lo que sigue es el registro fase por fase, con las fechas en que cada una se cerró. Donde un párrafo
+> dice "solo en la rama de desarrollo" o "sin desplegar", describe el estado **de esa fecha** — todo
+> eso quedó desplegado en la Fase 10.
+
+
+Fase 0 (documentación), Fase 1 (cerrar huecos de sede en ventas, turnos, gastos, recepciones y mesas) y Fase 2 (actualización de MariaDB y PHP a versiones con soporte vigente) completas — sin impacto visible para el usuario final. **Las tres ya están desplegadas en staging y producción reales** (Fase 1 el 2026-07-30, verificado 100% de filas con `location_id`, sin errores). Fase 3 (schema donde vivirá el registro de negocios-cliente), Fase 4 (el mecanismo que detecta a qué negocio pertenece cada visita según la URL, y aísla su conexión a datos) y Fase 5 (la herramienta que, cuando se publique un cambio de base de datos, lo aplica automáticamente a cada negocio registrado, avisando si alguno falla) completas. *(Estado al cerrarlas: solo en la rama de desarrollo, sin nada visible para ningún usuario, y probado a fondo que Casaletto seguía funcionando igual mientras no estuviera registrado como negocio-cliente. Desplegadas a producción en la Fase 10, el 2026-08-03.)*
 
 Fase 6 (la infraestructura de enrutamiento que permitirá que cada negocio tenga su propia dirección web) completa, con dos ajustes importantes decididos el 2026-07-31:
 
 - **Cambio de marca del dominio del SaaS**: la dirección de cada negocio-cliente ya no cuelga de la marca de Casaletto (`negocio.pos-casaletto.micronuba.net`, diseño original) sino de un dominio propio de la plataforma: **`negocio.ospos-saas.micronuba.net`**. Razón: Casaletto es un cliente más de la plataforma, no la plataforma misma — no tiene sentido atar la marca de todo el SaaS a la de uno solo de sus clientes. Cuando Casaletto se dé de alta formalmente como negocio-cliente (Fase 10), su nueva dirección será `casaletto.ospos-saas.micronuba.net`; su dirección actual (`pos-casaletto.micronuba.net`) sigue funcionando en paralelo sin ningún cambio. El nombre `ospos-saas` es **provisional** — se podrá ajustar más adelante, siempre respetando las políticas de licenciamiento de Open Source POS, cuyo código se reutiliza en este proyecto.
-- **Incidente real y revertido en producción**: al aplicar el cambio de dominio, un detalle de configuración de Traefik (la pieza de infraestructura que dirige el tráfico web) provocó que tanto producción como staging dejaran de responder brevemente. Se identificó la causa, se corrigió, y **por instrucción explícita del usuario se revirtió producción** al estado anterior (la dirección de Casaletto de siempre, sin el dominio nuevo del SaaS) mientras el sistema seguía operando y vendiendo en vivo — **producción no se toca mientras está en operación activa, solo después de las 10pm hora Colombia**, salvo autorización puntual explícita. Staging sí conserva el dominio nuevo, sin ningún negocio-cliente activo todavía, así que no hay ningún riesgo para datos reales de Casaletto. El despliegue del dominio nuevo a producción queda pendiente para una ventana de mantenimiento explícita fuera de horario operativo.
+- **Incidente real y revertido en producción**: al aplicar el cambio de dominio, un detalle de configuración de Traefik (la pieza de infraestructura que dirige el tráfico web) provocó que tanto producción como staging dejaran de responder brevemente. Se identificó la causa, se corrigió, y **por instrucción explícita del usuario se revirtió producción** al estado anterior (la dirección de Casaletto de siempre, sin el dominio nuevo del SaaS) mientras el sistema seguía operando y vendiendo en vivo — **producción no se toca mientras está en operación activa, solo después de las 10pm hora Colombia**, salvo autorización puntual explícita. Staging sí conserva el dominio nuevo, sin ningún negocio-cliente activo todavía, así que no hay ningún riesgo para datos reales de Casaletto. **El despliegue del dominio nuevo a producción se ejecutó después, en la Fase 10 (2026-08-03, ~21:48–22:20 hora Colombia), con la operación de Casaletto ya cerrada esa noche.**
 
-Fase 7 (la herramienta interna que da de alta un negocio nuevo con un solo comando: crea su espacio de datos separado, sus propias credenciales de acceso a base de datos, aplica la estructura de tablas completa, y reemplaza el usuario/contraseña de administrador por defecto por uno nuevo y aleatorio, nunca reutilizando ninguna credencial de Casaletto) completa, solo en la rama de desarrollo. Probada de punta a punta creando un negocio de prueba real y confirmando que sus datos quedan completamente separados de los de Casaletto, incluso si algo en el código fallara. Detalle técnico en `docs/Tecnico/multi-tenant-arquitectura.md`.
+Fase 7 (la herramienta interna que da de alta un negocio nuevo con un solo comando: crea su espacio de datos separado, sus propias credenciales de acceso a base de datos, aplica la estructura de tablas completa, y reemplaza el usuario/contraseña de administrador por defecto por uno nuevo y aleatorio, nunca reutilizando ninguna credencial de Casaletto) completa. *(En su momento solo en la rama de desarrollo; desplegada en la Fase 10.)* Probada de punta a punta creando un negocio de prueba real y confirmando que sus datos quedan completamente separados de los de Casaletto, incluso si algo en el código fallara. Detalle técnico en `docs/Tecnico/multi-tenant-arquitectura.md`.
 
-Fase 8 (login de dueño + **plataforma de gestión de negocios**, el panel web para crear/modificar/suspender/eliminar negocios-cliente) **completa**, solo en la rama de desarrollo (sin desplegar). Su alcance quedó confirmado y ampliado explícitamente el 2026-07-31, a raíz de que el usuario preguntó directamente cómo se manejarían distintas empresas, si cada una tendría su propia URL de login, y si existiría algún módulo o plataforma para gestionar la creación, modificación o eliminación de negocios — la respuesta es sí, y ese panel quedó como requisito confirmado de esta fase, no un extra.
+Fase 8 (login de dueño + **plataforma de gestión de negocios**, el panel web para crear/modificar/suspender/eliminar negocios-cliente) **completa**. *(En su momento solo en la rama de desarrollo; desplegada y funcionando en producción desde la Fase 10.)* Su alcance quedó confirmado y ampliado explícitamente el 2026-07-31, a raíz de que el usuario preguntó directamente cómo se manejarían distintas empresas, si cada una tendría su propia URL de login, y si existiría algún módulo o plataforma para gestionar la creación, modificación o eliminación de negocios — la respuesta es sí, y ese panel quedó como requisito confirmado de esta fase, no un extra.
 
 Probado de punta a punta con un negocio de prueba real: login del administrador de plataforma, alta de un negocio nuevo **desde el panel web** (no desde la línea de comandos), suspensión y reactivación, y confirmación de que el negocio nuevo, al entrar por su propia dirección, ve sus propios datos (no los de Casaletto ni los de ningún otro negocio).
 
@@ -90,6 +103,30 @@ También se probó el panel de gestión de negocios funcionando de verdad en sta
 **Importante para el despliegue de la Fase 2 en staging/producción** (no en desarrollo local): el salto de versión de MariaDB requiere un procedimiento cuidadoso porque esos ambientes tienen datos reales de Casaletto — no es un cambio que se aplique solo con el deploy automático, hay que planificarlo como una ventana de mantenimiento explícita.
 
 **Actualización (2026-07-30)**: ejecutado en **staging y producción**, ambos con verificación de que ningún dato se perdió (checksums idénticos entre la BD vieja y la nueva antes de dar cada cambio por bueno). Los dos ambientes corren en PHP 8.4 + MariaDB 11.4 desde ahora. Los volúmenes viejos en MariaDB 10.5 se conservan sin tocar en el VPS como respaldo adicional.
+
+**Fase 10 (puesta en producción) completa — 2026-08-03.** Es la fase que convirtió todo lo anterior
+en algo real para el negocio. Se ejecutó entre las ~21:48 y las ~22:20 hora Colombia, con el usuario
+confirmando explícitamente que la operación de Casaletto ya había cerrado esa noche, siguiendo el
+mismo procedimiento ya ensayado en staging en la Fase 9 y sin sorpresas nuevas.
+
+Qué quedó funcionando ese día:
+
+- **Casaletto dado de alta como el primer negocio-cliente real de la plataforma**, sin migrar ni copiar
+  un solo dato: sigue usando su misma base de datos de siempre.
+- **Su dirección nueva `casaletto.ospos-saas.micronuba.net` operativa con certificado HTTPS válido**,
+  y **su dirección de siempre `pos-casaletto.micronuba.net` funcionando en paralelo sin cambios** —
+  nadie tuvo que aprenderse una dirección nueva ni hubo interrupción del servicio.
+- El panel de gestión de negocios disponible en producción, con Casaletto ya listado.
+- Cualquier negocio-cliente nuevo que se dé de alta a partir de ahora obtiene su dirección propia con
+  HTTPS automático, sin tocar la infraestructura de nuevo.
+
+El certificado comodín (el que cubre de una vez a todos los negocios futuros) se resolvió de fondo ese
+mismo día, después de cerrar la fase, no quedó como deuda.
+
+**Qué falta, sin urgencia y sin bloquear nada:** dar de alta negocios de prueba adicionales para una
+validación cruzada de aislamiento más exhaustiva, e igualar el nombre y el tema visual de staging a
+los de producción (una diferencia de datos que ya existía antes de este proyecto). El trabajo real que
+sigue no es técnico: es sumar negocios-cliente nuevos, y la plataforma ya está lista para eso.
 
 ## 7. Continuidad de Casaletto
 
