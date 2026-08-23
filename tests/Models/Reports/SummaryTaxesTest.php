@@ -60,11 +60,17 @@ class SummaryTaxesTest extends CIUnitTestCase
             $this->seededSaleIds[] = $db->insertID();
         }
 
+        // item_location is NOT NULL with no default and carries a foreign key to stock_locations,
+        // so it has to name a location that exists. Looked up rather than hardcoded: which id the
+        // default location got depends on how the database was seeded, and this report does not
+        // group by location anyway.
+        $locationId = (int) $db->table($prefix . 'stock_locations')->select('location_id')->limit(1)->get()->getRow()->location_id;
+
         $salesItemsData = [
-            ['sale_id' => $this->seededSaleIds[0], 'item_id' => $this->seededItemIds[0], 'line' => 1, 'description' => 'Item 1', 'quantity_purchased' => 1, 'item_unit_price' => 100.00, 'discount' => 0, 'discount_type' => 0, 'item_cost_price' => 50.00],
-            ['sale_id' => $this->seededSaleIds[0], 'item_id' => $this->seededItemIds[1], 'line' => 2, 'description' => 'Item 2', 'quantity_purchased' => 2, 'item_unit_price' => 50.00, 'discount' => 0, 'discount_type' => 0, 'item_cost_price' => 25.00],
-            ['sale_id' => $this->seededSaleIds[1], 'item_id' => $this->seededItemIds[0], 'line' => 1, 'description' => 'Item 1', 'quantity_purchased' => 1, 'item_unit_price' => 110.00, 'discount' => 10, 'discount_type' => 0, 'item_cost_price' => 55.00],
-            ['sale_id' => $this->seededSaleIds[2], 'item_id' => $this->seededItemIds[1], 'line' => 1, 'description' => 'Item 2', 'quantity_purchased' => 1, 'item_unit_price' => 200.00, 'discount' => 0, 'discount_type' => 0, 'item_cost_price' => 100.00],
+            ['sale_id' => $this->seededSaleIds[0], 'item_id' => $this->seededItemIds[0], 'line' => 1, 'description' => 'Item 1', 'quantity_purchased' => 1, 'item_unit_price' => 100.00, 'discount' => 0, 'discount_type' => 0, 'item_location' => $locationId, 'item_cost_price' => 50.00],
+            ['sale_id' => $this->seededSaleIds[0], 'item_id' => $this->seededItemIds[1], 'line' => 2, 'description' => 'Item 2', 'quantity_purchased' => 2, 'item_unit_price' => 50.00, 'discount' => 0, 'discount_type' => 0, 'item_location' => $locationId, 'item_cost_price' => 25.00],
+            ['sale_id' => $this->seededSaleIds[1], 'item_id' => $this->seededItemIds[0], 'line' => 1, 'description' => 'Item 1', 'quantity_purchased' => 1, 'item_unit_price' => 110.00, 'discount' => 10, 'discount_type' => 0, 'item_location' => $locationId, 'item_cost_price' => 55.00],
+            ['sale_id' => $this->seededSaleIds[2], 'item_id' => $this->seededItemIds[1], 'line' => 1, 'description' => 'Item 2', 'quantity_purchased' => 1, 'item_unit_price' => 200.00, 'discount' => 0, 'discount_type' => 0, 'item_location' => $locationId, 'item_cost_price' => 100.00],
         ];
 
         foreach ($salesItemsData as $item) {
