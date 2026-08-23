@@ -1002,19 +1002,19 @@ function get_income_expenses_data_row(array $row): array
 }
 
 /**
- * The totals block under the analytical report's table.
+ * The figures shown in the cards above the analytical report's table.
+ *
+ * Returns data rather than markup: the view builds the cards with the DOM so the values go in as
+ * text, and it needs to know the sign to colour the result without parsing a formatted string.
  */
-function get_income_expenses_summary(array $summary, bool $cash_mode): string
+function get_income_expenses_summary(array $summary, bool $cash_mode): array
 {
-    $income_label = $cash_mode ? lang('Reports.income_collected') : lang('Reports.income');
-
-    $table  = '<div id="report_summary">';
-    $table .= '<div class="summary_row">' . esc($income_label) . ': ' . to_currency($summary['total_income']) . '</div>';
-    $table .= '<div class="summary_row">' . lang('Reports.expenses') . ': ' . to_currency($summary['total_expenses']) . '</div>';
-    $table .= '<div class="summary_row"><b>' . lang('Reports.result') . ': ' . to_currency($summary['total_result']) . '</b></div>';
-    $table .= '<div class="summary_row">' . lang('Reports.margin') . ': '
-        . ($summary['total_margin'] === null ? '—' : number_format($summary['total_margin'], 1) . '%') . '</div>';
-    $table .= '</div>';
-
-    return $table;
+    return [
+        'income'          => to_currency($summary['total_income']),
+        'expenses'        => to_currency($summary['total_expenses']),
+        'result'          => to_currency($summary['total_result']),
+        // A dash, not "0%": a period with no income did not break even, it had no sales.
+        'margin'          => $summary['total_margin'] === null ? '—' : number_format($summary['total_margin'], 1) . '%',
+        'result_negative' => $summary['total_result'] < 0
+    ];
 }

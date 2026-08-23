@@ -160,4 +160,6 @@ return [
     "granularity_month"                         => "Month",
     "include_deleted_expenses"                  => "Deleted expenses",
     "cash_mode_notice"                          => "Income = payments received, not invoicing",
+    "no_data_for_period"                        => "No data for the selected period",
+    "payment_method"                            => "Payment method",
 ];

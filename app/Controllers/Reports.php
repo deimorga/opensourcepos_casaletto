@@ -229,9 +229,11 @@ class Reports extends Secure_Controller
             ],
             'summary'   => get_income_expenses_summary($summary, $cash_mode),
             'cash_mode' => $cash_mode,
-            'subtitle'  => $this->_get_subtitle_report(['start_date' => $inputs['start_date'], 'end_date' => $inputs['end_date']])
-                . ($cash_mode ? ' — ' . lang('Reports.cash_mode_notice') : ''),
-            'income_header' => $cash_mode ? lang('Reports.income_collected') : lang('Reports.income')
+            'subtitle'  => $this->_get_subtitle_report(['start_date' => $inputs['start_date'], 'end_date' => $inputs['end_date']]),
+            // Sent apart from the subtitle so the view can give it the weight it deserves: the
+            // report is measuring something different, and burying that in a date line hides it.
+            'cash_mode_notice' => $cash_mode ? lang('Reports.cash_mode_notice') : '',
+            'income_header'    => $cash_mode ? lang('Reports.income_collected') : lang('Reports.income')
         ]);
     }
 

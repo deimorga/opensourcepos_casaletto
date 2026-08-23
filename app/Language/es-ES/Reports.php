@@ -160,4 +160,6 @@ return [
     "granularity_month"                         => "Mes",
     "include_deleted_expenses"                  => "Gastos eliminados",
     "cash_mode_notice"                          => "Ingresos = pagos recibidos, no facturación",
+    "no_data_for_period"                        => "Sin datos para el periodo seleccionado",
+    "payment_method"                            => "Medio de pago",
 ];
