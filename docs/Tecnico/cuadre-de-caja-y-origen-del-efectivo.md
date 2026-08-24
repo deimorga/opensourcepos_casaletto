@@ -333,6 +333,45 @@ desreferencia el resultado sin comprobarlo (hay un TODO en `Stock_location.php` 
 empleado con `expenses` pero sin `items_stock` produce un 500 al guardar. **Los seis empleados de
 producción lo tienen**, así que hoy nadie está expuesto; queda anotado como fragilidad latente.
 
+## 9c. Despliegue a producción (2026-08-24)
+
+**Los contenedores corren las migraciones al arrancar.** `AGENTS.md` decía que hay que ejecutarlas a
+mano por SSH; en la práctica el `docker compose up --build` ya las dispara. El `php spark migrate`
+posterior no encuentra nada nuevo y devuelve "Migrations complete" **sin una sola línea de reporte**,
+que es la única señal de que ya habían corrido.
+
+Consecuencia real: el backfill de ventas corrió **antes** de que se pudiera limpiar el turno 18, con
+él todavía abierto, y le atribuyó 247 ventas. Se reparó vaciando `sales.cashup_id` y borrando la
+fila de esa migración en `ospos_migrations` para que volviera a ejecutarse sola. **Cualquier arreglo
+de datos que deba preceder a una migración hay que hacerlo antes de levantar los contenedores.**
+
+**El turno 18 era un fantasma.** Abierto el 31/07 a las 21:09, seis minutos antes de cerrar el 17,
+con su mismo importe de apertura y todos los cierres en cero. La continuidad de caja va del 17
+(cierre 710.300) al 19 (apertura 710.300): el 18 nunca estuvo en la cadena, y las 8 ventas de ese día
+ocurrieron dentro del 17. Se cerró en ceros con fecha de cierre igual a la de apertura — ventana de
+duración cero, para que no absorba ventas. **No se eliminó**: sigue visible con `deleted = 0`.
+
+Cuidado al cerrarlo: el formulario venía autocompletado con **13.200.467** (todas las ventas desde el
+31/07) y fecha de cierre de hoy. Enviarlo tal cual habría inventado ese cierre.
+
+### Resultado del backfill
+
+| Cifra | Valor |
+|---|---|
+| Ventas con turno asignado | 530, repartidas en 30 turnos |
+| Ventas sin turno | 278 (4 ambiguas, 274 sin ventana que las cubra) |
+| Gastos con `cash_source = 'register'` | 58 |
+| Recogidas cargadas | 2, por $1.800.000 |
+
+Las 274 sin turno tienen una causa operativa, no técnica: **los turnos se abren al final de la
+jornada**, así que las ventas del día ocurren antes de que exista la ventana. El turno 39 (21/08)
+duró 44 segundos y por eso su cuadre no puede mostrar ingresos.
+
+### Lo que el cuadre destapó de inmediato
+
+El turno 35 (17/08) pasó de un Total de −$951.800 sin explicación a: recogido −$1.000.000, esperado
+$212.500, contado $226.500, **descuadre $14.000**.
+
 ## 10. Despliegue
 
 Varias migraciones, así que **no termina con el workflow**: hay que lanzar `php spark migrate` por
