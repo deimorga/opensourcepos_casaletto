@@ -122,6 +122,24 @@ class Cashup extends Model
             MAX(close_employees.first_name) AS close_first_name,
             MAX(close_employees.last_name) AS close_last_name
         ');
+
+            // A correlated subquery rather than a join, because the count_only branch above returns
+            // before the grouping and a join would multiply its rows -- one shift with three
+            // collections would be counted three times.
+            //
+            // An open shift has no real close_date: opening writes the opening date into it as a
+            // placeholder, so bounding by it would report zero for the shift a cashier is standing
+            // at right now. Open shifts take no upper bound, the same rule
+            // Cash_collection::get_total_collected_between() follows with a null end.
+            $collections = $this->db->prefixTable('cash_collections');
+
+            $builder->select("(
+                SELECT IFNULL(SUM(collected.amount), 0)
+                FROM $collections AS collected
+                WHERE collected.deleted = 0
+                  AND collected.collected_at >= cash_up.open_date
+                  AND (cash_up.status = 'open' OR collected.collected_at <= cash_up.close_date)
+            ) AS collected_amount", false);
         }
 
         $builder->join('people AS open_employees', 'open_employees.person_id = cash_up.open_employee_id', 'LEFT');

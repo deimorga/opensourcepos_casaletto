@@ -875,6 +875,9 @@ function cashup_headers(): array
         ['open_employee_id'     => lang('Cashups.open_employee')],
         ['open_amount_cash'     => lang('Cashups.open_amount_cash')],
         ['transfer_amount_cash' => lang('Cashups.transfer_amount_cash')],
+        // Before the closing date on purpose: it is money that left the drawer while the shift was
+        // running, so it belongs with what happened during the shift rather than after it.
+        ['collected_amount'     => lang('Cashups.reconciliation_collections')],
         ['close_date'           => lang('Cashups.closed_date')],
         ['close_employee_id'    => lang('Cashups.close_employee')],
         ['closed_amount_cash'   => lang('Cashups.closed_amount_cash')],
@@ -941,6 +944,7 @@ function get_cash_up_data_row(object $cash_up): array
         'open_employee_id'     => $cash_up->open_first_name . ' ' . $cash_up->open_last_name,
         'open_amount_cash'     => to_currency($cash_up->open_amount_cash),
         'transfer_amount_cash' => to_currency($cash_up->transfer_amount_cash),
+        'collected_amount'     => to_currency($cash_up->collected_amount ?? 0),
         'close_date'           => to_datetime(strtotime($cash_up->close_date)),
         'close_employee_id'    => $cash_up->close_first_name . ' ' . $cash_up->close_last_name,
         'closed_amount_cash'   => to_currency($cash_up->closed_amount_cash),
