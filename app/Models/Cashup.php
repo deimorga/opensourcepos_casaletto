@@ -21,8 +21,8 @@ class Cashup extends Model
     protected $allowedFields = [
         'open_date',
         'close_date',
-        'open_cash_amount',
-        'transfer_cash_amount',
+        'open_amount_cash',
+        'transfer_amount_cash',
         'note',
         'closed_amount_cash',
         'closed_amount_card',
@@ -226,6 +226,44 @@ class Cashup extends Model
         return $empty_obj;
     }
 
+
+    /**
+     * The shift that is open right now, or null when none is.
+     *
+     * Lives here rather than on Sale because three callers need the same answer -- the sale being
+     * sealed, the restriction that refuses a second open shift, and the reconciliation -- and three
+     * copies of one query is how the expense grid ended up disagreeing with its own totals.
+     *
+     * Only one shift is supposed to be open at a time, and postSave() now refuses to open a second.
+     * The history says otherwise, though: shift 32 was opened while 31 was still running, and
+     * add_cashup_status.sql only marked a shift closed when it had a non-zero closing amount, so
+     * old shifts can still be sitting here marked open. This picks the one opened most recently,
+     * which is the drawer the cashier is actually standing at, and says out loud that it had to
+     * choose.
+     */
+    public function get_open_cashup_id(): ?int
+    {
+        $builder = $this->db->table('cash_up');
+        $builder->select('cashup_id');
+        $builder->where('status', 'open');
+        $builder->where('deleted', 0);
+        $builder->orderBy('open_date', 'desc');
+        $builder->orderBy('cashup_id', 'desc');
+
+        $rows = $builder->get()->getResultArray();
+
+        if ($rows === []) {
+            return null;
+        }
+
+        if (count($rows) > 1) {
+            // Error rather than warning: the production log threshold is 4, which throws warnings
+            // away, and money landing in the wrong drawer is not something to find out later.
+            log_message('error', count($rows) . ' cash-up shifts are open at once. Sales are being sealed with the most recently opened one, ' . $rows[0]['cashup_id'] . '. Close the others.');
+        }
+
+        return (int) $rows[0]['cashup_id'];
+    }
 
     /**
      * Inserts or updates a cashup

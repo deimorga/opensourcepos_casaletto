@@ -8,7 +8,7 @@ use App\Models\Reports\Summary_taxes;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 
-class Summary_taxes_test extends CIUnitTestCase
+class SummaryTaxesTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;
 
@@ -23,6 +23,14 @@ class Summary_taxes_test extends CIUnitTestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        // Config\OSPOS caches the settings it read, and when it was first built while the table
+        // list still looked empty it is holding getDefaultSettings() -- four keys. Summary_taxes
+        // reads tax_included straight out of that array, so without this the report dies on an
+        // undefined index before it reads a single row.
+        \Config\Database::connect()->resetDataCache();
+        config(\Config\OSPOS::class)->update_settings();
+
         $this->seedTestData();
     }
 
@@ -40,8 +48,8 @@ class Summary_taxes_test extends CIUnitTestCase
         $now = date('Y-m-d H:i:s');
 
         $itemData = [
-            ['name' => 'Test Item Tax Test 1', 'category' => 'Test', 'supplier_id' => 1, 'item_number' => 'TEST001', 'description' => 'Test item for tax report', 'cost_price' => 10.00, 'unit_price' => 100.00, 'reorder_level' => 0, 'receiving_quantity' => 1, 'stock_type' => 0, 'item_type' => 0, 'tax_category_id' => 1, 'deleted' => 0],
-            ['name' => 'Test Item Tax Test 2', 'category' => 'Test', 'supplier_id' => 1, 'item_number' => 'TEST002', 'description' => 'Test item for tax report', 'cost_price' => 20.00, 'unit_price' => 200.00, 'reorder_level' => 0, 'receiving_quantity' => 1, 'stock_type' => 0, 'item_type' => 0, 'tax_category_id' => 1, 'deleted' => 0],
+            ['name' => 'Test Item Tax Test 1', 'category' => 'Test', 'supplier_id' => null, 'item_number' => 'TEST001', 'description' => 'Test item for tax report', 'cost_price' => 10.00, 'unit_price' => 100.00, 'reorder_level' => 0, 'receiving_quantity' => 1, 'stock_type' => 0, 'item_type' => 0, 'tax_category_id' => 1, 'deleted' => 0],
+            ['name' => 'Test Item Tax Test 2', 'category' => 'Test', 'supplier_id' => null, 'item_number' => 'TEST002', 'description' => 'Test item for tax report', 'cost_price' => 20.00, 'unit_price' => 200.00, 'reorder_level' => 0, 'receiving_quantity' => 1, 'stock_type' => 0, 'item_type' => 0, 'tax_category_id' => 1, 'deleted' => 0],
         ];
 
         foreach ($itemData as $item) {
@@ -50,9 +58,9 @@ class Summary_taxes_test extends CIUnitTestCase
         }
 
         $saleData = [
-            ['sale_time' => $now, 'customer_id' => 1, 'employee_id' => 1, 'comment' => 'Test sale 1', 'sale_status' => 1, 'invoice_number' => 'TEST-INV-001', 'sale_type' => 0],
-            ['sale_time' => $now, 'customer_id' => 1, 'employee_id' => 1, 'comment' => 'Test sale 2', 'sale_status' => 1, 'invoice_number' => 'TEST-INV-002', 'sale_type' => 0],
-            ['sale_time' => $now, 'customer_id' => 1, 'employee_id' => 1, 'comment' => 'Test sale 3', 'sale_status' => 1, 'invoice_number' => 'TEST-INV-003', 'sale_type' => 0],
+            ['sale_time' => $now, 'customer_id' => null, 'employee_id' => 1, 'comment' => 'Test sale 1', 'sale_status' => COMPLETED, 'invoice_number' => 'TEST-INV-001', 'sale_type' => 0],
+            ['sale_time' => $now, 'customer_id' => null, 'employee_id' => 1, 'comment' => 'Test sale 2', 'sale_status' => COMPLETED, 'invoice_number' => 'TEST-INV-002', 'sale_type' => 0],
+            ['sale_time' => $now, 'customer_id' => null, 'employee_id' => 1, 'comment' => 'Test sale 3', 'sale_status' => COMPLETED, 'invoice_number' => 'TEST-INV-003', 'sale_type' => 0],
         ];
 
         foreach ($saleData as $sale) {
@@ -60,11 +68,17 @@ class Summary_taxes_test extends CIUnitTestCase
             $this->seededSaleIds[] = $db->insertID();
         }
 
+        // item_location is NOT NULL with no default and carries a foreign key to stock_locations,
+        // so it has to name a location that exists. Looked up rather than hardcoded: which id the
+        // default location got depends on how the database was seeded, and this report does not
+        // group by location anyway.
+        $locationId = (int) $db->table($prefix . 'stock_locations')->select('location_id')->limit(1)->get()->getRow()->location_id;
+
         $salesItemsData = [
-            ['sale_id' => $this->seededSaleIds[0], 'item_id' => $this->seededItemIds[0], 'line' => 1, 'description' => 'Item 1', 'quantity_purchased' => 1, 'item_unit_price' => 100.00, 'discount' => 0, 'discount_type' => 0, 'item_cost_price' => 50.00],
-            ['sale_id' => $this->seededSaleIds[0], 'item_id' => $this->seededItemIds[1], 'line' => 2, 'description' => 'Item 2', 'quantity_purchased' => 2, 'item_unit_price' => 50.00, 'discount' => 0, 'discount_type' => 0, 'item_cost_price' => 25.00],
-            ['sale_id' => $this->seededSaleIds[1], 'item_id' => $this->seededItemIds[0], 'line' => 1, 'description' => 'Item 1', 'quantity_purchased' => 1, 'item_unit_price' => 110.00, 'discount' => 10, 'discount_type' => 0, 'item_cost_price' => 55.00],
-            ['sale_id' => $this->seededSaleIds[2], 'item_id' => $this->seededItemIds[1], 'line' => 1, 'description' => 'Item 2', 'quantity_purchased' => 1, 'item_unit_price' => 200.00, 'discount' => 0, 'discount_type' => 0, 'item_cost_price' => 100.00],
+            ['sale_id' => $this->seededSaleIds[0], 'item_id' => $this->seededItemIds[0], 'line' => 1, 'description' => 'Item 1', 'quantity_purchased' => 1, 'item_unit_price' => 100.00, 'discount' => 0, 'discount_type' => 0, 'item_location' => $locationId, 'item_cost_price' => 50.00],
+            ['sale_id' => $this->seededSaleIds[0], 'item_id' => $this->seededItemIds[1], 'line' => 2, 'description' => 'Item 2', 'quantity_purchased' => 2, 'item_unit_price' => 50.00, 'discount' => 0, 'discount_type' => 0, 'item_location' => $locationId, 'item_cost_price' => 25.00],
+            ['sale_id' => $this->seededSaleIds[1], 'item_id' => $this->seededItemIds[0], 'line' => 1, 'description' => 'Item 1', 'quantity_purchased' => 1, 'item_unit_price' => 110.00, 'discount' => 10, 'discount_type' => 0, 'item_location' => $locationId, 'item_cost_price' => 55.00],
+            ['sale_id' => $this->seededSaleIds[2], 'item_id' => $this->seededItemIds[1], 'line' => 1, 'description' => 'Item 2', 'quantity_purchased' => 1, 'item_unit_price' => 200.00, 'discount' => 0, 'discount_type' => 0, 'item_location' => $locationId, 'item_cost_price' => 100.00],
         ];
 
         foreach ($salesItemsData as $item) {

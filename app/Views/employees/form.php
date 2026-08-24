@@ -166,17 +166,21 @@
             ignore: []
         });
 
+        // An employee needs at least one permission, and that is the whole of it.
+        //
+        // This used to also demand that every ticked module with sub-permissions had one of them
+        // ticked. That reads sensibly and is wrong: the module checkbox is itself a real grant
+        // (grant_<module>), and the sub-permissions are extra privileges layered on top. So the
+        // rule made a module ungrantable on its own the moment anyone added a sub-permission to it.
+        //
+        // It stopped being theoretical when cashups gained delete and reopen: those are meant to be
+        // administrator-only, yet the form would not save anyone with access to shifts unless they
+        // were also given one of them. Three people in production -- two cashiers and an
+        // administrator -- could not be edited at all, and the message blamed modules while the
+        // real complaint was unreachable.
         $.validator.addMethod('module', function(value, element) {
-            var result = $('#permission_list input').is(':checked');
-            $('.module').each(function(index, element) {
-                var parent = $(element).parent();
-                var checked = $(element).is(':checked');
-                if ($('ul', parent).length > 0 && result) {
-                    result &= !checked || (checked && $('ul > li > input:checked', parent).length > 0);
-                }
-            });
-            return result;
-        }, "<?= lang('Employees.subpermission_required') ?>");
+            return $('#permission_list input:checkbox').is(':checked');
+        }, "<?= lang('Employees.permission_required') ?>");
 
         $('ul#permission_list > li > input.module').each(function() {
             var $this = $(this);

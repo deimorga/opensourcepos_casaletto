@@ -30,6 +30,7 @@ return [
     "password_not_must_match"      => "La contraseña actual y la nueva contraseña no deben ser iguales.",
     "password_required"            => "La Contraseña es requerida.",
     "permission_desc"              => "Activa las cajas debajo para permitir el acceso a los módulos.",
+    "permission_required"          => "Concede por lo menos un permiso.",
     "permission_info"              => "Permisos y Acceso del Empleado",
     "repeat_password"              => "Repita Contraseña",
     "subpermission_required"       => "Agregar al menos un permiso para cada modulo.",

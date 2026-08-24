@@ -22,6 +22,10 @@ class Expense extends Model
         'amount',
         'payment_type',
         'payment_type_code',
+        // CodeIgniter drops any field that is not listed here without a word. That is how
+        // payment_type_code was silently discarded on its first attempt, and the cash source is the
+        // one column the cash-up is going to subtract with.
+        'cash_source',
         'expense_category_id',
         'description',
         'employee_id',
@@ -125,6 +129,7 @@ class Expense extends Model
                 MAX(expenses.amount) AS amount,
                 MAX(expenses.tax_amount) AS tax_amount,
                 MAX(expenses.payment_type) AS payment_type,
+                MAX(expenses.cash_source) AS cash_source,
                 MAX(expenses.description) AS description,
                 MAX(employees.first_name) AS first_name,
                 MAX(employees.last_name) AS last_name,
@@ -154,33 +159,9 @@ class Expense extends Model
             $builder->where('expenses.date BETWEEN ' . $this->db->escape(rawurldecode($filters['start_date'])) . ' AND ' . $this->db->escape(rawurldecode($filters['end_date'])));
         }
 
-        // Matched on the stable code. These filters used to compare the stored label against the
-        // Expenses.* keys while the form saved the label from the Sales.* keys -- in es-MX "Adeudo"
-        // was stored and "A Crédito" was searched, so only_due never matched a single row.
-        $filter_codes = [
-            'only_cash'          => 'cash',
-            'only_debit'         => 'debit',
-            'only_credit'        => 'credit',
-            'only_due'           => 'due',
-            'only_check'         => 'check',
-            'only_bank_transfer' => 'bank_transfer',
-            'only_wallet'        => 'wallet',
-        ];
+        $this->apply_payment_type_filters($builder, $filters, 'expenses.payment_type_code', 'expenses.payment_type');
 
-        foreach ($filter_codes as $filter => $code) {
-            if (empty($filters[$filter])) {
-                continue;
-            }
-
-            if ($filter === 'only_cash') {
-                $builder->groupStart();
-                $builder->where('expenses.payment_type_code', 'cash');
-                $builder->orWhere('expenses.payment_type IS NULL');
-                $builder->groupEnd();
-            } else {
-                $builder->where('expenses.payment_type_code', $code);
-            }
-        }
+        $this->apply_cash_source_filters($builder, $filters, 'expenses.cash_source');
 
         if ($count_only) {    // TODO: replace this with `if ($count_only)`
             return $builder->get()->getRow()->count;
@@ -198,6 +179,110 @@ class Expense extends Model
     }
 
     /**
+     * What was paid out of the drawer between two moments, for the cash-up reconciliation.
+     *
+     * Deliberately not routed through get_payments_summary(). That one honours the
+     * date_or_time_format setting, and when the setting is empty it compares
+     * DATE_FORMAT(date, '%Y-%m-%d') against the bounds it is handed. Give it a bound carrying a
+     * time and the comparison is between strings of different lengths: '2026-08-23' sorts before
+     * '2026-08-23 15:49:52', so nothing from that very day is ever inside the range and the drawer
+     * comes up with zero expenses no matter how many were paid from it.
+     *
+     * That setting is about how dates are displayed and filtered on the grids. A drawer is
+     * reconciled over a window of time, and a shift that opened at 15:49 did not pay for what was
+     * bought at 09:00 that morning, so the comparison here is always on the full timestamp.
+     */
+    public function get_register_total_between(string $start_date, string $end_date): float
+    {
+        $builder = $this->db->table('expenses');
+        $builder->select('IFNULL(SUM(amount), 0) AS total');
+        $builder->where('deleted', 0);
+        $builder->where('cash_source', 'register');
+        $builder->where('date >=', $start_date);
+        $builder->where('date <=', $end_date);
+
+        $row = $builder->get()->getRow();
+
+        return (float)($row->total ?? 0);
+    }
+
+    /**
+     * Narrows a query down to the ticked payment types, matched on the stable code.
+     *
+     * These filters used to compare the stored label against the Expenses.* keys while the form
+     * saved the label from the Sales.* keys -- in es-MX "Adeudo" was stored and "A Crédito" was
+     * searched, so only_due never matched a single row.
+     *
+     * Shared because search() and get_payments_summary() had drifted apart: the summary handled
+     * five of the seven types and left out bank transfer and wallet, and it also left out the null
+     * payment type that counts as cash below. Ticking either of those filters gave a grid of rows
+     * whose totals underneath described a different set. Reading the two lists side by side is what
+     * it takes to notice, so there is now only one list.
+     *
+     * A row saved before the payment type existed has payment_type NULL and counts as cash: that is
+     * what it was, and the code column cannot say so retroactively.
+     *
+     * $column_code and $column_label are passed in because the two callers build their query
+     * differently: search() aliases the table and has to qualify the columns, this one does not.
+     *
+     * @param mixed $builder
+     */
+    private function apply_payment_type_filters($builder, array $filters, string $column_code, string $column_label): void
+    {
+        $filter_codes = [
+            'only_cash'          => 'cash',
+            'only_debit'         => 'debit',
+            'only_credit'        => 'credit',
+            'only_due'           => 'due',
+            'only_check'         => 'check',
+            'only_bank_transfer' => 'bank_transfer',
+            'only_wallet'        => 'wallet',
+        ];
+
+        foreach ($filter_codes as $filter => $code) {
+            if (empty($filters[$filter])) {
+                continue;
+            }
+
+            if ($filter === 'only_cash') {
+                $builder->groupStart();
+                $builder->where($column_code, 'cash');
+                $builder->orWhere($column_label . ' IS NULL');
+                $builder->groupEnd();
+            } else {
+                $builder->where($column_code, $code);
+            }
+        }
+    }
+
+    /**
+     * Narrows a query down to one or both cash sources, matched on the stored code.
+     *
+     * Unlike the payment type filters above, picking both of these returns the union rather than
+     * nothing: "register or collected" is the natural reading of ticking both boxes, and it is also
+     * the useful one -- it isolates the cash expenses from the transfers.
+     *
+     * $column is passed in because the two callers build their query differently: search() aliases
+     * the table and has to qualify the column, get_payments_summary() does not.
+     *
+     * @param mixed $builder
+     */
+    private function apply_cash_source_filters($builder, array $filters, string $column): void
+    {
+        $cash_sources = [];
+
+        foreach (['only_register' => 'register', 'only_collected' => 'collected'] as $filter => $code) {
+            if (!empty($filters[$filter])) {
+                $cash_sources[] = $code;
+            }
+        }
+
+        if ($cash_sources !== []) {
+            $builder->whereIn($column, $cash_sources);
+        }
+    }
+
+    /**
      * Gets information about a particular expense
      */
     public function get_info(int $expense_id): object
@@ -212,6 +297,7 @@ class Expense extends Model
             expenses.amount AS amount,
             expenses.tax_amount AS tax_amount,
             expenses.payment_type AS payment_type,
+            expenses.cash_source AS cash_source,
             expenses.description AS description,
             expenses.employee_id AS employee_id,
             expenses.deleted AS deleted,
@@ -323,25 +409,11 @@ class Expense extends Model
             $builder->where('date BETWEEN ' . $this->db->escape(rawurldecode($filters['start_date'])) . ' AND ' . $this->db->escape(rawurldecode($filters['end_date'])));
         }
 
-        if ($filters['only_cash']) {
-            $builder->where('payment_type_code', 'cash');
-        }
+        // Both of these run through the same two helpers search() uses, so the totals under the grid
+        // cannot describe a different set of rows than the grid is showing.
+        $this->apply_payment_type_filters($builder, $filters, 'payment_type_code', 'payment_type');
 
-        if ($filters['only_due']) {
-            $builder->where('payment_type_code', 'due');
-        }
-
-        if ($filters['only_check']) {
-            $builder->where('payment_type_code', 'check');
-        }
-
-        if ($filters['only_credit']) {
-            $builder->where('payment_type_code', 'credit');
-        }
-
-        if ($filters['only_debit']) {
-            $builder->where('payment_type_code', 'debit');
-        }
+        $this->apply_cash_source_filters($builder, $filters, 'cash_source');
 
         $builder->groupBy('payment_type');
 

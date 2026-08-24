@@ -285,6 +285,12 @@ class SalesControllerTest extends CIUnitTestCase
      */
     public function testRestartingACartOnDeliveryDoesNotAccumulateTabs(): void
     {
+        // Measured rather than assumed to be zero. $migrateOnce is on, so the class migrates once
+        // and every test in it inherits the open tabs the previous ones left; asserting an absolute
+        // count of zero made this pass only when it happened to run first. What the test is named
+        // for is accumulation, and accumulation is a delta.
+        $before = count(model(Sale::class)->get_all_opened());
+
         $this->openTableWithItem(1, $this->itemNumberA);
 
         // Session forgets the in-progress sale, exactly as clear_all() leaves
@@ -294,10 +300,17 @@ class SalesControllerTest extends CIUnitTestCase
         $this->postReq('sales/cancel', []);
         $this->postReq('sales/add', ['item' => $this->itemNumberB]);
 
+        $open = model(Sale::class)->get_all_opened();
+
         $this->assertCount(
-            0,
-            model(Sale::class)->get_all_opened(),
+            $before,
+            $open,
             'A new cart started on Delivery must not leave another open tab behind.'
         );
+
+        $openTableIds = array_column($open, 'dinner_table_id');
+
+        $this->assertNotContains(1, $openTableIds, 'Delivery must never hold an open tab.');
+        $this->assertNotContains(2, $openTableIds, 'Take Away must never hold an open tab.');
     }
 }

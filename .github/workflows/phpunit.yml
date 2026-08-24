@@ -78,12 +78,36 @@ jobs:
             -e MYSQL_PASSWORD=pointofsale \
             -p 3306:3306 \
             mariadb:11.4
-          # Wait for MariaDB to be ready
-          until docker exec mysql mysqladmin ping -h 127.0.0.1 -u root -proot --silent; do
-            echo "Waiting for MariaDB..."
+          # Wait for MariaDB to be ready, but give up rather than spin forever. This loop used to
+          # have no bound: when the container failed to come up, docker exec kept failing and the
+          # step ran until the six-hour job limit, so this workflow reported nothing at all rather
+          # than reporting a failure. Print the container's own logs on the way out, because the
+          # reason is in there and nowhere else.
+          # healthcheck.sh is the probe the MariaDB image ships for exactly this, and it is named
+          # the same across versions. The previous probe called mysqladmin, which 11.4 no longer
+          # provides -- the mysql-named symlinks are gone -- so docker exec failed instantly on
+          # every attempt while --silent and the if-condition swallowed "executable file not
+          # found". The database was accepting connections four seconds in; nothing was ever wrong
+          # with it.
+          for attempt in $(seq 1 60); do
+            if docker exec mysql healthcheck.sh --connect --innodb_initialized; then
+              echo "MariaDB is ready after ${attempt} attempts."
+              exit 0
+            fi
+            if [ -z "$(docker ps -q -f name=mysql)" ]; then
+              echo "::error::The MariaDB container is no longer running."
+              docker logs mysql || true
+              exit 1
+            fi
+            echo "Waiting for MariaDB... (${attempt}/60)"
             sleep 2
           done
-          echo "MariaDB is ready!"
+          echo "::error::MariaDB did not become ready within 120 seconds."
+          echo "--- probe output ---"
+          docker exec mysql healthcheck.sh --connect --innodb_initialized || true
+          echo "--- container logs ---"
+          docker logs mysql || true
+          exit 1
 
       - name: Get composer cache directory
         id: composer-cache-dir
@@ -99,16 +123,32 @@ jobs:
             ${{ runner.os }}-
 
       - name: Install dependencies
-        run: composer update --ansi --no-interaction
+        # install, not update: the lock file is what production runs, so resolving fresh versions
+        # here would test a dependency set nobody deploys. It also keeps the run reproducible --
+        # an unrelated upstream release could turn this workflow red on a commit that changed
+        # nothing.
+        run: composer install --ansi --no-interaction
 
       - name: Create .env file
-        run: cp .env.example .env
+        run: |
+          cp .env.example .env
+          # .env.example ships an empty encryption key, and the encrypter refuses to start without
+          # one. Twelve tests that build a request were erroring on "Encrypter needs a starter key"
+          # rather than on anything they were written to check. A throwaway key per run is right
+          # here: nothing in a test database outlives the job.
+          printf 'encryption.key = hex2bin:%s\n' "$(openssl rand -hex 32)" >> .env
+          # Host header protection refuses to guess, and the test requests arrive as localhost.
+          printf "app.allowedHostnames = 'localhost'\n" >> .env
 
       - name: Run PHPUnit tests
         env:
           CI_ENVIRONMENT: testing
           MYSQL_HOST_NAME: 127.0.0.1
-        run: composer test -- --log-junit test-results/junit.xml
+        # --no-coverage because the PHP setup above deliberately installs no coverage driver, while
+        # phpunit.xml.dist configures coverage and failOnWarning. Those two together turned a green
+        # suite -- 233 tests, no failures -- into a red job over "No code coverage driver
+        # available". Saying it here keeps the job's intent explicit: this one runs tests.
+        run: composer test -- --no-coverage --log-junit test-results/junit.xml
 
       - name: Upload test results
         uses: actions/upload-artifact@v4

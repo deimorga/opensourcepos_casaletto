@@ -779,6 +779,7 @@ function expense_headers(): array
         ['amount'            => lang('Expenses.amount')],
         ['tax_amount'        => lang('Expenses.tax_amount')],
         ['payment_type'      => lang('Expenses.payment')],
+        ['cash_source'       => lang('Expenses.cash_source')],
         ['category_name'     => lang('Expenses_categories.name')],
         ['description'       => lang('Expenses.description')],
         ['created_by'        => lang('Expenses.employee')]
@@ -808,6 +809,9 @@ function get_expenses_data_row(object $expense): array
         'amount'            => to_currency($expense->amount),
         'tax_amount'        => to_currency($expense->tax_amount),
         'payment_type'      => $expense->payment_type,
+        // Resolved from the stored code, so the cell says the same thing the form said. An expense
+        // that was not paid in cash reads blank on purpose: it came out of no cash pocket.
+        'cash_source'       => cash_source_label($expense->cash_source ?? null),
         'category_name'     => $expense->category_name,
         'description'       => $expense->description,
         'created_by'        => $expense->first_name . ' ' . $expense->last_name,
@@ -877,7 +881,10 @@ function cashup_headers(): array
         ['note'                 => lang('Cashups.note'), 'escape' => false],
         ['closed_amount_card'   => lang('Cashups.closed_amount_card')],
         ['closed_amount_check'  => lang('Cashups.closed_amount_check')],
-        ['closed_amount_total'  => lang('Cashups.closed_amount_total')]
+        ['closed_amount_total'  => lang('Cashups.closed_amount_total')],
+        // Blank title, like the edit column: an icon-only action needs no header, and the icon
+        // carries its own label for screen readers.
+        ['collections'          => '', 'sortable' => false, 'escape' => false]
     ];
 }
 
@@ -910,6 +917,23 @@ function get_cash_up_data_row(object $cash_up): array
         $edit_attrs['data-btn-submit'] = lang('Common.submit');
     }
 
+    // Handing cash over happens several times a day and closing happens once, so the frequent job
+    // gets its own way in rather than sitting behind the close form. This action opens the same
+    // dialog straight on the deliveries tab; it is only offered while the shift is open, because a
+    // closed shift takes no more deliveries.
+    $collections_anchor = '';
+
+    if ($cash_up->status !== 'closed') {
+        $collections_anchor = anchor(
+            "$controller/view/$cash_up->cashup_id?tab=collections",
+            '<span class="glyphicon glyphicon-usd"></span><span class="sr-only">' . lang('Cashups.collection_add') . '</span>',
+            [
+                'class' => 'modal-dlg',
+                'title' => lang('Cashups.collection_add')
+            ]
+        );
+    }
+
     return [
         'cashup_id'            => $cash_up->cashup_id,
         'status'                => $cash_up->status === 'closed' ? lang('Cashups.status_closed') : lang('Cashups.status_open'),
@@ -924,6 +948,7 @@ function get_cash_up_data_row(object $cash_up): array
         'closed_amount_card'   => to_currency($cash_up->closed_amount_card),
         'closed_amount_check'  => to_currency($cash_up->closed_amount_check),
         'closed_amount_total'  => to_currency($cash_up->closed_amount_total),
+        'collections'          => $collections_anchor,
         'edit'                 => anchor(
             "$controller/view/$cash_up->cashup_id",
             '<span class="glyphicon glyphicon-edit"></span>',

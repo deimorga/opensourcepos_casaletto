@@ -30,7 +30,8 @@ class Sale extends Model
         'dinner_table_id',
         'work_order_number',
         'sale_type',
-        'location_id'
+        'location_id',
+        'cashup_id'
     ];
 
     public function __construct()
@@ -457,6 +458,13 @@ class Sale extends Model
         $builder->where('sale_id', $sale_id);
         $update_data = $sale_data;
         unset($update_data['payments']);
+
+        // Editing a sale never moves it to another shift. The stamp records where the money
+        // physically went, and correcting a customer or a comment months later does not change
+        // that. Dropping the key here rather than trusting every caller to leave it out means the
+        // edit form cannot re-attribute cash even by accident.
+        unset($update_data['cashup_id']);
+
         $success = $builder->update($update_data);
 
         // Touch payment only if update sale is successful and there is a payments object otherwise the result would be to delete all the payments associated to the sale
@@ -515,6 +523,71 @@ class Sale extends Model
     }
 
     /**
+     * What a shift took in, broken down by payment method, for the sales sealed with it.
+     *
+     * Net of change given back: cash_refund is the change handed to the customer, not a refunded
+     * sale (Sales.php sets it from $data['amount_change']), so the drawer only ever held the
+     * difference. This is the same formula Summary_payments uses for its trans_amount.
+     *
+     * Keyed off the seal rather than a date range because the two are not the same thing. The
+     * closing screen still autocompletes from a date range, and on a day with two shifts, or with
+     * the date-only setting that truncates the window to whole days, that range takes in sales the
+     * shift never saw.
+     *
+     * Rounding adjustments come back as their own payment type rather than being folded in: they
+     * did move cash, and naming them is what lets a cashier recognise the difference.
+     */
+    public function get_payments_by_cashup(int $cashup_id): array
+    {
+        // The aggregate is written with the prefixed table name and its escaping turned off. The
+        // query builder prefixes identifiers it recognises but leaves the inside of a function
+        // call alone, so an unprefixed sales_payments.payment_amount in here reaches the database
+        // naming a table that does not exist.
+        $payments = $this->db->prefixTable('sales_payments');
+
+        $builder = $this->db->table('sales_payments');
+        $builder->select('sales_payments.payment_type_code AS payment_type_code');
+        $builder->select('sales_payments.payment_type AS payment_type');
+        $builder->select("SUM($payments.payment_amount - $payments.cash_refund) AS trans_amount", false);
+        $builder->join('sales', 'sales.sale_id = sales_payments.sale_id');
+        $builder->where('sales.cashup_id', $cashup_id);
+        $builder->groupBy('sales_payments.payment_type_code, sales_payments.payment_type');
+        $builder->orderBy('sales_payments.payment_type_code', 'asc');
+
+        $result = $builder->get();
+
+        // get() hands back false when the query itself failed, and with DBDebug off that is the
+        // only sign of it. Saying so in the log beats letting the caller fatal on ->getResultArray()
+        // with nothing written down anywhere -- which is exactly how this method shipped broken.
+        if ($result === false) {
+            log_message('error', 'Sale::get_payments_by_cashup() query failed for cash-up ' . $cashup_id . ': ' . json_encode($this->db->error()));
+
+            return [];
+        }
+
+        return $result->getResultArray();
+    }
+
+    /**
+     * The cash-up shift a sale is already sealed with, or null when it carries none. A sale that
+     * does not exist yet carries none either.
+     */
+    public function get_cashup_id(int $sale_id): ?int
+    {
+        if ($sale_id == NEW_ENTRY) {
+            return null;
+        }
+
+        $builder = $this->db->table('sales');
+        $builder->select('cashup_id');
+        $builder->where('sale_id', $sale_id);
+
+        $row = $builder->get()->getRow();
+
+        return $row === null || $row->cashup_id === null ? null : (int) $row->cashup_id;
+    }
+
+    /**
      * Save the sale information after the sales is complete but before the final document is printed
      * The sales_taxes variable needs to be initialized to an empty array before calling
      * @throws ReflectionException
@@ -563,6 +636,25 @@ class Sale extends Model
             'dinner_table_id'   => $dinner_table_id,
             'sale_type'         => $sale_type
         ];
+
+        // Seal the sale with the cash-up shift that is open right now. This is the only moment the
+        // answer is knowable: shifts overlap each other and sale_time can be edited afterwards, so
+        // reading the shift back off the dates later gives the wrong one or several at once.
+        //
+        // A sale that is only suspended, quoted or sitting open on a table has not put any cash in
+        // a drawer yet, so nothing is stamped until it is completed -- if a sale is not closed in
+        // the shift it was rung up in, it counts for whichever shift is alive when it is closed.
+        // Once stamped it keeps that shift for good, including when it comes back through here.
+        //
+        // The column is looked for rather than assumed because the deploy workflows do not run
+        // migrations (see AGENTS.md): this code goes live minutes before somebody runs
+        // "php spark migrate" over SSH, and selling has to keep working in that gap instead of
+        // dying on an unknown column. Whatever is sold meanwhile is picked up by the backfill.
+        if ($sale_status == COMPLETED && $this->db->fieldExists('cashup_id', 'sales') && $this->get_cashup_id($sale_id) === null) {
+            // Null when no shift is open. A sale with no shift is a real answer the reports show as
+            // such, and it beats inventing an attribution nobody could tell from a genuine one.
+            $sales_data['cashup_id'] = model(Cashup::class)->get_open_cashup_id();
+        }
 
         // Run these queries as a transaction, we want to make sure we do all or nothing
         $this->db->transStart();
@@ -1420,7 +1512,11 @@ class Sale extends Model
     {
         $config = config(OSPOS::class)->settings;
 
-        if (!empty($customer_id) && $config['customer_reward_enable']) {
+        // Coalesced rather than read straight: settings come from app_config rows, so a missing
+        // row means a missing key, and Config\OSPOS falls back to just four keys when the database
+        // cannot be reached. Completing a sale is the last place that should fatal over a setting
+        // nobody configured -- absent means the feature is off.
+        if (!empty($customer_id) && !empty($config['customer_reward_enable'])) {
             $customer = model(Customer::class);
             $customer_rewards = model(Customer_rewards::class);
             $rewards = model(Rewards::class);
