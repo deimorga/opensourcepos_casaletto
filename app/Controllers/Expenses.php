@@ -28,23 +28,36 @@ class Expenses extends Secure_Controller
     {
         $data['table_headers'] = get_expenses_manage_table_headers();
 
-        // filters that will be loaded in the multiselect dropdown
+        // Filters for the multiselect, grouped so the list stays readable: it now carries three
+        // different questions and a flag, and a flat run of twenty entries would be a wall.
+        // bootstrap-select renders a nested array as <optgroup>.
+        $categories = [];
+
+        foreach ($this->expense_category->get_all(0, 0, true)->getResultArray() as $row) {
+            $categories['category_' . $row['expense_category_id']] = $row['category_name'];
+        }
+
         $data['filters'] = [
             // Seven filters, matching the seven payment methods the form can actually save.
             // Bank transfer and wallet had no filter at all, so those expenses -- 1,650,000 pesos
             // of them in production -- were unreachable from this grid.
-            'only_cash'          => payment_type_label('cash'),
-            'only_debit'         => payment_type_label('debit'),
-            'only_credit'        => payment_type_label('credit'),
-            'only_due'           => payment_type_label('due'),
-            'only_check'         => payment_type_label('check'),
-            'only_bank_transfer' => payment_type_label('bank_transfer'),
-            'only_wallet'        => payment_type_label('wallet'),
+            lang('Expenses.payment') => [
+                'only_cash'          => payment_type_label('cash'),
+                'only_debit'         => payment_type_label('debit'),
+                'only_credit'        => payment_type_label('credit'),
+                'only_due'           => payment_type_label('due'),
+                'only_check'         => payment_type_label('check'),
+                'only_bank_transfer' => payment_type_label('bank_transfer'),
+                'only_wallet'        => payment_type_label('wallet')
+            ],
             // Which cash paid for it, which is a different question from how it was paid. Only the
             // cash-up subtracts register cash, so it needs to be reachable on its own.
-            'only_register'      => cash_source_label('register'),
-            'only_collected'     => cash_source_label('collected'),
-            'is_deleted'         => lang('Expenses.is_deleted')
+            lang('Expenses.cash_source') => [
+                'only_register'  => cash_source_label('register'),
+                'only_collected' => cash_source_label('collected')
+            ],
+            lang('Expenses.categories_name') => $categories,
+            'is_deleted' => lang('Expenses.is_deleted')
         ];
 
         // Restore filters from URL

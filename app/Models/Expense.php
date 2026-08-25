@@ -163,6 +163,8 @@ class Expense extends Model
 
         $this->apply_cash_source_filters($builder, $filters, 'expenses.cash_source');
 
+        $this->apply_category_filters($builder, $filters, 'expenses.expense_category_id');
+
         if ($count_only) {    // TODO: replace this with `if ($count_only)`
             return $builder->get()->getRow()->count;
         }
@@ -252,6 +254,33 @@ class Expense extends Model
             } else {
                 $builder->where($column_code, $code);
             }
+        }
+    }
+
+    /**
+     * Narrows a query down to the ticked expense categories.
+     *
+     * Ticking several returns the union, the same reading as the cash sources above: "supermarket
+     * or payroll" is what someone means by ticking both, and it is the useful answer.
+     *
+     * The ids arrive as filter keys named category_<id> rather than as a list of their own, because
+     * the grid hands every filter through one multiselect. Anything that is not that shape is
+     * ignored, so a hand-made query string cannot smuggle a column name in here.
+     *
+     * @param mixed $builder
+     */
+    private function apply_category_filters($builder, array $filters, string $column): void
+    {
+        $category_ids = [];
+
+        foreach ($filters as $filter => $enabled) {
+            if (!empty($enabled) && preg_match('/^category_(\d+)$/', (string)$filter, $matches)) {
+                $category_ids[] = (int)$matches[1];
+            }
+        }
+
+        if ($category_ids !== []) {
+            $builder->whereIn($column, $category_ids);
         }
     }
 
@@ -414,6 +443,8 @@ class Expense extends Model
         $this->apply_payment_type_filters($builder, $filters, 'payment_type_code', 'payment_type');
 
         $this->apply_cash_source_filters($builder, $filters, 'cash_source');
+
+        $this->apply_category_filters($builder, $filters, 'expense_category_id');
 
         $builder->groupBy('payment_type');
 
