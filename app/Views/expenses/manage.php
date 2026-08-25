@@ -72,14 +72,31 @@
             <span class="glyphicon glyphicon-trash">&nbsp;</span><?= lang('Common.delete') ?>
         </button>
         <?= form_input(['name' => 'daterangepicker', 'class' => 'form-control input-sm', 'id' => 'daterangepicker']) ?>
-        <?= form_multiselect('filters[]', esc($filters), $selected_filters ?? [], [
+        <?php
+        // This list is the only filter dropdown in the application that grows on its own: a new
+        // expense category adds an entry. Counting what is actually in it decides whether it needs
+        // a search box, rather than guessing from how it looks today.
+        $filter_count = 0;
+
+        foreach ($filters as $entry) {
+            $filter_count += is_array($entry) ? count($entry) : 1;
+        }
+        ?>
+        <?= form_multiselect('filters[]', esc($filters), $selected_filters ?? [], array_merge([
             'id'                        => 'filters',
             'data-none-selected-text'   => lang('Common.none_selected_text'),
             'class'                     => 'selectpicker show-menu-arrow',
             'data-selected-text-format' => 'count > 1',
             'data-style'                => 'btn-default btn-sm',
-            'data-width'                => 'fit'
-        ]) ?>
+            'data-width'                => 'fit',
+            // Cap the menu and let it scroll past that. Left to itself bootstrap-select grows to
+            // the window, which on a tall screen means a dropdown running the height of the page
+            // and on a short one means the last categories are unreachable.
+            'data-size'                 => 12
+        ], $filter_count > 15 ? [
+            'data-live-search'             => 'true',
+            'data-live-search-placeholder' => lang('Common.search')
+        ] : [])) ?>
     </div>
 </div>
 
