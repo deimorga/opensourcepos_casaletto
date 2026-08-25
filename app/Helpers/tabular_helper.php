@@ -874,7 +874,12 @@ function cashup_headers(): array
         ['open_date'            => lang('Cashups.opened_date')],
         ['open_employee_id'     => lang('Cashups.open_employee')],
         ['open_amount_cash'     => lang('Cashups.open_amount_cash')],
-        ['transfer_amount_cash' => lang('Cashups.transfer_amount_cash')],
+        // The In/Out Cash column is gone from this grid. It read transfer_amount_cash, which the
+        // form stopped offering when the collections register replaced it, and which is zero in
+        // every cash-up on record -- a column of zeros sitting next to the one that now holds the
+        // answer. The database column stays: _calculate_total() reads it, so dropping it would move
+        // historical totals.
+        //
         // Before the closing date on purpose: it is money that left the drawer while the shift was
         // running, so it belongs with what happened during the shift rather than after it.
         ['collected_amount'     => lang('Cashups.reconciliation_collections')],
@@ -943,7 +948,6 @@ function get_cash_up_data_row(object $cash_up): array
         'open_date'            => to_datetime(strtotime($cash_up->open_date)),
         'open_employee_id'     => $cash_up->open_first_name . ' ' . $cash_up->open_last_name,
         'open_amount_cash'     => to_currency($cash_up->open_amount_cash),
-        'transfer_amount_cash' => to_currency($cash_up->transfer_amount_cash),
         'collected_amount'     => to_currency($cash_up->collected_amount ?? 0),
         'close_date'           => to_datetime(strtotime($cash_up->close_date)),
         'close_employee_id'    => $cash_up->close_first_name . ' ' . $cash_up->close_last_name,
