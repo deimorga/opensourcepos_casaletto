@@ -296,6 +296,56 @@ ofrecerlo una vez más antes de cerrar.
 hortalizas — decenas de productos, no miles — el daño es manejable. Volvería a ser prioridad si el
 cliente amplía a abarrotes.
 
+## 6b. Que esto no le toque un pelo a Casaletto
+
+Es el primer desarrollo que hacemos **para un cliente distinto al que ya está vendiendo todos los
+días**. Casaletto usa el mismo sistema, así que la pregunta no es si el supermercado va a funcionar:
+es si el día que despleguemos, Casaletto va a seguir vendiendo como si nada.
+
+### Por qué el riesgo es real y no teórico
+
+Cada negocio tiene su propia base de datos y su propia configuración, así que **los datos están
+aislados**. Pero el programa es uno solo: si tocamos una parte compartida, Casaletto la recibe en el
+mismo momento en que subimos la versión.
+
+### Cómo lo evitamos
+
+**Lo nuevo aparece solo donde hay razón para que aparezca.** El campo de peso se muestra únicamente
+en artículos que se venden por kilo. Casaletto no tiene ninguno, así que sus cajeros no van a ver un
+campo nuevo ni un botón distinto. No es una configuración que se pueda equivocar: es que sin
+artículos por peso, simplemente no hay nada que mostrar.
+
+**Los módulos nuevos van detrás de permisos.** Merma, conteo de inventario y lotes solo aparecen
+para quien los tenga otorgados. Casaletto no los pide y no los ve.
+
+**Lo único que cambiaría su pantalla sin motivo lleva interruptor.** Es el modo táctil: agrandar
+botones tiene sentido en el terminal del supermercado y ninguno en el computador de Casaletto. Ese
+se activa negocio por negocio.
+
+**Los arreglos de defectos sí los recibe, y es a propósito.** Dos de los tres problemas que
+encontramos son errores que también le aplican a Casaletto — hoy no los sufre porque no vende por
+peso, pero están ahí. Esconderlos detrás de un interruptor sería dejarle el error puesto a
+sabiendas. Se arreglan para todos, y se prueban con sus casos de uso, no solo con los del
+supermercado.
+
+### La trampa operativa que encontramos revisando esto
+
+Nuestros despliegues **no actualizan la base de datos automáticamente** — eso siempre se ha hecho a
+mano. Con un solo cliente era una molestia. **Con dos es un riesgo:** si se actualiza el programa y
+se olvida actualizar la base de Casaletto, Casaletto empieza a fallar en plena venta.
+
+Ya está resuelto en el plan: se actualizan **todas** las bases primero, con una verificación de que
+cada una terminó bien, y solo después se sube el programa. Además queda una lista de chequeo escrita
+para el día del despliegue, y se hace **después de las 22:00**, con el negocio cerrado.
+
+### Cómo lo comprobamos antes
+
+Las pruebas automáticas van a correr **dos escenarios**: uno que representa a Casaletto (venta por
+unidad) y otro que representa al supermercado (venta por peso). La pregunta que tienen que responder
+no es "¿sirve el peso?" sino **"¿sigue funcionando todo lo que ya funcionaba?"**.
+
+Y antes de producción, todo pasa por el ambiente de pruebas con los dos negocios montados.
+
 ## 7. Lo que el negocio tiene que aportar
 
 - **El mapa de IVA.** Qué categorías van excluidas, cuáles exentas y cuáles al 19%. Las verduras
@@ -310,7 +360,8 @@ cliente amplía a abarrotes.
 
 | Fase | Qué se entrega | Depende de |
 |---|---|---|
-| 1 | Arreglo de los defectos que rompen el peso, y la unidad de medida en los artículos | — |
+| 0 | Blindaje del despliegue multi-tenant, para no tocar a Casaletto (§6b) | — |
+| 1 | Arreglo de los defectos que rompen el peso, y la unidad de medida en los artículos | Fase 0 |
 | 2 | El negocio provisionado y configurado | Fase 1 |
 | 3 | Merma, toma de inventario y lotes opcionales | Fase 1 |
 | 4 | El campo de peso en la caja, con digitación manual | Fase 1 |

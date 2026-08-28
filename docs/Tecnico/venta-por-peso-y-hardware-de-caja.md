@@ -11,6 +11,9 @@
 > El QR de la etiqueta lleva a Mavin: **el multiprotocolo es firmware suyo, no de ROCHI** (§5.10b-bis),
 > así que la tabla definitiva se le pide a ellos — es una llamada, y está pendiente.
 >
+> **§7c es de lectura obligatoria antes de escribir código:** cómo no romper a Casaletto, que vende
+> todos los días con este mismo programa.
+>
 > Alcance funcional en `docs/Funcional/venta-por-peso-y-hardware-de-caja.md`.
 > Análisis de origen sobre el commit `bac37a392` de `develop`.
 
@@ -582,6 +585,131 @@ Lo que sí agrega:
   si no alcanzan, un hub alimentado (la impresora y la báscula no deben colgar de un hub sin
   alimentación propia).
 
+## 7c. No romper a los tenants que ya operan
+
+Este es el primer requerimiento que se construye **para un cliente distinto al que ya está en
+producción**. Casaletto vende todos los días con este mismo código, así que la regla que ordena todo
+el capítulo es:
+
+> **Los datos son por tenant; el código es de todos.** Una migración toca un solo negocio. Un cambio
+> en `Sale.php` toca a Casaletto en el segundo en que se despliega.
+
+### 7c.1 El riesgo que puede tumbar producción, y es de procedimiento
+
+Los workflows de despliegue **no ejecutan migraciones** (`.github/workflows/` — ninguno las corre) y
+**no existe un comando que migre todos los tenants**: hay `tenant:migrate-one`, que migra el esquema
+al que apunte `MYSQL_DB_NAME`.
+
+Con un solo tenant eso era una molestia. **Con dos o más es una falla esperando ocurrir:** se
+despliega el código nuevo, se migra el esquema del supermercado, se olvida el de Casaletto, y
+Casaletto empieza a lanzar errores de columna inexistente en plena venta.
+
+**Dos medidas, y las dos van:**
+
+1. **Migrar todos los tenants ANTES de desplegar el código.** Las piezas ya existen y encajan —
+   `tenant:list` imprime un `db_name` por línea y `tenant:migrate-one` sale con código distinto de
+   cero si falla, que es justo lo que hace segura una iteración:
+
+   ```bash
+   php spark tenant:list | while read -r db; do
+       MYSQL_DB_NAME="$db" php spark tenant:migrate-one || { echo "FALLÓ: $db"; exit 1; }
+   done
+   ```
+
+   Vale la pena empaquetarlo como `tenant:migrate-all` para que nadie lo escriba de memoria a las
+   once de la noche.
+
+2. **Que el código tolere la columna ausente** en lo que se despliega primero. Una migración
+   aditiva con `DEFAULT` no rompe nada *después* de correr; el problema es la ventana *entre* el
+   despliegue y la migración. Leer con `??` y no asumir la columna cierra esa ventana.
+
+### 7c.2 Cambio por cambio: qué ve Casaletto
+
+| Cambio | ¿Lo toca? | Por qué es seguro / qué hay que hacer |
+|---|---|---|
+| `unit_of_measure` con `DEFAULT 'unit'` | Columna nueva | Todos sus artículos quedan `unit`, que es el comportamiento de hoy. Nada lo consulta salvo el flujo de peso |
+| `tracks_lots` con `DEFAULT 0` | Columna nueva | La venta ni siquiera consulta lotes cuando es 0 |
+| Tablas nuevas (lotes, merma) | No las usa | Vacías. Los módulos van detrás de permisos que su tenant no otorga |
+| **`change_quantity()` de `int` a `string`** | **Sí, código compartido** | Es la corrección de un defecto que también le aplica a él. Con cantidades enteras el resultado es idéntico — **hay que probarlo con enteros, no solo con decimales** |
+| **`parse_barcode()` con `break`** | **Sí, código compartido** | **Verificar antes qué tiene Casaletto en `barcode_formats`.** Con cero o un formato el `break` es inocuo; con dos o más **cambia el resultado** |
+| **Anclar el patrón del intérprete** | **Sí, código compartido** | El más traicionero: si Casaletto tiene un formato que hoy engancha por coincidencia parcial, anclarlo lo rompe. **Verificar antes, no después** |
+| Divisor de peso configurable | Sí | El valor por defecto sigue siendo 1000 |
+| Campo de peso en la registradora | Vista compartida | Solo se renderiza para artículos `kg`. Casaletto no tiene ninguno, así que no lo ve nunca |
+| Teclado numérico en pantalla | Vista compartida | Vive dentro del campo de peso. Invisible para él |
+| **Objetivos táctiles / CSS de la registradora** | **Sí, y este SÍ se nota** | Es el único cambio visual que le llegaría sin razón. **Va detrás de una bandera por tenant**, no global |
+| Selector de unidad en el formulario de artículo | Visible | Campo opcional con valor por defecto. No puede volverse obligatorio ni romper el guardado |
+| Columna nueva en la importación CSV | Sí | **Al final y opcional.** Nunca reordenar columnas: rompería las plantillas que ya usen |
+| Sufijo de unidad en el recibo | Sí | Solo cuando la unidad no es `unit` |
+| `quantity_decimals = 3` | **No** | Es configuración por tenant. Casaletto conserva su `0` — y hay que **verificarlo explícitamente** después de desplegar |
+
+### 7c.3 La caché de configuración, que muerde callado
+
+`Config\OSPOS::set_settings()` cachea el `app_config` completo bajo `settings_<slug>`
+([`app/Config/OSPOS.php`](../../app/Config/OSPOS.php)). Una migración que **agrega claves de
+configuración** no invalida esa caché, así que durante un rato el sistema sigue leyendo el mapa
+viejo — sin la clave nueva.
+
+Y no todo el código lee con `??`: `quantity_decimals()` sí, pero hay accesos directos tipo
+`$config['clave']` que lanzarían error con la clave ausente.
+
+**Regla:** toda migración que agregue claves de `app_config` termina con la caché limpia, y eso
+también es por tenant.
+
+### 7c.4 Lo que hay que verificar ANTES de tocar `Token_lib`
+
+Consultas de solo lectura contra el esquema de Casaletto — la verificación en producción es de
+lectura, nunca transaccional:
+
+```sql
+SELECT `key`, `value` FROM ospos_app_config
+ WHERE `key` IN ('barcode_formats','quantity_decimals','barcode_content','tax_included');
+```
+
+- `barcode_formats` vacío o con un solo formato → el `break` y el anclaje son inocuos, se hacen sin
+  más.
+- Con dos o más formatos → hay que revisar uno por uno si el anclaje los rompe, **antes** de
+  desplegar.
+
+### 7c.5 Pruebas: la suite tiene que correr los dos mundos
+
+No basta con probar el escenario del supermercado. Cada prueba que toque cantidades corre **dos
+veces**:
+
+- **Tenant "unidad"** — `quantity_decimals = 0`, artículos `unit`. Es Casaletto. Prueba que lo nuevo
+  no cambió nada.
+- **Tenant "peso"** — `quantity_decimals = 3`, artículos `kg`. Es el supermercado.
+
+La regresión que de verdad importa no es "¿funciona el peso?" sino **"¿sigue funcionando todo lo que
+ya funcionaba?"**.
+
+### 7c.6 Lista de chequeo antes de desplegar a producción
+
+1. Suite completa en verde, en los dos escenarios de §7c.5.
+2. Consultas de §7c.4 ejecutadas contra Casaletto y revisadas.
+3. Desplegado y probado en **staging** primero, con los dos tenants presentes.
+4. **Migrar todos los tenants** con el bucle de §7c.1, verificando que cada uno salga en cero.
+5. Limpiar la caché de configuración de cada tenant.
+6. Desplegar el código.
+7. Verificar en Casaletto, **solo lectura**: que `quantity_decimals` siga en `0`, que la
+   registradora se vea igual, y que una venta reciente se lea bien.
+8. **Después de las 22:00 hora Colombia**, como manda la regla del repositorio — nunca con el
+   negocio vendiendo.
+
+### 7c.7 Y una decisión de fondo: qué se hace por bandera y qué no
+
+Tentación: meter todo detrás de una bandera "modo supermercado" para no tocar a nadie. **No.** Las
+banderas se acumulan y terminan en dos sistemas que hay que probar por separado para siempre.
+
+El criterio que se aplica acá:
+
+- **Los arreglos de defectos NO van detrás de bandera.** `change_quantity()` está mal para todos.
+  Esconderlo tras una bandera sería dejar el error vivo en Casaletto a propósito.
+- **Lo que depende de datos que el tenant no tiene tampoco necesita bandera.** El campo de peso no
+  aparece porque Casaletto no tiene artículos `kg`. Eso ya es aislamiento suficiente, y es más
+  robusto que una bandera porque no hay nada que configurar mal.
+- **Solo lleva bandera lo que cambiaría la experiencia sin motivo**, que hoy es exactamente una
+  cosa: el modo táctil de la registradora.
+
 ## 8. Riesgos conocidos que no bloquean
 
 | Riesgo | Estado |
@@ -638,8 +766,12 @@ Lo que sí agrega:
 
 ## 12. Orden de implementación
 
-1. **Fase 1** — §2.1, §2.2, §3 y §4.4, con las pruebas de §10. No depende de nada y protege también
-   a Casaletto de una regresión.
+0. **Fase 0 — blindaje del despliegue.** Antes de cualquier migración nueva: empaquetar
+   `tenant:migrate-all` (§7c.1) y dejar escrita la lista de chequeo de §7c.6. Es media tarde y es lo
+   que impide que el primer despliegue multi-tenant tumbe a Casaletto.
+1. **Fase 1** — §2.1, §2.2, §3 y §4.4, con las pruebas de §10 **en los dos escenarios de §7c.5**.
+   Antes de tocar `Token_lib`, correr las consultas de §7c.4 contra Casaletto. No depende de nada y
+   protege también a Casaletto de una regresión.
 2. **Fase 2** — Provisionar el tenant y aplicar §7.
 3. **Fase 3** — §6.1, §6.2 y §6.3, en ese orden. La merma primero porque es lo que este cliente usa
    a diario.
@@ -648,5 +780,7 @@ Lo que sí agrega:
 6. **Fase 6** — §5, el agente local.
 7. **Fase 7** — Acompañamiento de la primera semana.
 
-**Recordatorio de despliegue:** los workflows de este repositorio **no ejecutan migraciones**. Cada
-fase que agregue una necesita `php spark migrate` disparado a mano por SSH después del despliegue.
+**Recordatorio de despliegue:** los workflows de este repositorio **no ejecutan migraciones**, y
+ahora hay más de un tenant. El procedimiento completo está en §7c — resumido: migrar **todos** los
+esquemas primero, limpiar la caché de configuración de cada uno, y solo entonces desplegar el
+código.
