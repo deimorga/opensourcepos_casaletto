@@ -4,8 +4,10 @@
 > Este documento y su par técnico son el punto de partida del desarrollo. Ninguna línea de código,
 > ninguna migración y ninguna configuración de este requerimiento existe aún.
 >
-> **Actualización del 2026-08-27:** la báscula quedó identificada — ROCHI RC-A01E, la que el cliente
-> ya tiene. Sirve y no hay que comprar otra. Ver §4.3.
+> **Actualización del 2026-08-28:** báscula identificada y con su documentación técnica completa
+> (ROCHI RC-A01E) — §4.3. El terminal será **Windows**, así que el diseño se mantiene íntegro.
+> **Atención al §4.4: el fabricante advierte que esta báscula no es apta para actividades
+> mercantiles.** Es un riesgo del negocio del cliente, no del desarrollo, pero hay que informarlo.
 >
 > Diseño técnico en `docs/Tecnico/venta-por-peso-y-hardware-de-caja.md`.
 
@@ -83,7 +85,26 @@ desconectada, si el programa local no arrancó, o si simplemente el operario pre
 la venta sigue. Esto es deliberado y no es un parche: es lo que impide que un problema de hardware
 detenga la caja.
 
-### 3.4 Una precaución que el negocio va a notar
+**Con la pantalla táctil eso necesita un teclado numérico en pantalla.** El cliente va a reemplazar
+el PC por un terminal táctil, donde no hay teclado físico. Digitar un peso sin teclado no se puede,
+así que el campo de peso lleva su propio teclado numérico grande, cómodo de usar con el dedo. Es
+trabajo nuevo que antes no estaba contemplado, y es pequeño, pero sin él el plan B no existe.
+
+### 3.4 La pantalla táctil
+
+El cliente va a cambiar el computador por un terminal táctil todo-en-uno. **Va a ser Windows**, lo
+cual es una buena noticia: todo lo diseñado funciona igual y no hay que replantear nada.
+
+Dos cosas que hay que revisar cuando lo compre, y conviene decírselas antes:
+
+- **Que tenga suficientes puertos USB.** Se van a conectar báscula, pistola e impresora — mínimo
+  tres, y conviene un cuarto libre. Muchos terminales táctiles vienen justos.
+- **Que la pantalla del punto de venta se pueda usar con el dedo.** La pantalla de venta actual fue
+  hecha para mouse: botones y campos pequeños. Va a haber que agrandar los elementos que el cajero
+  toca todo el día. No es rehacerla, pero tampoco es gratis, y sale mejor si lo revisamos con el
+  terminal ya elegido.
+
+### 3.5 Una precaución que el negocio va a notar
 
 El sistema **no va a aceptar un peso tomado mientras la bolsa se está acomodando**. Las básculas
 avisan cuándo el peso ya se asentó, y vamos a esperar ese aviso. En la práctica significa que el
@@ -140,7 +161,41 @@ por software:
 - **Mide de 5 en 5 gramos.** Nunca va a mostrar 737 gramos: va a mostrar 735 o 740. No es un error
   ni hay nada que arreglar, pero conviene saberlo para que nadie lo reporte como falla.
 
-### 4.4 El cajón, en dos etapas
+Técnicamente ya está todo resuelto: el manual del fabricante da la configuración exacta del puerto
+y el driver es gratuito. **No hay ninguna incógnita técnica bloqueante con esta báscula.**
+
+### 4.4 Una advertencia legal que encontramos en el manual, y que no es nuestra decisión
+
+Al leer el manual del fabricante apareció algo que el negocio tiene que saber. En la contraportada,
+**ROCHI advierte textualmente**:
+
+> *"Esta báscula no puede ser utilizada en actividades mercantiles ni sanitarias. Hacerlo podría
+> acarrear la imposición de multas hasta por dos mil (2.000) salarios mínimos legales vigentes por
+> parte de la Superintendencia de Industria y Comercio. Artículo 2.2.1.7.14.3 Decreto 1074 de 2015."*
+
+Lo verificamos: en Colombia, **los instrumentos que se usan para pesar con el fin de hacer
+transacciones comerciales o determinar un precio están sujetos a control metrológico** de la SIC
+(Decreto 1074 de 2015 y Resolución 77506 de 2016). Las básculas aptas para eso llevan **aprobación
+de modelo** y quedan registradas en el sistema SIMEL, verificadas por un organismo autorizado. Por
+eso otros vendedores anuncian sus equipos como *"con aprobación de modelo OIML"*: es un
+diferenciador, no algo que traigan todas.
+
+**Un supermercado que le vende verduras al público pesándolas es exactamente esa actividad.**
+
+Qué significa esto en la práctica:
+
+- **No cambia nada de nuestro desarrollo.** El trabajo técnico es idéntico con esta báscula o con
+  otra, porque casi todas se conectan igual y nuestro sistema lee el formato por configuración.
+- **Sí es un riesgo del negocio del cliente**, y es de él, no nuestro. Pero callarlo sabiéndolo
+  sería peor: **hay que decírselo por escrito** y que él lo verifique con su proveedor y con la SIC.
+- Si le toca reemplazarla por una con aprobación de modelo, para nosotros es **cambiar un parámetro
+  de configuración**, no rehacer nada. Conviene que lo sepa antes de comprar la pantalla táctil, no
+  después.
+
+Vale aclarar que el cliente **ya viene operando con esta báscula** en su POS actual. Nosotros no
+creamos la situación; solo la encontramos al leer el manual y la reportamos.
+
+### 4.5 El cajón, en dos etapas
 
 Desde el primer día el cajón **abre solo en cada recibo**, con la casilla del driver de la
 impresora. Eso cubre la operación normal.
@@ -253,11 +308,13 @@ cronograma. Así, un problema de instalación no retrasa la apertura.
 1. ~~¿Qué báscula tiene hoy instalada?~~ **Resuelta el 2026-08-27: ROCHI RC-A01E, y sirve.**
    Queda pendiente lo más fácil: **una foto de la pantalla de configuración de báscula del POS
    actual** (nombre del protocolo, puerto y velocidad). Es un dato que ahorra medio día de pruebas.
-2. **¿Qué se hace con los productos que pesan menos de 200 gramos?** La báscula no los lee. Decisión
+2. **¿La báscula tiene aprobación de modelo ante la SIC?** Ver §4.4. Es la pregunta más importante
+   de esta lista y no la podemos responder nosotros: la verifica el cliente con su proveedor.
+3. **¿Qué se hace con los productos que pesan menos de 200 gramos?** La báscula no los lee. Decisión
    de negocio: por unidad, preempacados o con precio mínimo.
-3. **¿Cuántas cajas va a tener?** Define cuántas básculas montar y cómo se hace el cuadre si hay más
+4. **¿Cuántas cajas va a tener?** Define cuántas básculas montar y cómo se hace el cuadre si hay más
    de un cajero por turno.
-4. **¿Cuántos productos tiene el catálogo?** Con decenas de productos la velocidad de la caja
+5. **¿Cuántos productos tiene el catálogo?** Con decenas de productos la velocidad de la caja
    alcanza sin tocar nada; con miles hay que revisarla antes de salir.
 
 ## 10. Referencia técnica

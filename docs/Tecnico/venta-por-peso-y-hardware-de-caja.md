@@ -3,8 +3,10 @@
 > **Estado a 2026-08-27: diseño cerrado, nada implementado.** No hay código, ni migraciones, ni
 > configuración de este requerimiento en ninguna rama. Este documento es el punto de partida.
 >
-> **Actualización del 2026-08-27:** báscula identificada (ROCHI RC-A01E, puerto COM virtual sobre
-> USB). Confirma el transporte para el que se diseñó el agente — §5.8 y §5.9. El diseño no cambia.
+> **Actualización del 2026-08-28:** báscula documentada del todo — ROCHI RC-A01E, chip CH340,
+> **9600 8-N-1** sobre puerto COM virtual (§5.8). El terminal del cliente será **Windows**, así que
+> el agente en Go sigue siendo válido tal cual. Lo único que el manual no trae es la trama: se
+> resuelve con el modo de descubrimiento del §5.10, no comprando la báscula.
 >
 > Alcance funcional en `docs/Funcional/venta-por-peso-y-hardware-de-caja.md`.
 > Análisis de origen sobre el commit `bac37a392` de `develop`.
@@ -271,10 +273,24 @@ pantalla de configuración, no al código.**
 | Clase de precisión | 3 (OIML III) | Es apta para comercio, que es lo que exige la norma |
 | Conexión a PC | **Cable USB tipo B a tipo A**, con driver de descarga | **Puerto COM virtual** |
 
-**Es el caso bueno.** Un conector USB-B del lado del equipo más un driver que hay que descargar es
-la firma inconfundible de un **puente USB-a-serie** (CH340/CH341, PL2303 o CP210x). Instalado el
-driver, la báscula aparece como un puerto COM y habla un protocolo serial ASCII. Es exactamente el
-transporte para el que se diseñó el agente en §5.1 — no hay que cambiar nada del diseño.
+**Es el caso bueno, y ya está confirmado con el manual del fabricante** (ver §5.10 para las fuentes):
+
+| Parámetro | Valor confirmado |
+|---|---|
+| Chip USB-serie | **WCH CH340.** En el Administrador de dispositivos aparece como `USB-SERIAL CH340 (COMx)` bajo *Puertos (COM y LPT)* |
+| Driver | Paquete **CH341SER** (`SETUP.EXE` como administrador). Gratuito, del fabricante del chip. El manual lo publica en `https://bit.ly/driver-ch341` |
+| Velocidad | **9600 baudios** |
+| Bits de datos | **8** |
+| Paridad | **Ninguna** |
+| Bits de parada | **1** |
+| Control de flujo | **Ninguno** |
+
+Es decir **9600 8-N-1** sobre un puerto COM virtual: exactamente el transporte para el que se diseñó
+el agente en §5.1. **No hay que cambiar nada del diseño**, y el CH340 es el puente USB-serie más
+común y mejor soportado que existe — la librería serial de Go lo abre como cualquier otro COM.
+
+El manual cubre toda la serie RC (**D03D, A01D, A01E, A02**), así que estos parámetros deberían
+valer para los cuatro modelos.
 
 Es además una **báscula liquidadora**: calcula precio × peso internamente y su trama suele traer
 peso, precio unitario y total. **Nosotros solo tomamos el peso**; el patrón configurable `{W:n}` de
@@ -294,6 +310,46 @@ No son defectos, son la báscula. Pero se descubren en la caja si no se dicen an
 - **La resolución es de 5 g.** El sistema guarda tres decimales y eso está bien, pero la báscula
   nunca va a reportar `0.737`: reportará `0.735` o `0.740`. No hay nada que corregir; conviene
   saberlo antes de que alguien reporte como error que "los pesos siempre terminan en 0 o 5".
+  El manual indica que la división es configurable en **1 / 5 / 10 g**; la placa del equipo del
+  cliente dice 5 g.
+
+### 5.10 Lo que el manual NO dice, y cómo se cierra sin tener la báscula
+
+**El manual documenta cómo dejar el puerto listo, pero no documenta la trama.** Llega hasta
+"configure el puerto a 9600 8-N-1" y ahí se detiene. No dice si la báscula transmite de forma
+continua o solo cuando se le pide, ni con qué formato, ni si manda peso solo o peso + precio +
+total.
+
+Como **no vamos a tener la báscula** — el cliente la usa a diario y no puede pararla — ese vacío se
+cierra por diseño y no por adivinanza. El agente incluye un **modo de descubrimiento**:
+
+1. Abre el puerto en 9600 8-N-1, que ya sabemos que es correcto.
+2. **Vuelca en pantalla los bytes crudos** que van llegando, en texto y en hexadecimal.
+3. Si en 3 segundos no llega nada, prueba a **enviar los disparadores conocidos** — `$` (protocolo
+   Dólar), `W`, `ENQ` (`0x05`), `CR` — y muestra qué responde a cada uno.
+4. Con eso a la vista, se arma el patrón `{W:n}` en la pantalla de configuración y se prueba en el
+   mismo momento.
+
+**Esto convierte el día del montaje de una incógnita en un procedimiento de diez minutos.** Es la
+pieza que hace viable desarrollar a ciegas, y por eso no es un extra: es requisito del agente.
+
+Como red de seguridad adicional, el patrón vive en configuración (§4.3): si en el local resulta que
+la trama es distinta a lo previsto, **se corrige desde la pantalla de administración, sin recompilar
+ni reinstalar nada**.
+
+### 5.11 Fuentes de estos datos
+
+- Manual de usuario ROCHI RC-SERIE (11 páginas), sección *"Conexión USB a PC"*:
+  `http://basculasybalanzastek.com/wp-content/uploads/2025/06/Manual-de-usuario-ROCHI.pdf`
+- Ficha técnica RC-A01E:
+  `http://basculasybalanzastek.com/wp-content/uploads/2025/06/Ficha-tecnica-RC-A01E.pdf`
+- Driver CH341SER publicado por el distribuidor:
+  `https://drive.google.com/file/d/1CKlY0-QqLtGPr_mRe43mm7C4oa3J17fM/view`
+- Página de producto con las tres descargas:
+  `https://basculasybalanzastek.com/product/balanza-electronica-liquidadora-a-01e-30kg-led/`
+
+Los dos PDF son escaneos sin capa de texto: hubo que renderizarlos a imagen para leerlos. Si alguien
+los vuelve a necesitar, ese es el motivo por el que buscar texto dentro no devuelve nada.
 
 ## 6. Inventario
 
@@ -366,6 +422,26 @@ los siguientes.
 `Load_config.php:57` fija `bcscale(max(2, currency_decimals + tax_decimals))`, así que con
 `currency_decimals = 0` y `tax_decimals = 2` la escala interna es 2 y `0.735 × 4500` da `3307.50`,
 no `3307`.
+
+## 7b. Terminal táctil: lo que agrega al alcance
+
+El cliente reemplaza el PC por un terminal táctil todo-en-uno. **Confirmado: Windows** (2026-08-28),
+así que el agente en Go, el puerto COM y la política de Chrome siguen valiendo sin cambios. Si
+hubiera sido Android, §5 completo quedaba sin efecto — vale la pena dejarlo escrito por si algún
+cliente futuro llega con Android.
+
+Lo que sí agrega:
+
+- **Teclado numérico en pantalla para el campo de peso.** Sin teclado físico, la digitación manual
+  del §3.3 funcional no existe. Es el respaldo de toda la operación cuando la báscula falla, así que
+  el teclado en pantalla **no es opcional**: es parte del campo de peso, misma fase 4.
+- **Objetivos táctiles en la registradora.** `app/Views/sales/register.php` está hecha para mouse:
+  `input-sm`, iconos de 12 px, filas densas. Hay que agrandar lo que el cajero toca todo el día —
+  agregar producto, editar cantidad, borrar línea, cobrar. No es rehacer la vista; es una hoja de
+  estilos para el modo táctil. Se dimensiona con el terminal ya elegido, no antes.
+- **Puertos USB.** Báscula + pistola + impresora = tres mínimo. Verificar al comprar el terminal;
+  si no alcanzan, un hub alimentado (la impresora y la báscula no deben colgar de un hub sin
+  alimentación propia).
 
 ## 8. Riesgos conocidos que no bloquean
 
