@@ -8,6 +8,8 @@
 > el agente en Go sigue siendo válido tal cual. La etiqueta de la base dice **MultiProtocolo /
 > POS-II**, y con eso se ubicó el manual del diseño hermano: **tabla de formatos y trama byte por
 > byte en §5.10b**, incluido un **formato por comando** (`W` → peso) que es el que buscamos.
+> El QR de la etiqueta lleva a Mavin: **el multiprotocolo es firmware suyo, no de ROCHI** (§5.10b-bis),
+> así que la tabla definitiva se le pide a ellos — es una llamada, y está pendiente.
 >
 > Alcance funcional en `docs/Funcional/venta-por-peso-y-hardware-de-caja.md`.
 > Análisis de origen sobre el commit `bac37a392` de `develop`.
@@ -429,6 +431,35 @@ el segundo grupo.
 captura `12.395` y el divisor queda en 1. Es un archivo nuevo de veinte líneas, no un rediseño —
 pero hay que preverlo o el patrón no engancha y se pierde una tarde averiguando por qué.
 
+### 5.10b-bis A dónde lleva el QR: el multiprotocolo es de Mavin (2026-08-28)
+
+El QR de la etiqueta apunta a `https://www.mavincolombia.com/rochi-usb.html`. Hoy esa URL da 404 —
+Mavin rehízo el sitio — pero la copia archivada del 2026-02-17 trae el dato que importa:
+
+> **Puerto: USB Multiformatos Mavin (Exclusiva Mavin)** · Driver CH340 · Clase III · Capacidad 30 kg
+> · Carga mínima 200 g
+
+**El firmware multiprotocolo no es de ROCHI: es de Mavin.** ROCHI fabrica la báscula; Mavin le pone
+el puerto USB multiformato y la distribuye. Eso reordena quién es la fuente autorizada:
+
+| Fuente | Qué vale |
+|---|---|
+| Manual ROCHI | Parámetros del puerto (9600 8-N-1) y driver. **Confirmado, es del equipo exacto** |
+| Manual Moresco ACS-268 (§5.10b) | Tabla de formatos y trama. **Analogía de familia, no del equipo** |
+| **Mavin** | **La tabla real de este equipo. No está publicada: hay que pedírsela** |
+
+**Acción concreta y gratis, antes de escribir el parser:** pedirle a Mavin la tabla de formatos del
+*"Puerto USB Multiformatos"* de la Rochi RC-A01. Venden la báscula y venden software de integración,
+así que la tienen. Están en Bogotá — Calle 13 # 30-67 — con ventas en el +57 320 228 5232, soporte
+en el +57 319 450 6206 y WhatsApp remoto en el +57 1 805 1028.
+
+Es una llamada. Si dan la tabla, el §5.10b deja de ser hipótesis y pasa a ser especificación, y el
+modo de descubrimiento queda solo como red de seguridad en vez de herramienta principal.
+
+**Detalle a no pasar por alto:** la ficha que Mavin publica es del **RC-A01 LED con división de
+10 g**; el equipo del cliente es **RC-A01E con 5 g**. Son variantes de la misma familia, no el mismo
+código. Al preguntar hay que dar el modelo y el serial exactos — `RC-A01E`, `PO-00262400658`.
+
 ### 5.10c Dos advertencias operativas del manual hermano
 
 - **Abrir el puerto antes de encender la báscula.** Si la báscula ya está transmitiendo cuando el
@@ -452,7 +483,9 @@ pero hay que preverlo o el patrón no engancha y se pierde una tarde averiguando
   `http://www.basculasmoresco.com/uploads/1/7/4/0/1740594/manual_balanza_moresco_pos.pdf`
 - Video del fabricante sobre la configuración del cable: `https://www.youtube.com/watch?v=DEFYsV-TqJ0`
 - Etiqueta de la base del equipo del cliente (foto, 2026-08-28): *Puerto USB-A · Version: POS-II ·
-  MultiProtocolo*, con QR sin leer y fecha manuscrita 16-06-2025.
+  MultiProtocolo*, QR y fecha manuscrita 16-06-2025. **El QR lleva a
+  `https://www.mavincolombia.com/rochi-usb.html`**, hoy 404; copia archivada utilizable en
+  `http://web.archive.org/web/20260217173716/https://www.mavincolombia.com/rochi-usb.html`
 
 Los dos PDF son escaneos sin capa de texto: hubo que renderizarlos a imagen para leerlos. Si alguien
 los vuelve a necesitar, ese es el motivo por el que buscar texto dentro no devuelve nada.

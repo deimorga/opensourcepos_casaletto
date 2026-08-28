@@ -324,9 +324,11 @@ cronograma. Así, un problema de instalación no retrasa la apertura.
 
 ## 9. Preguntas abiertas
 
-1. ~~¿Qué báscula tiene hoy instalada?~~ **Resuelta el 2026-08-27: ROCHI RC-A01E, y sirve.**
-   Queda pendiente lo más fácil: **una foto de la pantalla de configuración de báscula del POS
-   actual** (nombre del protocolo, puerto y velocidad). Es un dato que ahorra medio día de pruebas.
+1. ~~¿Qué báscula tiene hoy instalada?~~ **Resuelta: ROCHI RC-A01E, y sirve.** Queda una gestión
+   fácil y gratis: **llamar a Mavin Colombia y pedir la tabla de formatos** del puerto USB
+   multiformato de esa báscula — el firmware multiprotocolo es de ellos, así que son la fuente
+   autorizada. Ver §5.10b-bis del documento técnico. Alternativa igual de útil: una foto de la
+   pantalla de configuración de báscula del POS actual del cliente.
 2. **¿Va a haber pistola lectora de código de barras?** Estaba en la petición original pero no en
    la lista de periféricos confirmada. Sin ella hay que teclear el código de cada producto
    empacado. Afecta cuántos puertos USB necesita el terminal.
