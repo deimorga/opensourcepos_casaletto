@@ -4,8 +4,9 @@
 > Este documento y su par técnico son el punto de partida del desarrollo. Ninguna línea de código,
 > ninguna migración y ninguna configuración de este requerimiento existe aún.
 >
-> **Actualización del 2026-08-28:** báscula identificada y con su documentación técnica completa
-> (ROCHI RC-A01E) — §4.3. El terminal será **Windows**, así que el diseño se mantiene íntegro.
+> **Actualización del 2026-08-28:** báscula identificada y documentada (ROCHI RC-A01E, y es
+> **multiprotocolo**) — §4.3. Periféricos confirmados en §3.4; el terminal será **Windows**, así que
+> el diseño se mantiene íntegro. **Falta confirmar si habrá pistola lectora.**
 > **Atención al §4.4: el fabricante advierte que esta báscula no es apta para actividades
 > mercantiles.** Es un riesgo del negocio del cliente, no del desarrollo, pero hay que informarlo.
 >
@@ -85,24 +86,36 @@ desconectada, si el programa local no arrancó, o si simplemente el operario pre
 la venta sigue. Esto es deliberado y no es un parche: es lo que impide que un problema de hardware
 detenga la caja.
 
-**Con la pantalla táctil eso necesita un teclado numérico en pantalla.** El cliente va a reemplazar
-el PC por un terminal táctil, donde no hay teclado físico. Digitar un peso sin teclado no se puede,
-así que el campo de peso lleva su propio teclado numérico grande, cómodo de usar con el dedo. Es
-trabajo nuevo que antes no estaba contemplado, y es pequeño, pero sin él el plan B no existe.
+**Habrá teclado físico** conectado al terminal táctil (confirmado 2026-08-28), así que digitar el
+peso a mano funciona sin más. Aun así vamos a poner un **teclado numérico en pantalla** en el campo
+de peso: los teclados de mostrador se desconectan, se mojan o se guardan, y el respaldo tiene que
+funcionar el día que eso pase. Deja de ser imprescindible y pasa a ser barato y sensato.
 
-### 3.4 La pantalla táctil
+### 3.4 Los periféricos confirmados
 
-El cliente va a cambiar el computador por un terminal táctil todo-en-uno. **Va a ser Windows**, lo
-cual es una buena noticia: todo lo diseñado funciona igual y no hay que replantear nada.
+Esto es lo que se va a conectar al terminal (confirmado con el cliente el 2026-08-28):
 
-Dos cosas que hay que revisar cuando lo compre, y conviene decírselas antes:
+| Periférico | Estado |
+|---|---|
+| **Pantalla táctil todo-en-uno, Windows** | Reemplaza el PC. Todo lo diseñado funciona igual |
+| **Teclado físico** | Conectado a la pantalla |
+| **Impresora de recibos** | Ya contemplada |
+| **Cajón monedero** | Ya contemplado, colgado de la impresora |
+| **Báscula ROCHI RC-A01E** | Ya identificada y documentada |
 
-- **Que tenga suficientes puertos USB.** Se van a conectar báscula, pistola e impresora — mínimo
-  tres, y conviene un cuarto libre. Muchos terminales táctiles vienen justos.
-- **Que la pantalla del punto de venta se pueda usar con el dedo.** La pantalla de venta actual fue
-  hecha para mouse: botones y campos pequeños. Va a haber que agrandar los elementos que el cajero
-  toca todo el día. No es rehacerla, pero tampoco es gratis, y sale mejor si lo revisamos con el
-  terminal ya elegido.
+**Falta confirmar la pistola lectora.** En la petición original estaba, pero en esta lista no
+aparece. Para un supermercado que además vende productos empacados con código de barras — arroz,
+aceite, panela — la pistola no es opcional: sin ella toca teclear el código de cada producto.
+Conviene aclararlo antes de comprar el terminal, porque cambia cuántos puertos USB hacen falta.
+
+Dos cosas más que revisar al comprar el terminal:
+
+- **Puertos USB suficientes.** Báscula, impresora, teclado y —si la hay— pistola. Son cuatro, y
+  muchos terminales táctiles vienen con tres. Si no alcanzan, un hub **con alimentación propia**:
+  la impresora y la báscula no deben colgar de un hub sin corriente.
+- **Objetivos táctiles.** La pantalla de venta actual está hecha para mouse: botones y campos
+  pequeños. Hay que agrandar lo que el cajero toca todo el día. No es rehacerla, pero tampoco es
+  gratis, y se dimensiona mejor con el terminal ya elegido.
 
 ### 3.5 Una precaución que el negocio va a notar
 
@@ -163,6 +176,12 @@ por software:
 
 Técnicamente ya está todo resuelto: el manual del fabricante da la configuración exacta del puerto
 y el driver es gratuito. **No hay ninguna incógnita técnica bloqueante con esta báscula.**
+
+Y una buena noticia adicional del 2026-08-28: la etiqueta de la base dice **"MultiProtocolo"**, o
+sea que **la báscula se adapta al sistema, no al revés**. Puede emitir el peso en varios formatos y
+se elige cuál desde su propio teclado. Uno de ellos funciona **por petición**: el sistema le pide el
+peso y la báscula responde con una sola lectura. Es el que vamos a usar, y es más confiable que
+escuchar un flujo continuo, porque no hay riesgo de tomar el peso a mitad del bamboleo.
 
 ### 4.4 Una advertencia legal que encontramos en el manual, y que no es nuestra decisión
 
@@ -308,13 +327,16 @@ cronograma. Así, un problema de instalación no retrasa la apertura.
 1. ~~¿Qué báscula tiene hoy instalada?~~ **Resuelta el 2026-08-27: ROCHI RC-A01E, y sirve.**
    Queda pendiente lo más fácil: **una foto de la pantalla de configuración de báscula del POS
    actual** (nombre del protocolo, puerto y velocidad). Es un dato que ahorra medio día de pruebas.
-2. **¿La báscula tiene aprobación de modelo ante la SIC?** Ver §4.4. Es la pregunta más importante
+2. **¿Va a haber pistola lectora de código de barras?** Estaba en la petición original pero no en
+   la lista de periféricos confirmada. Sin ella hay que teclear el código de cada producto
+   empacado. Afecta cuántos puertos USB necesita el terminal.
+3. **¿La báscula tiene aprobación de modelo ante la SIC?** Ver §4.4. Es la pregunta más importante
    de esta lista y no la podemos responder nosotros: la verifica el cliente con su proveedor.
-3. **¿Qué se hace con los productos que pesan menos de 200 gramos?** La báscula no los lee. Decisión
+4. **¿Qué se hace con los productos que pesan menos de 200 gramos?** La báscula no los lee. Decisión
    de negocio: por unidad, preempacados o con precio mínimo.
-4. **¿Cuántas cajas va a tener?** Define cuántas básculas montar y cómo se hace el cuadre si hay más
+5. **¿Cuántas cajas va a tener?** Define cuántas básculas montar y cómo se hace el cuadre si hay más
    de un cajero por turno.
-5. **¿Cuántos productos tiene el catálogo?** Con decenas de productos la velocidad de la caja
+6. **¿Cuántos productos tiene el catálogo?** Con decenas de productos la velocidad de la caja
    alcanza sin tocar nada; con miles hay que revisarla antes de salir.
 
 ## 10. Referencia técnica

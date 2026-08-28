@@ -5,8 +5,9 @@
 >
 > **Actualización del 2026-08-28:** báscula documentada del todo — ROCHI RC-A01E, chip CH340,
 > **9600 8-N-1** sobre puerto COM virtual (§5.8). El terminal del cliente será **Windows**, así que
-> el agente en Go sigue siendo válido tal cual. Lo único que el manual no trae es la trama: se
-> resuelve con el modo de descubrimiento del §5.10, no comprando la báscula.
+> el agente en Go sigue siendo válido tal cual. La etiqueta de la base dice **MultiProtocolo /
+> POS-II**, y con eso se ubicó el manual del diseño hermano: **tabla de formatos y trama byte por
+> byte en §5.10b**, incluido un **formato por comando** (`W` → peso) que es el que buscamos.
 >
 > Alcance funcional en `docs/Funcional/venta-por-peso-y-hardware-de-caja.md`.
 > Análisis de origen sobre el commit `bac37a392` de `develop`.
@@ -337,6 +338,105 @@ Como red de seguridad adicional, el patrón vive en configuración (§4.3): si e
 la trama es distinta a lo previsto, **se corrige desde la pantalla de administración, sin recompilar
 ni reinstalar nada**.
 
+### 5.10b La segunda etiqueta: "MultiProtocolo" y "Versión POS-II" (2026-08-28)
+
+La base del equipo del cliente trae una segunda etiqueta con tres datos que no estaban en la ficha:
+
+```
+Puerto USB-A
+Version: POS-II
+MultiProtocolo          [QR]      16-06-2025
+```
+
+**"MultiProtocolo" significa que la báscula emite el formato que uno le pida**, no uno fijo. Es el
+estándar de facto del mercado colombiano: la báscula se adapta al POS, no al revés.
+
+Con eso se pudo ubicar el manual del **mismo diseño OEM** — la familia ACS-268 que Básculas Moresco
+vende como *"Balanza POS Esencial POS-2"* — que **sí documenta la tabla de protocolos y la trama
+completa**. Coincide en todo lo verificable con el equipo del cliente: 30 kg, división 5 g, clase
+III, y los mismos 9600 8-N-1 que da el manual ROCHI.
+
+**Es documentación de una marca hermana, no del equipo exacto.** Se toma como hipótesis muy
+probable, no como certeza — y por eso el modo de descubrimiento del §5.10 sigue siendo obligatorio.
+
+#### Tabla de formatos programables
+
+| Nº | Marca que emula | Baud | Datos | Paridad | Stop | Transmisión |
+|---|---|---|---|---|---|---|
+| 0 | BBG TAG 30 kg | 9600 | 8 | Ninguna | 1 | Continua |
+| 1 | FILLUX 30 kg plana | 9600 | 8 | Ninguna | 1 | Continua |
+| 2 | FILLUX torre / CLEVER | 9600 | 8 | Ninguna | 1 | Continua |
+| 3 | MORESCO 30 kg (peso neto) | 9600 | 8 | Ninguna | 1 | Continua |
+| 4 | MOTEX R-30N | 9600 | 8 | Ninguna | 1 | Continua |
+| 5 | LEXUS WNC 30 kg (solo peso) | 9600 | 8 | Ninguna | 1 | Continua |
+| 7 | LEXUS XIC 30 kg | 9600 | 8 | Ninguna | 1 | Continua |
+| 8 | CLEVER 30 kg (MERLIN POS) | 9600 | 8 | Ninguna | 1 | Comando |
+| **9** | **MORESCO por comando** | **9600** | **8** | **Ninguna** | **1** | **Por comando** |
+| F | CAS PD-II | 9600 | **7** | Par | 1 | Requiere activación de fábrica |
+
+#### El formato 9 es el que queremos
+
+> *"Cuando se selecciona el formato 9 el usuario debe enviar por el puerto la letra `W` para que la
+> balanza le responda con el peso que tiene en ese momento sobre la plataforma."*
+
+**Petición y respuesta, no chorro continuo.** El agente manda `W` justo cuando el cajero necesita el
+peso y recibe una sola lectura. Eso elimina de raíz el problema de "qué lectura del flujo tomo", que
+es donde se cuelan los pesos tomados a mitad del bamboleo.
+
+**Decisión: el formato 9 es el objetivo; el modo continuo es el respaldo.** Si en el montaje resulta
+que este equipo no expone el 9, se cae al formato 3 (continuo) y el agente toma la última lectura
+estable. Ambos se soportan; es configuración, no código.
+
+#### La trama del modo continuo, byte por byte
+
+Documentada para el formato Moresco:
+
+| Byte | Contenido |
+|---|---|
+| 1 | Bandera `0x4E` — se ve como **`N`** |
+| 2–3 | Kilogramos |
+| 4 | Punto decimal, siempre `0x2E` (`.`) |
+| 5–7 | Gramos |
+| 8–9 | Dos espacios `0x20` |
+| 10 | `LF` `0x0A` |
+| 11 | `CR` `0x0D` |
+
+Ejemplo del manual para 12,395 kg: `N12.395··<LF><CR>`
+
+#### Cómo se cambia el formato en la báscula
+
+1. Encender y esperar a que todas las pantallas queden en ceros.
+2. Digitar el número de formato en el teclado numérico.
+3. **Mantener presionada la tecla de configuración 10 segundos completos**, sin soltar.
+4. Verificar con un terminal serial.
+
+En la Moresco la tecla de configuración es `*`. **El teclado de la RC-A01E no tiene `*`** — tiene
+`M`, `M1`, `CNT`, `CERO`, `TARA`, `C`, `kg/lb`. Cuál es la equivalente es de las pocas cosas que
+quedan por descubrir en sitio, y el QR de la etiqueta es el primer sitio donde buscarla.
+
+#### Consecuencia para nuestro intérprete
+
+`Token_barcode_weight::get_value()` devuelve `'\d'`
+([`app/Models/Tokens/Token_barcode_weight.php`](../../app/Models/Tokens/Token_barcode_weight.php)):
+**solo dígitos**. La trama trae un punto decimal en la mitad, así que `N{W:6}` no engancharía con
+`12.395`.
+
+Y partirla en dos tokens tampoco sirve: `Token_lib::parse()` indexa el árbol por id de token y con
+`array_shift` se queda **solo con la primera longitud**, así que un patrón `N{W:2}\.{W:3}` perdería
+el segundo grupo.
+
+**Arreglo:** un token de peso para báscula cuya clase de caracteres sea `[\d.]`. Con eso `N{W:6}`
+captura `12.395` y el divisor queda en 1. Es un archivo nuevo de veinte líneas, no un rediseño —
+pero hay que preverlo o el patrón no engancha y se pierde una tarde averiguando por qué.
+
+### 5.10c Dos advertencias operativas del manual hermano
+
+- **Abrir el puerto antes de encender la báscula.** Si la báscula ya está transmitiendo cuando el
+  agente abre el puerto, Windows puede reportarlo como ocupado. El agente debe reintentar la
+  apertura en vez de rendirse al primer error.
+- **Herramientas de verificación:** AccessPort o HyperTerminal, ambas gratuitas y para Windows. Es
+  lo que se usa en el montaje antes de conectar nuestro agente.
+
 ### 5.11 Fuentes de estos datos
 
 - Manual de usuario ROCHI RC-SERIE (11 páginas), sección *"Conexión USB a PC"*:
@@ -347,6 +447,12 @@ ni reinstalar nada**.
   `https://drive.google.com/file/d/1CKlY0-QqLtGPr_mRe43mm7C4oa3J17fM/view`
 - Página de producto con las tres descargas:
   `https://basculasybalanzastek.com/product/balanza-electronica-liquidadora-a-01e-30kg-led/`
+- **Manual del diseño hermano (ACS-268 / "Balanza POS Esencial POS-2"), de donde salen la tabla de
+  formatos y la trama del §5.10b** — 18 páginas, firmware 4.0:
+  `http://www.basculasmoresco.com/uploads/1/7/4/0/1740594/manual_balanza_moresco_pos.pdf`
+- Video del fabricante sobre la configuración del cable: `https://www.youtube.com/watch?v=DEFYsV-TqJ0`
+- Etiqueta de la base del equipo del cliente (foto, 2026-08-28): *Puerto USB-A · Version: POS-II ·
+  MultiProtocolo*, con QR sin leer y fecha manuscrita 16-06-2025.
 
 Los dos PDF son escaneos sin capa de texto: hubo que renderizarlos a imagen para leerlos. Si alguien
 los vuelve a necesitar, ese es el motivo por el que buscar texto dentro no devuelve nada.
