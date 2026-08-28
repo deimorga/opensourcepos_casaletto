@@ -1,8 +1,11 @@
 # Alcance funcional — Venta por peso, hardware de caja e inventario para supermercado
 
-> **Estado a 2026-08-26: alcance cerrado y documentado. Nada implementado todavía.**
+> **Estado a 2026-08-27: alcance cerrado y documentado. Nada implementado todavía.**
 > Este documento y su par técnico son el punto de partida del desarrollo. Ninguna línea de código,
 > ninguna migración y ninguna configuración de este requerimiento existe aún.
+>
+> **Actualización del 2026-08-27:** la báscula quedó identificada — ROCHI RC-A01E, la que el cliente
+> ya tiene. Sirve y no hay que comprar otra. Ver §4.3.
 >
 > Diseño técnico en `docs/Tecnico/venta-por-peso-y-hardware-de-caja.md`.
 
@@ -121,7 +124,23 @@ Va a hacer tres cosas, no una:
 
 Esa tercera es la única función de esta lista que el sistema no puede hacer hoy de ninguna manera.
 
-### 4.3 El cajón, en dos etapas
+### 4.3 La báscula ya está identificada (2026-08-27)
+
+Es una **ROCHI RC-A01E**, la que el cliente ya tiene funcionando con su POS actual. Buenas noticias:
+**sirve, y no hay que comprar otra.** Se conecta al computador por cable USB y trae driver, que es
+justo el tipo de conexión para la que diseñamos el programa local.
+
+Dos límites del equipo que el negocio tiene que conocer antes de abrir, porque no son corregibles
+por software:
+
+- **No pesa nada por debajo de 200 gramos.** Para papa o cebolla da igual. Para unos ajos sueltos o
+  un puñado de hierbas, no: por debajo de ese peso la báscula no da una lectura válida.
+  **El negocio tiene que decidir qué hace con esos productos** — venderlos por unidad, en bolsa
+  preempacada con peso fijo, o con un precio mínimo. Es una decisión de negocio, no técnica.
+- **Mide de 5 en 5 gramos.** Nunca va a mostrar 737 gramos: va a mostrar 735 o 740. No es un error
+  ni hay nada que arreglar, pero conviene saberlo para que nadie lo reporte como falla.
+
+### 4.4 El cajón, en dos etapas
 
 Desde el primer día el cajón **abre solo en cada recibo**, con la casilla del driver de la
 impresora. Eso cubre la operación normal.
@@ -208,7 +227,9 @@ cliente amplía a abarrotes.
 - **El mapa de IVA.** Qué categorías van excluidas, cuáles exentas y cuáles al 19%. Las verduras
   frescas generalmente van excluidas. **Esto lo confirma el contador del cliente, no nosotros.**
 - **El catálogo de productos** con sus precios por kilo, para la carga inicial.
-- **La báscula**, o el dato de cuál tiene hoy instalada con su POS actual.
+- ~~La báscula~~ — **resuelto: ya la tiene y sirve** (ROCHI RC-A01E). Falta prestárnosla unos días,
+  o darnos acceso al equipo, para desarrollar y probar contra hardware real.
+- **La decisión sobre los productos de menos de 200 g**, que la báscula no puede pesar.
 - **La aceptación firmada** del riesgo de quedarse sin internet.
 
 ## 8. Orden de entrega
@@ -229,11 +250,14 @@ cronograma. Así, un problema de instalación no retrasa la apertura.
 
 ## 9. Preguntas abiertas
 
-1. **¿Qué báscula tiene hoy instalada con POS Online, y con qué la conectaron?** Es una llamada al
-   soporte de ese proveedor. Si la báscula sirve, el cliente no compra otra.
-2. **¿Cuántas cajas va a tener?** Define cuántas básculas montar y cómo se hace el cuadre si hay más
+1. ~~¿Qué báscula tiene hoy instalada?~~ **Resuelta el 2026-08-27: ROCHI RC-A01E, y sirve.**
+   Queda pendiente lo más fácil: **una foto de la pantalla de configuración de báscula del POS
+   actual** (nombre del protocolo, puerto y velocidad). Es un dato que ahorra medio día de pruebas.
+2. **¿Qué se hace con los productos que pesan menos de 200 gramos?** La báscula no los lee. Decisión
+   de negocio: por unidad, preempacados o con precio mínimo.
+3. **¿Cuántas cajas va a tener?** Define cuántas básculas montar y cómo se hace el cuadre si hay más
    de un cajero por turno.
-3. **¿Cuántos productos tiene el catálogo?** Con decenas de productos la velocidad de la caja
+4. **¿Cuántos productos tiene el catálogo?** Con decenas de productos la velocidad de la caja
    alcanza sin tocar nada; con miles hay que revisarla antes de salir.
 
 ## 10. Referencia técnica

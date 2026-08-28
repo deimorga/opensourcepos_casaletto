@@ -1,7 +1,10 @@
 # Diseño técnico — Venta por peso, hardware de caja e inventario para supermercado
 
-> **Estado a 2026-08-26: diseño cerrado, nada implementado.** No hay código, ni migraciones, ni
+> **Estado a 2026-08-27: diseño cerrado, nada implementado.** No hay código, ni migraciones, ni
 > configuración de este requerimiento en ninguna rama. Este documento es el punto de partida.
+>
+> **Actualización del 2026-08-27:** báscula identificada (ROCHI RC-A01E, puerto COM virtual sobre
+> USB). Confirma el transporte para el que se diseñó el agente — §5.8 y §5.9. El diseño no cambia.
 >
 > Alcance funcional en `docs/Funcional/venta-por-peso-y-hardware-de-caja.md`.
 > Análisis de origen sobre el commit `bac37a392` de `develop`.
@@ -255,6 +258,42 @@ las partes cubiertas. Escribir el nuestro desde cero en Go no arrastra esa oblig
 Media hora, no un proyecto: conectar la báscula, abrir un terminal serial, presionar transmitir y
 mirar los bytes. De ahí salen velocidad, forma de la trama y el dígito de estabilidad. **Va a la
 pantalla de configuración, no al código.**
+
+### 5.8 La báscula del cliente, identificada (2026-08-27)
+
+**ROCHI RC-A01E**, serie RC, primera generación. De la placa del equipo:
+
+| Dato | Valor | Consecuencia |
+|---|---|---|
+| Capacidad máxima | 30 kg | Sobrada para hortalizas |
+| **Capacidad mínima** | **200 g** | **Restricción operativa real — ver §5.9** |
+| **División** | **5 g** | El tercer decimal solo puede ser 0 o 5 |
+| Clase de precisión | 3 (OIML III) | Es apta para comercio, que es lo que exige la norma |
+| Conexión a PC | **Cable USB tipo B a tipo A**, con driver de descarga | **Puerto COM virtual** |
+
+**Es el caso bueno.** Un conector USB-B del lado del equipo más un driver que hay que descargar es
+la firma inconfundible de un **puente USB-a-serie** (CH340/CH341, PL2303 o CP210x). Instalado el
+driver, la báscula aparece como un puerto COM y habla un protocolo serial ASCII. Es exactamente el
+transporte para el que se diseñó el agente en §5.1 — no hay que cambiar nada del diseño.
+
+Es además una **báscula liquidadora**: calcula precio × peso internamente y su trama suele traer
+peso, precio unitario y total. **Nosotros solo tomamos el peso**; el patrón configurable `{W:n}` de
+§4.3 descarta el resto sin trabajo extra. El precio lo pone el POS, nunca la báscula.
+
+**Nota sobre PV-COM**: su lista de modelos soportados incluye `ROCHI RC-G01`, **no** el RC-A01E. Si
+alguna vez se recurre a esa red de seguridad hay que pedirle a Mavin que lo configuren — lo ofrecen,
+pero no es inmediato. Un argumento más a favor del agente propio.
+
+### 5.9 Dos límites físicos que el negocio tiene que conocer
+
+No son defectos, son la báscula. Pero se descubren en la caja si no se dicen antes:
+
+- **Nada por debajo de 200 g se puede pesar en este equipo.** Para papa o cebolla no importa; para
+  unos ajos sueltos o un puñado de hierbas, sí. El negocio tiene que decidir qué hace con esos
+  casos: venderlos por unidad, en bolsa preempacada con peso fijo, o con precio mínimo.
+- **La resolución es de 5 g.** El sistema guarda tres decimales y eso está bien, pero la báscula
+  nunca va a reportar `0.737`: reportará `0.735` o `0.740`. No hay nada que corregir; conviene
+  saberlo antes de que alguien reporte como error que "los pesos siempre terminan en 0 o 5".
 
 ## 6. Inventario
 
