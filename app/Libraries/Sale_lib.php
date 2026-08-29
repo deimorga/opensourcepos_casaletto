@@ -1107,7 +1107,15 @@ class Sale_lib
                 $itemalreadyinsale = true;
                 $updatekey = $item['line'];
                 if (!$item_info->is_serialized) {
-                    $quantity = bcadd($quantity, $items[$updatekey]['quantity']);
+                    // Explicit scale. Without it this bcadd() runs at the
+                    // ambient scale, which Load_config.php derives from the
+                    // *money* settings (currency_decimals + tax_decimals) --
+                    // typically 2. Weighing two bags of the same product then
+                    // stored 1.47 kg instead of 1.475: five grams gone per
+                    // repetition, in the most common operation of the shop,
+                    // with nothing on screen to show for it. See
+                    // docs/Tecnico/venta-por-peso-y-hardware-de-caja.md 2.4.
+                    $quantity = bcadd($quantity, $items[$updatekey]['quantity'], Item_quantity::quantity_scale());
                 }
             }
         }
