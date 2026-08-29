@@ -754,6 +754,31 @@ class Sales extends Secure_Controller
     }
 
     /**
+     * A weight as a signed decimal string at the quantity scale, or null when
+     * what arrived is not a weight.
+     *
+     * The sign is handled here rather than inside normalize_weight_input(),
+     * which reads a measurement and has no business knowing that a return is
+     * recorded as a negative quantity. Refunding weighed goods is a real
+     * operation, so "-0,735" has to survive being edited.
+     */
+    private function _parse_weight_quantity(string $raw): ?string
+    {
+        $candidate = trim($raw);
+        $negative = str_starts_with($candidate, '-');
+
+        $weight = Sale_lib::normalize_weight_input($negative ? substr($candidate, 1) : $candidate);
+
+        if ($weight === null) {
+            return null;
+        }
+
+        // Explicit scale: the ambient bcmath scale comes from currency
+        // settings and would drop the gram.
+        return bcadd($negative ? '-' . $weight : $weight, '0', Item_quantity::quantity_scale());
+    }
+
+    /**
      * The discount that applies to a line being added: the site default,
      * overridden by the selected customer's own discount when it has one.
      *
@@ -809,7 +834,33 @@ class Sales extends Secure_Controller
             $description = $this->request->getPost('description');
             $serialnumber = $this->request->getPost('serialnumber');
             $price = parse_decimals($this->request->getPost('price'));
-            $quantity = parse_decimals($this->request->getPost('quantity'));
+
+            $cart = $this->sale_lib->get_cart();
+
+            if (isset($cart[$line]) && Sale_lib::line_sells_by_weight($cart[$line])) {
+                // A weighed line is read the same way the weight field reads
+                // it, and for the same reason: parse_decimals() would take the
+                // dot in "0.735" as the thousands separator on this tenant and
+                // turn 735 grams into 735 kilos. Correcting a line is where a
+                // weight is most likely to be retyped, so leaving this path on
+                // the general parser would undo the whole point of the other
+                // one.
+                //
+                // Only weighed lines take this branch. A shop that sells by the
+                // unit has none, so its edits go through exactly the code they
+                // went through before -- this must not become a change in what
+                // "1.5" means to a shop that is already trading.
+                $quantity = $this->_parse_weight_quantity((string) $this->request->getPost('quantity'));
+
+                if ($quantity === null) {
+                    $data['error'] = Sale_lib::translate_or('Sales.weight_invalid', 'Enter the weight as a number greater than zero.');
+
+                    return $this->_reload($data);
+                }
+            } else {
+                $quantity = parse_decimals($this->request->getPost('quantity'));
+            }
+
             $discount_type = $this->request->getPost('discount_type', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
             $discount = $discount_type
                 ? parse_quantity($this->request->getPost('discount'))

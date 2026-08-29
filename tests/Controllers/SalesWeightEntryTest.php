@@ -298,6 +298,69 @@ class SalesWeightEntryTest extends CIUnitTestCase
         $this->assertStringNotContainsString('id="weight"', $this->getReq('sales')->getBody());
     }
 
+    /**
+     * Correcting a line is where a weight is most likely to be retyped, so the
+     * edit path has to read a dot the same way the weight field does. Through
+     * parse_decimals() on this tenant "0.800" is 800 kilos.
+     */
+    public function testRetypingAWeightOnTheLineIsReadAsKilos(): void
+    {
+        $this->postReq('sales/add', ['item' => $this->kgItem]);
+        $this->postReq('sales/addWeight', ['weight' => '0,735']);
+        $line = array_key_first($this->cart());
+
+        $this->postReq('sales/editItem/' . $line, ['quantity' => '0.800', 'price' => '4500', 'discount' => '0']);
+
+        $this->assertSame(0, bccomp('0.800', (string) $this->onlyCartLine()['quantity'], 3));
+    }
+
+    public function testEditingAWeighedLineKeepsTheThirdDecimal(): void
+    {
+        $this->postReq('sales/add', ['item' => $this->kgItem]);
+        $this->postReq('sales/addWeight', ['weight' => '0,735']);
+        $line = array_key_first($this->cart());
+
+        $this->postReq('sales/editItem/' . $line, ['quantity' => '1,475', 'price' => '4500', 'discount' => '0']);
+
+        $this->assertSame(0, bccomp('1.475', (string) $this->onlyCartLine()['quantity'], 3));
+    }
+
+    /**
+     * Refunding weighed goods is a real operation, so the negative quantity the
+     * register itself renders has to survive being edited.
+     */
+    public function testAWeighedReturnLineCanStillBeEdited(): void
+    {
+        $this->postReq('sales/changeMode', ['mode' => 'return']);
+        $this->postReq('sales/add', ['item' => $this->kgItem]);
+        $this->postReq('sales/addWeight', ['weight' => '0,735']);
+        $line = array_key_first($this->cart());
+
+        $this->postReq('sales/editItem/' . $line, ['quantity' => '-0,800', 'price' => '4500', 'discount' => '0']);
+
+        $this->assertSame(0, bccomp('-0.800', (string) $this->onlyCartLine()['quantity'], 3));
+    }
+
+    /**
+     * The other half of the same rule: a line sold by the unit must keep
+     * reading its quantity exactly as it did before, because on this tenant
+     * parse_decimals() has always taken "1.5" to mean fifteen and a shop that
+     * is already trading must not find that changed underneath it.
+     */
+    public function testAUnitLineStillReadsItsQuantityTheWayItAlwaysHas(): void
+    {
+        $this->postReq('sales/add', ['item' => $this->unitItem]);
+        $line = array_key_first($this->cart());
+
+        $this->postReq('sales/editItem/' . $line, ['quantity' => '1.5', 'price' => '5000', 'discount' => '0']);
+
+        $this->assertSame(
+            0,
+            bccomp((string) parse_decimals('1.5'), (string) $this->onlyCartLine()['quantity'], 3),
+            'Whatever parse_decimals() makes of "1.5" on this tenant is what a unit line must still get.'
+        );
+    }
+
     public function testReturningWeighedGoodsPutsTheWeightBackAsANegativeQuantity(): void
     {
         $this->postReq('sales/changeMode', ['mode' => 'return']);
