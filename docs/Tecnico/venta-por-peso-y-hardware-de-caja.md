@@ -186,6 +186,63 @@ número perfectamente bien formado — a 4.500 el kilo sería una línea que val
 guardia con forma de código de barras, no un límite de la báscula: la capacidad y el paso del equipo
 pertenecen a su propia configuración.
 
+## 2b. Casaletto YA vende por peso — hallazgo del 2026-08-29
+
+Durante todo el análisis este documento afirmó que Casaletto vende por unidad con cantidades
+enteras. **Es falso.** La afirmación venía de mirar staging, que tiene 10 ventas y es una copia
+vieja. Producción cuenta otra cosa:
+
+| Dato en producción | Valor |
+|---|---|
+| Ventas | 873 (9.787 líneas) |
+| **Líneas de venta DIRECTA con peso fraccionario** | **249**, de 0,050 a 1,100 kg |
+| Valor de esas ventas | **$3.971.733** |
+| Artículos con stock fraccionario vivo | 63 |
+
+Lo que se vende al peso, y el precio del artículo **es el precio por kilo**:
+
+| Artículo | Veces | Rango | Precio/kg |
+|---|---|---|---|
+| QUESO DE CABEZA | 76 | 50 g – 800 g | 26.000 |
+| Pernil de cerdo con hueso | 35 | 50 g – 500 g | 107.000 |
+| Pavo artesanal | 17 | 60 g – 500 g | 123.000 |
+| Pernil de cerdo Premium | 16 | 50 g – 500 g | 88.000 |
+
+Aparte, los 40 kits "Receta Armada" consumen ingredientes en fracciones — 249 de 360 líneas de
+receta, con mínimo 0,001. Eso explica buena parte del stock fraccionario.
+
+### Lo que esto cambia
+
+1. **§2.1 (D1) no es un riesgo del cliente nuevo: es un defecto activo en un negocio que factura.**
+   Con `quantity_decimals = 0`, una línea de 0,250 kg de pernil se dibuja como `1` en el campo
+   editable. Si el cajero corrige cualquier cosa de esa línea, se guarda 1 kg — de 26.750 a 107.000.
+   **249 líneas y casi 4 millones de pesos** estaban expuestos.
+2. **§2.2 (D2) también los afecta hoy**: anular una de esas ventas repone 0 al inventario mientras
+   la auditoría registra el peso real.
+3. **Valida con datos la desviación de la vía V3.** Usar `max(quantity_decimals(), 3)` en vez del
+   `quantity_decimals()` que especificaba este documento no era una precaución teórica: con 249
+   ventas reales y 63 artículos con stock decimal, la especificación original habría aniquilado esas
+   fracciones en cada anulación.
+
+### Corrección aplicada en producción (2026-08-29, 00:26 COT)
+
+`quantity_decimals` de `0` a `3` en el esquema de Casaletto. **Una fila de `app_config`**, sin
+migración, sin recálculo y reversible al instante.
+
+Verificado **antes** de aplicarlo que el ajuste no puede tocar datos: `parse_decimals()` es
+indiferente a él (comprobado ejecutando PHP con 0 y con 3 sobre `"0.250"` y `"0.735"`), el único
+cálculo que lo usa es `get_quantity_sold()` —que solo corre con artículos de tipo *ingreso por
+monto*, y Casaletto no tiene ninguno: 251 normales y 40 kits— y `Item_quantity::quantity_scale()`
+devuelve 3 en ambos casos.
+
+Verificación posterior, toda de solo lectura: 873 ventas, 9.787 líneas y $37.990.933 idénticos al
+estado previo; las 249 líneas por peso intactas; `/login` 200 y `/home` 302; cero errores en el log.
+Respaldo previo en `/root/backups/prod-pre-qtydecimals-20260829-052442.sql.gz`.
+
+**Efecto visible aceptado:** todas las cantidades pasan a mostrarse con tres decimales, así que
+3.736 líneas que decían `1` ahora dicen `1,000`. Es el precio de que las 6.051 fraccionarias dejen
+de mostrarse mal.
+
 ## 3. Modelo de datos: unidad de medida
 
 Migración nueva sobre `ospos_items`:
