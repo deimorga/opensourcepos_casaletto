@@ -55,6 +55,16 @@ class SalesWeightEntryTest extends CIUnitTestCase
         ]);
         config(OSPOS::class)->update_settings();
 
+        // El carrito vive en sesión y la sesión sobrevive entre métodos de esta
+        // clase, así que sin esto cada prueba arranca con lo que dejó la anterior
+        // -- y add_item() SUMA cuando el artículo ya está en el carrito, de modo
+        // que un 0,735 heredado convierte el siguiente en 1,470. Tres de las
+        // pruebas de esta clase fallaban por eso y no por el código que prueban.
+        $sale_lib = new Sale_lib();
+        $sale_lib->empty_cart();
+        $sale_lib->clear_weight_entry();
+        $sale_lib->clear_mode();
+
         $this->createTestItem($this->kgItem, 'Tomate', Item::UNIT_OF_MEASURE_KG, '4500.00');
         $this->createTestItem($this->unitItem, 'Empanada', Item::UNIT_OF_MEASURE_UNIT, '5000.00');
 
@@ -64,6 +74,23 @@ class SalesWeightEntryTest extends CIUnitTestCase
     private function createTestItem(string $itemNumber, string $name, string $unitOfMeasure, string $unitPrice): void
     {
         $db = db_connect();
+
+        // Idempotente a propósito. $refresh no está truncando entre métodos de
+        // esta clase, así que sin esto cada setUp deja otra copia del artículo
+        // con el mismo item_number -- y como esa columna NO es única, la
+        // búsqueda de la venta resuelve siempre con limit(1) a la primera copia,
+        // la más vieja. Basta entonces con que una prueba haga UPDATE sobre ese
+        // item_number (como la que simula una tienda sin artículos por peso) para
+        // que el tomate quede convertido en artículo por unidad durante todo el
+        // resto de la corrida, y las pruebas siguientes fallen por algo que nada
+        // tiene que ver con lo que prueban.
+        $existing = $db->table('items')->select('item_id')->where('item_number', $itemNumber)->get()->getResultArray();
+
+        if ($existing !== []) {
+            $ids = array_column($existing, 'item_id');
+            $db->table('item_quantities')->whereIn('item_id', $ids)->delete();
+            $db->table('items')->whereIn('item_id', $ids)->delete();
+        }
 
         $db->table('items')->insert([
             'name'                  => $name,
@@ -309,7 +336,7 @@ class SalesWeightEntryTest extends CIUnitTestCase
         $this->postReq('sales/addWeight', ['weight' => '0,735']);
         $line = array_key_first($this->cart());
 
-        $this->postReq('sales/editItem/' . $line, ['quantity' => '0.800', 'price' => '4500', 'discount' => '0']);
+        $this->postReq('sales/editItem/' . $line, ['description' => '', 'serialnumber' => '', 'location' => 1, 'quantity' => '0.800', 'price' => '4500', 'discount' => '0']);
 
         $this->assertSame(0, bccomp('0.800', (string) $this->onlyCartLine()['quantity'], 3));
     }
@@ -320,7 +347,7 @@ class SalesWeightEntryTest extends CIUnitTestCase
         $this->postReq('sales/addWeight', ['weight' => '0,735']);
         $line = array_key_first($this->cart());
 
-        $this->postReq('sales/editItem/' . $line, ['quantity' => '1,475', 'price' => '4500', 'discount' => '0']);
+        $this->postReq('sales/editItem/' . $line, ['description' => '', 'serialnumber' => '', 'location' => 1, 'quantity' => '1,475', 'price' => '4500', 'discount' => '0']);
 
         $this->assertSame(0, bccomp('1.475', (string) $this->onlyCartLine()['quantity'], 3));
     }
@@ -336,7 +363,7 @@ class SalesWeightEntryTest extends CIUnitTestCase
         $this->postReq('sales/addWeight', ['weight' => '0,735']);
         $line = array_key_first($this->cart());
 
-        $this->postReq('sales/editItem/' . $line, ['quantity' => '-0,800', 'price' => '4500', 'discount' => '0']);
+        $this->postReq('sales/editItem/' . $line, ['description' => '', 'serialnumber' => '', 'location' => 1, 'quantity' => '-0,800', 'price' => '4500', 'discount' => '0']);
 
         $this->assertSame(0, bccomp('-0.800', (string) $this->onlyCartLine()['quantity'], 3));
     }
@@ -352,7 +379,7 @@ class SalesWeightEntryTest extends CIUnitTestCase
         $this->postReq('sales/add', ['item' => $this->unitItem]);
         $line = array_key_first($this->cart());
 
-        $this->postReq('sales/editItem/' . $line, ['quantity' => '1.5', 'price' => '5000', 'discount' => '0']);
+        $this->postReq('sales/editItem/' . $line, ['description' => '', 'serialnumber' => '', 'location' => 1, 'quantity' => '1.5', 'price' => '5000', 'discount' => '0']);
 
         $this->assertSame(
             0,

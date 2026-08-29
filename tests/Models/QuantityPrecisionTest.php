@@ -147,7 +147,8 @@ class QuantityPrecisionTest extends CIUnitTestCase
             'quantity_purchased' => $quantity,
             'item_cost_price'    => '1.00',
             'item_unit_price'    => '10.00',
-            'discount_percent'   => '0.00',
+            'discount'           => '0.00',
+            'discount_type'      => PERCENT,
             'item_location'      => self::LOCATION
         ]);
 
@@ -179,7 +180,8 @@ class QuantityPrecisionTest extends CIUnitTestCase
             'quantity_purchased' => $quantity,
             'item_cost_price'    => '1.00',
             'item_unit_price'    => '10.00',
-            'discount_percent'   => '0.00',
+            'discount'           => '0.00',
+            'discount_type'      => PERCENT,
             'item_location'      => self::LOCATION,
             'receiving_quantity' => $receivingQuantity
         ]);
