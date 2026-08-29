@@ -230,7 +230,37 @@ class Receiving extends Model
             $inventory = model('Inventory');
             $item_quantity = model(Item_quantity::class);
 
+            $quantity_scale = Item_quantity::quantity_scale();
+
             foreach ($items as $item) {
+                // Undoing a purchase takes back what it brought in: the
+                // quantity received times the line's receiving_quantity
+                // multiplier (a case of 12, a crate of 20), negated.
+                //
+                // Done in bcmath rather than with PHP's `*` on purpose, for
+                // two reasons:
+                //
+                //  1. change_quantity() now takes a decimal *string*. Both
+                //     operands are decimal(15,3), so their product can be as
+                //     small as 1e-6, and PHP stringifies such a float as
+                //     "1.0E-6" -- which bcadd() rejects outright with a
+                //     ValueError, killing the void mid-transaction. Never
+                //     letting a float exist is cheaper than sanitising its
+                //     string form afterwards.
+                //  2. The audit row and the stock movement below are now the
+                //     same value computed once at the same scale, so
+                //     `inventory` and `item_quantities` cannot drift apart.
+                //     That drift is the whole defect (see
+                //     docs/Tecnico/venta-por-peso-y-hardware-de-caja.md 2.2).
+                //
+                // Truncation at $quantity_scale only bites below a milligram,
+                // which the decimal(15,3) columns cannot store anyway.
+                $quantity_change = bcsub(
+                    '0',
+                    bcmul((string)$item['quantity_purchased'], (string)$item['receiving_quantity'], $quantity_scale),
+                    $quantity_scale
+                );
+
                 // Create query to update inventory tracking
                 $inv_data = [
                     'trans_date'      => date('Y-m-d H:i:s'),
@@ -238,13 +268,13 @@ class Receiving extends Model
                     'trans_user'      => $employee_id,
                     'trans_comment'   => 'Deleting receiving ' . $receiving_id,
                     'trans_location'  => $item['item_location'],
-                    'trans_inventory' => $item['quantity_purchased'] * (-$item['receiving_quantity'])
+                    'trans_inventory' => $quantity_change
                 ];
                 // Update inventory
                 $inventory->insert($inv_data, false);
 
                 // Update quantities
-                $item_quantity->change_quantity($item['item_id'], $item['item_location'], $item['quantity_purchased'] * (-$item['receiving_quantity']));
+                $item_quantity->change_quantity($item['item_id'], $item['item_location'], $quantity_change);
             }
         }
 

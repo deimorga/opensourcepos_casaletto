@@ -911,6 +911,14 @@ class Sale extends Model
                 $cur_item_info = $item->get_info($item_data['item_id']);
 
                 if ($cur_item_info->stock_type == HAS_STOCK) {
+                    // The one number that must reach both tables. The audit
+                    // row below and the stock movement after it have to say
+                    // exactly the same thing: they used to disagree, because
+                    // change_quantity() took an int and coerced a weight of
+                    // '0.735' to 0 while this row kept the 735 g. See
+                    // docs/Tecnico/venta-por-peso-y-hardware-de-caja.md 2.2.
+                    $quantity_change = (string)$item_data['quantity_purchased'];
+
                     // Create query to update inventory tracking
                     $inv_data = [
                         'trans_date'      => date('Y-m-d H:i:s'),
@@ -918,13 +926,13 @@ class Sale extends Model
                         'trans_user'      => $employee_id,
                         'trans_comment'   => 'Deleting sale ' . $sale_id,
                         'trans_location'  => $item_data['item_location'],
-                        'trans_inventory' => $item_data['quantity_purchased']
+                        'trans_inventory' => $quantity_change
                     ];
                     // Update inventory
                     $inventory->insert($inv_data, false);
 
                     // Update quantities
-                    $item_quantity->change_quantity($item_data['item_id'], $item_data['item_location'], $item_data['quantity_purchased']);
+                    $item_quantity->change_quantity($item_data['item_id'], $item_data['item_location'], $quantity_change);
                 }
             }
         }
