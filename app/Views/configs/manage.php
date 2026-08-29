@@ -21,6 +21,9 @@
         <a data-toggle="tab" href="#barcode_tab" title="<?= lang('Config.barcode_configuration') ?>"><?= lang('Config.barcode') ?></a>
     </li>
     <li role="presentation">
+        <a data-toggle="tab" href="#scale_tab" title="<?= lang('Config.scale_configuration') ?>"><?= lang('Config.scale') ?></a>
+    </li>
+    <li role="presentation">
         <a data-toggle="tab" href="#stock_tab" title="<?= lang('Config.location_configuration') ?>"><?= lang('Config.location') ?></a>
     </li>
     <li role="presentation">
@@ -58,6 +61,9 @@
     </div>
     <div class="tab-pane" id="barcode_tab">
         <?= view('configs/barcode_config') ?>
+    </div>
+    <div class="tab-pane" id="scale_tab">
+        <?= view('configs/scale_config') ?>
     </div>
     <div class="tab-pane" id="stock_tab">
         <?= view('configs/stock_config') ?>

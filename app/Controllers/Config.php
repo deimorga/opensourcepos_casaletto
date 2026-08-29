@@ -7,6 +7,7 @@ use App\Libraries\Mailchimp_lib;
 use App\Libraries\Receiving_lib;
 use App\Libraries\Sale_lib;
 use App\Libraries\Tax_lib;
+use App\Libraries\Token_lib;
 use App\Models\Appconfig;
 use App\Models\Attribute;
 use App\Models\Customer_rewards;
@@ -28,6 +29,19 @@ use ReflectionException;
 
 class Config extends Secure_Controller
 {
+    /**
+     * The transports a weight can arrive by. 'keys' is the scale typing the number into the focused
+     * field, 'agent' is the program on the till reading the serial port. Anything else is not a
+     * transport this system knows how to talk to, so it is not a value this screen can store.
+     */
+    private const SCALE_TRANSPORTS = ['keys', 'agent'];
+
+    /**
+     * app_config.value is varchar(500). A pattern that reads a scale frame is a couple of dozen
+     * characters; this leaves room to spare and still refuses what could only be a mistake.
+     */
+    private const SCALE_FIELD_MAX_LENGTH = 255;
+
     protected $helpers = ['security'];
     private BaseConnection $db;
     private EncrypterInterface $encrypter;
@@ -35,6 +49,7 @@ class Config extends Secure_Controller
     private Sale_lib $sale_lib;
     private Receiving_lib $receiving_lib;
     private Tax_lib $tax_lib;
+    private Token_lib $token_lib;
     private Appconfig $appconfig;
     private Attribute $attribute;
     private Customer_rewards $customer_rewards;
@@ -53,6 +68,7 @@ class Config extends Secure_Controller
         $this->sale_lib = new Sale_lib();
         $this->receiving_lib = new receiving_lib();
         $this->tax_lib = new Tax_lib();
+        $this->token_lib = new Token_lib();
         $this->appconfig = model(Appconfig::class);
         $this->attribute = model(Attribute::class);
         $this->customer_rewards = model(Customer_rewards::class);
@@ -912,6 +928,124 @@ class Config extends Secure_Controller
         $success = $this->appconfig->batch_save($batch_save_data);
 
         return $this->response->setJSON(['success' => $success, 'message' => lang('Config.saved_' . ($success ? '' : 'un') . 'successfully')]);
+    }
+
+    /**
+     * Saves scale configuration. Used in app/Views/configs/scale_config.php
+     *
+     * The pattern is stored exactly as it was typed -- no filter. It is a regular expression and
+     * carries backslashes, braces and plus signs, all of which FILTER_SANITIZE would mangle into
+     * something that no longer matches anything.
+     *
+     * The pattern and the divisor are refused when they are unusable rather than corrected. Both
+     * end up interpreting a weight, a weight is money, and a value quietly "fixed" here would show
+     * up as a wrong number on a customer's bill.
+     *
+     * @throws ReflectionException
+     * @return ResponseInterface
+     * @noinspection PhpUnused
+     */
+    public function postSaveScale(): ResponseInterface
+    {
+        // Trimming is a fix, not a loss: parse_scale() trims the frame before matching, so a
+        // pattern with a stray leading or trailing blank could never have matched anything.
+        $format = trim((string)$this->request->getPost('scale_format'));
+        $port = trim((string)$this->request->getPost('scale_port'));
+        $divisor = (int)$this->request->getPost('scale_divisor', FILTER_SANITIZE_NUMBER_INT);
+
+        // An empty pattern is the shipped state and means "no scale on this till".
+        if ($format !== '' && (mb_strlen($format) > self::SCALE_FIELD_MAX_LENGTH || !$this->token_lib->is_valid_scale_format($format))) {
+            return $this->response->setJSON(['success' => false, 'message' => lang('Config.scale_format_invalid')]);
+        }
+
+        if ($divisor < 1) {
+            return $this->response->setJSON(['success' => false, 'message' => lang('Config.scale_divisor_invalid')]);
+        }
+
+        if (mb_strlen($port) > self::SCALE_FIELD_MAX_LENGTH) {
+            return $this->response->setJSON(['success' => false, 'message' => lang('Config.scale_port_invalid')]);
+        }
+
+        $transport = $this->request->getPost('scale_transport');
+
+        $batch_save_data = [
+            'scale_format'    => $format,
+            'scale_divisor'   => $divisor,
+            'scale_port'      => $port,
+            // A closed list behind a dropdown: fall back rather than refuse, since the only way to
+            // get here with something else is a hand-made request.
+            'scale_transport' => in_array($transport, self::SCALE_TRANSPORTS, true) ? $transport : self::SCALE_TRANSPORTS[0]
+        ];
+
+        $success = $this->appconfig->batch_save($batch_save_data);
+
+        return $this->response->setJSON(['success' => $success, 'message' => lang('Config.saved_' . ($success ? '' : 'un') . 'successfully')]);
+    }
+
+    /**
+     * Answers what the register would read out of a captured frame. Used in
+     * app/Views/configs/scale_config.php
+     *
+     * This is the whole reason the interpreter takes its pattern by parameter: the technician is
+     * standing at the till with a frame in the clipboard and needs to see the weight a pattern
+     * yields *before* saving it. Nothing here is written, and the posted values are used exactly as
+     * they appear on screen -- never the saved ones -- so what the preview shows is what the
+     * unsaved form would do.
+     *
+     * The response always carries the same five keys so the page never has to guess at its shape.
+     * The suggestion travels on every answer, including the failures, because a failure is when it
+     * is worth the most.
+     *
+     * @return ResponseInterface
+     * @noinspection PhpUnused
+     */
+    public function postScalePreview(): ResponseInterface
+    {
+        $raw = (string)$this->request->getPost('scale_raw');
+        $format = trim((string)$this->request->getPost('scale_format'));
+        $divisor = (int)$this->request->getPost('scale_divisor', FILTER_SANITIZE_NUMBER_INT);
+
+        $suggestion = $this->token_lib->suggest_scale_format($raw);
+
+        $response = [
+            'success'           => false,
+            'message'           => '',
+            'weight'            => null,
+            'suggested_format'  => $suggestion['format'] ?? null,
+            'suggested_divisor' => $suggestion['divisor'] ?? null
+        ];
+
+        if (trim($raw) === '') {
+            $response['message'] = lang('Config.scale_preview_empty');
+
+            return $this->response->setJSON($response);
+        }
+
+        if ($format === '') {
+            $response['message'] = lang('Config.scale_preview_no_format');
+
+            return $this->response->setJSON($response);
+        }
+
+        if ($divisor < 1) {
+            $response['message'] = lang('Config.scale_divisor_invalid');
+
+            return $this->response->setJSON($response);
+        }
+
+        $weight = $this->token_lib->parse_scale($raw, $format, $divisor);
+
+        if ($weight === null) {
+            $response['message'] = lang('Config.scale_preview_no_match');
+
+            return $this->response->setJSON($response);
+        }
+
+        $response['success'] = true;
+        $response['weight'] = $weight;
+        $response['message'] = lang('Config.scale_preview_ok');
+
+        return $this->response->setJSON($response);
     }
 
     /**
