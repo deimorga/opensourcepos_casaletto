@@ -1062,6 +1062,26 @@ class Items extends Secure_Controller
                             $itemData['supplier_id'] = $this->supplier->exists($row['Supplier ID']) ? $row['Supplier ID'] : null;
                         }
 
+                        // The key is only set when the cell actually holds something. A file
+                        // written from a template that predates the column has no such key at all,
+                        // and a blank cell means "not answered" -- writing 'unit' in either case
+                        // would demote every weighed item back to units on the next re-import.
+                        // Left out, an insert takes the column's own DEFAULT and an update leaves
+                        // the stored value untouched.
+                        $submittedUnit = $row['Unit of Measure'] ?? '';
+
+                        if (is_string($submittedUnit) && trim($submittedUnit) !== '') {
+                            $itemData['unit_of_measure'] = Item::normalize_unit_of_measure($submittedUnit);
+
+                            if ($itemData['unit_of_measure'] !== strtolower(trim($submittedUnit))) {
+                                // Not a reason to fail the row: the field is optional by design and
+                                // the item is otherwise valid. But a supermarket that meant to say
+                                // "kg" and typed something else has a pricing bug, so it is logged
+                                // rather than swallowed.
+                                log_message('error', "CSV import: unrecognised unit of measure '$submittedUnit'; the item was imported as '" . Item::UNIT_OF_MEASURE_UNIT . "'.");
+                            }
+                        }
+
                         if ($isUpdate) {
                             $itemData['allow_alt_description'] = $row['Allow Alt Description'] === '' ? null : $row['Allow Alt Description'];
                             $itemData['is_serialized'] = $row['Item has Serial Number'] === '' ? null : $row['Item has Serial Number'];
