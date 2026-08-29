@@ -270,6 +270,20 @@ class SalesWeightEntryTest extends CIUnitTestCase
         $this->assertSame([], $this->cart());
     }
 
+    public function testTheWeightFieldOnlyRendersWhileAnItemIsWaitingForIt(): void
+    {
+        $before = $this->getReq('sales');
+        $this->assertStringNotContainsString('id="weight"', $before->getBody(), 'A register with nothing to weigh must look exactly like it does today.');
+
+        $this->postReq('sales/add', ['item' => $this->kgItem]);
+        $during = $this->getReq('sales');
+        $this->assertStringContainsString('id="weight"', $during->getBody());
+
+        $this->postReq('sales/addWeight', ['weight' => '0,735']);
+        $after = $this->getReq('sales');
+        $this->assertStringNotContainsString('id="weight"', $after->getBody(), 'Once weighed, the field goes away and the scan field gets the focus back.');
+    }
+
     /**
      * The isolation that keeps this invisible to a shop with no kilo-priced
      * items: it is the data that decides, so there is no setting to get wrong.
@@ -281,6 +295,7 @@ class SalesWeightEntryTest extends CIUnitTestCase
         $this->postReq('sales/add', ['item' => $this->kgItem]);
 
         $this->assertSame([], $this->pendingWeightItem());
+        $this->assertStringNotContainsString('id="weight"', $this->getReq('sales')->getBody());
     }
 
     public function testReturningWeighedGoodsPutsTheWeightBackAsANegativeQuantity(): void
