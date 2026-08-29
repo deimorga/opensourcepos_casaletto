@@ -187,6 +187,31 @@ class Sale_lib
     }
 
     /**
+     * Unit of measure of a cart line.
+     *
+     * Every read of the key goes through here, and the reason is the cart's
+     * storage: it lives in the *session*, not in the database. On the day this
+     * ships, every register with a sale open is holding lines that were built
+     * before the key existed, and a bare $line['unit_of_measure'] would raise
+     * "undefined array key" in the middle of somebody's sale. There is no
+     * migration that can reach those lines, and edit_item() mutates the line in
+     * place, so an old line never gains the key by being edited either -- it
+     * stays keyless until that sale is finished or cancelled.
+     */
+    public static function line_unit_of_measure(array $line): string
+    {
+        return $line['unit_of_measure'] ?? Item::UNIT_OF_MEASURE_UNIT;
+    }
+
+    /**
+     * True when this cart line is priced by the kilo rather than by the unit.
+     */
+    public static function line_sells_by_weight(array $line): bool
+    {
+        return self::line_unit_of_measure($line) === Item::UNIT_OF_MEASURE_KG;
+    }
+
+    /**
      * @param array $cart
      * @return array
      */
@@ -1178,7 +1203,12 @@ class Sale_lib
                     'stock_type'            => $stock_type,
                     'item_type'             => $item_type,
                     'hsn_code'              => $item_info->hsn_code,
-                    'tax_category_id'       => $item_info->tax_category_id
+                    'tax_category_id'       => $item_info->tax_category_id,
+                    // The cart is built from a literal list of keys, so a column
+                    // that is not named here simply does not exist in the sale.
+                    // normalize_unit_of_measure() also covers the item rows that
+                    // predate the column and come back with a null.
+                    'unit_of_measure'       => Item::normalize_unit_of_measure($item_info->unit_of_measure ?? null)
                 ]
             ];
 
