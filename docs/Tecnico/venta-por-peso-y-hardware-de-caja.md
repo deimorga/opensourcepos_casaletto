@@ -33,7 +33,7 @@
 
 ## 1. Principio rector
 
-**El peso es una cantidad decimal que atraviesa todo el sistema, y hoy hay cuatro puntos donde se
+**El peso es una cantidad decimal que atraviesa todo el sistema, y hoy hay cinco puntos donde se
 pierde en silencio.** Antes de conectar una báscula hay que cerrarlos, porque un error de peso no
 se ve: la venta cuadra en plata y el inventario queda mal para siempre.
 
@@ -41,7 +41,7 @@ Un corolario que ordena las decisiones de hardware: **el navegador es el límite
 Todo lo que sigue sobre la báscula existe para cruzar esa frontera de la forma más barata y más
 reutilizable posible.
 
-## 2. Los cuatro defectos bloqueantes
+## 2. Los cinco defectos bloqueantes
 
 Verificados leyendo el código, no inferidos. Hoy son invisibles porque Casaletto no vende por peso.
 
@@ -63,11 +63,14 @@ en entero.
 **Arreglo:** `quantity_decimals = 3` en la configuración del tenant. Es configuración, no código,
 pero **sin ella el peso no funciona**, así que va en la fase 1 y con prueba que lo fije.
 
-**Verificado y descartado como problema:** `parse_decimals()`
-([`app/Helpers/locale_helper.php:464`](../../app/Helpers/locale_helper.php)) sí conserva los
-decimales al leer. Se comprobó empíricamente que `NumberFormatter::FRACTION_DIGITS` no afecta a
-`parse()`: `es_CO` con 0 decimales devuelve `0.735` intacto. El daño está en el formateo de salida,
-no en la lectura.
+> **CORRECCIÓN del 2026-08-28.** Este documento afirmaba aquí que `parse_decimals()` "sí conserva
+> los decimales al leer, verificado empíricamente". **Esa afirmación era falsa por generalización:**
+> se probó con **coma** y se concluyó sobre cualquier entrada. Con **punto** el resultado es otro y
+> es peligroso. Ver §2.5.
+
+Lo que sí sigue siendo cierto y verificado: `NumberFormatter::FRACTION_DIGITS` no afecta a `parse()`,
+así que el ajuste de decimales no trunca por sí solo. El daño de §2.1 está en el formateo de salida.
+Lo que decide cómo se lee un número es **el locale**, y eso es §2.5.
 
 ### 2.2 `Item_quantity::change_quantity()` recibe la cantidad como entero
 
@@ -146,6 +149,42 @@ calcula **una sola vez** en bcmath y alimenta tanto la fila de auditoría de `in
 movimiento de `item_quantities`, de modo que **no pueden divergir por construcción** — que es el
 defecto de raíz, no solo su síntoma. Además evita que un `float` llegue a `bcadd()` como
 `"1.0E-6"`, que lanzaría `ValueError` en mitad de la anulación.
+
+### 2.5 `parse_decimals()` lee el punto como separador de MILES
+
+Descubierto el 2026-08-28 construyendo el campo de peso. Es el defecto con peor relación entre
+gravedad y visibilidad de los cinco.
+
+Con `number_locale = es_CO`, que es la configuración de este mercado:
+
+```
+parse("0.735")  = 735.0      ← el punto agrupa miles
+parse("12.395") = 12395.0
+parse("1.5")    = false      ← ni siquiera es un número válido
+parse("0,735")  = 0.735      ← solo la coma es separador decimal
+```
+
+**Una báscula en modo teclado escribe punto.** También lo escribe cualquiera acostumbrado a una
+calculadora. Así que la implementación obvia —pasar lo tecleado por `parse_decimals()`— habría
+cobrado **735 kilos de tomate por una bolsa de 735 gramos**, o rechazado la venta sin explicar por qué.
+
+La misma trampa estaba viva en `postEditItem`, que es precisamente donde un peso se vuelve a teclear.
+
+**Arreglo (vía V6):** `Sale_lib::normalize_weight_input()`. Acepta un único separador —punto o
+coma— como decimal, **rechaza cualquier agrupación de miles** (un peso nunca la lleva), completa los
+casos `.735` y `5.` que produce un teclado a medio escribir, y devuelve **string** para que entre
+directo a `bcadd()` con la escala de §2.2.
+
+**Aislamiento por rama, no solo por datos:** solo las líneas que se venden por peso usan el parser
+nuevo. Un negocio que vende por unidad no tiene ninguna, así que lo que `"1.5"` significa para
+Casaletto es **idéntico bit a bit** a lo que significaba ayer. Hay una prueba que lo fija contra el
+propio `parse_decimals()`.
+
+**Y un guardia extra:** un número redondo de 8 dígitos o más se rechaza como peso. El campo de peso
+tiene el foco justo cuando el cajero es más propenso a agarrar la pistola, y `7702001002344` es un
+número perfectamente bien formado — a 4.500 el kilo sería una línea que vale más que el local. Es un
+guardia con forma de código de barras, no un límite de la báscula: la capacidad y el paso del equipo
+pertenecen a su propia configuración.
 
 ## 3. Modelo de datos: unidad de medida
 
@@ -915,6 +954,27 @@ El criterio que se aplica acá:
   robusto que una bandera porque no hay nada que configurar mal.
 - **Solo lleva bandera lo que cambiaría la experiencia sin motivo**, que hoy es exactamente una
   cosa: el modo táctil de la registradora.
+
+## 7d. Cabos sueltos de la caja, encontrados al construir el campo de peso
+
+Detectados por la vía V6 y **no** resueltos, por quedar fuera de su alcance de archivos. Ninguno
+bloquea la salida a producción, pero conviene que estén escritos y no en la cabeza de nadie:
+
+- **Faltan 9 claves de idioma**, hoy servidas por texto en inglés a través de un ayudante de
+  respaldo: `Sales.weigh_item`, `weight_in_kilograms`, `price_per_kilogram`, `weight_example`,
+  `add_weighed_item`, `weight_keypad`, `weight_backspace`, `weight_invalid`, y **`Common.cancel`,
+  que no existe en el repositorio**. Cuando se agreguen, los sitios que las usan no cambian.
+- **ESC cancela la venta entera** mientras el campo de peso tiene el foco. Es comportamiento global
+  preexistente, no una regresión — pero al lado de una petición de peso, ESC obviamente debería
+  significar "cancelar el peso". Arreglarlo implica tocar el manejador global de atajos.
+- **Los kits con componentes por peso nunca piden el peso**: `add_item_kit()` los agrega con la
+  cantidad declarada del kit. Las líneas llevan la unidad correcta. Es una decisión de producto, no
+  un defecto.
+- **El recibo sigue imprimiendo "0,735 Tomate"**, no "0,735 kg de Tomate" (§3.2 funcional). Las
+  vistas de recibo no estaban en el alcance de esa vía.
+- **`total_units` suma unidades y kilos en un mismo número** en el panel de totales.
+- **Una consulta indexada extra por escaneo** en `postAdd`, para resolver la unidad. Quitarla obliga
+  a cambiar la firma de `add_item()`.
 
 ## 8. Riesgos conocidos que no bloquean
 
