@@ -725,12 +725,41 @@ versiones.
   y siempre sale 0**.
 - Acumula fallos y sale distinto de cero.
 
-#### Lo que falta, y es la Fase 0
+#### Cómo quedó resuelto (V1, implementado el 2026-08-28)
 
-**Resolver dónde corre la migración**: desde el entrypoint del contenedor nuevo antes de admitir
-tráfico, o volviendo `is_latest()` tolerante al desfase. Es una decisión de diseño, no un cableado.
-Además, actualizar el comentario obsoleto del script — decía que no se cableó porque no había
-`platform_control` en esos ambientes, y ese motivo ya no aplica.
+**La migración corre desde el entrypoint del contenedor, antes de que Apache acepte una petición.**
+Se descartó volver `is_latest()` tolerante: esa comprobación existe para impedir que alguien opere
+contra un esquema a medias, y relajarla cambiaría un fallo ruidoso por uno silencioso.
+
+- **`docker/entrypoint.sh`** (nuevo) — espera a que la base responda, corre
+  `scripts/migrate-tenants.sh` y solo entonces encadena al entrypoint de la imagen base. Si alguna
+  migración falla, **sale distinto de cero y Apache no arranca**.
+- **`Dockerfile`** — `ENTRYPOINT ["/app/docker/entrypoint.sh", "docker-php-entrypoint"]` con
+  `CMD ["apache2-foreground"]`, para no perder la preparación de PHP de la imagen base.
+
+**Política de fallo, y es deliberada:** un contenedor que se niega a servir es ruidoso y permite
+redesplegar la imagen anterior; uno que sirve contra un esquema a medias es silencioso y corrompe
+datos. Se prefiere el fallo ruidoso. Hay un escape (`SKIP_MIGRATIONS=1`) para inspeccionar un
+esquema roto a mano, que registra la advertencia en el log y no es parte del despliegue normal.
+
+#### Un fallo silencioso que apareció al revisar el script
+
+`scripts/migrate-tenants.sh` **reportaba éxito sin migrar nada** cuando el registro de tenants era
+inalcanzable. Tomaba la salida de `tenant:list` y la filtraba por el prefijo `TENANT_DB:`; si la
+consulta fallaba, el filtro quedaba vacío, el script imprimía *"No active tenants to migrate"* y
+salía **cero**. Comprobado ejecutando la versión anterior contra un `php` simulado.
+
+Con el entrypoint llamándolo, ese cero habría significado "seguí, todo bien" y Apache habría
+arrancado con todos los esquemas atrás — justo el escenario que este capítulo intenta evitar.
+
+Corregido: el estado de salida de `tenant:list` se captura aparte, y una traza de excepción con
+salida cero también se trata como fallo. Se distinguen tres casos que antes se confundían:
+
+| Caso | Antes | Ahora |
+|---|---|---|
+| Registro inalcanzable | "sin tenants", exit 0 | **Falla**, exit 1 |
+| Traza de error con exit 0 | "sin tenants", exit 0 | **Falla**, exit 1 |
+| Registro OK, cero tenants | "sin tenants", exit 0 | Migra el esquema por defecto (instalación de un solo negocio) |
 
 **Corolario que vale para todo el proyecto:** cada `git merge` que traiga una migración es un evento
 de despliegue, no un commit más.
