@@ -110,6 +110,21 @@ class Migration_AddScaleConfigKeys extends Migration
      * A cache that will not clear is not a reason to fail a migration that already succeeded; it is
      * a reason to tell whoever is running it what is left to do by hand.
      */
+    /**
+     * Refresh the cached settings map so the new keys are visible without waiting for the entry to
+     * expire.
+     *
+     * Honest about its reach: OSPOS::settingsCacheKey() suffixes the key with the tenant slug only
+     * when TenantContext is resolved, and TenantContext is populated exclusively by the HTTP filter
+     * (app/Filters/TenantResolver.php). A migration runs in a CLI process, where it is never
+     * resolved, so this clears the plain `settings` key.
+     *
+     * That is correct for a single-tenant install and a no-op for a tenant schema -- deliberately
+     * left as a no-op rather than made tenant-aware, because on the deploy path it is not needed:
+     * the cache is a file handler under writable/cache, which is not a mounted volume, so every
+     * container recreation starts with it empty. See docs/Tecnico/venta-por-peso-y-hardware-de-caja.md
+     * section 7c.3. The day the cache moves to Redis this has to be revisited.
+     */
     private function refreshSettingsCache(): void
     {
         try {
