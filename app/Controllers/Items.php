@@ -373,6 +373,16 @@ class Items extends Secure_Controller
             ? $item_info->hsn_code
             : '';
 
+        // Read defensively. Between deploying this code and running the migration on a tenant's
+        // schema the property simply is not there, and an item form that fatals in that window is
+        // worse than one that shows 'unit'.
+        $data['unit_of_measure'] = Item::normalize_unit_of_measure($item_info->unit_of_measure ?? null);
+
+        $data['units_of_measure'] = [
+            Item::UNIT_OF_MEASURE_UNIT => lang('Items.unit_of_measure_unit'),
+            Item::UNIT_OF_MEASURE_KG   => lang('Items.unit_of_measure_kg'),
+        ];
+
         if ($use_destination_based_tax) {
             $data['use_destination_based_tax'] = true;
             $tax_categories = [];
@@ -658,6 +668,12 @@ class Items extends Secure_Controller
             'item_number'           => empty($this->request->getPost('item_number')) ? null : $this->request->getPost('item_number'),
             'cost_price'            => $cost_price,
             'unit_price'            => $unit_price,
+            // Never mandatory. A form posted without the selector -- an older cached page, a
+            // client script that does not know the field -- normalises to 'unit', which is the
+            // behaviour every existing item already has. save_value() writes with the raw query
+            // builder and never consults $allowedFields, so this call is the only thing standing
+            // between a POST field and the column.
+            'unit_of_measure'       => Item::normalize_unit_of_measure($this->request->getPost('unit_of_measure')),
             'reorder_level'         => $reorder_level,
             'receiving_quantity'    => $receiving_quantity,
             'allow_alt_description' => $this->request->getPost('allow_alt_description') != null,
@@ -915,6 +931,14 @@ class Items extends Secure_Controller
             } elseif ($value !== null && $value !== '') {
                 $item_data[$field] = $value;
             }
+        }
+
+        // The loop above copies raw POST values straight into an UPDATE across many rows at once,
+        // so the unit has to be normalised before it gets there. Only when it was actually
+        // submitted: an untouched field is skipped above and must stay untouched here too, or a
+        // bulk edit of prices would quietly reset every selected item to 'unit'.
+        if (isset($item_data['unit_of_measure'])) {
+            $item_data['unit_of_measure'] = Item::normalize_unit_of_measure($item_data['unit_of_measure']);
         }
 
         // Item data could be empty if tax information is being updated
