@@ -8,8 +8,13 @@
 > el agente en Go sigue siendo válido tal cual. La etiqueta de la base dice **MultiProtocolo /
 > POS-II**, y con eso se ubicó el manual del diseño hermano: **tabla de formatos y trama byte por
 > byte en §5.10b**, incluido un **formato por comando** (`W` → peso) que es el que buscamos.
-> El QR de la etiqueta lleva a Mavin: **el multiprotocolo es firmware suyo, no de ROCHI** (§5.10b-bis),
-> así que la tabla definitiva se le pide a ellos — es una llamada, y está pendiente.
+> El multiprotocolo es firmware de **Mavin**, no de ROCHI — y **Mavin cerró el soporte**
+> (§5.10b-bis), así que la tabla de formatos no se va a conseguir. El **modo de descubrimiento**
+> del §5.10 deja de ser red de seguridad y pasa a ser el mecanismo.
+>
+> **Plan de implementación aprobado el 2026-08-28 — ver §12.** Decisiones nuevas de ese día:
+> **corte en seco** (se apaga el POS anterior el día de salida, sin plan de retorno) e
+> **inspección del instalador de POS Online** como vía para averiguar el formato.
 >
 > **§7c es de lectura obligatoria antes de escribir código:** cómo no romper a Casaletto, que vende
 > todos los días con este mismo programa.
@@ -326,22 +331,60 @@ No son defectos, son la báscula. Pero se descubren en la caja si no se dicen an
 continua o solo cuando se le pide, ni con qué formato, ni si manda peso solo o peso + precio +
 total.
 
-Como **no vamos a tener la báscula** — el cliente la usa a diario y no puede pararla — ese vacío se
-cierra por diseño y no por adivinanza. El agente incluye un **modo de descubrimiento**:
+Como **no vamos a tener la báscula** — el cliente la usa a diario y no puede pararla — y como
+**Mavin ya no da soporte** (§5.10b-bis), ese vacío no se llena con documentación. Se cierra por
+diseño.
 
-1. Abre el puerto en 9600 8-N-1, que ya sabemos que es correcto.
-2. **Vuelca en pantalla los bytes crudos** que van llegando, en texto y en hexadecimal.
-3. Si en 3 segundos no llega nada, prueba a **enviar los disparadores conocidos** — `$` (protocolo
-   Dólar), `W`, `ENQ` (`0x05`), `CR` — y muestra qué responde a cada uno.
-4. Con eso a la vista, se arma el patrón `{W:n}` en la pantalla de configuración y se prueba en el
-   mismo momento.
+#### Qué se puede tocar de la báscula, y cuándo (decidido 2026-08-28)
 
-**Esto convierte el día del montaje de una incógnita en un procedimiento de diez minutos.** Es la
-pieza que hace viable desarrollar a ciegas, y por eso no es un extra: es requisito del agente.
+**El corte será en seco:** el día de salida se apaga POS Online. Eso cambia el margen de maniobra.
 
-Como red de seguridad adicional, el patrón vive en configuración (§4.3): si en el local resulta que
-la trama es distinta a lo previsto, **se corrige desde la pantalla de administración, sin recompilar
-ni reinstalar nada**.
+Mientras el cliente siga usando su POS actual, la báscula está programada en *algún* formato que ese
+sistema entiende, y reprogramarla se lo rompería. Pero como ese sistema se apaga el día del corte,
+**sí podemos dejarla en el formato 9 (por comando)**, que es el más confiable: petición y respuesta,
+sin flujo continuo del que haya que elegir una lectura.
+
+La regla operativa queda así:
+
+> **Antes del corte: solo escuchar. El día del corte: escuchar primero, reprogramar después.**
+
+El orden importa por dos razones. Primero, porque **si resulta que el formato actual ya lo podemos
+leer, no hay que tocar nada** — el intérprete es configurable justamente para eso, y no cambiar la
+báscula es siempre menos riesgo. Segundo, porque **hay que saber en qué formato estaba antes de
+cambiarlo**: es lo único que permite devolverla a su estado original si hace falta.
+
+**Lo que el corte en seco elimina es el plan de retorno**, y eso condiciona toda la Fase 7: no hay a
+qué volver si la báscula no habla. Por eso el peso digitado a mano no es una comodidad, es la
+contingencia que mantiene la tienda abierta, y tiene que estar probado **y el personal entrenado en
+él** antes del día del corte.
+
+#### El modo de descubrimiento del agente
+
+Es la pieza que determina el protocolo real, así que se construye con cuidado:
+
+1. **Escucha pasiva primero.** Abre el puerto en 9600 8-N-1 — confirmado por el manual ROCHI — y
+   vuelca lo que llegue **en ASCII y en hexadecimal**, sin enviar nada. Si la báscula está en modo
+   continuo, con esto ya está resuelto y no hubo que tocarla.
+2. **Si en unos segundos no llega nada**, prueba los parámetros alternos que documenta la familia:
+   **9600 7-E-1** (el de CAS PD-II) y **9600 7-O-1**. Sigue sin enviar nada.
+3. **Solo entonces, sondeos activos.** Envía uno por uno los disparadores conocidos — `W` (formato
+   por comando), `$` (protocolo Dólar), `ENQ` (`0x05`), `CR` — y muestra qué contesta a cada uno.
+   Enviar bytes a un puerto no reprograma nada: es seguro.
+4. **Ayuda para armar el patrón.** El técnico pega la trama capturada en la pantalla de
+   configuración y **el sistema propone el patrón `{W:n}` y el divisor**, mostrando en vivo qué peso
+   saldría. Se corrige a mano si hace falta y se guarda.
+
+El paso 4 es el que convierte el montaje en diez minutos. Sin él, alguien tiene que contar
+caracteres a mano parado frente a la caja.
+
+**Y todo el resultado vive en configuración (§4.3):** si en el local la trama no es la esperada, se
+ajusta desde la pantalla de administración, **sin recompilar, sin reinstalar y sin volver al local**.
+
+#### Que el descubrimiento no sea de un solo uso
+
+Lo mismo que sirve el día del montaje sirve el día que algo se rompa. El modo de descubrimiento
+queda **permanente en el agente**, accesible desde la pantalla de configuración, para que un soporte
+futuro pueda ver qué está mandando la báscula sin instalar herramientas ni pedir ayuda.
 
 ### 5.10b La segunda etiqueta: "MultiProtocolo" y "Versión POS-II" (2026-08-28)
 
@@ -449,19 +492,31 @@ el puerto USB multiformato y la distribuye. Eso reordena quién es la fuente aut
 |---|---|
 | Manual ROCHI | Parámetros del puerto (9600 8-N-1) y driver. **Confirmado, es del equipo exacto** |
 | Manual Moresco ACS-268 (§5.10b) | Tabla de formatos y trama. **Analogía de familia, no del equipo** |
-| **Mavin** | **La tabla real de este equipo. No está publicada: hay que pedírsela** |
+| ~~Mavin~~ | Tenía la tabla real de este equipo, sin publicar. **Cerró el soporte el 2026-08-28: fuente perdida** |
 
-**Acción concreta y gratis, antes de escribir el parser:** pedirle a Mavin la tabla de formatos del
-*"Puerto USB Multiformatos"* de la Rochi RC-A01. Venden la báscula y venden software de integración,
-así que la tienen. Están en Bogotá — Calle 13 # 30-67 — con ventas en el +57 320 228 5232, soporte
-en el +57 319 450 6206 y WhatsApp remoto en el +57 1 805 1028.
+**Cerrado el 2026-08-28: Mavin ya no da soporte.** No hay a quién pedirle la tabla. La fila de
+"fuente autorizada" queda vacía y no se va a llenar.
 
-Es una llamada. Si dan la tabla, el §5.10b deja de ser hipótesis y pasa a ser especificación, y el
-modo de descubrimiento queda solo como red de seguridad en vez de herramienta principal.
+Conviene ser explícito sobre lo que eso significa, porque cambia el peso de tres decisiones:
 
-**Detalle a no pasar por alto:** la ficha que Mavin publica es del **RC-A01 LED con división de
-10 g**; el equipo del cliente es **RC-A01E con 5 g**. Son variantes de la misma familia, no el mismo
-código. Al preguntar hay que dar el modelo y el serial exactos — `RC-A01E`, `PO-00262400658`.
+1. **La tabla del §5.10b es lo mejor que vamos a tener sobre papel.** Deja de ser "hipótesis
+   mientras conseguimos la buena" y pasa a ser **la referencia de trabajo**. Sigue siendo de una
+   marca hermana, así que se usa para *anticipar*, nunca para dar por hecho.
+2. **El modo de descubrimiento (§5.10) deja de ser red de seguridad y pasa a ser el mecanismo.**
+   Es lo que va a determinar el protocolo real, y por eso sube de prioridad: sin él no hay montaje.
+3. **PV-COM se debilita como plan B.** Su lista no trae el RC-A01E — trae el RC-G01 — y quien
+   agregaba modelos era justamente Mavin. Sigue siendo una salida si el equipo resulta hablar un
+   formato que PV-COM ya soporta, pero **ya no se puede contar con que nos configuren el nuestro**.
+
+No es una mala noticia para el diseño: el transporte siempre estuvo pensado como enchufe y el patrón
+siempre vivió en configuración. Es exactamente el escenario para el que se hizo así. Lo que sí
+cambia es que **la calidad del modo de descubrimiento ahora determina si el montaje dura diez
+minutos o una tarde**.
+
+**Detalle que ya no se puede preguntar y hay que asumir:** la ficha publicada era del **RC-A01 LED
+con división de 10 g** y el equipo del cliente es el **RC-A01E de 5 g**. Son variantes de la misma
+familia. Se asume que comparten el firmware multiformato — es lo más probable — pero se verifica en
+sitio.
 
 ### 5.10c Dos advertencias operativas del manual hermano
 
@@ -596,32 +651,38 @@ el capítulo es:
 
 ### 7c.1 El riesgo que puede tumbar producción, y es de procedimiento
 
-Los workflows de despliegue **no ejecutan migraciones** (`.github/workflows/` — ninguno las corre) y
-**no existe un comando que migre todos los tenants**: hay `tenant:migrate-one`, que migra el esquema
-al que apunte `MYSQL_DB_NAME`.
+> **Corregido el 2026-08-28.** Una versión anterior de esta sección afirmaba que no existía un
+> orquestador de migraciones multi-tenant. **Es falso y ya estaba construido.** Se deja la
+> corrección a la vista para que nadie vuelva a planear escribirlo.
 
-Con un solo tenant eso era una molestia. **Con dos o más es una falla esperando ocurrir:** se
-despliega el código nuevo, se migra el esquema del supermercado, se olvida el de Casaletto, y
-Casaletto empieza a lanzar errores de columna inexistente en plena venta.
+Los workflows de despliegue **no ejecutan migraciones** — ninguno de `.github/workflows/` las corre.
+Eso sigue siendo cierto y es el riesgo real: se despliega el código nuevo, se migra el esquema del
+supermercado, se olvida el de Casaletto, y Casaletto empieza a lanzar errores de columna inexistente
+en plena venta.
 
-**Dos medidas, y las dos van:**
+**Lo que ya existe y hay que usar**, no reescribir: [`scripts/migrate-tenants.sh`](../../scripts/migrate-tenants.sh).
+Recorre todos los tenants activos y migra cada esquema por separado. Está bien construido:
 
-1. **Migrar todos los tenants ANTES de desplegar el código.** Las piezas ya existen y encajan —
-   `tenant:list` imprime un `db_name` por línea y `tenant:migrate-one` sale con código distinto de
-   cero si falla, que es justo lo que hace segura una iteración:
+- Toma la lista de `tenant:list`, que marca cada línea con el prefijo `TENANT_DB:` **precisamente
+  porque spark escribe su propio banner en stdout** y la salida cruda no es capturable
+  ([`app/Commands/TenantList.php:33`](../../app/Commands/TenantList.php)).
+- Usa `tenant:migrate-one` y no el `migrate` de serie, **porque el segundo se traga las excepciones
+  y siempre sale 0**, lo que dejaría el bucle ciego a fallos reales.
+- Acumula los fallos, los lista al final y sale distinto de cero si hubo alguno, con la advertencia
+  correcta: *"Deploy must not proceed until these are fixed and re-run."*
 
-   ```bash
-   php spark tenant:list | while read -r db; do
-       MYSQL_DB_NAME="$db" php spark tenant:migrate-one || { echo "FALLÓ: $db"; exit 1; }
-   done
-   ```
+**Lo que falta, y es la Fase 0 del plan:**
 
-   Vale la pena empaquetarlo como `tenant:migrate-all` para que nadie lo escriba de memoria a las
-   once de la noche.
-
-2. **Que el código tolere la columna ausente** en lo que se despliega primero. Una migración
-   aditiva con `DEFAULT` no rompe nada *después* de correr; el problema es la ventana *entre* el
-   despliegue y la migración. Leer con `??` y no asumir la columna cierra esa ventana.
+1. **Conectarlo al despliegue.** Su propia cabecera dice que no se conectó a
+   `deploy-staging.yml` / `deploy-production.yml` porque esos ambientes aún no tenían esquema
+   `platform_control`. **Ese motivo ya no aplica**: el multi-tenant se completó y Casaletto opera
+   como tenant real. El comentario quedó obsoleto y hay que actualizarlo junto con el cableado.
+2. **Invalidar la caché de configuración por tenant** al terminar cada migración — ver §7c.3. Hoy el
+   script no lo hace, y una migración que agregue claves de `app_config` deja al sistema leyendo el
+   mapa viejo.
+3. **Que el código tolere la columna ausente** en lo que se despliega primero. Una migración aditiva
+   con `DEFAULT` no rompe nada *después* de correr; el problema es la ventana *entre* el despliegue
+   y la migración. Leer con `??` y no asumir la columna cierra esa ventana.
 
 ### 7c.2 Cambio por cambio: qué ve Casaletto
 
@@ -758,7 +819,7 @@ El criterio que se aplica acá:
 | **Balanza etiquetadora de mostrador** | El cliente decidió pesar en la caja (2026-08-26). El mecanismo de códigos de barras con peso incrustado (`barcode_formats`) se deja configurado como plan B, cuesta casi nada |
 | **QZ Tray con certificado comprado** (USD 749/año) | Costo recurrente en dólares. Es pagar por no montar la firma propia, que el propio fabricante documenta como alternativa válida |
 | **QZ Tray con certificado propio** | Viable y gratis, pero se prefirió el agente propio para no depender de un tercero ni de su licencia LGPL |
-| **PV-COM** (USD 99,99 perpetua por PC) | Buena opción y de proveedor colombiano. **No se borra del mapa: queda como red de seguridad** si el agente se demora o falla en una caja |
+| **PV-COM** (USD 99,99 perpetua por PC) | Era la red de seguridad, pero **se debilitó el 2026-08-28**: su lista no trae el RC-A01E y quien agregaba modelos era Mavin, que ya no da soporte. Sirve solo si el equipo resulta hablar un formato que PV-COM ya soporta. **Ya no se puede contar con ella como respaldo garantizado** |
 | **Web Serial** | Gratis y sin instalar nada; hoy en Chrome, Edge, Opera y Firefox 151+. Se descartó frente al agente porque el agente además resuelve impresora y cajón. Queda como enchufe alterno si el permiso de puerto resulta molesto |
 | **Tabla de unidades de medida** | Dos valores no justifican una tabla (§3) |
 | **Facturación electrónica DIAN** | El cliente no está obligado. Revisar en un año |
@@ -766,19 +827,27 @@ El criterio que se aplica acá:
 
 ## 12. Orden de implementación
 
-0. **Fase 0 — blindaje del despliegue.** Antes de cualquier migración nueva: empaquetar
-   `tenant:migrate-all` (§7c.1) y dejar escrita la lista de chequeo de §7c.6. Es media tarde y es lo
-   que impide que el primer despliegue multi-tenant tumbe a Casaletto.
+Plan aprobado el 2026-08-28.
+
+0. **Fase 0 — blindaje del despliegue.** `scripts/migrate-tenants.sh` ya existe (§7c.1): falta
+   **conectarlo al despliegue**, agregarle la **invalidación de caché por tenant** (§7c.3),
+   actualizar su comentario obsoleto y dejar escrita la lista de chequeo de §7c.6. Es lo que impide
+   que el primer despliegue multi-tenant tumbe a Casaletto.
 1. **Fase 1** — §2.1, §2.2, §3 y §4.4, con las pruebas de §10 **en los dos escenarios de §7c.5**.
    Antes de tocar `Token_lib`, correr las consultas de §7c.4 contra Casaletto. No depende de nada y
    protege también a Casaletto de una regresión.
 2. **Fase 2** — Provisionar el tenant y aplicar §7.
 3. **Fase 3** — §6.1, §6.2 y §6.3, en ese orden. La merma primero porque es lo que este cliente usa
    a diario.
-4. **Fase 4** — §4.2 y §4.3: campo de peso, foco e intérprete, con el enchufe de teclas.
-5. **Fase 5** — Catálogo y montaje del hardware en el local.
-6. **Fase 6** — §5, el agente local.
-7. **Fase 7** — Acompañamiento de la primera semana.
+4. **Fase 4** — §4.2 y §4.3: campo de peso, foco, intérprete y teclado en pantalla, con el enchufe
+   de teclas. **Con esto sale a producción**; el agente no está en el camino crítico.
+5. **Fase 5 — inspección del instalador de POS Online.** Estática, sin ejecutar ni descompilar:
+   buscar carpeta `drivers/` y archivos de configuración en texto plano que listen formatos de
+   báscula. **Puede correr en paralelo desde ya** y su resultado alimenta la Fase 6.
+6. **Fase 6** — §5, el agente local, con el modo de descubrimiento de §5.10 como pieza central.
+7. **Fase 7 — montaje y corte en seco.** Ensayo previo completo con hardware, reprogramación de la
+   báscula al formato 9 *después* de haber leído en cuál estaba, y contingencia de peso digitado
+   entrenada con el personal. Acompañamiento de la primera semana.
 
 **Recordatorio de despliegue:** los workflows de este repositorio **no ejecutan migraciones**, y
 ahora hay más de un tenant. El procedimiento completo está en §7c — resumido: migrar **todos** los

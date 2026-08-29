@@ -10,6 +10,10 @@
 > **Atención al §4.4: el fabricante advierte que esta báscula no es apta para actividades
 > mercantiles.** Es un riesgo del negocio del cliente, no del desarrollo, pero hay que informarlo.
 >
+> **Plan de trabajo aprobado el 2026-08-28.** Dos decisiones de ese día: el paso a producción será
+> un **corte en seco** —se apaga el POS anterior, sin plan de retorno— y el formato de la báscula se
+> averigua por cuenta propia, porque **el proveedor del firmware cerró el soporte**.
+>
 > Diseño técnico en `docs/Tecnico/venta-por-peso-y-hardware-de-caja.md`.
 
 ---
@@ -43,6 +47,8 @@ diferencia importa y se explica en el punto 4.
 | Caída de internet | **Riesgo aceptado.** Sin canal de respaldo ni instalación local de contingencia. | 2026-08-26 |
 | Lotes y vencimientos | **Se construyen, pero opcionales** y apagados por defecto. | 2026-08-26 |
 | Cómo se conecta la báscula | **Un programa propio instalado en el PC de la caja.** No licencia de terceros. | 2026-08-26 |
+| Paso a producción | **Corte en seco.** El día de salida se apaga el POS anterior. | 2026-08-28 |
+| Formato de la báscula | Se averigua **revisando el instalador del POS actual**, y si no, en el montaje. | 2026-08-28 |
 
 Las dos últimas nacieron corrigiendo un planteamiento inicial más pesado, y conviene dejar por
 escrito **por qué**, porque las razones van a seguir siendo válidas con los próximos clientes.
@@ -55,6 +61,21 @@ módulo que exija ese dato no se usa mal: **se abandona**, y arrastra consigo al
 caja.** Instalar un ejecutable más no cuesta una visita adicional, y a cambio no dependemos de la
 licencia de nadie ni de que un proveedor externo siga existiendo. El costo se vuelve nuestro tiempo
 una sola vez, en vez de un pago por cada PC de cada cliente.
+
+**El corte en seco tiene una consecuencia que hay que decir en voz alta.** Apagar el POS anterior el
+día de la salida nos da libertad para dejar la báscula en el formato que más nos conviene, y evita
+el enredo de mantener dos sistemas al tiempo. Pero **elimina el plan de retorno**: si ese día la
+báscula no responde, el cliente no tiene a qué volver.
+
+Por eso el peso digitado a mano deja de ser una comodidad y pasa a ser **la contingencia que
+mantiene la tienda abierta**. Antes del corte tiene que estar probado y **el personal entrenado en
+él**, no solo disponible. Y el montaje se ensaya completo antes, no se improvisa ese día.
+
+**Y un cierre que no salió como esperábamos:** el proveedor que le puso a la báscula el firmware
+multiformato — Mavin — **ya no da soporte**, así que no hay a quién pedirle la tabla de formatos.
+Se resuelve por dos vías propias: revisando el instalador del POS actual del cliente, y con una
+herramienta de diagnóstico dentro de nuestro programa que muestra qué está enviando la báscula. No
+cambia el alcance; sí explica por qué esa herramienta pasó a ser obligatoria.
 
 ## 3. Cómo va a funcionar la venta por peso
 
@@ -375,11 +396,11 @@ cronograma. Así, un problema de instalación no retrasa la apertura.
 
 ## 9. Preguntas abiertas
 
-1. ~~¿Qué báscula tiene hoy instalada?~~ **Resuelta: ROCHI RC-A01E, y sirve.** Queda una gestión
-   fácil y gratis: **llamar a Mavin Colombia y pedir la tabla de formatos** del puerto USB
-   multiformato de esa báscula — el firmware multiprotocolo es de ellos, así que son la fuente
-   autorizada. Ver §5.10b-bis del documento técnico. Alternativa igual de útil: una foto de la
-   pantalla de configuración de báscula del POS actual del cliente.
+1. ~~¿Qué báscula tiene hoy instalada?~~ **Resuelta: ROCHI RC-A01E, y sirve.**
+   ~~¿Y en qué formato transmite?~~ **Sin respuesta posible por fuera: Mavin cerró el soporte
+   (2026-08-28).** Se resuelve por cuenta propia — revisando el instalador del POS actual, y con la
+   herramienta de diagnóstico del programa local. Ya no es una pregunta abierta, es trabajo del
+   plan.
 2. **¿Va a haber pistola lectora de código de barras?** Estaba en la petición original pero no en
    la lista de periféricos confirmada. Sin ella hay que teclear el código de cada producto
    empacado. Afecta cuántos puertos USB necesita el terminal.
