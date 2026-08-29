@@ -124,20 +124,21 @@ class ItemUnitOfMeasureMigrationTest extends CIUnitTestCase
     }
 
     /**
-     * If the column is missing from the grid query the field is simply absent from every row, which
-     * is how it would silently fail to appear in the items list.
+     * Necessary for the grid, but on its own not sufficient, and the difference matters: the value
+     * is fetched and then dropped. item_headers() and the $columns list in get_item_data_row()
+     * (app/Helpers/tabular_helper.php) both enumerate grid fields by hand and neither mentions this
+     * one, so the column is still invisible in the items list and sanitizeSortColumn() will refuse
+     * to sort by it. That file belongs to another change; this asserts only its half.
      */
     public function testTheGridQuerySelectsTheColumn(): void
     {
-        $this->givenAnItemSavedWithoutMentioningTheUnit();
-
         $reflection = new \ReflectionClass(Item::class);
         $source = file_get_contents($reflection->getFileName());
 
         $this->assertStringContainsString(
             'MAX(items.unit_of_measure) AS unit_of_measure',
             $source,
-            'Without this the field never reaches the items grid.'
+            'Without this the field cannot reach the items grid at all.'
         );
     }
 

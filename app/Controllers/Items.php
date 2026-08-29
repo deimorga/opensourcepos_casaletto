@@ -373,9 +373,12 @@ class Items extends Secure_Controller
             ? $item_info->hsn_code
             : '';
 
-        // Read defensively. Between deploying this code and running the migration on a tenant's
-        // schema the property simply is not there, and an item form that fatals in that window is
-        // worse than one that shows 'unit'.
+        // The ?? is for a new item, where getEmptyObject() sets every non-numeric field to null,
+        // and it costs nothing on a schema that predates the column. It is NOT a mitigation for
+        // deploying ahead of the migration: Item::search() names the column outright, as every
+        // added column in this codebase does, and docs/Tecnico/venta-por-peso-y-hardware-de-caja.md
+        // section 7c.1 explains why tolerant reads cannot close that window anyway -- a pending
+        // migration destroys the session on every request long before a missing column is reached.
         $data['unit_of_measure'] = Item::normalize_unit_of_measure($item_info->unit_of_measure ?? null);
 
         $data['units_of_measure'] = [
