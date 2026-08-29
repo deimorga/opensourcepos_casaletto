@@ -57,6 +57,13 @@ class Migration_BackfillUnitOfMeasureFromDescription extends Migration
      */
     public function up(): void
     {
+        // resetDataCache() FIRST, and it is not optional. fieldExists() answers from a schema list
+        // the connection cached the first time it looked at the table -- which, in a migration run,
+        // is before the earlier migration in the same process added this column. Without this the
+        // guard reports "no such column" on the very deploy that just created it, and the backfill
+        // silently does nothing. That is exactly what happened on the first production run.
+        $this->db->resetDataCache();
+
         if (!$this->db->fieldExists(self::COLUMN, self::TABLE)) {
             CLI::write('BackfillUnitOfMeasureFromDescription: items.' . self::COLUMN . ' does not exist, nothing to do.');
 
@@ -94,6 +101,13 @@ class Migration_BackfillUnitOfMeasureFromDescription extends Migration
      */
     public function down(): void
     {
+        // resetDataCache() FIRST, and it is not optional. fieldExists() answers from a schema list
+        // the connection cached the first time it looked at the table -- which, in a migration run,
+        // is before the earlier migration in the same process added this column. Without this the
+        // guard reports "no such column" on the very deploy that just created it, and the backfill
+        // silently does nothing. That is exactly what happened on the first production run.
+        $this->db->resetDataCache();
+
         if (!$this->db->fieldExists(self::COLUMN, self::TABLE)) {
             return;
         }
