@@ -15,6 +15,7 @@ use App\Models\Giftcard;
 use App\Models\Inventory;
 use App\Models\Item;
 use App\Models\Item_kit;
+use App\Models\Item_quantity;
 use App\Models\Sale;
 use App\Models\Stock_location;
 use App\Models\Tokens\Token_invoice_count;
@@ -572,26 +573,23 @@ class Sales extends Secure_Controller
     {
         $data = [];
 
-        $discount = $this->config['default_sales_discount'];
-        $discount_type = $this->config['default_sales_discount_type'];
-
-        // Check if any discount is assigned to the selected customer
-        $customer_id = $this->sale_lib->get_customer();
-        if ($customer_id != NEW_ENTRY) {
-            // Load the customer discount if any
-            $customer_discount = $this->customer->get_info($customer_id)->discount;
-            $customer_discount_type = $this->customer->get_info($customer_id)->discount_type;
-            if ($customer_discount != '') {
-                $discount = $customer_discount;
-                $discount_type = $customer_discount_type;
-            }
-        }
+        [$discount, $discount_type] = $this->_effective_discount();
 
         $item_id_or_number_or_item_kit_or_receipt = $this->request->getPost('item');
         $this->token_lib->parse_barcode($quantity, $price, $item_id_or_number_or_item_kit_or_receipt);
+
+        // parse_barcode() leaves the quantity at 1 unless the barcode itself
+        // carried a weight (a {W:n} token in barcode_formats). If it did, the
+        // weight is already known and there is nothing to ask the cashier for.
+        $weight_came_from_barcode = ((float) $quantity !== 1.0);
+
         $mode = $this->sale_lib->get_mode();
         $quantity = ($mode == 'return') ? -$quantity : $quantity;
         $item_location = $this->sale_lib->get_sale_location();
+
+        // A scan supersedes whatever was waiting: if the cashier scanned
+        // something else instead of weighing, the old prompt is stale.
+        $this->sale_lib->clear_weight_entry();
 
         if ($mode == 'return' && $this->sale->isValidReceipt($item_id_or_number_or_item_kit_or_receipt)) {
             $this->sale_lib->return_entire_sale($item_id_or_number_or_item_kit_or_receipt);
@@ -631,6 +629,17 @@ class Sales extends Secure_Controller
             } elseif ($stock_warning != null) {
                 $data['warning'] = $stock_warning;
             }
+        } elseif (!$weight_came_from_barcode && ($weight_item = $this->_item_sold_by_weight($item_id_or_number_or_item_kit_or_receipt)) !== null) {
+            // Nothing goes in the cart yet. The item is priced by the kilo, so
+            // the register asks how much it weighs and waits: a line that
+            // defaulted to 1 kg and was never corrected is a sale of 1 kg that
+            // nobody notices.
+            $this->sale_lib->set_weight_entry([
+                'item_id_or_number' => (string) $item_id_or_number_or_item_kit_or_receipt,
+                'name'              => $weight_item->name,
+                'item_number'       => $weight_item->item_number,
+                'unit_price'        => $weight_item->unit_price
+            ]);
         } else {
             if ($item_id_or_number_or_item_kit_or_receipt == '' || !$this->sale_lib->add_item($item_id_or_number_or_item_kit_or_receipt, $item_location, $quantity, $discount, $discount_type, PRICE_MODE_STANDARD, null, null, $price)) {
                 $data['error'] = lang('Sales.unable_to_add_item');
@@ -642,6 +651,132 @@ class Sales extends Secure_Controller
         $this->_autosave_open_tab();
 
         return $this->_reload($data);
+    }
+
+    /**
+     * Add the item that was waiting for its weight, now that there is one.
+     * Used in app/Views/sales/register.php
+     *
+     * @return ResponseInterface|string
+     * @noinspection PhpUnused
+     */
+    public function postAddWeight(): ResponseInterface|string
+    {
+        $data = [];
+        $weight_entry = $this->sale_lib->get_weight_entry();
+
+        if (empty($weight_entry)) {
+            // A weight arrived with nothing waiting for it: a double submit, or
+            // a page left open while the sale was completed or cancelled
+            // somewhere else. Adding a line out of it would be worse than
+            // dropping it.
+            return $this->_reload($data);
+        }
+
+        // NOT parse_decimals(): with number_locale = es_CO that helper reads a
+        // dot as the thousands separator, so "0.735" -- what a scale in
+        // keyboard mode types -- comes back as 735. See
+        // Sale_lib::normalize_weight_input().
+        $weight = Sale_lib::normalize_weight_input((string) $this->request->getPost('weight'));
+        $scale = Item_quantity::quantity_scale();
+
+        if ($weight === null || bccomp($weight, '0', $scale) <= 0) {
+            // The prompt stays up with the item still pending, so the cashier
+            // retypes the weight instead of hunting for the product again.
+            $data['error'] = Sale_lib::translate_or('Sales.weight_invalid', 'Enter the weight as a number greater than zero.');
+
+            return $this->_reload($data);
+        }
+
+        // Explicit scale, never the ambient one: that is derived from currency
+        // settings and would drop the third decimal (Item_quantity::quantity_scale()).
+        $quantity = bcadd($weight, '0', $scale);
+
+        if ($this->sale_lib->get_mode() == 'return') {
+            $quantity = bcmul($quantity, '-1', $scale);
+        }
+
+        [$discount, $discount_type] = $this->_effective_discount();
+
+        $item_id_or_number = (string) $weight_entry['item_id_or_number'];
+        $item_location = $this->sale_lib->get_sale_location();
+
+        if (!$this->sale_lib->add_item($item_id_or_number, $item_location, $quantity, $discount, $discount_type)) {
+            $data['error'] = lang('Sales.unable_to_add_item');
+        } else {
+            $data['warning'] = $this->sale_lib->out_of_stock($item_id_or_number, $item_location);
+            $this->sale_lib->clear_weight_entry();
+        }
+
+        $this->_autosave_open_tab();
+
+        return $this->_reload($data);
+    }
+
+    /**
+     * Give up on weighing the item that was scanned. Used in
+     * app/Views/sales/register.php
+     *
+     * @return ResponseInterface|string
+     * @noinspection PhpUnused
+     */
+    public function postCancelWeight(): ResponseInterface|string
+    {
+        $this->sale_lib->clear_weight_entry();
+
+        return $this->_reload();
+    }
+
+    /**
+     * The item behind a scanned code when that item is priced by the kilo, and
+     * null in every other case -- including a code that matches nothing.
+     *
+     * Looked up exactly the way add_item() looks it up (deleted items excluded)
+     * so the register asks for a weight precisely when add_item() would store
+     * one.
+     */
+    private function _item_sold_by_weight(?string $item_id_or_number): ?stdClass
+    {
+        if ($item_id_or_number === null || $item_id_or_number === '') {
+            return null;
+        }
+
+        $item_info = $this->item->get_info_by_id_or_number($item_id_or_number, false);
+
+        if (empty($item_info)) {
+            return null;
+        }
+
+        // ?? null covers item rows written before the column existed.
+        $unit_of_measure = Item::normalize_unit_of_measure($item_info->unit_of_measure ?? null);
+
+        return $unit_of_measure === Item::UNIT_OF_MEASURE_KG ? $item_info : null;
+    }
+
+    /**
+     * The discount that applies to a line being added: the site default,
+     * overridden by the selected customer's own discount when it has one.
+     *
+     * @return array{0: mixed, 1: mixed} discount and discount type
+     */
+    private function _effective_discount(): array
+    {
+        $discount = $this->config['default_sales_discount'];
+        $discount_type = $this->config['default_sales_discount_type'];
+
+        // Check if any discount is assigned to the selected customer
+        $customer_id = $this->sale_lib->get_customer();
+        if ($customer_id != NEW_ENTRY) {
+            // Load the customer discount if any
+            $customer_discount = $this->customer->get_info($customer_id)->discount;
+            $customer_discount_type = $this->customer->get_info($customer_id)->discount_type;
+            if ($customer_discount != '') {
+                $discount = $customer_discount;
+                $discount_type = $customer_discount_type;
+            }
+        }
+
+        return [$discount, $discount_type];
     }
 
     /**
@@ -1442,6 +1577,11 @@ class Sales extends Secure_Controller
         }
 
         $data['open_tabs'] = $this->sale->get_all_opened();
+
+        // Non-empty only while an item priced by the kilo is waiting for its
+        // weight. It is what makes the weight field appear -- and the reason a
+        // shop with no kilo-priced items never sees one.
+        $data['weight_entry'] = $this->sale_lib->get_weight_entry();
 
         return view("sales/register", $data);
     }
