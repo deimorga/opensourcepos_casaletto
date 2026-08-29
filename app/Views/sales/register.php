@@ -38,9 +38,12 @@
  * @var float $non_cash_total
  * @var float $cash_amount_due
  * @var array $config
+ * @var array $weight_entry
  */
 
+use App\Libraries\Sale_lib;
 use App\Models\Employee;
+use App\Models\Item_quantity;
 
 ?>
 
@@ -160,6 +163,112 @@ helper('url');
         </div>
     <?= form_close() ?>
 
+    <?php
+    // The weight field exists only while an item priced by the kilo is waiting
+    // to be weighed, and nothing else on this page changes. That is the whole
+    // isolation mechanism: a shop whose items are all sold by the unit never
+    // has an item waiting, so it never sees any of this -- and unlike a
+    // setting, there is nothing here anybody can get wrong.
+    $weight_entry = $weight_entry ?? [];
+
+    if (!empty($weight_entry)) {
+        // The keypad types the separator this tenant reads, so what the
+        // cashier sees while typing matches what the line shows afterwards.
+        // Both separators are accepted on the way in either way -- a scale in
+        // keyboard mode types a dot no matter where it is plugged in.
+        $weight_decimal_separator = (new NumberFormatter($config['number_locale'], NumberFormatter::DECIMAL))
+            ->getSymbol(NumberFormatter::DECIMAL_SEPARATOR_SYMBOL);
+        $weight_keypad_rows = [['7', '8', '9'], ['4', '5', '6'], ['1', '2', '3']];
+    ?>
+        <div id="weight_entry_panel" class="panel panel-warning" role="region" aria-labelledby="weight_entry_heading">
+            <div class="panel-heading">
+                <?php
+                // h2, not h3: this is the only heading the register has, and
+                // .panel-title makes both look identical. The level is what a
+                // screen reader announces.
+                ?>
+                <h2 class="panel-title" id="weight_entry_heading">
+                    <span class="glyphicon glyphicon-scale" aria-hidden="true">&nbsp;</span>
+                    <?= esc(Sale_lib::translate_or('Sales.weigh_item', 'Weigh')) ?>:
+                    <strong><?= esc($weight_entry['name']) ?></strong>
+                    <?php if (!empty($weight_entry['item_number'])) { ?>
+                        <span class="weight-entry-item-number">(<?= esc($weight_entry['item_number']) ?>)</span>
+                    <?php } ?>
+                </h2>
+            </div>
+            <div class="panel-body">
+                <?= form_open("$controller_name/addWeight", ['id' => 'weight_entry_form']) ?>
+                    <div class="weight-entry-layout">
+                        <?php
+                        // The input, then the two decisions, then the keypad:
+                        // document order is tab order, and a keypad is a
+                        // convenience for a finger, not the way a keyboard user
+                        // gets through this screen.
+                        ?>
+                        <div class="weight-entry-main">
+                            <div class="form-group<?= isset($error) ? ' has-error' : '' ?>">
+                                <label class="weight-entry-label" for="weight">
+                                    <?= esc(Sale_lib::translate_or('Sales.weight_in_kilograms', 'Weight in kilograms')) ?>
+                                </label>
+                                <?= form_input([
+                                    'name'         => 'weight',
+                                    'id'           => 'weight',
+                                    'type'         => 'text',
+                                    // Never type="number": in a comma locale the
+                                    // browser calls "0,735" invalid and hands back
+                                    // an empty string, which would drop the weight
+                                    // on the floor without saying so.
+                                    'class'        => 'form-control',
+                                    'value'        => '',
+                                    'inputmode'    => 'decimal',
+                                    'autocomplete' => 'off',
+                                    'aria-describedby' => 'weight_entry_hint',
+                                    'aria-invalid' => isset($error) ? 'true' : 'false',
+                                    'tabindex'     => ++$tabindex
+                                ]) ?>
+                                <p class="weight-entry-hint" id="weight_entry_hint">
+                                    <?= esc(Sale_lib::translate_or('Sales.price_per_kilogram', 'Price per kilogram')) ?>:
+                                    <strong><?= to_currency($weight_entry['unit_price']) ?></strong>
+                                    &middot;
+                                    <?= esc(Sale_lib::translate_or('Sales.weight_example', 'for example')) ?>
+                                    <?= esc('0' . $weight_decimal_separator . '735') ?>
+                                </p>
+                            </div>
+
+                            <div class="weight-entry-actions">
+                                <button type="submit" class="btn btn-primary" id="add_weight_button" tabindex="<?= ++$tabindex ?>">
+                                    <span class="glyphicon glyphicon-ok" aria-hidden="true">&nbsp;</span><?= esc(Sale_lib::translate_or('Sales.add_weighed_item', 'Add to sale')) ?>
+                                </button>
+                                <button type="submit" class="btn btn-default" id="cancel_weight_button" tabindex="<?= ++$tabindex ?>"
+                                    formaction="<?= esc(site_url("$controller_name/cancelWeight")) ?>" formnovalidate>
+                                    <span class="glyphicon glyphicon-remove" aria-hidden="true">&nbsp;</span><?= esc(Sale_lib::translate_or('Common.cancel', 'Cancel')) ?>
+                                </button>
+                            </div>
+                        </div>
+
+                        <?php
+                        // The keypad is the contingency that keeps the shop
+                        // open on the day the scale fails, or the day somebody
+                        // spills coffee on the keyboard. It is not decoration.
+                        ?>
+                        <div class="weight-keypad" role="group" aria-label="<?= esc(Sale_lib::translate_or('Sales.weight_keypad', 'Numeric keypad')) ?>">
+                            <?php foreach ($weight_keypad_rows as $weight_keypad_row) { ?>
+                                <?php foreach ($weight_keypad_row as $weight_key) { ?>
+                                    <button type="button" class="btn btn-default weight-key" data-weight-key="<?= esc($weight_key) ?>"><?= esc($weight_key) ?></button>
+                                <?php } ?>
+                            <?php } ?>
+                            <button type="button" class="btn btn-default weight-key" data-weight-key="0">0</button>
+                            <button type="button" class="btn btn-default weight-key" data-weight-key="separator"><?= esc($weight_decimal_separator) ?></button>
+                            <button type="button" class="btn btn-default weight-key" data-weight-key="backspace">
+                                <span class="glyphicon glyphicon-erase" aria-hidden="true"></span>
+                                <span class="sr-only"><?= esc(Sale_lib::translate_or('Sales.weight_backspace', 'Delete the last digit')) ?></span>
+                            </button>
+                        </div>
+                    </div>
+                <?= form_close() ?>
+            </div>
+        </div>
+    <?php } ?>
 
     <!-- Sale Items List -->
 
@@ -193,6 +302,33 @@ helper('url');
                 // reversed iteration order -- see Sales::postAdd()/Sale_lib::add_item_kit(),
                 // the kit item is added to the cart before its components.
                 $pending_kit_children = [];
+
+                // A weight is never shown with fewer decimals than it has.
+                // The value rendered into the quantity input is exactly what
+                // the next edit of that line posts back, so a 0,735 displayed
+                // as "1" -- which is what to_quantity_decimals() produces when
+                // the tenant's quantity_decimals is 0 -- would replace the
+                // weight with one kilo the moment the cashier corrects
+                // anything else on the line, silently and with no way to tell
+                // afterwards. quantity_scale() is the same floor the
+                // arithmetic already uses, so the two cannot drift apart.
+                $format_line_quantity = function (array $item) use ($config): string {
+                    if (!Sale_lib::line_sells_by_weight($item)) {
+                        return to_quantity_decimals($item['quantity']);
+                    }
+
+                    $digits = Item_quantity::quantity_scale();
+                    $formatter = new NumberFormatter($config['number_locale'], NumberFormatter::DECIMAL);
+                    $formatter->setAttribute(NumberFormatter::MIN_FRACTION_DIGITS, $digits);
+                    $formatter->setAttribute(NumberFormatter::MAX_FRACTION_DIGITS, $digits);
+
+                    if (empty($config['thousands_separator'])) {
+                        $formatter->setTextAttribute(NumberFormatter::GROUPING_SEPARATOR_SYMBOL, '');
+                    }
+
+                    return $formatter->format((float) $item['quantity']);
+                };
+
                 foreach (array_reverse($cart, true) as $line => $item) {
                     $is_kit_ingredient = $item['print_option'] == PRINT_NO;
                     ob_start();
@@ -241,10 +377,19 @@ helper('url');
                             <td>
                                 <?php
                                 if ($item['is_serialized']) {
-                                    echo to_quantity_decimals($item['quantity']);
+                                    echo $format_line_quantity($item);
                                     echo form_hidden('quantity', $item['quantity']);
                                 } else {
-                                    echo form_input(['name' => 'quantity', 'class' => 'form-control input-sm', 'value' => to_quantity_decimals($item['quantity']), 'tabindex' => ++$tabindex, 'onClick' => 'this.select();']);
+                                    echo form_input(['name' => 'quantity', 'class' => 'form-control input-sm', 'value' => $format_line_quantity($item), 'tabindex' => ++$tabindex, 'onClick' => 'this.select();']);
+                                }
+
+                                // "kg" is the SI symbol, so it reads the same in
+                                // every language this screen ships in. A line
+                                // sold by the unit gets nothing, which is what
+                                // every line in a shop that does not weigh
+                                // anything looks like today.
+                                if (Sale_lib::line_sells_by_weight($item)) {
+                                    echo '<span class="line-unit-of-measure">kg</span>';
                                 }
                                 ?>
                             </td>
@@ -654,6 +799,97 @@ helper('url');
         margin-left: 8px;
         white-space: nowrap;
     }
+
+    /*
+     * Weight entry. Sized for a finger on a touch terminal, which is why it
+     * ignores the register's 13px mouse-era scale: this is the one thing on
+     * the screen the cashier has to hit while somebody waits.
+     */
+    #weight_entry_panel {
+        margin-top: 6px;
+        margin-bottom: 6px;
+    }
+
+    #weight_entry_panel .panel-title {
+        font-size: 16px;
+    }
+
+    .weight-entry-item-number {
+        font-weight: normal;
+        opacity: 0.8;
+    }
+
+    .weight-entry-layout {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+        align-items: flex-start;
+    }
+
+    .weight-entry-main {
+        flex: 1 1 260px;
+        min-width: 0;
+    }
+
+    .weight-entry-label {
+        display: block;
+        font-size: 15px;
+        margin-bottom: 4px;
+    }
+
+    input#weight {
+        height: 64px;
+        padding: 4px 12px;
+        font-size: 32px;
+        font-weight: bold;
+        text-align: right;
+    }
+
+    .weight-entry-hint {
+        margin: 8px 0 0;
+        font-size: 13px;
+    }
+
+    .weight-entry-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 12px;
+    }
+
+    .weight-entry-actions .btn {
+        flex: 1 1 0;
+        min-height: 56px;
+        font-size: 16px;
+        white-space: normal;
+    }
+
+    .weight-keypad {
+        flex: 0 0 auto;
+        display: grid;
+        grid-template-columns: repeat(3, 76px);
+        gap: 8px;
+    }
+
+    .weight-key {
+        min-height: 60px;
+        padding: 0;
+        font-size: 22px;
+        font-weight: bold;
+    }
+
+    .line-unit-of-measure {
+        margin-left: 4px;
+        font-size: 12px;
+        white-space: nowrap;
+    }
+
+    /* Narrow terminals: the keypad drops below the field instead of squeezing it. */
+    @media (max-width: 640px) {
+        .weight-keypad {
+            grid-template-columns: repeat(3, 1fr);
+            width: 100%;
+        }
+    }
 </style>
 <script type="text/javascript">
     const keyboardShortcuts = <?= json_encode($keyboardShortcuts ?? []) ?>;
@@ -765,7 +1001,43 @@ helper('url');
             });
         });
 
-        $('#item').focus();
+        // Where the cursor goes on load. An item priced by the kilo is scanned
+        // and then weighed, so while one is waiting the weight field takes the
+        // focus and the scale -- which in keyboard mode simply types where the
+        // cursor is -- lands in the right place with nobody having to aim it.
+        // With nothing waiting this is the scan field, exactly as before.
+        var $weight_field = $('#weight');
+
+        if ($weight_field.length) {
+            $weight_field.focus();
+        } else {
+            $('#item').focus();
+        }
+
+        // The keypad is what keeps the shop open when the scale is unplugged
+        // or the keyboard has been put away, so it edits the same field the
+        // scale types into rather than a control of its own.
+        $('#weight_entry_panel').on('click', '.weight-key', function() {
+            var key = $(this).attr('data-weight-key');
+            var value = String($weight_field.val());
+
+            if (key === 'backspace') {
+                value = value.slice(0, -1);
+            } else if (key === 'separator') {
+                // One separator only, and never leading: "0," reads as a
+                // weight, "," on its own does not.
+                if (value.indexOf('.') === -1 && value.indexOf(',') === -1) {
+                    value = (value === '' ? '0' : value) + <?= json_encode($weight_decimal_separator ?? ',') ?>;
+                }
+            } else {
+                value = value + key;
+            }
+
+            $weight_field.val(value);
+            // Back to the field after every key, so the physical keyboard and
+            // the on-screen one can be used in the same breath.
+            $weight_field.focus();
+        });
 
         $('#item').blur(function() {
             $(this).val("<?= lang(ucfirst($controller_name) . '.start_typing_item_name') ?>");

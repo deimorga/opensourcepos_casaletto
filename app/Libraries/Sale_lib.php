@@ -50,6 +50,26 @@ class Sale_lib
     private Session $session;
     private array $config;
 
+    /**
+     * Session key holding the item that is waiting for its weight.
+     */
+    private const WEIGHT_ENTRY_KEY = 'sales_weight_entry';
+
+    /**
+     * A round number this long, typed with no decimal separator, is not a
+     * weight: it is a barcode that a scanner fired into the weight field while
+     * that field had the focus -- which it does, by design, for exactly as long
+     * as the register is waiting to be told a weight.
+     *
+     * Eight digits is the shortest standard retail barcode (EAN-8), and no shop
+     * weighs ten million kilos of anything, so the two ranges do not overlap.
+     *
+     * This is a barcode-shaped guard, not a scale limit. What a particular
+     * scale can weigh, and in what steps, belongs to that scale's configuration
+     * and not to this code -- the next customer will have a different one.
+     */
+    private const BARCODE_DIGITS = 8;
+
     public function __construct()
     {
         $this->session = session();
@@ -187,6 +207,31 @@ class Sale_lib
     }
 
     /**
+     * Unit of measure of a cart line.
+     *
+     * Every read of the key goes through here, and the reason is the cart's
+     * storage: it lives in the *session*, not in the database. On the day this
+     * ships, every register with a sale open is holding lines that were built
+     * before the key existed, and a bare $line['unit_of_measure'] would raise
+     * "undefined array key" in the middle of somebody's sale. There is no
+     * migration that can reach those lines, and edit_item() mutates the line in
+     * place, so an old line never gains the key by being edited either -- it
+     * stays keyless until that sale is finished or cancelled.
+     */
+    public static function line_unit_of_measure(array $line): string
+    {
+        return $line['unit_of_measure'] ?? Item::UNIT_OF_MEASURE_UNIT;
+    }
+
+    /**
+     * True when this cart line is priced by the kilo rather than by the unit.
+     */
+    public static function line_sells_by_weight(array $line): bool
+    {
+        return self::line_unit_of_measure($line) === Item::UNIT_OF_MEASURE_KG;
+    }
+
+    /**
      * @param array $cart
      * @return array
      */
@@ -263,6 +308,115 @@ class Sale_lib
     public function empty_cart(): void
     {
         $this->session->remove('sales_cart');
+    }
+
+    /**
+     * The item that was scanned, sells by the kilo, and is waiting for the
+     * cashier to say how much it weighs.
+     *
+     * It is held here instead of being put in the cart with a placeholder
+     * quantity on purpose: a line that defaulted to 1 kg and was never
+     * corrected is a sale of 1 kg that nobody notices. Nothing reaches the
+     * cart until there is a real weight for it.
+     *
+     * @return array Empty when no item is waiting for a weight.
+     */
+    public function get_weight_entry(): array
+    {
+        $entry = $this->session->get(self::WEIGHT_ENTRY_KEY);
+
+        return is_array($entry) ? $entry : [];
+    }
+
+    /**
+     * @param array $entry
+     * @return void
+     */
+    public function set_weight_entry(array $entry): void
+    {
+        $this->session->set(self::WEIGHT_ENTRY_KEY, $entry);
+    }
+
+    /**
+     * @return void
+     */
+    public function clear_weight_entry(): void
+    {
+        $this->session->remove(self::WEIGHT_ENTRY_KEY);
+    }
+
+    /**
+     * Reads a weight as the cashier typed it -- or as a scale in keyboard
+     * mode sent it -- and returns it as a plain decimal string, or null when
+     * it is not a weight at all.
+     *
+     * Deliberately NOT parse_decimals(). That helper runs the text through
+     * NumberFormatter with the tenant's number_locale, and in es_CO the dot is
+     * the *thousands* separator, so it reads "0.735" as 735. Verified:
+     *
+     *     es_CO   "0.735" => 735.0        en_US   "0.735" => 0.735
+     *     es_CO   "0,735" => 0.735        en_US   "0,735" => 735.0
+     *
+     * A scale in keyboard mode types a dot, and so does anybody who learned to
+     * type numbers on a calculator. Through parse_decimals() that is 735 kg of
+     * tomatoes on the receipt instead of 735 grams, at the till, with nothing
+     * on screen to suggest anything went wrong.
+     *
+     * A weight is a single number and never needs digit grouping, so the rule
+     * here has no ambiguity to resolve: exactly one separator, dot or comma,
+     * and it is the decimal point. Anything else -- two separators, a sign, a
+     * unit suffix, a barcode fired into the field by a scanner -- is rejected
+     * instead of guessed at.
+     *
+     * Returns a string and never a float: the value goes straight into bcmath,
+     * which is the only arithmetic allowed to touch a quantity.
+     */
+    public static function normalize_weight_input(string $raw): ?string
+    {
+        $candidate = trim($raw);
+
+        if (!preg_match('/^(?:\d+(?:[.,]\d*)?|[.,]\d+)$/', $candidate)) {
+            return null;
+        }
+
+        // A long round number is a barcode that went into the weight field,
+        // not a weight. Rejected here rather than sold: "7702001002344" is a
+        // perfectly well-formed number, and at 4.500 a kilo it is a line worth
+        // more than the shop.
+        if (!str_contains($candidate, '.') && !str_contains($candidate, ',') && strlen($candidate) >= self::BARCODE_DIGITS) {
+            return null;
+        }
+
+        $normalized = str_replace(',', '.', $candidate);
+
+        // ".735" and "5." are what a keypad produces mid-thought; bcmath wants
+        // a digit on both sides of the point.
+        if (str_starts_with($normalized, '.')) {
+            $normalized = '0' . $normalized;
+        }
+
+        if (str_ends_with($normalized, '.')) {
+            $normalized .= '0';
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * Translation with a built-in fallback.
+     *
+     * lang() returns the key itself when the line is missing, so a screen
+     * built on keys that do not exist yet shows the cashier "Sales.weight"
+     * where the label should be. The weight-entry strings are introduced by
+     * this change but app/Language/ belongs to another work stream, so the
+     * text ships here and moves out the moment the keys land: nothing has to
+     * change at the call sites, and the translations take over on their own.
+     */
+    public static function translate_or(string $key, string $fallback): string
+    {
+        $translated = lang($key);
+
+        return $translated === $key ? $fallback : $translated;
     }
 
     /**
@@ -1178,7 +1332,12 @@ class Sale_lib
                     'stock_type'            => $stock_type,
                     'item_type'             => $item_type,
                     'hsn_code'              => $item_info->hsn_code,
-                    'tax_category_id'       => $item_info->tax_category_id
+                    'tax_category_id'       => $item_info->tax_category_id,
+                    // The cart is built from a literal list of keys, so a column
+                    // that is not named here simply does not exist in the sale.
+                    // normalize_unit_of_measure() also covers the item rows that
+                    // predate the column and come back with a null.
+                    'unit_of_measure'       => Item::normalize_unit_of_measure($item_info->unit_of_measure ?? null)
                 ]
             ];
 
@@ -1467,6 +1626,7 @@ class Sale_lib
         $this->clear_mode();
         $this->clear_table();
         $this->empty_cart();
+        $this->clear_weight_entry();
         $this->clear_comment();
         $this->clear_email_receipt();
         $this->clear_invoice_number();
