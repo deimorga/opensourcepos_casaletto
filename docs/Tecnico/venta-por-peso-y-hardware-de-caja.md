@@ -1,7 +1,14 @@
 # Diseño técnico — Venta por peso, hardware de caja e inventario para supermercado
 
-> **Estado a 2026-08-27: diseño cerrado, nada implementado.** No hay código, ni migraciones, ni
-> configuración de este requerimiento en ninguna rama. Este documento es el punto de partida.
+> **Estado a 2026-08-28: en construcción.** Vías **V1, V2 y V3 implementadas y en `develop`**
+> (`524da70b2`): el entrypoint que migra antes de servir, la columna `unit_of_measure`, y los cuatro
+> defectos de precisión del peso.
+>
+> **Verificación pendiente y NO menor:** el demonio de Docker está caído en la máquina de
+> desarrollo, así que **las 138 pruebas con base de datos nunca se han ejecutado** — incluidas las
+> que prueban estos arreglos. Las 130 sin base de datos pasan, y ninguna falla es de aserción: los
+> 138 errores son todos `Connection refused`. **Esto no está verificado hasta correr la suite
+> completa contra una base real.**
 >
 > **Actualización del 2026-08-28:** báscula documentada del todo — ROCHI RC-A01E, chip CH340,
 > **9600 8-N-1** sobre puerto COM virtual (§5.8). El terminal del cliente será **Windows**, así que
@@ -78,8 +85,19 @@ Con `quantity_purchased = '0.735'`, PHP en modo coercitivo convierte a `0`. **El
 Y la fila de auditoría que se inserta un par de líneas antes sí guarda el `0.735`, así que
 `item_quantities` y la tabla `inventory` quedan diciendo cosas distintas sin que nada avise.
 
-**Arreglo — corregido el 2026-08-28:** cambiar la firma a `string $quantity_change` y operar con
-`bcadd` **pasando escala explícita**: `bcadd($old, $change, quantity_decimals())`.
+**Arreglo — IMPLEMENTADO el 2026-08-28 (vía V3).** Firma a `string $quantity_change` y `bcadd` con
+**escala explícita**.
+
+> **La escala NO es `quantity_decimals()`.** Así lo especificaba la primera versión de este
+> documento y estaba **mal**: habría estrenado un defecto nuevo en Casaletto. `quantity_decimals` es
+> un ajuste de **presentación**, mientras que las columnas son `decimal(15,3)`. Casaletto lo tiene
+> en `0` pero puede tener `5.500` unidades guardadas de una recepción vieja, y
+> `bcadd('5.500', '2', 0)` da **`7`**: media unidad evaporada, dentro de un cambio que se presentaba
+> como arreglo. Comprobado ejecutando PHP.
+>
+> La escala correcta vive en **`Item_quantity::quantity_scale()`** y es
+> `max(quantity_decimals(), 3)` — nunca por debajo de lo que la columna puede guardar. Mostrar menos
+> decimales es trabajo del formateador, no de la aritmética.
 
 **Sin la escala explícita el arreglo no arregla nada.** `Load_config.php:57` fija
 `bcscale(max(2, totals_decimals() + tax_decimals()))`, y `totals_decimals()` devuelve
@@ -120,8 +138,14 @@ Sin escala explícita, con la escala global en 2. **Pesar dos bolsas del mismo p
 1,47 kg en vez de 1,475.**
 
 Es el más frecuente de los cuatro: cinco gramos por repetición, en silencio,
-en la operación más común de un supermercado de hortalizas. **Arreglo:** misma escala explícita.
-**Prueba:** agregar el mismo artículo por peso dos veces y verificar el tercer decimal.
+en la operación más común de un supermercado de hortalizas.
+
+**IMPLEMENTADO el 2026-08-28 (vía V3)** con la misma escala explícita de §2.2. La corrección de
+`Receiving::delete_value()` fue más allá de lo pedido y conviene registrarlo: ahora el valor se
+calcula **una sola vez** en bcmath y alimenta tanto la fila de auditoría de `inventory` como el
+movimiento de `item_quantities`, de modo que **no pueden divergir por construcción** — que es el
+defecto de raíz, no solo su síntoma. Además evita que un `float` llegue a `bcadd()` como
+`"1.0E-6"`, que lanzaría `ValueError` en mitad de la anulación.
 
 ## 3. Modelo de datos: unidad de medida
 
@@ -146,6 +170,47 @@ Consumidores:
 **Se decidió no crear una tabla de unidades.** Dos valores no justifican una tabla, y una tabla
 invita a que alguien agregue "libra" y "gramo" sin que nadie haya definido las conversiones. Si
 algún día hace falta una tercera unidad, se agrega al enum y se decide en ese momento.
+
+### 3.1 Cómo quedó implementado (vía V2, 2026-08-28)
+
+Migración `20260901000000_AddItemUnitOfMeasure.php`, idempotente y reversible. `NOT NULL DEFAULT
+'unit'` hace que MariaDB rellene la columna en el propio `ALTER`: **no existe un instante en que un
+artículo no tenga unidad**, y ninguna ruta de lectura tiene que lidiar con `NULL`. Sin índice a
+propósito — dos valores no le dan selectividad y la columna se lee por clave primaria.
+
+Todo valor que entra pasa por `Item::normalize_unit_of_measure()`. Eso importa más de lo que parece:
+`Item::save_value()` escribe con el query builder crudo y **nunca consulta `$allowedFields`**, así
+que el normalizador es lo único que separa un POST arbitrario de la columna. Un valor irreconocible
+(`'kilogramo'`, `'lb'`) normaliza a `unit` y queda en el log; no reprueba la fila, porque el campo es
+opcional por diseño.
+
+**Dos decisiones sobre escritura masiva que evitan un daño silencioso:**
+
+1. **La importación CSV escribe la clave solo si la celda trae algo.** Si viene vacía, o si el
+   archivo se generó con una plantilla anterior a la columna, **se omite la clave**. Escribir
+   `'unit'` incondicionalmente habría **degradado a unidades cada artículo pesado en la siguiente
+   reimportación** — y reimportar es justamente el flujo con el que un supermercado corrige precios.
+   Omitida, el `INSERT` toma el `DEFAULT` y el `UPDATE` deja el valor en paz.
+2. **La edición masiva normaliza solo si el campo se envió.** Incondicionalmente habría metido
+   `unit_of_measure => 'unit'` dentro de un `UPDATE` masivo de precios.
+
+La cabecera nueva del CSV va **al final y nunca intercalada**: los clientes conservan copias llenas
+de la plantilla, y reordenar columnas correría en silencio todos los valores que ya escribieron.
+
+### 3.2 Cabos sueltos conocidos de la unidad de medida
+
+Encontrados al implementar, deliberadamente **no** resueltos por quedar fuera del alcance de esa vía:
+
+- **La grilla de artículos todavía no muestra la columna.** Agregarla al `SELECT` de `search()` es
+  necesario pero **no suficiente**: `item_headers()`
+  ([`app/Helpers/tabular_helper.php:395`](../../app/Helpers/tabular_helper.php)) y la lista
+  `$columns` de `get_item_data_row()` (`:489`) enumeran los campos a mano, y `sanitizeSortColumn`
+  rechaza ordenar por ella.
+- **La edición masiva quedó a medio cablear**: el campo está en `ALLOWED_BULK_EDIT_FIELDS` y el
+  backend lo normaliza, pero `getBulkEdit()` no pasa opciones y `form_bulk.php` no tiene control.
+  Es una rama muerta hasta que alguien toque esa vista.
+- **`Sale_lib::add_item()` no copiaba la unidad a la línea del carrito** (~`:1140-1175`), que es el
+  eslabón que le da sentido a la columna en la venta. Corresponde a la vía de la caja.
 
 ## 4. Arquitectura del peso: el transporte es un enchufe
 
@@ -910,29 +975,41 @@ El criterio que se aplica acá:
 
 ## 12. Orden de implementación
 
-Plan aprobado el 2026-08-28.
+**Estado a 2026-08-28.** El trabajo se organizó en vías disjuntas en archivos, ejecutadas en
+paralelo y mergeadas en orden fijo. Detalle del análisis de paralelización y del mapa de colisiones
+en el plan (`~/.claude/plans/prancy-puzzling-umbrella.md`).
 
-0. **Fase 0 — blindaje del despliegue.** `scripts/migrate-tenants.sh` ya existe (§7c.1): falta
-   **conectarlo al despliegue**, agregarle la **invalidación de caché por tenant** (§7c.3),
-   actualizar su comentario obsoleto y dejar escrita la lista de chequeo de §7c.6. Es lo que impide
-   que el primer despliegue multi-tenant tumbe a Casaletto.
-1. **Fase 1** — §2.1, §2.2, §2.4, §3 y §4.4, con las pruebas de §10 **en los dos escenarios de §7c.5**.
-   Antes de tocar `Token_lib`, correr las consultas de §7c.4 contra Casaletto. No depende de nada y
-   protege también a Casaletto de una regresión.
-2. **Fase 2** — Provisionar el tenant y aplicar §7.
-3. **Fase 3** — §6.1, §6.2 y §6.3, en ese orden. La merma primero porque es lo que este cliente usa
-   a diario.
-4. **Fase 4** — §4.2 y §4.3: campo de peso, foco, intérprete y teclado en pantalla, con el enchufe
-   de teclas. **Con esto sale a producción**; el agente no está en el camino crítico.
-5. **Fase 5 — inspección del instalador de POS Online.** Estática, sin ejecutar ni descompilar:
-   buscar carpeta `drivers/` y archivos de configuración en texto plano que listen formatos de
-   báscula. **Puede correr en paralelo desde ya** y su resultado alimenta la Fase 6.
-6. **Fase 6** — §5, el agente local, con el modo de descubrimiento de §5.10 como pieza central.
-7. **Fase 7 — montaje y corte en seco.** Ensayo previo completo con hardware, reprogramación de la
-   báscula al formato 9 *después* de haber leído en cuál estaba, y contingencia de peso digitado
-   entrenada con el personal. Acompañamiento de la primera semana.
+| Vía | Contenido | Estado |
+|---|---|---|
+| **V1 · Despliegue** | Entrypoint que migra antes de servir (§7c.1) | **Hecha** — `8f92b4901` |
+| **V3 · Precisión** | §2.2 y §2.4, escala explícita de bcmath | **Hecha** — `ba43e270c` |
+| **V2 · Unidad de medida** | §3, §3.1 | **Hecha** — `524da70b2` |
+| **V5a · Intérprete de báscula** | Token `[\d.]`, claves `scale_*`, pantalla de configuración | En curso |
+| **V5b · `parse_barcode()`** | `break`, divisor configurable, patrón anclado (§4.4) | **Bloqueada** — requiere la consulta de §7c.4 contra Casaletto |
+| **V6 · Caja** | Unidad en la línea del carrito, campo de peso, foco, teclado en pantalla | En curso |
+| **V4 · Operación** | Provisionar el tenant (§7), inspección del instalador | Pendiente — depende del cliente |
+| **Inventario** | §6.1, §6.2, §6.3 | Después del corte, por decisión del 2026-08-28 |
+| **Agente local** | §5 | Después del corte |
 
-**Recordatorio de despliegue:** los workflows de este repositorio **no ejecutan migraciones**, y
-ahora hay más de un tenant. El procedimiento completo está en §7c — resumido: migrar **todos** los
-esquemas primero, limpiar la caché de configuración de cada uno, y solo entonces desplegar el
-código.
+**Con V6 terminada el cliente puede salir a producción** con el peso digitado a mano. El agente
+local no está en el camino crítico.
+
+**V5b es el único bloqueo real**, y no es técnico: hace falta leer `barcode_formats` del esquema de
+Casaletto (§7c.4) antes de anclar el patrón, porque podría romperle un formato que hoy engancha por
+coincidencia parcial. V5a se separó de V5b precisamente para no quedar bloqueada: la báscula usa
+claves nuevas y `Token_lib::parse()`, sin tocar el camino de códigos de barras.
+
+**Orden de merge respetado:** V1 → V3 → V2. V3 fue primero entre las de código porque **no trae
+migración**, lo que la hacía la candidata segura para estrenar el pipeline nuevo del entrypoint.
+
+### Recordatorio de despliegue
+
+> **Corregido el 2026-08-28.** Una versión anterior de este documento decía "migrar todos los
+> esquemas primero y solo entonces desplegar el código". **Ese orden es imposible de ejecutar** y
+> está explicado en §7c.1: los archivos de migración viajan dentro de la imagen, así que no existen
+> antes de desplegarla.
+
+El procedimiento real es el de §7c.1: **el entrypoint del contenedor migra todos los esquemas antes
+de que Apache acepte una petición**, y si alguno falla Apache no arranca. Ya no hay paso manual que
+recordar. Lo que sí sigue vigente es la compuerta de §7c.6 antes de tocar producción, y que **cada
+merge que traiga una migración es un evento de despliegue, no un commit más**.

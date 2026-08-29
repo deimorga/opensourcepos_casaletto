@@ -1,8 +1,14 @@
 # Alcance funcional — Venta por peso, hardware de caja e inventario para supermercado
 
-> **Estado a 2026-08-27: alcance cerrado y documentado. Nada implementado todavía.**
-> Este documento y su par técnico son el punto de partida del desarrollo. Ninguna línea de código,
-> ninguna migración y ninguna configuración de este requerimiento existe aún.
+> **Estado a 2026-08-28: en construcción.** Ya está hecho el trabajo de fondo que no se ve:
+> los artículos ya pueden decir si se venden por unidad o por kilo, se corrigieron cuatro errores
+> que hacían perder decimales de peso en silencio, y el despliegue ya no puede dejar a un negocio
+> sin poder entrar al sistema. En curso: la pantalla de configuración de la báscula y el campo de
+> peso en la caja.
+>
+> **Todavía no está verificado contra una base de datos real.** Las pruebas están escritas, pero el
+> entorno de pruebas local no está disponible, así que 138 de ellas —incluidas las que comprueban
+> estos arreglos— nunca se han ejecutado. **Nada de esto debe llegar a producción antes de correrlas.**
 >
 > **Actualización del 2026-08-28:** báscula identificada y documentada (ROCHI RC-A01E, y es
 > **multiprotocolo**) — §4.3. Periféricos confirmados en §3.4; el terminal será **Windows**, así que
@@ -92,6 +98,8 @@ que hoy.
 ### 3.2 Lo que cambia en la ficha del artículo
 
 Aparece un campo nuevo: **unidad de medida**. Dice si el artículo se vende por unidad o por peso.
+**Ya está construido** (2026-08-28), y es opcional: un artículo que no lo llene se comporta como
+hasta hoy.
 
 No es un adorno: es lo que le permite al sistema saber a cuáles productos pedirle el peso a la
 báscula y a cuáles no. Sin ese campo la báscula no puede funcionar, y por eso está en la primera
