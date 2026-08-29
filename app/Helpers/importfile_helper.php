@@ -8,7 +8,11 @@
 function generate_import_items_csv(array $stock_locations, array $attributes): string
 {
     $csv_headers = pack('CCC', 0xef, 0xbb, 0xbf);    // Encode the Byte-Order Mark (BOM) so that UTF-8 File headers display properly in Microsoft Excel
-    $csv_headers .= 'Id,Barcode,"Item Name",Category,"Supplier ID","Cost Price","Unit Price","Tax 1 Name","Tax 1 Percent","Tax 2 Name","Tax 2 Percent","Reorder Level",Description,"Allow Alt Description","Item has Serial Number",Image,HSN';
+    // "Unit of Measure" is appended at the end and never inserted between existing columns:
+    // customers keep filled-in copies of this template, and reordering would silently shift every
+    // value they have already typed. A file written from an older template simply has no such
+    // column, which the importer treats as "leave the unit alone".
+    $csv_headers .= 'Id,Barcode,"Item Name",Category,"Supplier ID","Cost Price","Unit Price","Tax 1 Name","Tax 1 Percent","Tax 2 Name","Tax 2 Percent","Reorder Level",Description,"Allow Alt Description","Item has Serial Number",Image,HSN,"Unit of Measure"';
     $csv_headers .= generate_stock_location_headers($stock_locations);
     $csv_headers .= generate_attribute_headers($attributes);
 

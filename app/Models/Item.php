@@ -17,6 +17,15 @@ use stdClass;
 class Item extends Model
 {
 
+    /**
+     * How an item is sold. Stable codes, never labels: the wording lives in the Items.* language
+     * files and is resolved at display time, so switching locale cannot change what the data means.
+     * Same reasoning as payment_type_code and cash_source.
+     */
+    public const UNIT_OF_MEASURE_UNIT = 'unit';
+    public const UNIT_OF_MEASURE_KG = 'kg';
+    public const ALLOWED_UNITS_OF_MEASURE = [self::UNIT_OF_MEASURE_UNIT, self::UNIT_OF_MEASURE_KG];
+
     public const ALLOWED_SUGGESTIONS_COLUMNS = ['name', 'item_number', 'description', 'cost_price', 'unit_price'];
     public const ALLOWED_SUGGESTIONS_COLUMNS_WITH_EMPTY = ['', 'name', 'item_number', 'description', 'cost_price', 'unit_price'];
 
@@ -26,6 +35,7 @@ class Item extends Model
         'supplier_id',
         'cost_price',
         'unit_price',
+        'unit_of_measure',
         'reorder_level',
         'description',
         'allow_alt_description',
@@ -43,6 +53,7 @@ class Item extends Model
         'description',
         'cost_price',
         'unit_price',
+        'unit_of_measure',
         'reorder_level',
         'allow_alt_description',
         'is_serialized',
@@ -58,6 +69,34 @@ class Item extends Model
         'hsn_code'
     ];
 
+
+    /**
+     * Reduces anything at all to one of the codes the column accepts.
+     *
+     * Static and free of any database access on purpose: this is the single gate every write path
+     * goes through -- the item form, the CSV import and the bulk edit -- and it has to be provable
+     * on its own, without a live schema.
+     *
+     * Unrecognised input falls back to 'unit' rather than raising. The field is never mandatory, so
+     * an item saved without answering the question has to keep working, and 'unit' is the answer
+     * that leaves behaviour exactly as it was. That also means save_value(), which writes through
+     * the raw query builder and never consults $allowedFields, cannot be talked into storing a
+     * value the rest of the system does not understand.
+     *
+     * @param mixed $value raw input: a POST field, a CSV cell, a missing key
+     */
+    public static function normalize_unit_of_measure(mixed $value): string
+    {
+        if (!is_string($value)) {
+            return self::UNIT_OF_MEASURE_UNIT;
+        }
+
+        $code = strtolower(trim($value));
+
+        return in_array($code, self::ALLOWED_UNITS_OF_MEASURE, true)
+            ? $code
+            : self::UNIT_OF_MEASURE_UNIT;
+    }
 
     /**
      * Determines if a given item_id is an item
@@ -169,6 +208,7 @@ class Item extends Model
             $builder->select('MAX(items.description) AS description');
             $builder->select('MAX(items.cost_price) AS cost_price');
             $builder->select('MAX(items.unit_price) AS unit_price');
+            $builder->select('MAX(items.unit_of_measure) AS unit_of_measure');
             $builder->select('MAX(items.reorder_level) AS reorder_level');
             $builder->select('MAX(items.receiving_quantity) AS receiving_quantity');
             $builder->select('MAX(items.pic_filename) AS pic_filename');

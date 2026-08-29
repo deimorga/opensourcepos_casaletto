@@ -15,6 +15,8 @@
  * @var int $tax_category_id
  * @var bool $include_hsn
  * @var string $hsn_code
+ * @var string $unit_of_measure
+ * @var array $units_of_measure
  * @var array $stock_locations
  * @var bool $logo_exists
  * @var string $image_path
@@ -214,6 +216,15 @@
                         <span class="input-group-addon input-sm"><b><?= esc($config['currency_symbol']) ?></b></span>
                     <?php endif; ?>
                 </div>
+            </div>
+        </div>
+
+        <?php // Deliberately not marked required: an item saved without touching this keeps the
+              // 'unit' it already has, which is the behaviour every existing item has today. ?>
+        <div class="form-group form-group-sm">
+            <?= form_label(lang('Items.unit_of_measure'), 'unit_of_measure', ['class' => 'control-label col-xs-3']) ?>
+            <div class="col-xs-4">
+                <?= form_dropdown('unit_of_measure', $units_of_measure, $unit_of_measure, ['class' => 'form-control input-sm', 'id' => 'unit_of_measure']) ?>
             </div>
         </div>
 

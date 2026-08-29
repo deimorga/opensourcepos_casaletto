@@ -373,6 +373,19 @@ class Items extends Secure_Controller
             ? $item_info->hsn_code
             : '';
 
+        // The ?? is for a new item, where getEmptyObject() sets every non-numeric field to null,
+        // and it costs nothing on a schema that predates the column. It is NOT a mitigation for
+        // deploying ahead of the migration: Item::search() names the column outright, as every
+        // added column in this codebase does, and docs/Tecnico/venta-por-peso-y-hardware-de-caja.md
+        // section 7c.1 explains why tolerant reads cannot close that window anyway -- a pending
+        // migration destroys the session on every request long before a missing column is reached.
+        $data['unit_of_measure'] = Item::normalize_unit_of_measure($item_info->unit_of_measure ?? null);
+
+        $data['units_of_measure'] = [
+            Item::UNIT_OF_MEASURE_UNIT => lang('Items.unit_of_measure_unit'),
+            Item::UNIT_OF_MEASURE_KG   => lang('Items.unit_of_measure_kg'),
+        ];
+
         if ($use_destination_based_tax) {
             $data['use_destination_based_tax'] = true;
             $tax_categories = [];
@@ -658,6 +671,12 @@ class Items extends Secure_Controller
             'item_number'           => empty($this->request->getPost('item_number')) ? null : $this->request->getPost('item_number'),
             'cost_price'            => $cost_price,
             'unit_price'            => $unit_price,
+            // Never mandatory. A form posted without the selector -- an older cached page, a
+            // client script that does not know the field -- normalises to 'unit', which is the
+            // behaviour every existing item already has. save_value() writes with the raw query
+            // builder and never consults $allowedFields, so this call is the only thing standing
+            // between a POST field and the column.
+            'unit_of_measure'       => Item::normalize_unit_of_measure($this->request->getPost('unit_of_measure')),
             'reorder_level'         => $reorder_level,
             'receiving_quantity'    => $receiving_quantity,
             'allow_alt_description' => $this->request->getPost('allow_alt_description') != null,
@@ -917,6 +936,14 @@ class Items extends Secure_Controller
             }
         }
 
+        // The loop above copies raw POST values straight into an UPDATE across many rows at once,
+        // so the unit has to be normalised before it gets there. Only when it was actually
+        // submitted: an untouched field is skipped above and must stay untouched here too, or a
+        // bulk edit of prices would quietly reset every selected item to 'unit'.
+        if (isset($item_data['unit_of_measure'])) {
+            $item_data['unit_of_measure'] = Item::normalize_unit_of_measure($item_data['unit_of_measure']);
+        }
+
         // Item data could be empty if tax information is being updated
         if (empty($item_data) || $this->item->update_multiple($item_data, $items_to_update)) {
             $items_taxes_data = [];
@@ -1036,6 +1063,26 @@ class Items extends Secure_Controller
 
                         if (!empty($row['Supplier ID'])) {
                             $itemData['supplier_id'] = $this->supplier->exists($row['Supplier ID']) ? $row['Supplier ID'] : null;
+                        }
+
+                        // The key is only set when the cell actually holds something. A file
+                        // written from a template that predates the column has no such key at all,
+                        // and a blank cell means "not answered" -- writing 'unit' in either case
+                        // would demote every weighed item back to units on the next re-import.
+                        // Left out, an insert takes the column's own DEFAULT and an update leaves
+                        // the stored value untouched.
+                        $submittedUnit = $row['Unit of Measure'] ?? '';
+
+                        if (is_string($submittedUnit) && trim($submittedUnit) !== '') {
+                            $itemData['unit_of_measure'] = Item::normalize_unit_of_measure($submittedUnit);
+
+                            if ($itemData['unit_of_measure'] !== strtolower(trim($submittedUnit))) {
+                                // Not a reason to fail the row: the field is optional by design and
+                                // the item is otherwise valid. But a supermarket that meant to say
+                                // "kg" and typed something else has a pricing bug, so it is logged
+                                // rather than swallowed.
+                                log_message('error', "CSV import: unrecognised unit of measure '$submittedUnit'; the item was imported as '" . Item::UNIT_OF_MEASURE_UNIT . "'.");
+                            }
                         }
 
                         if ($isUpdate) {
