@@ -55,6 +55,21 @@ class Sale_lib
      */
     private const WEIGHT_ENTRY_KEY = 'sales_weight_entry';
 
+    /**
+     * A round number this long, typed with no decimal separator, is not a
+     * weight: it is a barcode that a scanner fired into the weight field while
+     * that field had the focus -- which it does, by design, for exactly as long
+     * as the register is waiting to be told a weight.
+     *
+     * Eight digits is the shortest standard retail barcode (EAN-8), and no shop
+     * weighs ten million kilos of anything, so the two ranges do not overlap.
+     *
+     * This is a barcode-shaped guard, not a scale limit. What a particular
+     * scale can weigh, and in what steps, belongs to that scale's configuration
+     * and not to this code -- the next customer will have a different one.
+     */
+    private const BARCODE_DIGITS = 8;
+
     public function __construct()
     {
         $this->session = session();
@@ -361,6 +376,14 @@ class Sale_lib
         $candidate = trim($raw);
 
         if (!preg_match('/^(?:\d+(?:[.,]\d*)?|[.,]\d+)$/', $candidate)) {
+            return null;
+        }
+
+        // A long round number is a barcode that went into the weight field,
+        // not a weight. Rejected here rather than sold: "7702001002344" is a
+        // perfectly well-formed number, and at 4.500 a kilo it is a line worth
+        // more than the shop.
+        if (!str_contains($candidate, '.') && !str_contains($candidate, ',') && strlen($candidate) >= self::BARCODE_DIGITS) {
             return null;
         }
 

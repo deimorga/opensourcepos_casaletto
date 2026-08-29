@@ -212,6 +212,20 @@ class SalesWeightEntryTest extends CIUnitTestCase
         $this->assertSame($this->kgItem, $this->pendingWeightItem()['item_id_or_number'] ?? null, 'The prompt stays up so the cashier can retype instead of hunting for the product again.');
     }
 
+    /**
+     * The weight field holds the focus for as long as the register waits for a
+     * weight, which is exactly when a cashier is most likely to reach for the
+     * scanner instead. A bare barcode is a well-formed number.
+     */
+    public function testABarcodeFiredIntoTheWeightFieldDoesNotBecomeAQuantity(): void
+    {
+        $this->postReq('sales/add', ['item' => $this->kgItem]);
+        $this->postReq('sales/addWeight', ['weight' => '7702001002344']);
+
+        $this->assertSame([], $this->cart(), 'At 4.500 a kilo that would be a line worth more than the shop.');
+        $this->assertNotSame([], $this->pendingWeightItem());
+    }
+
     public function testAZeroWeightIsRefused(): void
     {
         $this->postReq('sales/add', ['item' => $this->kgItem]);

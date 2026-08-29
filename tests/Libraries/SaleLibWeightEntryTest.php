@@ -93,6 +93,24 @@ class SaleLibWeightEntryTest extends CIUnitTestCase
     }
 
     /**
+     * The weight field holds the focus for exactly as long as the register is
+     * waiting to be told a weight, which is exactly when a cashier is most
+     * likely to reach for the scanner instead. A barcode is a well-formed
+     * number, and at 4.500 a kilo "7702001002344" is a line worth more than
+     * the shop -- so a long round number is refused rather than sold.
+     */
+    public function testALongRoundNumberIsABarcodeAndNotAWeight(): void
+    {
+        $this->assertNull(Sale_lib::normalize_weight_input('7702001002344'));
+    }
+
+    public function testTheGuardStopsAtBarcodeLengthAndDoesNotEatRealWeights(): void
+    {
+        $this->assertSame('9999999', Sale_lib::normalize_weight_input('9999999'), 'Seven digits is still a number somebody could mean.');
+        $this->assertSame('7702001.002344', Sale_lib::normalize_weight_input('7702001,002344'), 'The guard is for round numbers; anything with decimals was typed, not scanned.');
+    }
+
+    /**
      * Weights are never grouped, so a second separator is not a weight -- it
      * is a misread, and guessing which separator meant what is how a 1,475 kg
      * bag becomes a 1475 kg bag.
@@ -116,6 +134,8 @@ class SaleLibWeightEntryTest extends CIUnitTestCase
             'with a unit suffix'    => ['0.735kg'],
             'a raw scale frame'     => ['ST,GS,+  0.735kg'],
             'a barcode with a check letter' => ['7702001002344X'],
+            'a bare EAN-13 barcode'         => ['7702001002344'],
+            'the shortest standard barcode' => ['77020010'],
             'letters'               => ['abc'],
             'separator only'        => ['.'],
             'an expression'         => ['0.5+0.235'],
