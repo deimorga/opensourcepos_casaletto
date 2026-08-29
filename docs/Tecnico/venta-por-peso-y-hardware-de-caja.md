@@ -26,7 +26,7 @@
 
 ## 1. Principio rector
 
-**El peso es una cantidad decimal que atraviesa todo el sistema, y hoy hay tres puntos donde se
+**El peso es una cantidad decimal que atraviesa todo el sistema, y hoy hay cuatro puntos donde se
 pierde en silencio.** Antes de conectar una báscula hay que cerrarlos, porque un error de peso no
 se ve: la venta cuadra en plata y el inventario queda mal para siempre.
 
@@ -34,7 +34,7 @@ Un corolario que ordena las decisiones de hardware: **el navegador es el límite
 Todo lo que sigue sobre la báscula existe para cruzar esa frontera de la forma más barata y más
 reutilizable posible.
 
-## 2. Los tres defectos bloqueantes
+## 2. Los cuatro defectos bloqueantes
 
 Verificados leyendo el código, no inferidos. Hoy son invisibles porque Casaletto no vende por peso.
 
@@ -78,8 +78,25 @@ Con `quantity_purchased = '0.735'`, PHP en modo coercitivo convierte a `0`. **El
 Y la fila de auditoría que se inserta un par de líneas antes sí guarda el `0.735`, así que
 `item_quantities` y la tabla `inventory` quedan diciendo cosas distintas sin que nada avise.
 
-**Arreglo:** cambiar la firma a `string $quantity_change` y operar con `bcadd`, igual que hace
-`Sale::save()`, que sí es correcto porque calcula el nuevo saldo inline sin pasar por esta función.
+**Arreglo — corregido el 2026-08-28:** cambiar la firma a `string $quantity_change` y operar con
+`bcadd` **pasando escala explícita**: `bcadd($old, $change, quantity_decimals())`.
+
+**Sin la escala explícita el arreglo no arregla nada.** `Load_config.php:57` fija
+`bcscale(max(2, totals_decimals() + tax_decimals()))`, y `totals_decimals()` devuelve
+**`currency_decimals`** (`locale_helper.php:309`), no `quantity_decimals`. Con la configuración de
+este cliente (`currency_decimals = 0`, `tax_decimals = 2`) la escala global queda en **2**.
+Comprobado ejecutando PHP:
+
+```
+escala 2 → bcadd("10", "0.735")     = 10.73    ← pierde 5 g
+escala 3 → bcadd("0.735", "0.740")  = 1.475    ← correcto
+```
+
+Pasaría de perder 735 g a perder 5 g, con el mismo síntoma: `item_quantities` desalineado de
+`inventory`.
+
+*(Nota: el documento decía antes que `Sale::save()` "sí es correcto". En realidad `Sale.php:740`
+usa aritmética float plana, no bcmath. Es una referencia, no un modelo a copiar.)*
 
 ### 2.3 Los artículos no tienen unidad de medida
 
@@ -89,6 +106,22 @@ se vende por unidad. Ver el esquema base en
 
 Con la báscula en la caja esto dejó de ser cosmético: **es lo que le dice al POS a qué artículo
 pedirle el peso.** Es infraestructura del requerimiento, no un detalle de presentación.
+
+### 2.4 `Sale_lib::add_item()` trunca al sumar el mismo artículo dos veces
+
+Descubierto el 2026-08-28 auditando el anterior. En el camino "el artículo ya está en el carrito,
+súmale" ([`app/Libraries/Sale_lib.php:1110`](../../app/Libraries/Sale_lib.php)):
+
+```php
+$quantity = bcadd($quantity, $items[$updatekey]['quantity']);
+```
+
+Sin escala explícita, con la escala global en 2. **Pesar dos bolsas del mismo producto guarda
+1,47 kg en vez de 1,475.**
+
+Es el más frecuente de los cuatro: cinco gramos por repetición, en silencio,
+en la operación más común de un supermercado de hortalizas. **Arreglo:** misma escala explícita.
+**Prueba:** agregar el mismo artículo por peso dos veces y verificar el tercer decimal.
 
 ## 3. Modelo de datos: unidad de medida
 
@@ -649,40 +682,58 @@ el capítulo es:
 > **Los datos son por tenant; el código es de todos.** Una migración toca un solo negocio. Un cambio
 > en `Sale.php` toca a Casaletto en el segundo en que se despliega.
 
-### 7c.1 El riesgo que puede tumbar producción, y es de procedimiento
+### 7c.1 El riesgo real: una migración pendiente deja al tenant sin poder entrar
 
-> **Corregido el 2026-08-28.** Una versión anterior de esta sección afirmaba que no existía un
-> orquestador de migraciones multi-tenant. **Es falso y ya estaba construido.** Se deja la
-> corrección a la vista para que nadie vuelva a planear escribirlo.
+> **Reescrito el 2026-08-28.** Las dos versiones anteriores de esta sección estaban equivocadas: la
+> primera decía que no existía orquestador de migraciones (sí existe), y la segunda describía el
+> síntoma como "errores de columna inexistente". **Es mucho peor que eso.**
 
-Los workflows de despliegue **no ejecutan migraciones** — ninguno de `.github/workflows/` las corre.
-Eso sigue siendo cierto y es el riesgo real: se despliega el código nuevo, se migra el esquema del
-supermercado, se olvida el de Casaletto, y Casaletto empieza a lanzar errores de columna inexistente
-en plena venta.
+`app/Config/Events.php:61` engancha `Load_config::load_config()` a `post_controller_constructor`, o
+sea **en cada request**. Y ahí ([`app/Events/Load_config.php:46`](../../app/Events/Load_config.php)):
 
-**Lo que ya existe y hay que usar**, no reescribir: [`scripts/migrate-tenants.sh`](../../scripts/migrate-tenants.sh).
-Recorre todos los tenants activos y migra cada esquema por separado. Está bien construido:
+```php
+if (!$migration->is_latest()) {
+    $this->session->destroy();
+}
+```
 
-- Toma la lista de `tenant:list`, que marca cada línea con el prefijo `TENANT_DB:` **precisamente
-  porque spark escribe su propio banner en stdout** y la salida cruda no es capturable
-  ([`app/Commands/TenantList.php:33`](../../app/Commands/TenantList.php)).
+`is_latest()` compara la migración más alta en disco contra la más alta aplicada en el esquema. Si se
+despliega código con una migración que el tenant aún no aplicó, **cada petición destruye la sesión**:
+nadie se mantiene autenticado. No es un error en un flujo puntual — **la caja no abre**.
+
+#### Y el orden que este documento prescribía es imposible de ejecutar
+
+"Migrar todos los esquemas y después desplegar el código" no se puede hacer: la cabecera de
+[`scripts/migrate-tenants.sh`](../../scripts/migrate-tenants.sh) dice que debe correr *dentro del
+contenedor/imagen de la app*, porque **los archivos de migración viven en la imagen nueva**. No
+existen antes de desplegarla.
+
+Tampoco se resuelve desde el workflow: `deploy-core.yml:92` dispara un webhook al VPS y termina —
+GitHub Actions no tiene shell en el host.
+
+Y la mitigación que proponía la versión anterior (leer con `??` para tolerar la columna ausente)
+**no cierra esta ventana**, porque el daño no viene de leer una columna sino del comparador de
+versiones.
+
+#### Lo que sí existe y hay que usar
+
+`scripts/migrate-tenants.sh` está bien construido y no hay que reescribirlo:
+
+- Toma la lista de `tenant:list`, que marca cada línea con `TENANT_DB:` **porque spark escribe su
+  propio banner en stdout** ([`app/Commands/TenantList.php:33`](../../app/Commands/TenantList.php)).
 - Usa `tenant:migrate-one` y no el `migrate` de serie, **porque el segundo se traga las excepciones
-  y siempre sale 0**, lo que dejaría el bucle ciego a fallos reales.
-- Acumula los fallos, los lista al final y sale distinto de cero si hubo alguno, con la advertencia
-  correcta: *"Deploy must not proceed until these are fixed and re-run."*
+  y siempre sale 0**.
+- Acumula fallos y sale distinto de cero.
 
-**Lo que falta, y es la Fase 0 del plan:**
+#### Lo que falta, y es la Fase 0
 
-1. **Conectarlo al despliegue.** Su propia cabecera dice que no se conectó a
-   `deploy-staging.yml` / `deploy-production.yml` porque esos ambientes aún no tenían esquema
-   `platform_control`. **Ese motivo ya no aplica**: el multi-tenant se completó y Casaletto opera
-   como tenant real. El comentario quedó obsoleto y hay que actualizarlo junto con el cableado.
-2. **Invalidar la caché de configuración por tenant** al terminar cada migración — ver §7c.3. Hoy el
-   script no lo hace, y una migración que agregue claves de `app_config` deja al sistema leyendo el
-   mapa viejo.
-3. **Que el código tolere la columna ausente** en lo que se despliega primero. Una migración aditiva
-   con `DEFAULT` no rompe nada *después* de correr; el problema es la ventana *entre* el despliegue
-   y la migración. Leer con `??` y no asumir la columna cierra esa ventana.
+**Resolver dónde corre la migración**: desde el entrypoint del contenedor nuevo antes de admitir
+tráfico, o volviendo `is_latest()` tolerante al desfase. Es una decisión de diseño, no un cableado.
+Además, actualizar el comentario obsoleto del script — decía que no se cableó porque no había
+`platform_control` en esos ambientes, y ese motivo ya no aplica.
+
+**Corolario que vale para todo el proyecto:** cada `git merge` que traiga una migración es un evento
+de despliegue, no un commit más.
 
 ### 7c.2 Cambio por cambio: qué ve Casaletto
 
@@ -804,7 +855,10 @@ El criterio que se aplica acá:
 - **Regresión de peso**: venta de `0.735`, edición de la línea, y verificación de que sigue siendo
   `0.735`. Es la prueba que fija §2.1 y que hoy fallaría.
 - **Anulación con decimales**: anular una venta y una compra de `0.735` y verificar que
-  `item_quantities` y `inventory` coinciden. Fija §2.2.
+  `item_quantities` y `inventory` coinciden **al gramo**. Fija §2.2 — y falla si el `bcadd` no lleva
+  escala explícita, que es justo el punto.
+- **Pesar dos veces el mismo artículo**: agregar `0.735` y luego `0.740` del mismo producto y
+  verificar que el carrito dice `1.475`, no `1.47`. Fija §2.4.
 - **`parse_barcode` con dos formatos**: que el primero que coincide gane. Fija §4.4.
 - **Venta sin lotes**: con `tracks_lots = 0`, que la venta descuente del total sin tocar `item_lots`
   y sin fallar.
@@ -833,7 +887,7 @@ Plan aprobado el 2026-08-28.
    **conectarlo al despliegue**, agregarle la **invalidación de caché por tenant** (§7c.3),
    actualizar su comentario obsoleto y dejar escrita la lista de chequeo de §7c.6. Es lo que impide
    que el primer despliegue multi-tenant tumbe a Casaletto.
-1. **Fase 1** — §2.1, §2.2, §3 y §4.4, con las pruebas de §10 **en los dos escenarios de §7c.5**.
+1. **Fase 1** — §2.1, §2.2, §2.4, §3 y §4.4, con las pruebas de §10 **en los dos escenarios de §7c.5**.
    Antes de tocar `Token_lib`, correr las consultas de §7c.4 contra Casaletto. No depende de nada y
    protege también a Casaletto de una regresión.
 2. **Fase 2** — Provisionar el tenant y aplicar §7.

@@ -138,7 +138,17 @@ Dos cosas más que revisar al comprar el terminal:
   pequeños. Hay que agrandar lo que el cajero toca todo el día. No es rehacerla, pero tampoco es
   gratis, y se dimensiona mejor con el terminal ya elegido.
 
-### 3.5 Una precaución que el negocio va a notar
+### 3.5 Un error que encontramos revisando, y que el negocio habría pagado a diario
+
+Auditando el código apareció un defecto que no estaba en la lista original y que es el más frecuente
+de todos: **al pesar dos bolsas del mismo producto en la misma venta, el sistema guardaba 1,47 kg en
+vez de 1,475**. Cinco gramos por repetición, sin ningún aviso.
+
+En un supermercado de hortalizas eso pasa decenas de veces al día. No es plata perdida en la venta
+—el cliente paga lo que marca la pantalla— pero el **inventario en kilos se va desviando** de la
+realidad sin que nadie sepa por qué. Ya está identificado y entra en la primera fase de trabajo.
+
+### 3.6 Una precaución que el negocio va a notar
 
 El sistema **no va a aceptar un peso tomado mientras la bolsa se está acomodando**. Las básculas
 avisan cuándo el peso ya se asentó, y vamos a esperar ese aviso. En la práctica significa que el
