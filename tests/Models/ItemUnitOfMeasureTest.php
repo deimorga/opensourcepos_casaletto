@@ -15,15 +15,34 @@ use App\Models\Item;
  */
 class ItemUnitOfMeasureTest extends CIUnitTestCase
 {
-    public function testTheTwoCodesAreTheOnlyOnesAllowed(): void
+    /**
+     * Three, not two. Two was a guess and the data disagreed: the business sells QUESO DE CABEZA
+     * by the pound, and it is not the only one. 'unit' stays first because a de-selected dropdown
+     * falls back to whatever is printed first, and that has to be the code that changes nothing.
+     */
+    public function testTheThreeCodesAreTheOnlyOnesAllowed(): void
     {
-        $this->assertSame(['unit', 'kg'], Item::ALLOWED_UNITS_OF_MEASURE);
+        $this->assertSame(['unit', 'kg', 'lb'], Item::ALLOWED_UNITS_OF_MEASURE);
     }
 
     public function testCodesAreAccepted(): void
     {
         $this->assertSame('unit', Item::normalize_unit_of_measure('unit'));
         $this->assertSame('kg', Item::normalize_unit_of_measure('kg'));
+        $this->assertSame('lb', Item::normalize_unit_of_measure('lb'));
+    }
+
+    /**
+     * Pounds and kilos are separate units and stay separate: the price of an item is the price of
+     * one of ITS unit and the quantity is stored in that unit. Nothing here converts, and nothing
+     * anywhere else does either -- a conversion would be a pricing error, not a labelling one.
+     */
+    public function testAPoundIsNotAKilo(): void
+    {
+        $this->assertNotSame(
+            Item::normalize_unit_of_measure('lb'),
+            Item::normalize_unit_of_measure('kg')
+        );
     }
 
     /**
@@ -56,6 +75,8 @@ class ItemUnitOfMeasureTest extends CIUnitTestCase
         $this->assertSame('kg', Item::normalize_unit_of_measure(' KG '));
         $this->assertSame('kg', Item::normalize_unit_of_measure('Kg'));
         $this->assertSame('unit', Item::normalize_unit_of_measure('Unit'));
+        $this->assertSame('lb', Item::normalize_unit_of_measure(' LB '));
+        $this->assertSame('lb', Item::normalize_unit_of_measure('Lb'));
     }
 
     /**
@@ -66,7 +87,9 @@ class ItemUnitOfMeasureTest extends CIUnitTestCase
     public function testUnrecognisedInputFallsBackToUnit(): void
     {
         $this->assertSame('unit', Item::normalize_unit_of_measure('kilogramo'));
-        $this->assertSame('unit', Item::normalize_unit_of_measure('lb'));
+        $this->assertSame('unit', Item::normalize_unit_of_measure('libra'));
+        $this->assertSame('unit', Item::normalize_unit_of_measure('lbs'));
+        $this->assertSame('unit', Item::normalize_unit_of_measure('pound'));
         $this->assertSame('unit', Item::normalize_unit_of_measure('gramo'));
         $this->assertSame('unit', Item::normalize_unit_of_measure(str_repeat('k', 50)));
         $this->assertSame('unit', Item::normalize_unit_of_measure("kg'; DROP TABLE ospos_items; --"));
@@ -78,7 +101,7 @@ class ItemUnitOfMeasureTest extends CIUnitTestCase
      */
     public function testTheNormaliserCanOnlyEverEmitAllowedCodes(): void
     {
-        $inputs = ['unit', 'kg', ' KG ', null, '', 'kilogramo', ['kg'], 0, 'unidad'];
+        $inputs = ['unit', 'kg', ' KG ', 'lb', ' LB ', null, '', 'kilogramo', 'libra', ['kg'], 0, 'unidad'];
 
         foreach ($inputs as $input) {
             $this->assertContains(
@@ -106,5 +129,51 @@ class ItemUnitOfMeasureTest extends CIUnitTestCase
     public function testUnitOfMeasureCanBeBulkEdited(): void
     {
         $this->assertContains('unit_of_measure', Item::ALLOWED_BULK_EDIT_FIELDS);
+    }
+
+    /**
+     * One list of options, next to the codes it labels. A selector built anywhere else is a place
+     * where a fourth code can be forgotten -- which is exactly how 'lb' came to be missing from a
+     * column that already accepted it in every other sense.
+     */
+    public function testEveryAllowedCodeIsOfferedInTheSelector(): void
+    {
+        $this->assertSame(
+            Item::ALLOWED_UNITS_OF_MEASURE,
+            array_keys(Item::units_of_measure_options()),
+            'The selector and the column have to agree on which codes exist, and in what order.'
+        );
+    }
+
+    public function testEveryOptionCarriesALabelRatherThanItsOwnKey(): void
+    {
+        foreach (Item::units_of_measure_options() as $code => $label) {
+            $this->assertNotSame(
+                'Items.unit_of_measure_' . $code,
+                $label,
+                "No translation for '$code'; the selector would show the language key."
+            );
+            $this->assertNotSame('', trim($label));
+        }
+    }
+
+    /**
+     * The two locales this fork actually ships to a shop floor. The rest fall back to en, which is
+     * CodeIgniter's own behaviour and is fine; Spanish is not a fallback here, it is the language
+     * the cashier reads.
+     */
+    public function testBothShippedLocalesLabelEveryCode(): void
+    {
+        foreach (['en', 'es-ES'] as $locale) {
+            $strings = require APPPATH . 'Language/' . $locale . '/Items.php';
+
+            foreach (Item::ALLOWED_UNITS_OF_MEASURE as $code) {
+                $this->assertArrayHasKey(
+                    'unit_of_measure_' . $code,
+                    $strings,
+                    "$locale has no label for the '$code' unit of measure."
+                );
+            }
+        }
     }
 }

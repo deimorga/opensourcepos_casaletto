@@ -24,7 +24,30 @@ class Item extends Model
      */
     public const UNIT_OF_MEASURE_UNIT = 'unit';
     public const UNIT_OF_MEASURE_KG = 'kg';
-    public const ALLOWED_UNITS_OF_MEASURE = [self::UNIT_OF_MEASURE_UNIT, self::UNIT_OF_MEASURE_KG];
+    public const UNIT_OF_MEASURE_LB = 'lb';
+
+    /**
+     * Order matters twice over: 'unit' is printed first so a dropdown that lost its selection falls
+     * back to the code that changes nothing, and the sequence is what the selector renders.
+     *
+     * The pound is a separate unit, not a kilogram with a factor. Nothing in this system converts
+     * between them: an item's price is the price of one of ITS unit and the quantity is stored in
+     * that unit. A conversion here would be a pricing error, not a labelling one.
+     */
+    public const ALLOWED_UNITS_OF_MEASURE = [
+        self::UNIT_OF_MEASURE_UNIT,
+        self::UNIT_OF_MEASURE_KG,
+        self::UNIT_OF_MEASURE_LB
+    ];
+
+    /**
+     * Codes that mean "this item is priced by what it weighs, so ask for a weight".
+     *
+     * Named apart from the individual constants because the register asks this question of a cart
+     * line, not of a particular unit, and the answer has to widen when a fourth weighed unit
+     * arrives without anybody having to remember a second place to edit.
+     */
+    public const UNITS_OF_MEASURE_BY_WEIGHT = [self::UNIT_OF_MEASURE_KG, self::UNIT_OF_MEASURE_LB];
 
     public const ALLOWED_SUGGESTIONS_COLUMNS = ['name', 'item_number', 'description', 'cost_price', 'unit_price'];
     public const ALLOWED_SUGGESTIONS_COLUMNS_WITH_EMPTY = ['', 'name', 'item_number', 'description', 'cost_price', 'unit_price'];
@@ -96,6 +119,42 @@ class Item extends Model
         return in_array($code, self::ALLOWED_UNITS_OF_MEASURE, true)
             ? $code
             : self::UNIT_OF_MEASURE_UNIT;
+    }
+
+    /**
+     * The codes as a selector wants them: code => label, in the order they are offered.
+     *
+     * Here rather than in a controller because more than one screen needs it and because a list
+     * kept beside the codes cannot fall behind them. That is not hypothetical: 'lb' was accepted by
+     * normalize_unit_of_measure() and stored happily by the column while the only selector in the
+     * application still offered two options, so nobody could choose it.
+     *
+     * Labels are resolved at display time, never stored -- switching locale must not change what
+     * the data means. Same reasoning as payment_type_code and cash_source.
+     *
+     * @return array<string, string>
+     */
+    public static function units_of_measure_options(): array
+    {
+        $options = [];
+
+        foreach (self::ALLOWED_UNITS_OF_MEASURE as $code) {
+            $options[$code] = lang('Items.unit_of_measure_' . $code);
+        }
+
+        return $options;
+    }
+
+    /**
+     * Whether an item priced in this unit is sold by what it weighs.
+     *
+     * The register uses this to decide whether to ask for a weight. It is a question about the
+     * unit, so it is answered next to the units -- Sale_lib asks it of a cart line and Sales asks
+     * it of an item row, and neither should be holding its own list of which codes are weights.
+     */
+    public static function unit_of_measure_is_weight(mixed $value): bool
+    {
+        return in_array(self::normalize_unit_of_measure($value), self::UNITS_OF_MEASURE_BY_WEIGHT, true);
     }
 
     /**

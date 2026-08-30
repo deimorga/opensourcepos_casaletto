@@ -115,6 +115,7 @@ return [
     "type"                               => "Tipo de ítem",
     "unit_of_measure"                    => "Unidad de Medida",
     "unit_of_measure_kg"                 => "Kilogramo",
+    "unit_of_measure_lb"                 => "Libra",
     "unit_of_measure_unit"               => "Unidad",
     "unit_price"                         => "Precio de Venta",
     "unit_price_number"                  => "Precio de Venta debe ser número.",
