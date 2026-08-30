@@ -192,6 +192,31 @@ class WriteoffsControllerTest extends CIUnitTestCase
         $this->assertStringContainsString('no_access', (string) $response->getRedirectUrl());
     }
 
+    /**
+     * A smoke test, and not a pointless one: the date-range form pulls in partial/daterangepicker,
+     * which reads a dozen settings keys straight out of Config\OSPOS. A missing key there is a
+     * fatal on a page that no unit test would otherwise touch.
+     */
+    public function testTheReportAsksForADateRangeBeforeItRunsAnything(): void
+    {
+        $this->resetSession();
+
+        $response = $this->get('/writeoffs/report');
+
+        $response->assertStatus(200);
+        $this->assertStringContainsString('daterangepicker', $response->getBody());
+    }
+
+    public function testThePickerAnswersWithItemsWithoutNeedingTheItemsPermission(): void
+    {
+        $this->resetSession();
+
+        $response = $this->get('/writeoffs/suggest?term=Cebolla');
+
+        $response->assertStatus(200);
+        $this->assertStringContainsString('Cebolla de prueba', $response->getBody());
+    }
+
     public function testAWriteOffIsRecordedWithItsReasonAndTakenOffTheStock(): void
     {
         $response = $this->post_write_off(['quantity' => '3', 'reason_code' => 'theft', 'comment' => 'Faltó en el conteo']);
