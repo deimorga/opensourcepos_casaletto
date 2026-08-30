@@ -2,6 +2,7 @@
 
 namespace Tests\Database;
 
+use App\Database\Migrations\Migration_BackfillUnitOfMeasureFromDescription;
 use App\Database\Migrations\Migration_ReclassifyPoundItemsUnitOfMeasure;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -35,6 +36,7 @@ class ReclassifyPoundItemsTest extends CIUnitTestCase
         // Composer excludes app/Database/Migrations from the classmap -- the file name carries the
         // timestamp and the class does not -- so the migration is required by hand, the same way
         // BackfillUnitOfMeasureTest does it.
+        require_once APPPATH . 'Database/Migrations/20260903000000_BackfillUnitOfMeasureFromDescription.php';
         require_once APPPATH . 'Database/Migrations/20260905000000_ReclassifyPoundItemsUnitOfMeasure.php';
 
         db_connect()->resetDataCache();
@@ -240,6 +242,32 @@ class ReclassifyPoundItemsTest extends CIUnitTestCase
         $this->migration()->up();
 
         $this->assertSame('unit', $this->unitOf($ordinary));
+    }
+
+    // ========== The two migrations in sequence, which is what a deploy runs ==========
+
+    /**
+     * The production scenario, and the only one that actually matters: a tenant that has never run
+     * either migration gets both in one process, in timestamp order. The backfill reads the
+     * description and files the head cheese under kilograms; this one takes it the rest of the way.
+     *
+     * Worth its own test because the two are coupled through a value neither of them stores: the
+     * fact that 'kg' on a row described as a kilogram is a migration's work and not a person's.
+     */
+    public function testAFreshTenantEndsWithThePoundsOnLbAndTheKilosOnKg(): void
+    {
+        $queso  = $this->seedItem('CHAINQ', 'QUESO DE CABEZA', 'Unidad: kilogramo', 'unit');
+        $tomato = $this->seedItem('CHAINK', 'TOMATE CHONTO', 'Unidad: kilogramo', 'unit');
+        $pound  = $this->seedItem('CHAINL', 'COSTILLA DE CERDO', 'Unidad: libra', 'unit');
+        $plain  = $this->seedItem('CHAINU', 'PAN', 'Unidad: unidad', 'unit');
+
+        (new Migration_BackfillUnitOfMeasureFromDescription(Database::forge('tests')))->up();
+        $this->migration()->up();
+
+        $this->assertSame('lb', $this->unitOf($queso), 'Described as a kilogram, sold by the pound.');
+        $this->assertSame('kg', $this->unitOf($tomato), 'Described as a kilogram, and actually is one.');
+        $this->assertSame('lb', $this->unitOf($pound));
+        $this->assertSame('unit', $this->unitOf($plain));
     }
 
     // ========== Rolling back ==========
