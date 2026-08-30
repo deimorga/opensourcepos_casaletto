@@ -1,0 +1,31 @@
+<?php
+
+return [
+    "all"                => "All",
+    "comment"            => "Comment",
+    "cost_price"         => "Cost",
+    "error_adding"       => "The write-off could not be recorded",
+    "item"               => "Item",
+    "item_name"          => "Item Name",
+    "item_number"        => "Item Number",
+    "item_required"      => "Pick an item from the list",
+    "new"                => "Record Write-off",
+    "no_write_offs"      => "Nothing was written off in this period.",
+    "quantity"           => "Quantity",
+    "quantity_invalid"   => "Enter the quantity as a number greater than zero. Decimals are allowed: half a kilo is 0.5",
+    "reason"             => "Reason",
+    "reason_damaged"     => "Damaged",
+    "reason_data_entry"  => "Data entry error",
+    "reason_invalid"     => "Pick one of the listed reasons",
+    "reason_shrinkage"   => "Shrinkage",
+    "reason_theft"       => "Theft",
+    "report"             => "Write-off Report",
+    "report_input"       => "Report Input",
+    "stock_location"     => "Stock Location",
+    "stock_location_invalid" => "Pick a stock location from the list",
+    "submit"             => "Record",
+    "successful_adding"  => "Write-off recorded for",
+    "total_cost"         => "Total cost written off",
+    "total_quantity"     => "Total quantity written off",
+    "write_off_cost"     => "Cost written off"
+];

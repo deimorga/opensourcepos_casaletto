@@ -1,0 +1,31 @@
+<?php
+
+return [
+    "all"                => "Todas",
+    "comment"            => "Comentario",
+    "cost_price"         => "Costo",
+    "error_adding"       => "No se pudo registrar la merma",
+    "item"               => "Artículo",
+    "item_name"          => "Artículo",
+    "item_number"        => "Código",
+    "item_required"      => "Elija un artículo de la lista",
+    "new"                => "Registrar merma",
+    "no_write_offs"      => "No se registró ninguna merma en este período.",
+    "quantity"           => "Cantidad",
+    "quantity_invalid"   => "Escriba la cantidad como un número mayor que cero. Se aceptan decimales: medio kilo es 0.5",
+    "reason"             => "Motivo",
+    "reason_damaged"     => "Dañado",
+    "reason_data_entry"  => "Error de digitación",
+    "reason_invalid"     => "Elija uno de los motivos de la lista",
+    "reason_shrinkage"   => "Mermado",
+    "reason_theft"       => "Robo",
+    "report"             => "Reporte de merma",
+    "report_input"       => "Parámetros del reporte",
+    "stock_location"     => "Sede",
+    "stock_location_invalid" => "Elija una sede de la lista",
+    "submit"             => "Registrar",
+    "successful_adding"  => "Merma registrada para",
+    "total_cost"         => "Costo total mermado",
+    "total_quantity"     => "Cantidad total mermada",
+    "write_off_cost"     => "Costo mermado"
+];

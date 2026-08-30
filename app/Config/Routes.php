@@ -32,6 +32,18 @@ $routes->post('platform/admin/(:segment)/delete', 'PlatformAdmin::delete/$1');
 $routes->add('no_access/index/(:segment)', 'No_access::index/$1');
 $routes->add('no_access/index/(:segment)/(:segment)', 'No_access::index/$1/$2');
 
+// Write-offs: recording stock that was lost, with a classified reason, and the report on it.
+//
+// Declared explicitly even though auto-routing would find these methods anyway: the report takes
+// its date range in the path, and with a tenant configured to show times those segments contain a
+// space and two colons, so it is worth being able to see the shape of the URL in one place.
+// (:any) rather than (:segment) for the same reason -- the dates arrive urlencoded.
+$routes->get('writeoffs', 'Writeoffs::getIndex');
+$routes->post('writeoffs/save', 'Writeoffs::postSave');
+$routes->get('writeoffs/suggest', 'Writeoffs::getSuggest');
+$routes->get('writeoffs/report', 'Writeoffs::getReport');
+$routes->get('writeoffs/report/(:any)/(:any)/(:any)', 'Writeoffs::getReport/$1/$2/$3');
+
 // Analytical reports. Declared before the wildcards below: they do not collide today, but an
 // explicit order costs nothing and survives whoever adds the next (:any) pattern.
 //

@@ -293,6 +293,10 @@ gulp.task('copy-menubar', function() {
     pipeline(gulp.src("./node_modules/elegant-circles/svg/full-color/bar-chart.svg"),rename("reports.svg"),gulp.dest("public/images/menubar"));
     pipeline(gulp.src("./node_modules/elegant-circles/svg/full-color/cart.svg"),rename("sales.svg"),gulp.dest("public/images/menubar"));
     pipeline(gulp.src("./node_modules/elegant-circles/svg/full-color/briefcase.svg"),rename("suppliers.svg"),gulp.dest("public/images/menubar"));
+    // Write-offs. The menu builds its icon path from the module id (app/Views/partial/header.php),
+    // public/images/menubar is a build output and is gitignored, so a new module without a line
+    // here ships a broken image in the top bar for whoever is granted it.
+    pipeline(gulp.src("./node_modules/elegant-circles/svg/full-color/recycle.svg"),rename("writeoffs.svg"),gulp.dest("public/images/menubar"));
     return pipeline(gulp.src('./node_modules/elegant-circles/svg/full-color/money.svg'),rename("taxes.svg"),gulp.dest("public/images/menubar"));
 });
 

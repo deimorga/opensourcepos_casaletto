@@ -46,4 +46,6 @@ return [
     "timeclocks_categories"      => "Reloj de Registro de Categorías",
     "timeclocks_categories_desc" => "Agregar, Actualizar, Borrar, y buscar Reloj de Registro de Categorías",
     "timeclocks_desc"            => "Reloj de Registro.",
+    "writeoffs"                  => "Mermas",
+    "writeoffs_desc"             => "Registrar producto dañado, mermado, robado o mal digitado, y su informe.",
 ];

@@ -46,4 +46,6 @@ return [
     "timeclocks_categories"      => "",
     "timeclocks_categories_desc" => "",
     "timeclocks_desc"            => "",
+    "writeoffs"                  => "Merma",
+    "writeoffs_desc"             => "Registrar producto dañado, mermado, robado o mal digitado, y su reporte.",
 ];
