@@ -46,4 +46,6 @@ return [
     "timeclocks_categories"      => "",
     "timeclocks_categories_desc" => "",
     "timeclocks_desc"            => "",
+    "writeoffs"                  => "Write-offs",
+    "writeoffs_desc"             => "Record damaged, shrunk, stolen or miskeyed stock, and report on it.",
 ];
