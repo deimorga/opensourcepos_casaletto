@@ -630,15 +630,22 @@ class Sales extends Secure_Controller
                 $data['warning'] = $stock_warning;
             }
         } elseif (!$weight_came_from_barcode && ($weight_item = $this->_item_sold_by_weight($item_id_or_number_or_item_kit_or_receipt)) !== null) {
-            // Nothing goes in the cart yet. The item is priced by the kilo, so
-            // the register asks how much it weighs and waits: a line that
-            // defaulted to 1 kg and was never corrected is a sale of 1 kg that
-            // nobody notices.
+            // Nothing goes in the cart yet. The item is priced by what it
+            // weighs, so the register asks how much it weighs and waits: a line
+            // that defaulted to 1 and was never corrected is a sale of one kilo
+            // -- or one pound -- that nobody notices.
+            //
+            // The unit travels with the prompt because the prompt is the only
+            // thing telling the cashier which number to type, and asking for
+            // kilos on a product priced by the pound is not a labelling
+            // mistake. Nothing converts: the price is the price of one of the
+            // item's own unit and the weight is stored in that unit.
             $this->sale_lib->set_weight_entry([
                 'item_id_or_number' => (string) $item_id_or_number_or_item_kit_or_receipt,
                 'name'              => $weight_item->name,
                 'item_number'       => $weight_item->item_number,
-                'unit_price'        => $weight_item->unit_price
+                'unit_price'        => $weight_item->unit_price,
+                'unit_of_measure'   => Item::normalize_unit_of_measure($weight_item->unit_of_measure ?? null)
             ]);
         } else {
             if ($item_id_or_number_or_item_kit_or_receipt == '' || !$this->sale_lib->add_item($item_id_or_number_or_item_kit_or_receipt, $item_location, $quantity, $discount, $discount_type, PRICE_MODE_STANDARD, null, null, $price)) {
@@ -728,12 +735,17 @@ class Sales extends Secure_Controller
     }
 
     /**
-     * The item behind a scanned code when that item is priced by the kilo, and
-     * null in every other case -- including a code that matches nothing.
+     * The item behind a scanned code when that item is priced by what it
+     * weighs, and null in every other case -- including a code that matches
+     * nothing.
      *
      * Looked up exactly the way add_item() looks it up (deleted items excluded)
      * so the register asks for a weight precisely when add_item() would store
      * one.
+     *
+     * "Priced by weight" is Item's question to answer, not a comparison against
+     * one code: this used to test for 'kg' alone and so walked straight past
+     * every pound-priced product, adding it silently at quantity 1.
      */
     private function _item_sold_by_weight(?string $item_id_or_number): ?stdClass
     {
@@ -748,9 +760,7 @@ class Sales extends Secure_Controller
         }
 
         // ?? null covers item rows written before the column existed.
-        $unit_of_measure = Item::normalize_unit_of_measure($item_info->unit_of_measure ?? null);
-
-        return $unit_of_measure === Item::UNIT_OF_MEASURE_KG ? $item_info : null;
+        return Item::unit_of_measure_is_weight($item_info->unit_of_measure ?? null) ? $item_info : null;
     }
 
     /**

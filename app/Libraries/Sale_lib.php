@@ -224,11 +224,46 @@ class Sale_lib
     }
 
     /**
-     * True when this cart line is priced by the kilo rather than by the unit.
+     * True when this cart line is priced by what it weighs rather than by the unit.
+     *
+     * Was a comparison against 'kg' alone, which quietly meant "the register only stops to weigh
+     * kilos". The business sells QUESO DE CABEZA by the pound, so that read as "do not ask for a
+     * weight" on a product that is nothing but weight. Which codes are weights is Item's to say,
+     * so that a fourth one never needs finding here as well.
      */
     public static function line_sells_by_weight(array $line): bool
     {
-        return self::line_unit_of_measure($line) === Item::UNIT_OF_MEASURE_KG;
+        return Item::unit_of_measure_is_weight(self::line_unit_of_measure($line));
+    }
+
+    /**
+     * The symbol to print beside this line's quantity: 'kg', 'lb', or nothing for a unit line.
+     *
+     * Goes through line_unit_of_measure() for the same reason everything else does -- the cart is
+     * in the session and a line built before the key existed has no unit on it.
+     */
+    public static function line_unit_of_measure_symbol(array $line): string
+    {
+        return Item::unit_of_measure_symbol(self::line_unit_of_measure($line));
+    }
+
+    /**
+     * The unit the register is asking a weight in, for the item currently waiting to be weighed.
+     *
+     * Defaults to kilograms, and that default is about deploy day rather than about taste: a weight
+     * entry parked in a session before this key existed belongs to a sale somebody has open, and
+     * kilos is what it was when it was created. Anything that is not a weight at all -- which
+     * cannot get here through Sales::postAdd(), but a session is not a place to be sure about --
+     * reads as kilos too, because the prompt has to say something and only a weighed item can be
+     * standing there.
+     */
+    public static function weight_entry_unit_of_measure(array $entry): string
+    {
+        $unit_of_measure = Item::normalize_unit_of_measure($entry['unit_of_measure'] ?? null);
+
+        return Item::unit_of_measure_is_weight($unit_of_measure)
+            ? $unit_of_measure
+            : Item::UNIT_OF_MEASURE_KG;
     }
 
     /**

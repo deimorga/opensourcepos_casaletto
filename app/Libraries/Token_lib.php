@@ -29,6 +29,12 @@ class Token_lib
      */
     public const SCALE_MAX_FRAME_LENGTH = 256;
 
+    /**
+     * What a {W:n} inside a barcode is divided by when the tenant has not said otherwise. Grams,
+     * which is what most label printers emit and what this code assumed outright until now.
+     */
+    public const BARCODE_WEIGHT_DIVISOR_DEFAULT = 1000;
+
     private array $strftimeToIntlPatternMap = [
         '%a' => 'EEE',
         '%A' => 'EEEE',
@@ -181,26 +187,93 @@ class Token_lib
         return $token_tree;
     }
 
+    /**
+     * Reads a scanned code against the configured barcode formats.
+     *
+     * The three arguments are in/out: the code goes in as
+     * $item_id_or_number_or_item_kit_or_receipt and comes back reduced to whatever the matching
+     * format says is the item, with the quantity and the price the code carried alongside it.
+     *
+     * Formats are tried in the order the operator listed them and **the first one that matches
+     * wins**. That is the fix for the defect this method shipped with: the loop had no break, so
+     * every later format overwrote the result of the one that matched -- and a format that did not
+     * match wrote quantity 1 and price null, which is how a weighed item became a single unit with
+     * the weight gone and nothing in the log to say so.
+     *
+     * A code no format recognises is handed back exactly as scanned, at quantity 1: unrecognised is
+     * not the same as invalid, and the item lookup downstream is what decides.
+     */
     public function parse_barcode(?string &$quantity, ?string &$price, ?string &$item_id_or_number_or_item_kit_or_receipt): void
     {
         $config = config(OSPOS::class)->settings;
-        $barcode_formats = json_decode($config['barcode_formats']);
+
+        // ?? because the key is absent on any tenant whose app_config predates it, and reading a
+        // setting must never be the thing that fails a scan.
+        $barcode_formats = json_decode($config['barcode_formats'] ?? '');
         $barcode_tokens = Token::get_barcode_tokens();
 
-        if (!empty($barcode_formats)) {
-            foreach ($barcode_formats as $barcode_format) {
-                $parsed_results = $this->parse($item_id_or_number_or_item_kit_or_receipt, $barcode_format, $barcode_tokens);
-                $quantity = (isset($parsed_results['W'])) ? (int) $parsed_results['W'] / 1000 : 1;
-                $item_id_or_number_or_item_kit_or_receipt = (isset($parsed_results['I'])) ?
-                    $parsed_results['I'] : $item_id_or_number_or_item_kit_or_receipt;
-                $price = (isset($parsed_results['P'])) ? (double) $parsed_results['P'] : null;
+        $quantity = 1;
+
+        if (empty($barcode_formats)) {
+            // The shipped state, and the only state production has ever been in. Nothing is parsed
+            // and $price is left as the caller passed it, which is null.
+            return;
+        }
+
+        $divisor = $this->barcode_weight_divisor($config);
+
+        foreach ($barcode_formats as $barcode_format) {
+            $parsed_results = $this->parse(
+                $item_id_or_number_or_item_kit_or_receipt,
+                $barcode_format,
+                $barcode_tokens,
+                true
+            );
+
+            if ($parsed_results === []) {
+                continue;
             }
-        } else {
-            $quantity = 1;
+
+            $quantity = isset($parsed_results['W']) ? (int) $parsed_results['W'] / $divisor : 1;
+            $price = isset($parsed_results['P']) ? (float) $parsed_results['P'] : null;
+
+            if (isset($parsed_results['I'])) {
+                $item_id_or_number_or_item_kit_or_receipt = $parsed_results['I'];
+            }
+
+            return;
         }
     }
 
-    public function parse(string $string, string $pattern, array $tokens = []): array
+    /**
+     * What the weight embedded in a barcode has to be divided by to become a quantity.
+     *
+     * This was the literal 1000, which says every scale in the world prints grams into its labels.
+     * Plenty do; the ones that print whole units, or hundredths, were simply unusable. The default
+     * is still 1000 so no tenant's numbers move under them.
+     *
+     * Zero or negative is a typo with no defensible reading -- and dividing by zero in front of a
+     * queue is an error page, not a wrong number. Those fall back to the historical 1000 rather
+     * than refusing the scan. (parse_scale() answers null in the same situation, because there the
+     * caller has somewhere to put a "no reading"; here there is not.)
+     */
+    private function barcode_weight_divisor(array $config): int
+    {
+        $divisor = (int) ($config['barcode_weight_divisor'] ?? self::BARCODE_WEIGHT_DIVISOR_DEFAULT);
+
+        return $divisor > 0 ? $divisor : self::BARCODE_WEIGHT_DIVISOR_DEFAULT;
+    }
+
+    /**
+     * @param bool $anchored Whether the pattern has to describe the whole subject. The barcode
+     *                       reader says yes: a format is a statement about what a complete code
+     *                       looks like, and an unanchored one recognised itself in the middle of a
+     *                       longer string -- inventing an item number and a weight out of padding.
+     *                       The scale reader says no, and must keep saying no: a buffered serial
+     *                       read legitimately holds several frames and the first one is the answer
+     *                       (see parse_scale() and SCALE_MAX_FRAME_LENGTH).
+     */
+    public function parse(string $string, string $pattern, array $tokens = [], bool $anchored = false): array
     {
         $token_tree = $this->scan($pattern);
 
@@ -218,7 +291,12 @@ class Token_lib
 
         $results = [];
 
-        if (preg_match("/$pattern/", $string, $matches)) {
+        // \A and \z, not ^ and $. '$' matches before a trailing newline as well as at the end, so
+        // a subject with one on it would still count as "the whole code" -- a half-anchor is not
+        // what the caller asked for. \z is the end of the subject and nothing else.
+        $regex = $anchored ? "/\A$pattern\z/" : "/$pattern/";
+
+        if (preg_match($regex, $string, $matches)) {
             foreach ($found_tokens as $token) {
                 $index = array_search($token, $found_tokens);
                 $match = $matches[$index + 1];

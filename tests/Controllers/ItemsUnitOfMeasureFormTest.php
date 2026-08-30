@@ -2,6 +2,7 @@
 
 namespace Tests\Controllers;
 
+use App\Models\Item;
 use CodeIgniter\Test\CIUnitTestCase;
 
 /**
@@ -72,14 +73,33 @@ class ItemsUnitOfMeasureFormTest extends CIUnitTestCase
      */
     public function testUnitIsTheFirstAndThereforeTheFallbackOption(): void
     {
-        $controller = file_get_contents(__DIR__ . '/../../app/Controllers/Items.php');
-        $options = $this->extractBetween($controller, "\$data['units_of_measure'] = [", '];');
-
-        $this->assertLessThan(
-            strpos($options, 'UNIT_OF_MEASURE_KG'),
-            strpos($options, 'UNIT_OF_MEASURE_UNIT'),
+        $this->assertSame(
+            Item::UNIT_OF_MEASURE_UNIT,
+            array_key_first(Item::units_of_measure_options()),
             'The safe code must be printed first so a de-selected dropdown falls back to it.'
         );
+    }
+
+    /**
+     * The template renders the model's list rather than the one the controller assembles. Reading
+     * the markup for that is the cheap way to catch a revert to a hand-written array in the view --
+     * which is where a newly allowed code silently fails to appear.
+     */
+    public function testTheSelectorIsBuiltFromTheModelsList(): void
+    {
+        $this->assertStringContainsString(
+            'Item::units_of_measure_options()',
+            $this->template,
+            'The selector must offer every code the column accepts, not a list kept in parallel.'
+        );
+    }
+
+    /**
+     * The pound is why this whole change exists, so it gets its own line.
+     */
+    public function testThePoundIsOnOffer(): void
+    {
+        $this->assertArrayHasKey(Item::UNIT_OF_MEASURE_LB, Item::units_of_measure_options());
     }
 
     private function extractLabelCall(string $field): string

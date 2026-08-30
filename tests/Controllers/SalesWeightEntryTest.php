@@ -35,6 +35,7 @@ class SalesWeightEntryTest extends CIUnitTestCase
     protected $namespace   = 'App';
 
     private string $kgItem   = 'TEST-WEIGHT-TOMATO';
+    private string $lbItem   = 'TEST-WEIGHT-QUESO';
     private string $unitItem = 'TEST-WEIGHT-EMPANADA';
 
     protected function setUp(): void
@@ -66,6 +67,9 @@ class SalesWeightEntryTest extends CIUnitTestCase
         $sale_lib->clear_mode();
 
         $this->createTestItem($this->kgItem, 'Tomate', Item::UNIT_OF_MEASURE_KG, '4500.00');
+        // Priced per pound, not per kilo. 9.500 is the price of ONE POUND and nothing multiplies
+        // it by 2,2046 anywhere on this path.
+        $this->createTestItem($this->lbItem, 'Queso de cabeza', Item::UNIT_OF_MEASURE_LB, '9500.00');
         $this->createTestItem($this->unitItem, 'Empanada', Item::UNIT_OF_MEASURE_UNIT, '5000.00');
 
         $this->loginAsAdmin();
@@ -167,6 +171,97 @@ class SalesWeightEntryTest extends CIUnitTestCase
         $this->assertSame([], $this->cart(), 'Nothing may reach the cart before there is a real weight: a line left at a default 1 kg is a sale of 1 kg nobody notices.');
         $this->assertSame($this->kgItem, $this->pendingWeightItem()['item_id_or_number'] ?? null);
         $this->assertSame('Tomate', $this->pendingWeightItem()['name'] ?? null, 'The prompt has to name the product the cashier just scanned.');
+    }
+
+    // ========== The pound, which is why any of this was revisited ==========
+
+    public function testScanningAPoundPricedItemAlsoWaitsForTheWeight(): void
+    {
+        $this->postReq('sales/add', ['item' => $this->lbItem]);
+
+        $this->assertSame([], $this->cart(), 'A pound-priced item is weighed too; it may not enter at a default 1.');
+        $this->assertSame($this->lbItem, $this->pendingWeightItem()['item_id_or_number'] ?? null);
+    }
+
+    public function testTheWeightBecomesTheQuantityInPounds(): void
+    {
+        $this->postReq('sales/add', ['item' => $this->lbItem]);
+        $this->postReq('sales/addWeight', ['weight' => '0,500']);
+
+        $line = $this->onlyCartLine();
+
+        $this->assertSame(0, bccomp('0.500', (string) $line['quantity'], 3));
+        $this->assertSame(Item::UNIT_OF_MEASURE_LB, Sale_lib::line_unit_of_measure($line));
+    }
+
+    /**
+     * The one number that would prove a conversion had crept in. Half a pound at 9.500 the pound is
+     * 4.750. If anything anywhere translated pounds to kilos it would be 10.472 or 2.154 instead.
+     */
+    public function testHalfAPoundIsPricedAsHalfAPoundAndNotAsAnyWeightInKilos(): void
+    {
+        $this->postReq('sales/add', ['item' => $this->lbItem]);
+        $this->postReq('sales/addWeight', ['weight' => '0,500']);
+
+        $this->assertSame(0, bccomp('4750.00', (string) $this->onlyCartLine()['total'], 2));
+    }
+
+    /**
+     * The prompt is the only thing telling the cashier which number to type. On a product sold by
+     * the pound, "Weight in kilograms" is not a cosmetic error.
+     */
+    public function testThePromptAsksForPoundsOnAPoundPricedItem(): void
+    {
+        $this->postReq('sales/add', ['item' => $this->lbItem]);
+        $body = $this->getReq('sales')->getBody();
+
+        $this->assertStringContainsString('id="weight"', $body);
+        $this->assertStringContainsString(
+            lang('Sales.weight_in_lb'),
+            $body,
+            'The weight prompt still asks for the wrong unit.'
+        );
+        $this->assertStringNotContainsString(lang('Sales.weight_in_kg'), $body);
+        $this->assertStringContainsString(lang('Sales.price_per_lb'), $body);
+    }
+
+    public function testThePromptStillAsksForKilogramsOnAKiloPricedItem(): void
+    {
+        $this->postReq('sales/add', ['item' => $this->kgItem]);
+        $body = $this->getReq('sales')->getBody();
+
+        $this->assertStringContainsString(lang('Sales.weight_in_kg'), $body);
+        $this->assertStringNotContainsString(lang('Sales.weight_in_lb'), $body);
+        $this->assertStringContainsString(lang('Sales.price_per_kg'), $body);
+    }
+
+    /**
+     * And once the line is in the cart, the symbol beside the quantity has to agree with it.
+     */
+    public function testTheCartLineShowsTheUnitTheCashierTyped(): void
+    {
+        $this->postReq('sales/add', ['item' => $this->lbItem]);
+        $this->postReq('sales/addWeight', ['weight' => '0,500']);
+
+        $this->assertStringContainsString(
+            '<span class="line-unit-of-measure">lb</span>',
+            $this->getReq('sales')->getBody()
+        );
+    }
+
+    /**
+     * Correcting a pound line has to take the weight-aware parser too: through parse_decimals() on
+     * this tenant "0.750" is 750 pounds of head cheese.
+     */
+    public function testRetypingAWeightOnAPoundLineIsReadAsPounds(): void
+    {
+        $this->postReq('sales/add', ['item' => $this->lbItem]);
+        $this->postReq('sales/addWeight', ['weight' => '0,500']);
+        $line = array_key_first($this->cart());
+
+        $this->postReq('sales/editItem/' . $line, ['description' => '', 'serialnumber' => '', 'location' => 1, 'quantity' => '0.750', 'price' => '9500', 'discount' => '0']);
+
+        $this->assertSame(0, bccomp('0.750', (string) $this->onlyCartLine()['quantity'], 3));
     }
 
     /**

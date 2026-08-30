@@ -133,6 +133,50 @@ class SaleLibCartUnitOfMeasureTest extends CIUnitTestCase
     }
 
     /**
+     * QUESO DE CABEZA's world. A pound is a weight, so the cart line has to say so -- and it has to
+     * say pound, not kilo: nothing converts between them and the price is per pound.
+     */
+    public function testAPoundItemReachesTheCartCarryingItsOwnUnit(): void
+    {
+        $this->useTenantSettings('3');
+        $itemId  = $this->createItem('TEST-UOM-QUESO', Item::UNIT_OF_MEASURE_LB);
+        $saleLib = new Sale_lib();
+
+        $this->addToCart($saleLib, $itemId, '0.500');
+        $line = $this->cartLineOf($saleLib, $itemId);
+
+        $this->assertSame(Item::UNIT_OF_MEASURE_LB, Sale_lib::line_unit_of_measure($line));
+        $this->assertTrue(Sale_lib::line_sells_by_weight($line), 'A pound-priced item has to stop the register for a weight.');
+        $this->assertSame('lb', Sale_lib::line_unit_of_measure_symbol($line), 'The cashier must see the unit she is typing.');
+    }
+
+    public function testAKilogramLineStillShowsKilogramsAndAUnitLineShowsNothing(): void
+    {
+        $this->useTenantSettings('3');
+        $kiloId = $this->createItem('TEST-UOM-SYM-KG', Item::UNIT_OF_MEASURE_KG);
+        $unitId = $this->createItem('TEST-UOM-SYM-UNIT', Item::UNIT_OF_MEASURE_UNIT);
+        $saleLib = new Sale_lib();
+
+        $this->addToCart($saleLib, $kiloId, '0.735');
+        $this->addToCart($saleLib, $unitId, '1');
+
+        $this->assertSame('kg', Sale_lib::line_unit_of_measure_symbol($this->cartLineOf($saleLib, $kiloId)));
+        $this->assertSame('', Sale_lib::line_unit_of_measure_symbol($this->cartLineOf($saleLib, $unitId)));
+    }
+
+    /**
+     * The cart lives in the session, so on deploy day it holds lines built before the key existed.
+     * A keyless line is a unit line and shows nothing, rather than raising in the middle of a sale.
+     */
+    public function testALineFromBeforeTheKeyExistedIsAUnitLine(): void
+    {
+        $legacyLine = ['item_id' => 1, 'quantity' => '1'];
+
+        $this->assertFalse(Sale_lib::line_sells_by_weight($legacyLine));
+        $this->assertSame('', Sale_lib::line_unit_of_measure_symbol($legacyLine));
+    }
+
+    /**
      * Casaletto's world. Every one of its items is 'unit', so the register must
      * behave exactly as it does today.
      */

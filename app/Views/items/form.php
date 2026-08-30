@@ -1,4 +1,7 @@
 <?php
+
+use App\Models\Item;
+
 /**
  * @var object $item_info
  * @var array $categories
@@ -220,11 +223,17 @@
         </div>
 
         <?php // Deliberately not marked required: an item saved without touching this keeps the
-              // 'unit' it already has, which is the behaviour every existing item has today. ?>
+              // 'unit' it already has, which is the behaviour every existing item has today.
+              //
+              // The options come from Item::units_of_measure_options() and not from the
+              // $units_of_measure the controller still passes, because a list kept beside the
+              // codes cannot fall behind them -- which is exactly what happened when 'lb' became a
+              // valid code while the selector went on offering two. When app/Controllers/Items.php
+              // is next touched, $data['units_of_measure'] should be that same call, or dropped. ?>
         <div class="form-group form-group-sm">
             <?= form_label(lang('Items.unit_of_measure'), 'unit_of_measure', ['class' => 'control-label col-xs-3']) ?>
             <div class="col-xs-4">
-                <?= form_dropdown('unit_of_measure', $units_of_measure, $unit_of_measure, ['class' => 'form-control input-sm', 'id' => 'unit_of_measure']) ?>
+                <?= form_dropdown('unit_of_measure', Item::units_of_measure_options(), $unit_of_measure, ['class' => 'form-control input-sm', 'id' => 'unit_of_measure']) ?>
             </div>
         </div>
 
