@@ -3,6 +3,7 @@
 namespace Tests\Views;
 
 use App\Libraries\Sale_lib;
+use App\Models\Item;
 use App\Models\Item_quantity;
 use CodeIgniter\Test\CIUnitTestCase;
 
@@ -133,6 +134,59 @@ class RegisterWeightFieldTest extends CIUnitTestCase
     {
         $this->assertTrue(method_exists(Sale_lib::class, 'line_sells_by_weight'));
         $this->assertTrue(method_exists(Sale_lib::class, 'translate_or'));
+        $this->assertTrue(method_exists(Sale_lib::class, 'line_unit_of_measure_symbol'));
+        $this->assertTrue(method_exists(Sale_lib::class, 'weight_entry_unit_of_measure'));
+    }
+
+    /**
+     * 'kg' used to be printed as a literal beside the quantity, on the argument that the SI symbol
+     * reads the same in every language. True, and beside the point once a second weighed unit
+     * exists: a line of head cheese sold by the pound was labelled kg.
+     */
+    public function testTheUnitBesideTheQuantityComesFromTheLineAndIsNotWrittenIn(): void
+    {
+        $this->assertStringContainsString(
+            'Sale_lib::line_unit_of_measure_symbol($item)',
+            $this->view
+        );
+        $this->assertStringNotContainsString(
+            "'<span class=\"line-unit-of-measure\">kg</span>'",
+            $this->view,
+            'The unit beside the quantity must not be a literal again.'
+        );
+    }
+
+    /**
+     * Same rule for the prompt itself. "Weight in kilograms" over a product priced by the pound is
+     * the cashier being told to type the wrong number.
+     */
+    public function testThePromptAsksForTheUnitTheItemIsActuallySoldIn(): void
+    {
+        $this->assertStringContainsString('Sale_lib::weight_entry_unit_of_measure($weight_entry)', $this->view);
+        $this->assertStringNotContainsString('Sales.weight_in_kilograms', $this->view);
+        $this->assertStringNotContainsString('Sales.price_per_kilogram', $this->view);
+    }
+
+    /**
+     * A weight entry parked in the session before this deploy has no unit on it, and the sale it
+     * belongs to is somebody's open till. It has to read as kilograms -- what it was.
+     */
+    public function testAWeightEntryFromBeforeTheKeyExistedReadsAsKilograms(): void
+    {
+        $this->assertSame(
+            Item::UNIT_OF_MEASURE_KG,
+            Sale_lib::weight_entry_unit_of_measure([]),
+            'An entry with no unit is the one this feature shipped with, which was kilos.'
+        );
+        $this->assertSame(
+            Item::UNIT_OF_MEASURE_LB,
+            Sale_lib::weight_entry_unit_of_measure(['unit_of_measure' => Item::UNIT_OF_MEASURE_LB])
+        );
+        $this->assertSame(
+            Item::UNIT_OF_MEASURE_KG,
+            Sale_lib::weight_entry_unit_of_measure(['unit_of_measure' => Item::UNIT_OF_MEASURE_UNIT]),
+            'Nothing that is not a weight can reach the weight prompt; kilos is the safe reading.'
+        );
     }
 
     /**

@@ -43,6 +43,7 @@
 
 use App\Libraries\Sale_lib;
 use App\Models\Employee;
+use App\Models\Item;
 use App\Models\Item_quantity;
 
 ?>
@@ -164,8 +165,9 @@ helper('url');
     <?= form_close() ?>
 
     <?php
-    // The weight field exists only while an item priced by the kilo is waiting
-    // to be weighed, and nothing else on this page changes. That is the whole
+    // The weight field exists only while an item priced by weight -- by the
+    // kilo or by the pound -- is waiting to be weighed, and nothing else on
+    // this page changes. That is the whole
     // isolation mechanism: a shop whose items are all sold by the unit never
     // has an item waiting, so it never sees any of this -- and unlike a
     // setting, there is nothing here anybody can get wrong.
@@ -179,6 +181,23 @@ helper('url');
         $weight_decimal_separator = (new NumberFormatter($config['number_locale'], NumberFormatter::DECIMAL))
             ->getSymbol(NumberFormatter::DECIMAL_SEPARATOR_SYMBOL);
         $weight_keypad_rows = [['7', '8', '9'], ['4', '5', '6'], ['1', '2', '3']];
+
+        // The prompt is the only thing telling the cashier which number to
+        // type, so it names the item's own unit. "Peso en kilogramos" over a
+        // product priced by the pound is not a cosmetic error -- and nothing
+        // here converts, so a wrong label is a wrong price.
+        //
+        // The key carries the unit code, which is what makes a third weighed
+        // unit a language file entry rather than an edit to this template.
+        $weight_unit_of_measure = Sale_lib::weight_entry_unit_of_measure($weight_entry);
+        $weight_field_label = Sale_lib::translate_or(
+            'Sales.weight_in_' . $weight_unit_of_measure,
+            $weight_unit_of_measure === Item::UNIT_OF_MEASURE_LB ? 'Weight in pounds' : 'Weight in kilograms'
+        );
+        $weight_price_label = Sale_lib::translate_or(
+            'Sales.price_per_' . $weight_unit_of_measure,
+            $weight_unit_of_measure === Item::UNIT_OF_MEASURE_LB ? 'Price per pound' : 'Price per kilogram'
+        );
     ?>
         <div id="weight_entry_panel" class="panel panel-warning" role="region" aria-labelledby="weight_entry_heading">
             <div class="panel-heading">
@@ -208,7 +227,7 @@ helper('url');
                         <div class="weight-entry-main">
                             <div class="form-group<?= isset($error) ? ' has-error' : '' ?>">
                                 <label class="weight-entry-label" for="weight">
-                                    <?= esc(Sale_lib::translate_or('Sales.weight_in_kilograms', 'Weight in kilograms')) ?>
+                                    <?= esc($weight_field_label) ?>
                                 </label>
                                 <?= form_input([
                                     'name'         => 'weight',
@@ -227,7 +246,7 @@ helper('url');
                                     'tabindex'     => ++$tabindex
                                 ]) ?>
                                 <p class="weight-entry-hint" id="weight_entry_hint">
-                                    <?= esc(Sale_lib::translate_or('Sales.price_per_kilogram', 'Price per kilogram')) ?>:
+                                    <?= esc($weight_price_label) ?>:
                                     <strong><?= to_currency($weight_entry['unit_price']) ?></strong>
                                     &middot;
                                     <?= esc(Sale_lib::translate_or('Sales.weight_example', 'for example')) ?>
@@ -383,13 +402,17 @@ helper('url');
                                     echo form_input(['name' => 'quantity', 'class' => 'form-control input-sm', 'value' => $format_line_quantity($item), 'tabindex' => ++$tabindex, 'onClick' => 'this.select();']);
                                 }
 
-                                // "kg" is the SI symbol, so it reads the same in
-                                // every language this screen ships in. A line
-                                // sold by the unit gets nothing, which is what
-                                // every line in a shop that does not weigh
-                                // anything looks like today.
+                                // 'kg' and 'lb' are international symbols, so
+                                // they read the same in every language this
+                                // screen ships in -- but which of the two it is
+                                // comes from the line, never from here. It was
+                                // written in as "kg", which labelled a pound of
+                                // head cheese as a kilo. A line sold by the
+                                // unit gets nothing, which is what every line in
+                                // a shop that does not weigh anything looks like
+                                // today.
                                 if (Sale_lib::line_sells_by_weight($item)) {
-                                    echo '<span class="line-unit-of-measure">kg</span>';
+                                    echo '<span class="line-unit-of-measure">' . esc(Sale_lib::line_unit_of_measure_symbol($item)) . '</span>';
                                 }
                                 ?>
                             </td>

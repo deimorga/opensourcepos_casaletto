@@ -49,6 +49,19 @@ class Item extends Model
      */
     public const UNITS_OF_MEASURE_BY_WEIGHT = [self::UNIT_OF_MEASURE_KG, self::UNIT_OF_MEASURE_LB];
 
+    /**
+     * What is printed beside a quantity on the register.
+     *
+     * Not language keys, unlike the selector labels: 'kg' and 'lb' are international symbols and
+     * read the same in every language this screen ships in. A unit is absent from the map on
+     * purpose -- a line sold by the unit shows nothing after the number, which is what every line
+     * in a shop that weighs nothing looks like today.
+     */
+    public const UNIT_OF_MEASURE_SYMBOLS = [
+        self::UNIT_OF_MEASURE_KG => 'kg',
+        self::UNIT_OF_MEASURE_LB => 'lb'
+    ];
+
     public const ALLOWED_SUGGESTIONS_COLUMNS = ['name', 'item_number', 'description', 'cost_price', 'unit_price'];
     public const ALLOWED_SUGGESTIONS_COLUMNS_WITH_EMPTY = ['', 'name', 'item_number', 'description', 'cost_price', 'unit_price'];
 
@@ -155,6 +168,17 @@ class Item extends Model
     public static function unit_of_measure_is_weight(mixed $value): bool
     {
         return in_array(self::normalize_unit_of_measure($value), self::UNITS_OF_MEASURE_BY_WEIGHT, true);
+    }
+
+    /**
+     * The symbol printed beside a quantity, or '' for a unit and for anything unrecognised.
+     *
+     * Empty rather than a fallback symbol on purpose: showing 'kg' next to a number that is not
+     * kilos is worse than showing nothing, and 'unit' has no symbol to show.
+     */
+    public static function unit_of_measure_symbol(mixed $value): string
+    {
+        return self::UNIT_OF_MEASURE_SYMBOLS[self::normalize_unit_of_measure($value)] ?? '';
     }
 
     /**

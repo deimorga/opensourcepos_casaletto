@@ -158,6 +158,40 @@ class ItemUnitOfMeasureTest extends CIUnitTestCase
     }
 
     /**
+     * The symbol beside the quantity on a cart line. 'kg' and 'lb' are the international symbols,
+     * so unlike the selector labels they are the same in every language this register ships in --
+     * which is why they are not language keys.
+     */
+    public function testEachWeighedUnitHasItsOwnSymbol(): void
+    {
+        $this->assertSame('kg', Item::unit_of_measure_symbol('kg'));
+        $this->assertSame('lb', Item::unit_of_measure_symbol('lb'));
+    }
+
+    /**
+     * A line sold by the unit shows nothing after the quantity, which is what every line in a shop
+     * that weighs nothing looks like today.
+     */
+    public function testAUnitHasNoSymbolAtAll(): void
+    {
+        $this->assertSame('', Item::unit_of_measure_symbol('unit'));
+        $this->assertSame('', Item::unit_of_measure_symbol(null));
+        $this->assertSame('', Item::unit_of_measure_symbol('nonsense'));
+    }
+
+    /**
+     * The register asks this to decide whether to stop and ask for a weight.
+     */
+    public function testWeighedUnitsAreTheOnesThatAskForAWeight(): void
+    {
+        $this->assertTrue(Item::unit_of_measure_is_weight('kg'));
+        $this->assertTrue(Item::unit_of_measure_is_weight('lb'));
+        $this->assertFalse(Item::unit_of_measure_is_weight('unit'));
+        $this->assertFalse(Item::unit_of_measure_is_weight(null), 'A line with no unit on file is a unit line.');
+        $this->assertFalse(Item::unit_of_measure_is_weight('nonsense'));
+    }
+
+    /**
      * The two locales this fork actually ships to a shop floor. The rest fall back to en, which is
      * CodeIgniter's own behaviour and is fine; Spanish is not a fallback here, it is the language
      * the cashier reads.

@@ -229,6 +229,20 @@ return [
     "upi"                              => "UPI",
     "visa"                             => "",
     "wallet"                           => "Wallet",
+    // The weight prompt. Keys are suffixed with the unit code the item is sold in
+    // (App\Models\Item::ALLOWED_UNITS_OF_MEASURE) so a further weighed unit is an entry here rather
+    // than an edit to app/Views/sales/register.php. Nothing converts between them: each price is
+    // the price of one of that item's own unit.
+    "weigh_item"                       => "Weigh",
+    "weight_in_kg"                     => "Weight in kilograms",
+    "weight_in_lb"                     => "Weight in pounds",
+    "price_per_kg"                     => "Price per kilogram",
+    "price_per_lb"                     => "Price per pound",
+    "weight_example"                   => "for example",
+    "add_weighed_item"                 => "Add to sale",
+    "weight_keypad"                    => "Numeric keypad",
+    "weight_backspace"                 => "Delete the last digit",
+    "weight_invalid"                   => "Enter the weight as a number greater than zero.",
     "wholesale"                        => "",
     "work_order"                       => "Work Order",
     "work_order_number"                => "Work Order Number",
