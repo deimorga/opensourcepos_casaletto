@@ -91,14 +91,20 @@ para Windows.
 
 ```sh
 cd tools/scale-probe
-GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o scale-probe.exe .
+GOOS=windows GOARCH=386 CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o scale-probe.exe .
 ```
 
-Sale **un ejecutable de unos 2,7 MB, sin instalador y sin dependencias**. Se
+Sale **un ejecutable de unos 2,5 MB, sin instalador y sin dependencias**. Se
 copia tal cual al portátil y se hace doble clic.
 
-Para un portátil viejo de 32 bits: `GOARCH=386`. Para Windows on ARM:
-`GOARCH=arm64`.
+**`GOARCH=386`, no `amd64`, y es deliberado.** Un binario de 32 bits corre en
+Windows de 32 **y** de 64 bits; uno de 64 solo en los de 64. La báscula se presta
+una vez y por cinco minutos: no hay margen para descubrir en el mostrador que el
+portátil no era el que creíamos. El costo de esa garantía son unos 100 KB.
+Para Windows on ARM: `GOARCH=arm64`.
+
+**Entregue un solo archivo.** Quien lo va a usar no tiene por qué elegir entre
+dos, y elegir mal cuesta la única oportunidad que hay.
 
 Comprobaciones antes de entregarlo:
 
@@ -154,6 +160,26 @@ solo tiene que seguir lo que diga la pantalla.
 2. Instale el driver de la báscula: **CH341SER**. Botón derecho sobre
    `SETUP.EXE` → **Ejecutar como administrador** → botón `INSTALL`.
 3. **Reinicie el portátil.** Sin reiniciar, a veces no funciona.
+
+## Lo que esperamos encontrar (para reconocerlo en el momento)
+
+El manual del diseño hermano (Moresco ACS-268, ver el técnico §5.10b) documenta
+la trama, y el simulador de esta herramienta la reproduce. Si el equipo del
+cliente es de esa familia, en la pantalla se verá algo así:
+
+```
+N12.395<SP><SP>          <- 12,395 kg
+```
+
+Bandera `N`, dos dígitos de kilos, punto, tres de gramos, dos espacios, LF, CR.
+A **9600 8-N-1**. Y responde a la letra **`W`** si está en el formato 9, que es
+el que queremos: se pide el peso y contesta uno solo, en vez de un chorro
+continuo.
+
+**Si sale eso, la captura confirmó la hipótesis y terminamos.** Si sale otra
+cosa, la herramienta la registra igual: para eso barre seis configuraciones y
+prueba ocho estímulos. Ninguno de los dos desenlaces es un fracaso — el fracaso
+sería volver sin archivo.
 
 ## Los pasos, el día de la captura
 

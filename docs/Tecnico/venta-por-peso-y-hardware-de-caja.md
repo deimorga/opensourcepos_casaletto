@@ -541,7 +541,7 @@ pantalla de configuración, no al código.**
 | Parámetro | Valor confirmado |
 |---|---|
 | Chip USB-serie | **WCH CH340.** En el Administrador de dispositivos aparece como `USB-SERIAL CH340 (COMx)` bajo *Puertos (COM y LPT)* |
-| Driver | Paquete **CH341SER** (`SETUP.EXE` como administrador). Gratuito, del fabricante del chip. El manual lo publica en `https://bit.ly/driver-ch341` |
+| Driver | Paquete **CH341SER** (`SETUP.EXE` como administrador). Gratuito, del fabricante del chip (WCH). El manual del equipo solo lo publica tras un acortador (`bit.ly/driver-ch341`) — **no se usa ese enlace para bajar un driver**. El distribuidor del RC-A01E publica el paquete verificado como `CH341SER 2.zip`, enlace en §5.11 |
 | Velocidad | **9600 baudios** |
 | Bits de datos | **8** |
 | Paridad | **Ninguna** |
