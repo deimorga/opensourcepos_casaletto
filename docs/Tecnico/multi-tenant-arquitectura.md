@@ -159,6 +159,59 @@ Antes de insertar la fila en `platform.tenants`, rechaza seguir si:
 
 A diferencia de `tenant:create`, no crea un usuario MySQL dedicado para el schema adoptado: el GRANT con wildcard de `platform_provisioner` (sección 16) solo cubre schemas `tenant_%`, y un schema preexistente con otro nombre (`ospos`) necesitaría un GRANT manual aparte, fuera del alcance de este comando automatizado. La fila queda con `db_user`/`db_password` en `NULL`, y `TenantResolver` cae al comportamiento que ya tiene ese schema hoy (credenciales compartidas) -- exactamente su comportamiento actual, sin cambios. Darle credenciales dedicadas más adelante es un endurecimiento de seguridad opcional y separado, no parte de la adopción en sí.
 
+## 8b. `tenant:create` nunca había funcionado de punta a punta (2026-08-30)
+
+Descubierto al aprovisionar el primer negocio real desde el panel. El panel devolvió:
+
+```
+Migration failed for tenant_paraisodelacanasta -- NOT registering in platform.tenants.
+Access denied for user '****'@'%' to database 'tenant_paraisodelacanasta'
+```
+
+**Causa.** `TenantProvisioner::create()` crea el esquema y un usuario MySQL dedicado con `GRANT ALL`
+sobre ese esquema, y después lanza la migración en un proceso hijo. Ese hijo recibía **solo**
+`MYSQL_DB_NAME`:
+
+```php
+exec('MYSQL_DB_NAME=' . escapeshellarg($dbIdentifier) . ' php ' . $sparkPath . ' tenant:migrate-one');
+```
+
+Sin `MYSQL_USERNAME`/`MYSQL_PASSWORD`, el hijo se conecta con las credenciales compartidas de la
+aplicación — que tienen privilegios sobre `ospos` y `platform_control` y **nada más**:
+
+```
+GRANT ALL PRIVILEGES ON `ospos`.* TO `admin`@`%`
+GRANT ALL PRIVILEGES ON `platform_control`.* TO `admin`@`%`
+```
+
+Le acabábamos de crear al tenant su propio usuario con permisos exactos sobre su esquema, y no se
+lo dijimos al proceso que los necesitaba.
+
+**Por qué no se había visto.** `tenant:adopt` —que es como entró Casaletto— no pasa por aquí:
+adopta un esquema ya migrado. Los tenants ficticios de la Fase 9 se validaron con esquemas creados a
+mano. **Este camino nunca se ejecutó completo contra una base real hasta hoy.**
+
+**El daño.** El fallo ocurre *después* de crear esquema y usuario, y *antes* de registrar la fila en
+`platform.tenants`. Queda un tenant a medio construir: esquema vacío, usuario huérfano, y el
+registro sin saberlo. Reintentar con el mismo slug falla distinto, porque el esquema ya existe. La
+limpieza es `DROP DATABASE` + `DROP USER`; el mensaje de error ya lo decía, pero había que leerlo
+completo.
+
+**Arreglo.** El hijo recibe ahora las credenciales del propio tenant, y se lanza con `proc_open` y
+una lista de argumentos en vez de `exec()` con una cadena:
+
+- **`proc_open`, no `exec`**: la contraseña viaja en el arreglo de entorno del hijo. Con
+  `exec("MYSQL_PASSWORD=... php spark ...")` una credencial recién creada quedaría en la línea de
+  comandos, visible en `ps` para todo proceso de la máquina mientras dure la migración.
+- **Entorno heredado completo, con tres claves sobreescritas**, no una lista curada: el hijo arranca
+  el framework entero y necesita `CI_ENVIRONMENT`, el grupo `PLATFORM_DB_*`, la llave de cifrado y
+  lo que sea que el contenedor pase. Enumerarlas aquí sería romper esto en silencio el día que
+  alguien agregue una.
+
+**Pruebas:** `tests/Libraries/TenantProvisionerEnvTest.php`. No aprovisionan de verdad — el usuario
+de pruebas no puede `CREATE DATABASE`, por diseño — pero fijan el contrato con el proceso hijo, que
+es donde vivía el defecto.
+
 ## 9. Infraestructura Docker/Traefik
 
 Hoy `docker/docker-mysql.yml` es un único contenedor MariaDB (imagen `mariadb:10.5`, EOL desde jun 2025) con una sola BD creada vía `MYSQL_DATABASE`, incluido por `docker-compose.local.yml`, `docker-compose.staging.yml` y `docker-compose.prod.yml`, cada uno con un solo contenedor de app y un router Traefik **estático** (`Host()` fijo, ej. `docker-compose.prod.yml:57`).
