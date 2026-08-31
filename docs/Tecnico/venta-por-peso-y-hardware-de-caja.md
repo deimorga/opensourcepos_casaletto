@@ -31,6 +31,13 @@
 > **corte en seco** (se apaga el POS anterior el día de salida, sin plan de retorno) e
 > **inspección del instalador de POS Online** como vía para averiguar el formato.
 >
+> **Actualización del 2026-08-31 — el terminal ya está montado (§7b-bis).** Windows 10 **Pro** build
+> 19045, **7 puertos USB** y **COM1/COM2 físicos**, así que ninguna de las tres limitaciones que
+> anticipaba el §7b existe. CH341SER instalado (`oem35.inf`), `scale-probe.exe` **ejecutado en esa
+> máquina**, Chrome en modo kiosco con arranque automático. El acceso remoto es **SSH a demanda con
+> solo llave** — se descartó el túnel permanente hacia el VPS por decisión del dueño, y fue el
+> criterio correcto.
+>
 > **§7c es de lectura obligatoria antes de escribir código:** cómo no romper a Casaletto, que vende
 > todos los días con este mismo programa.
 >
@@ -953,9 +960,130 @@ Lo que sí agrega:
   `input-sm`, iconos de 12 px, filas densas. Hay que agrandar lo que el cajero toca todo el día —
   agregar producto, editar cantidad, borrar línea, cobrar. No es rehacer la vista; es una hoja de
   estilos para el modo táctil. Se dimensiona con el terminal ya elegido, no antes.
-- **Puertos USB.** Báscula + pistola + impresora = tres mínimo. Verificar al comprar el terminal;
-  si no alcanzan, un hub alimentado (la impresora y la báscula no deben colgar de un hub sin
-  alimentación propia).
+- ~~**Puertos USB.** Báscula + pistola + impresora = tres mínimo. Verificar al comprar el
+  terminal~~ — **resuelto: el terminal trae 7, y además COM1/COM2 físicos** (§7b-bis). No hace falta
+  hub. Si algún día hiciera falta, que sea alimentado: la impresora y la báscula no deben colgar de
+  un hub sin alimentación propia.
+
+## 7b-bis. El terminal real, montado y medido (2026-08-31)
+
+El terminal llegó y se preparó por completo **de forma remota**, con el equipo todavía en la red del
+socio y no en la del negocio. Lo que sigue es lo que quedó, y por qué se decidió así.
+
+### La máquina
+
+```
+BTSPOS · Windows 10 Pro build 19045 (22H2) · 64 bits · 7,9 GB
+Zona horaria: SA Pacific Standard Time (Bogotá)  ·  Chrome 151
+7 puertos USB  ·  COM1 y COM2 fisicos  ·  usuario: BTS
+```
+
+Tres cosas de ahí cambian supuestos del §7b:
+
+- **Siete puertos USB.** La restricción que anticipaba esa sección no existe: sobran para báscula,
+  impresora y pistola sin hub.
+- **COM1 y COM2 físicos.** El terminal trae puertos serie de verdad. Si la báscula tuviera cable
+  serie, podría conectarse **sin depender del CH340**. Vale mirar el conector el día de la captura.
+- **Es Pro, no Home.** Solo Pro acepta directivas de grupo, que es lo que después necesita la
+  política de red local de Chrome (§5.3). Con Home el agente habría quedado sin esa salida.
+
+**Windows NO está activado** (`LicenseStatus = 5`, notificación). Además de la marca de agua sobre la
+pantalla del cajero, un Windows sin activar no recibe todas las actualizaciones. Es compra del
+cliente. En la carpeta que entregó había un activador pirata; **no se usó y no se recomienda**: en
+una máquina que maneja dinero, esa clase de herramienta modifica servicios del sistema.
+
+### Qué quedó instalado
+
+| Qué | Estado |
+|---|---|
+| Driver **CH341SER** | Instalado como `oem35.inf`, proveedor `wch.cn`, clase *Puertos (COM y LPT)* |
+| `scale-probe.exe` | En el escritorio, **ejecutado de punta a punta** en esta máquina |
+| `POS-58-Setup.exe` | Copiado, **sin instalar** — ver abajo |
+| Acceso a la caja | Modo kiosco, con arranque automático |
+
+**Por qué la impresora no se instaló.** Es un instalador con ventanas y por SSH no hay escritorio
+donde dibujarlas: arranca y muere. Pero hay una razón mejor: **la impresora no está conectada**.
+Instalarlo ahora crea un objeto de impresora apuntando al vacío que después hay que reconfigurar.
+Va con el hardware presente.
+
+**La firma del driver es de 2014**, con certificado vencido en 2015. Windows lo aceptó —la firma WHQL
+de Microsoft sigue siendo válida por su marca de tiempo— pero **no hay certeza de que sirva hasta
+conectar la báscula**. Si ese día no aparece el puerto, se baja el actual de `wch.cn`.
+
+### El arranque en modo caja
+
+`C:\POS\abrir-caja.cmd`, disparado por la tarea programada **`PuntoDeVenta`** al iniciar sesión.
+
+```
+timeout /t 40 /nobreak
+chrome --kiosk --user-data-dir="C:\POS\perfil-chrome" --no-first-run <url del negocio>
+```
+
+**Los 40 segundos no son adorno.** Al encender, la WiFi todavía no ha conectado; sin la pausa Chrome
+abre antes de que haya red y se queda en una página de error que un cajero no sabe quitar. El perfil
+aparte evita que la caja se mezcle con la navegación personal.
+
+Se sale con `Alt+F4`.
+
+### El acceso remoto: encendido a demanda, no permanente
+
+**Se evaluó y se descartó un túnel inverso permanente hacia el VPS.** Habría funcionado —se verificó
+que el terminal alcanza el VPS por 22 y por 443, y que `gatewayports no` mantendría el extremo atado
+a `127.0.0.1`— pero deja **una puerta abierta siempre** desde el POS de un cliente hacia el servidor
+donde vive la producción de todos. **Decisión del dueño, y es la correcta**: acceso solo cuando hay
+alguien trabajando.
+
+En su lugar, tres accesos en el escritorio, numerados en el orden de uso:
+
+| Acceso | Qué hace |
+|---|---|
+| `1 - VER MI IP` | Dirección en esa red, nombre del equipo, y si el acceso remoto está encendido |
+| `2 - SSH ENCENDER` | Lo habilita y muestra la IP. Pide elevación |
+| `3 - SSH APAGAR` | Lo detiene **y lo deja deshabilitado**, no solo parado |
+
+El procedimiento el día del montaje: llevar el portátil a la red del negocio, tocar *VER MI IP*, y
+trabajar. Al terminar, *SSH APAGAR*.
+
+**Lo que este esquema NO da:** soporte remoto una semana después. Si algo falla, hay que ir. Para eso
+la alternativa es **AnyDesk** —que el cliente ya conocía—, que el cajero abre y cierra y donde se ve
+en pantalla lo que uno hace. Peor para trabajar con comandos, mejor para soporte acompañado.
+
+### El endurecimiento del servidor SSH, que no era opcional
+
+Windows OpenSSH viene **aceptando contraseña**. En la red de un negocio eso es fuerza bruta contra la
+cuenta `BTS` desde cualquiera que tenga la clave del WiFi. Se cerró:
+
+```
+PasswordAuthentication      no
+PermitEmptyPasswords        no
+KbdInteractiveAuthentication no
+AllowUsers                  BTS
+MaxAuthTries                3
+LoginGraceTime              30
+```
+
+Insertado **antes** del bloque `Match Group administrators` que cierra el archivo — pegarlo al final
+lo habría metido dentro de ese bloque y solo habría aplicado a administradores. Validado con
+`sshd -t` **antes** de reiniciar, para no quedarse afuera.
+
+Verificado en los dos sentidos: con llave entra, con contraseña `Permission denied (publickey)`.
+
+**Dos particularidades de Windows que cuestan una tarde si no se saben:**
+
+- Para cuentas de administrador —y `BTS` lo es— el SSH **no lee** `~/.ssh/authorized_keys` sino
+  `C:\ProgramData\ssh\administrators_authorized_keys`.
+- Ese archivo necesita permisos restringidos (`icacls /inheritance:r`); con permisos abiertos **el
+  servidor lo ignora en silencio** y uno cree que la llave está mal.
+
+Y una del canal: el shell por defecto es `cmd`, así que `comando1; comando2` no separa nada — se
+imprime literal. Para varias órdenes, `powershell -NoProfile -Command -` alimentado por stdin.
+
+### Comprobado, no supuesto
+
+- El terminal **alcanza el POS del negocio**: `HTTP 200`, 12.144 bytes.
+- `scale-probe.exe` **corre en esta máquina** y genera su archivo de captura. Se compiló para 386
+  aunque el equipo es de 64 bits, a propósito (ver `tools/scale-probe/README.md`).
+- Salida al VPS abierta por 22 **y** por 443.
 
 ## 7c. No romper a los tenants que ya operan
 

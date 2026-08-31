@@ -11,11 +11,21 @@
 > vende al peso, y dos de esos errores le estaban costando plata desde antes de este proyecto.
 >
 > **El segundo negocio ya existe.** *Paraíso de la Canasta* está creado en producción, en
-> `paraisodelacanasta.ospos-saas.micronuba.net`, configurado y vacío. Falta cargarle su catálogo.
+> `paraisodelacanasta.ospos-saas.micronuba.net`, con sus **1.184 artículos cargados**. Los precios
+> quedaron en **cero por decisión del cliente**: los pone él. Que pueda ponerlos es un requerimiento
+> aparte, `docs/Funcional/carga-masiva-de-articulos.md`, y **lo trabaja otro agente**.
 >
-> **Lo que falta es el hardware, y depende de terceros:**
+> **El terminal táctil ya está listo** (§4.3c), preparado en remoto sin desplazarse: arranca solo en
+> modo caja, tiene el driver de la báscula puesto, y el acceso remoto quedó cerrado con llave y
+> apagado por defecto (§4.3d).
+>
+> **Lo que falta es el hardware físico, y depende de terceros:**
 > - La báscula se presta **una vez y por cinco minutos** — §4.3b explica qué se logra y qué no.
-> - El programa que la lee está construido y ensayado, pero **sin probar contra la báscula real**.
+> - El programa que la lee está construido y **ensayado en el terminal real**, pero sin probar
+>   contra la báscula.
+> - La impresora **no se instala hasta tenerla conectada** — instalarla antes crea una impresora
+>   fantasma que después hay que rehacer.
+> - **Windows no está activado**: es una compra del cliente.
 > - **Falta confirmar si habrá pistola lectora.**
 >
 > **Dos decisiones que siguen en pie:** el paso a producción del cliente nuevo será un **corte en
@@ -288,6 +298,53 @@ reprogramarla, porque el POS anterior se apaga ese mismo día.
 **Lo que le pedimos al cliente:** que nos diga **en qué número está configurada** hoy. Es un dato de
 diez segundos, y sin él no se puede devolver a como estaba.
 
+### 4.3c El terminal ya está montado (2026-08-31)
+
+El terminal táctil llegó y quedó preparado **sin necesidad de desplazarse**: se configuró en remoto
+mientras estaba conectado a la red del socio.
+
+**Lo que el cajero va a ver:** al encender el equipo, la caja se abre sola, en pantalla completa, sin
+barras de navegador ni pestañas. No hay que buscar nada ni escribir ninguna dirección.
+
+Espera 40 segundos antes de abrir, a propósito: al encender, el equipo todavía no tiene internet, y
+sin esa pausa el cajero se encontraría con una página de error que no sabría cómo quitar.
+
+**Tres cosas que el terminal resolvió mejor de lo esperado:**
+
+- **Siete puertos USB.** Sobran para báscula, impresora y pistola. Deja de ser una preocupación.
+- **Trae puertos serie de verdad**, además de los USB. Abre una segunda vía para conectar la báscula.
+- **Es Windows 10 Pro**, no la versión Hogar. Solo la Pro permite las reglas que después necesita el
+  programa de la báscula. Con la otra habríamos quedado sin salida.
+
+**Dos cosas que hay que resolver con el cliente:**
+
+- **Windows no está activado.** Aparece una marca de agua permanente sobre la pantalla de la caja, y
+  el equipo no recibe todas las actualizaciones. Es una compra que le corresponde a él. En los
+  archivos que entregó venía un activador pirata; **no lo usamos y no lo recomendamos**: en una
+  máquina que maneja el dinero del negocio, ese tipo de programa modifica el sistema y suele traer
+  compañía.
+- **La impresora todavía no se instala**, a propósito: hacerlo sin la impresora conectada crea una
+  impresora fantasma que después hay que rehacer. Se hace con el equipo enchufado, en dos minutos.
+
+### 4.3d Cómo damos soporte, y por qué no dejamos una puerta abierta
+
+Se evaluó dejar una conexión permanente desde el terminal hacia nuestro servidor, que habría
+permitido entrar en cualquier momento sin desplazarse. **Se descartó por decisión del dueño, y fue el
+criterio correcto**: eso deja abierta, de forma permanente, una vía hacia el punto de venta de un
+cliente.
+
+En su lugar, el acceso remoto **está apagado** durante la operación normal, y se enciende solo cuando
+hay alguien trabajando. El terminal tiene tres botones en el escritorio para eso, numerados en el
+orden en que se usan.
+
+Además se cerró algo que venía abierto de fábrica: el equipo **aceptaba conexiones con contraseña**.
+En la red de un negocio, cualquiera con la clave del WiFi podía intentar adivinarla. Ahora solo entra
+quien tenga la llave digital, y solo con una cuenta.
+
+**Lo que este esquema no da, y conviene decirlo:** si algo falla una semana después, hay que ir al
+local. Es el precio de no dejar una puerta abierta. Para esos casos sirve **AnyDesk** —que el cliente
+ya conocía—: lo abre el cajero, ve en pantalla lo que uno hace, y lo cierra al terminar.
+
 ### 4.4 Una advertencia legal que encontramos en el manual, y que no es nuestra decisión
 
 Al leer el manual del fabricante apareció algo que el negocio tiene que saber. En la contraportada,
@@ -455,7 +512,10 @@ Y antes de producción, todo pasa por el ambiente de pruebas con los dos negocio
 
 - **El mapa de IVA.** Qué categorías van excluidas, cuáles exentas y cuáles al 19%. Las verduras
   frescas generalmente van excluidas. **Esto lo confirma el contador del cliente, no nosotros.**
-- **El catálogo de productos** con sus precios por kilo, para la carga inicial.
+- ~~El catálogo de productos~~ — **cargado: 1.184 artículos**, sacados del inventario del POS
+  anterior. **Faltan los precios**, y los pone el cliente: para eso hace falta la carga masiva
+  (`docs/Funcional/carga-masiva-de-articulos.md`), que **trabaja otro agente**.
+- **La activación de Windows** del terminal. Hoy no está activado.
 - ~~La báscula~~ — **resuelto: ya la tiene y sirve** (ROCHI RC-A01E). Falta prestárnosla unos días,
   o darnos acceso al equipo, para desarrollar y probar contra hardware real.
 - **La decisión sobre los productos de menos de 200 g**, que la báscula no puede pesar.
