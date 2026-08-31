@@ -105,11 +105,38 @@ Hoy solo se usa para escribirlo dentro del negocio y se descarta. Guardarlo es b
 el listado. **Recomendación: sí.**
 
 **4.3 ¿Debe existir "entrar como" para dar soporte?**
-Se descartó al diseñar la plataforma. Con clientes reales pagando, vale repensarlo: es lo que
-convierte un problema de una hora en uno de cinco minutos. Pero es **la función más peligrosa del
-sistema** —da acceso a los datos de un cliente sin su contraseña— y no debería existir sin registro
-de auditoría de quién entró, cuándo y a qué. **Recomendación: decidirlo aparte, no meterlo en este
-primer paquete.**
+
+**El dueño de la plataforma la pidió expresamente el 2026-08-31**, con estas palabras: *"¿cómo hago
+para tener un usuario y que todos los clientes reconozcan mi usuario? Si yo cambio la contraseña,
+que ese cambio me sirva para todos mis negocios."* Deja de ser una hipótesis de diseño y pasa a ser
+una necesidad de operación declarada.
+
+**Hallazgo que hay que tener presente al decidirla.** Se verificó en el código: hoy **no existe
+ningún camino** de una cuenta de plataforma hacia el POS de un negocio. `PlatformLogin::select()`
+**solo redirige a la dirección del negocio** — no inicia sesión, no crea nada. Se aterriza en su
+pantalla de entrada y sigue pidiendo las credenciales de ESE negocio. La pantalla "elija su negocio"
+es, en la práctica, **un directorio de enlaces**.
+
+**Los tres caminos, con su costo:**
+
+| Camino | Resuelve | Cuesta |
+|---|---|---|
+| Replicar el mismo empleado en cada negocio | Sí, hoy, sin código | Cambiar la clave obliga a tocar cada base. Con quince clientes es inviable, y basta olvidar uno para dejar una llave vieja abierta |
+| **"Entrar como" desde el panel** | **Sí, y es lo que se pidió** | Es la función más peligrosa del sistema |
+| Autenticación central de verdad | Sí, elegante | Cirugía sobre el camino de autenticación de TODOS los negocios, incluido el que está vendiendo |
+
+**Recomendación: el segundo, y no sin estas tres condiciones.** Da acceso completo a los datos y al
+dinero de un cliente **sin su contraseña y sin que él se entere**:
+
+1. **Registro de auditoría** — quién entró, a qué negocio, cuándo, y qué hizo.
+2. **Aviso visible en pantalla** de que se está actuando como soporte y no como el dueño.
+3. **Que el cliente sepa que existe**, por contrato. No como sorpresa el día que pregunte quién
+   cambió un precio.
+
+Sin lo primero, el día que un cliente haga esa pregunta no habrá con qué responderle.
+
+**Estado: la definición la trabaja el dueño de la plataforma directamente con el agente de este
+requerimiento** (acordado 2026-08-31).
 
 **4.4 ¿Un superadministrador puede eliminarse a sí mismo?**
 Hay que decidir la regla que impide quedarse sin ningún administrador. **Recomendación: no permitir
