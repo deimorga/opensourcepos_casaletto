@@ -226,10 +226,9 @@ class Sale_lib
     /**
      * True when this cart line is priced by what it weighs rather than by the unit.
      *
-     * Was a comparison against 'kg' alone, which quietly meant "the register only stops to weigh
-     * kilos". The business sells QUESO DE CABEZA by the pound, so that read as "do not ask for a
-     * weight" on a product that is nothing but weight. Which codes are weights is Item's to say,
-     * so that a fourth one never needs finding here as well.
+     * Asks Item which codes are weights rather than comparing against 'kg' here. Today that set
+     * has exactly one member and this could have been an equality test -- but the question belongs
+     * beside the codes, so that the set can never widen in one file and not the other.
      */
     public static function line_sells_by_weight(array $line): bool
     {
@@ -237,7 +236,7 @@ class Sale_lib
     }
 
     /**
-     * The symbol to print beside this line's quantity: 'kg', 'lb', or nothing for a unit line.
+     * The symbol to print beside this line's quantity: 'kg', or nothing for a line sold by unit.
      *
      * Goes through line_unit_of_measure() for the same reason everything else does -- the cart is
      * in the session and a line built before the key existed has no unit on it.

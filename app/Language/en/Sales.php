@@ -229,15 +229,14 @@ return [
     "upi"                              => "UPI",
     "visa"                             => "",
     "wallet"                           => "Wallet",
-    // The weight prompt. Keys are suffixed with the unit code the item is sold in
-    // (App\Models\Item::ALLOWED_UNITS_OF_MEASURE) so a further weighed unit is an entry here rather
-    // than an edit to app/Views/sales/register.php. Nothing converts between them: each price is
-    // the price of one of that item's own unit.
+    // The weight prompt. Keys are suffixed with the unit code the item is sold in, so the kilogram
+    // is the only one there is today (App\Models\Item::ALLOWED_UNITS_OF_MEASURE says why a second
+    // weighed unit is a liability, not a feature). The suffix stays because nothing here converts:
+    // a price is the price of one of that item's own unit, so a label naming the wrong one would be
+    // a pricing error rather than a cosmetic slip.
     "weigh_item"                       => "Weigh",
     "weight_in_kg"                     => "Weight in kilograms",
-    "weight_in_lb"                     => "Weight in pounds",
     "price_per_kg"                     => "Price per kilogram",
-    "price_per_lb"                     => "Price per pound",
     "weight_example"                   => "for example",
     "add_weighed_item"                 => "Add to sale",
     "weight_cancel"                    => "Cancel",

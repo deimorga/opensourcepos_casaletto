@@ -133,21 +133,25 @@ class SaleLibCartUnitOfMeasureTest extends CIUnitTestCase
     }
 
     /**
-     * QUESO DE CABEZA's world. A pound is a weight, so the cart line has to say so -- and it has to
-     * say pound, not kilo: nothing converts between them and the price is per pound.
+     * A row still holding 'lb' -- staging ran the migration that wrote it before the pound was
+     * removed -- must not reach the cart as a weighed line.
+     *
+     * 20260907000000 clears those rows, but the cart has to be right on its own: if a stray 'lb'
+     * read as a weight, the register would ask for a weight in a unit that no longer has a price,
+     * a label, or a symbol. Reading it as a plain unit is the outcome a cashier can see and correct.
      */
-    public function testAPoundItemReachesTheCartCarryingItsOwnUnit(): void
+    public function testAStrayPoundRowDoesNotReachTheCartAsAWeighedLine(): void
     {
         $this->useTenantSettings('3');
-        $itemId  = $this->createItem('TEST-UOM-QUESO', Item::UNIT_OF_MEASURE_LB);
+        $itemId  = $this->createItem('TEST-UOM-QUESO', 'lb');
         $saleLib = new Sale_lib();
 
         $this->addToCart($saleLib, $itemId, '0.500');
         $line = $this->cartLineOf($saleLib, $itemId);
 
-        $this->assertSame(Item::UNIT_OF_MEASURE_LB, Sale_lib::line_unit_of_measure($line));
-        $this->assertTrue(Sale_lib::line_sells_by_weight($line), 'A pound-priced item has to stop the register for a weight.');
-        $this->assertSame('lb', Sale_lib::line_unit_of_measure_symbol($line), 'The cashier must see the unit she is typing.');
+        $this->assertSame(Item::UNIT_OF_MEASURE_UNIT, Sale_lib::line_unit_of_measure($line));
+        $this->assertFalse(Sale_lib::line_sells_by_weight($line));
+        $this->assertSame('', Sale_lib::line_unit_of_measure_symbol($line));
     }
 
     public function testAKilogramLineStillShowsKilogramsAndAUnitLineShowsNothing(): void

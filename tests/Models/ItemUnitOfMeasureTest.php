@@ -16,33 +16,37 @@ use App\Models\Item;
 class ItemUnitOfMeasureTest extends CIUnitTestCase
 {
     /**
-     * Three, not two. Two was a guess and the data disagreed: the business sells QUESO DE CABEZA
-     * by the pound, and it is not the only one. 'unit' stays first because a de-selected dropdown
-     * falls back to whatever is printed first, and that has to be the code that changes nothing.
+     * Two, and the second one is the kilogram. There was briefly a third, 'lb', and removing it was
+     * a decision rather than a simplification -- the note on Item::ALLOWED_UNITS_OF_MEASURE has the
+     * evidence. 'unit' stays first because a de-selected dropdown falls back to whatever is printed
+     * first, and that has to be the code that changes nothing.
      */
-    public function testTheThreeCodesAreTheOnlyOnesAllowed(): void
+    public function testTheTwoCodesAreTheOnlyOnesAllowed(): void
     {
-        $this->assertSame(['unit', 'kg', 'lb'], Item::ALLOWED_UNITS_OF_MEASURE);
+        $this->assertSame(['unit', 'kg'], Item::ALLOWED_UNITS_OF_MEASURE);
     }
 
     public function testCodesAreAccepted(): void
     {
         $this->assertSame('unit', Item::normalize_unit_of_measure('unit'));
         $this->assertSame('kg', Item::normalize_unit_of_measure('kg'));
-        $this->assertSame('lb', Item::normalize_unit_of_measure('lb'));
     }
 
     /**
-     * Pounds and kilos are separate units and stay separate: the price of an item is the price of
-     * one of ITS unit and the quantity is stored in that unit. Nothing here converts, and nothing
-     * anywhere else does either -- a conversion would be a pricing error, not a labelling one.
+     * The kilogram is the only weighed unit, so a pound must not slip back in through a spelling.
+     *
+     * This is the assertion that would fail first if somebody put 'lb' back without reading why it
+     * went: nothing in this system converts between weighed units, so a second one silently charges
+     * 2.2 times the wrong price. It reads as 'unit' -- not as 'kg' -- because guessing that an
+     * unknown code means kilograms would make the register demand a weight for something nobody
+     * weighs.
      */
-    public function testAPoundIsNotAKilo(): void
+    public function testAPoundIsNotAUnitOfMeasureAnyMore(): void
     {
-        $this->assertNotSame(
-            Item::normalize_unit_of_measure('lb'),
-            Item::normalize_unit_of_measure('kg')
-        );
+        $this->assertNotContains('lb', Item::ALLOWED_UNITS_OF_MEASURE);
+        $this->assertSame('unit', Item::normalize_unit_of_measure('lb'));
+        $this->assertFalse(Item::unit_of_measure_is_weight('lb'));
+        $this->assertSame('', Item::unit_of_measure_symbol('lb'));
     }
 
     /**
@@ -75,8 +79,6 @@ class ItemUnitOfMeasureTest extends CIUnitTestCase
         $this->assertSame('kg', Item::normalize_unit_of_measure(' KG '));
         $this->assertSame('kg', Item::normalize_unit_of_measure('Kg'));
         $this->assertSame('unit', Item::normalize_unit_of_measure('Unit'));
-        $this->assertSame('lb', Item::normalize_unit_of_measure(' LB '));
-        $this->assertSame('lb', Item::normalize_unit_of_measure('Lb'));
     }
 
     /**
@@ -133,8 +135,8 @@ class ItemUnitOfMeasureTest extends CIUnitTestCase
 
     /**
      * One list of options, next to the codes it labels. A selector built anywhere else is a place
-     * where a fourth code can be forgotten -- which is exactly how 'lb' came to be missing from a
-     * column that already accepted it in every other sense.
+     * where a code can be forgotten -- which is exactly how a third code once came to be missing
+     * from a selector while the column accepted it in every other sense.
      */
     public function testEveryAllowedCodeIsOfferedInTheSelector(): void
     {
@@ -158,14 +160,13 @@ class ItemUnitOfMeasureTest extends CIUnitTestCase
     }
 
     /**
-     * The symbol beside the quantity on a cart line. 'kg' and 'lb' are the international symbols,
-     * so unlike the selector labels they are the same in every language this register ships in --
-     * which is why they are not language keys.
+     * The symbol beside the quantity on a cart line. 'kg' is the international symbol, so unlike
+     * the selector labels it is the same in every language this register ships in -- which is why
+     * it is not a language key.
      */
     public function testEachWeighedUnitHasItsOwnSymbol(): void
     {
         $this->assertSame('kg', Item::unit_of_measure_symbol('kg'));
-        $this->assertSame('lb', Item::unit_of_measure_symbol('lb'));
     }
 
     /**
@@ -185,7 +186,6 @@ class ItemUnitOfMeasureTest extends CIUnitTestCase
     public function testWeighedUnitsAreTheOnesThatAskForAWeight(): void
     {
         $this->assertTrue(Item::unit_of_measure_is_weight('kg'));
-        $this->assertTrue(Item::unit_of_measure_is_weight('lb'));
         $this->assertFalse(Item::unit_of_measure_is_weight('unit'));
         $this->assertFalse(Item::unit_of_measure_is_weight(null), 'A line with no unit on file is a unit line.');
         $this->assertFalse(Item::unit_of_measure_is_weight('nonsense'));

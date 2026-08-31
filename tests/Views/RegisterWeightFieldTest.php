@@ -140,8 +140,9 @@ class RegisterWeightFieldTest extends CIUnitTestCase
 
     /**
      * 'kg' used to be printed as a literal beside the quantity, on the argument that the SI symbol
-     * reads the same in every language. True, and beside the point once a second weighed unit
-     * exists: a line of head cheese sold by the pound was labelled kg.
+     * reads the same in every language. True today, when the kilogram is the only weighed unit --
+     * and still the wrong way to write it, because a literal is what makes a line say a unit it is
+     * not priced in the moment that stops being true.
      */
     public function testTheUnitBesideTheQuantityComesFromTheLineAndIsNotWrittenIn(): void
     {
@@ -157,8 +158,8 @@ class RegisterWeightFieldTest extends CIUnitTestCase
     }
 
     /**
-     * Same rule for the prompt itself. "Weight in kilograms" over a product priced by the pound is
-     * the cashier being told to type the wrong number.
+     * Same rule for the prompt itself. Nothing converts, so a prompt naming a unit the item is not
+     * priced in is the cashier being told to type the wrong number.
      */
     public function testThePromptAsksForTheUnitTheItemIsActuallySoldIn(): void
     {
@@ -179,8 +180,9 @@ class RegisterWeightFieldTest extends CIUnitTestCase
             'An entry with no unit is the one this feature shipped with, which was kilos.'
         );
         $this->assertSame(
-            Item::UNIT_OF_MEASURE_LB,
-            Sale_lib::weight_entry_unit_of_measure(['unit_of_measure' => Item::UNIT_OF_MEASURE_LB])
+            Item::UNIT_OF_MEASURE_KG,
+            Sale_lib::weight_entry_unit_of_measure(['unit_of_measure' => 'lb']),
+            'A code that is no longer a unit of measure is not a unit the prompt can ask in.'
         );
         $this->assertSame(
             Item::UNIT_OF_MEASURE_KG,

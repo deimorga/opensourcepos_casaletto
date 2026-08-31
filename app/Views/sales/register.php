@@ -165,9 +165,8 @@ helper('url');
     <?= form_close() ?>
 
     <?php
-    // The weight field exists only while an item priced by weight -- by the
-    // kilo or by the pound -- is waiting to be weighed, and nothing else on
-    // this page changes. That is the whole
+    // The weight field exists only while an item priced by weight is waiting
+    // to be weighed, and nothing else on this page changes. That is the whole
     // isolation mechanism: a shop whose items are all sold by the unit never
     // has an item waiting, so it never sees any of this -- and unlike a
     // setting, there is nothing here anybody can get wrong.
@@ -183,20 +182,20 @@ helper('url');
         $weight_keypad_rows = [['7', '8', '9'], ['4', '5', '6'], ['1', '2', '3']];
 
         // The prompt is the only thing telling the cashier which number to
-        // type, so it names the item's own unit. "Peso en kilogramos" over a
-        // product priced by the pound is not a cosmetic error -- and nothing
-        // here converts, so a wrong label is a wrong price.
-        //
-        // The key carries the unit code, which is what makes a third weighed
-        // unit a language file entry rather than an edit to this template.
+        // type, so it names the unit the item is priced in. Kilograms is the
+        // only weighed unit there is (App\Models\Item::ALLOWED_UNITS_OF_MEASURE
+        // says why), but the label is still keyed off the line's own unit
+        // rather than hard-coded: nothing here converts, so the day a second
+        // weighed unit is ever justified, a wrong label would be a wrong price
+        // and not a cosmetic slip.
         $weight_unit_of_measure = Sale_lib::weight_entry_unit_of_measure($weight_entry);
         $weight_field_label = Sale_lib::translate_or(
             'Sales.weight_in_' . $weight_unit_of_measure,
-            $weight_unit_of_measure === Item::UNIT_OF_MEASURE_LB ? 'Weight in pounds' : 'Weight in kilograms'
+            'Weight in kilograms'
         );
         $weight_price_label = Sale_lib::translate_or(
             'Sales.price_per_' . $weight_unit_of_measure,
-            $weight_unit_of_measure === Item::UNIT_OF_MEASURE_LB ? 'Price per pound' : 'Price per kilogram'
+            'Price per kilogram'
         );
     ?>
         <div id="weight_entry_panel" class="panel panel-warning" role="region" aria-labelledby="weight_entry_heading">
@@ -402,15 +401,14 @@ helper('url');
                                     echo form_input(['name' => 'quantity', 'class' => 'form-control input-sm', 'value' => $format_line_quantity($item), 'tabindex' => ++$tabindex, 'onClick' => 'this.select();']);
                                 }
 
-                                // 'kg' and 'lb' are international symbols, so
-                                // they read the same in every language this
-                                // screen ships in -- but which of the two it is
-                                // comes from the line, never from here. It was
-                                // written in as "kg", which labelled a pound of
-                                // head cheese as a kilo. A line sold by the
-                                // unit gets nothing, which is what every line in
-                                // a shop that does not weigh anything looks like
-                                // today.
+                                // 'kg' is an international symbol, so it reads
+                                // the same in every language this screen ships
+                                // in -- but it still comes from the line, never
+                                // written in here, so a line can never be
+                                // labelled with a unit it is not priced in. A
+                                // line sold by the unit gets nothing, which is
+                                // what every line in a shop that does not weigh
+                                // anything looks like today.
                                 if (Sale_lib::line_sells_by_weight($item)) {
                                     echo '<span class="line-unit-of-measure">' . esc(Sale_lib::line_unit_of_measure_symbol($item)) . '</span>';
                                 }

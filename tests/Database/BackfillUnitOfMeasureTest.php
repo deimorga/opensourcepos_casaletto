@@ -121,9 +121,9 @@ class BackfillUnitOfMeasureTest extends CIUnitTestCase
     }
 
     /**
-     * The important half. A pound is a weight, but the weight field reads what the cashier types as
-     * kilograms, so calling a pound-priced item 'kg' would misprice it rather than mislabel it.
-     * Volume and the Siigo filler mean nothing here either.
+     * The important half, and the rule that turned out to be right for a reason nobody had yet:
+     * "Unidad: libra" stays a unit. On this catalogue that string names the size of a bag of
+     * coffee, not something anybody weighs. Volume and the Siigo filler mean nothing here either.
      */
     public function testEverythingItIsNotSureAboutStaysAUnit(): void
     {

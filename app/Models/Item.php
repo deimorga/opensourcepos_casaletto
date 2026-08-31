@@ -24,42 +24,44 @@ class Item extends Model
      */
     public const UNIT_OF_MEASURE_UNIT = 'unit';
     public const UNIT_OF_MEASURE_KG = 'kg';
-    public const UNIT_OF_MEASURE_LB = 'lb';
 
     /**
      * Order matters twice over: 'unit' is printed first so a dropdown that lost its selection falls
      * back to the code that changes nothing, and the sequence is what the selector renders.
      *
-     * The pound is a separate unit, not a kilogram with a factor. Nothing in this system converts
-     * between them: an item's price is the price of one of ITS unit and the quantity is stored in
-     * that unit. A conversion here would be a pricing error, not a labelling one.
+     * THERE IS DELIBERATELY NO POUND HERE, and adding one back would undo a decision, not extend a
+     * list. The scale reports kilograms, the catalogue is priced per kilogram, and a business that
+     * says "por libra" out loud still records half a pound as 0.227 kg. A second weighed unit buys
+     * nothing and costs a great deal: nothing in this system converts, so an item put on the wrong
+     * weighed unit is charged at 2.2 times the wrong price with no error anywhere -- the same class
+     * of silent money loss the weighed-sales work exists to remove. That is not hypothetical: it
+     * happened here, and only the catalogue's own two months of sales caught it.
+     * See docs/Tecnico/venta-por-peso-y-hardware-de-caja.md section 3.3.
      */
     public const ALLOWED_UNITS_OF_MEASURE = [
         self::UNIT_OF_MEASURE_UNIT,
-        self::UNIT_OF_MEASURE_KG,
-        self::UNIT_OF_MEASURE_LB
+        self::UNIT_OF_MEASURE_KG
     ];
 
     /**
      * Codes that mean "this item is priced by what it weighs, so ask for a weight".
      *
-     * Named apart from the individual constants because the register asks this question of a cart
-     * line, not of a particular unit, and the answer has to widen when a fourth weighed unit
-     * arrives without anybody having to remember a second place to edit.
+     * A list of one, and kept as a list on purpose: the register asks this question of a cart line,
+     * not of a particular unit, so every caller already reads it as a set. What must NOT happen is
+     * a second entry appearing here casually -- read the note on ALLOWED_UNITS_OF_MEASURE first.
      */
-    public const UNITS_OF_MEASURE_BY_WEIGHT = [self::UNIT_OF_MEASURE_KG, self::UNIT_OF_MEASURE_LB];
+    public const UNITS_OF_MEASURE_BY_WEIGHT = [self::UNIT_OF_MEASURE_KG];
 
     /**
      * What is printed beside a quantity on the register.
      *
-     * Not language keys, unlike the selector labels: 'kg' and 'lb' are international symbols and
-     * read the same in every language this screen ships in. A unit is absent from the map on
-     * purpose -- a line sold by the unit shows nothing after the number, which is what every line
-     * in a shop that weighs nothing looks like today.
+     * Not a language key, unlike the selector labels: 'kg' is an international symbol and reads the
+     * same in every language this screen ships in. A unit is absent from the map on purpose -- a
+     * line sold by the unit shows nothing after the number, which is what every line in a shop that
+     * weighs nothing looks like today.
      */
     public const UNIT_OF_MEASURE_SYMBOLS = [
-        self::UNIT_OF_MEASURE_KG => 'kg',
-        self::UNIT_OF_MEASURE_LB => 'lb'
+        self::UNIT_OF_MEASURE_KG => 'kg'
     ];
 
     public const ALLOWED_SUGGESTIONS_COLUMNS = ['name', 'item_number', 'description', 'cost_price', 'unit_price'];
@@ -138,9 +140,9 @@ class Item extends Model
      * The codes as a selector wants them: code => label, in the order they are offered.
      *
      * Here rather than in a controller because more than one screen needs it and because a list
-     * kept beside the codes cannot fall behind them. That is not hypothetical: 'lb' was accepted by
-     * normalize_unit_of_measure() and stored happily by the column while the only selector in the
-     * application still offered two options, so nobody could choose it.
+     * kept beside the codes cannot fall behind them. That is not hypothetical: a code was once
+     * accepted by normalize_unit_of_measure() and stored happily by the column while the only
+     * selector in the application still offered two options, so nobody could choose it.
      *
      * Labels are resolved at display time, never stored -- switching locale must not change what
      * the data means. Same reasoning as payment_type_code and cash_source.
