@@ -21,8 +21,8 @@
 >
 > **Lo que falta es el hardware físico, y depende de terceros:**
 > - La báscula se presta **una vez y por cinco minutos** — §4.3b explica qué se logra y qué no.
-> - El programa que la lee está construido y **ensayado en el terminal real**, pero sin probar
->   contra la báscula.
+> - El programa que la lee está **instalado y corriendo en el terminal** (§4.3c-bis). Falta
+>   conectarlo con la pantalla de la caja, y probarlo contra la báscula.
 > - La impresora **no se instala hasta tenerla conectada** — instalarla antes crea una impresora
 >   fantasma que después hay que rehacer.
 > - **Windows no está activado**: es una compra del cliente.
@@ -325,6 +325,29 @@ sin esa pausa el cajero se encontraría con una página de error que no sabría 
   compañía.
 - **La impresora todavía no se instala**, a propósito: hacerlo sin la impresora conectada crea una
   impresora fantasma que después hay que rehacer. Se hace con el equipo enchufado, en dos minutos.
+
+### 4.3c-bis El programa de la caja ya está puesto (2026-08-31)
+
+Es el programa que le habla a la báscula, a la impresora y al cajón: lo único que no puede vivir en
+la página, porque un navegador no tiene forma de abrir el puerto de una báscula.
+
+**Ya está instalado y corriendo en el terminal**, y arranca solo con el equipo. No se ve: no tiene
+ventana, y el cajero no tiene que abrirlo ni saber que existe.
+
+**Lo que hace por dentro, que importa aunque no se vea:** no interpreta el peso. Lo entrega tal como
+lo dijo la báscula y es el sistema el que lo traduce. Suena a detalle técnico y es una decisión de
+negocio: el día que otro cliente traiga otra báscula, adaptarla es llenar una pantalla, **no volver
+a visitar la caja**.
+
+**Y una de seguridad.** El navegador permite que *cualquier* página abierta en ese equipo le hable a
+un programa local. Sin una puerta, un anuncio o un enlace que el cajero abra por curiosidad podría
+pedirle a la caja que **abra el cajón del dinero**. El programa solo atiende a la dirección del
+negocio y a ninguna otra; se probó intentando entrar desde otras y quedan rechazadas y anotadas.
+
+**Lo que todavía no hace, y hay que decirlo claro:** la página aún no le pide nada. El programa está
+puesto y probado, pero conectarlo con la pantalla de la caja es el trabajo que sigue. Y aun
+conectado, no daría un peso hasta los cinco minutos con la báscula, porque nadie conoce todavía el
+formato en que ese modelo dice el número.
 
 ### 4.3d Cómo damos soporte, y por qué no dejamos una puerta abierta
 

@@ -34,7 +34,9 @@
 > **Actualización del 2026-08-31 — el terminal ya está montado (§7b-bis).** Windows 10 **Pro** build
 > 19045, **7 puertos USB** y **COM1/COM2 físicos**, así que ninguna de las tres limitaciones que
 > anticipaba el §7b existe. CH341SER instalado (`oem35.inf`), `scale-probe.exe` **ejecutado en esa
-> máquina**, Chrome en modo kiosco con arranque automático. El acceso remoto es **SSH a demanda con
+> máquina**, Chrome en modo kiosco con arranque automático, y **el agente de la caja construido e
+> instalado** (`tools/pos-agent/`, versión 1.0.0, tarea `AgentePOS`, §5.10e) — falta conectarlo con
+> la página. El acceso remoto es **SSH a demanda con
 > solo llave** — se descartó el túnel permanente hacia el VPS por decisión del dueño, y fue el
 > criterio correcto.
 >
@@ -850,6 +852,61 @@ está soportado.
 El procedimiento en lenguaje de quien lo ejecuta está en `tools/scale-probe/README.md`, sección
 *"SEGUNDA VUELTA"*, con la secuencia de teclas y cómo saber si funcionó.
 
+### 5.10e El agente ya existe y ya está instalado (2026-08-31)
+
+**Código en `tools/pos-agent/`, con su README. Instalado y corriendo en el terminal.** Lo que sigue
+es lo que hay que saber para tocarlo; el detalle está en ese README.
+
+| | |
+|---|---|
+| Dónde vive | `C:\POS\agente\pos-agent.exe` + `config.json` + `pos-agent.log` |
+| Cómo arranca | Tarea programada **`AgentePOS`**, al iniciar sesión, como `BTS` |
+| Dónde escucha | `127.0.0.1:7878` — **solo loopback**, verificado con `netstat` |
+| Versión instalada | `1.0.0` |
+| Pruebas | **22, verdes con `-race`** |
+
+**Contrato tal como quedó**, sobre el del §5.4: WebSocket en `/ws`, más un `GET /estado` de
+diagnóstico que responde a `curl` desde la propia máquina. Al conectar, el agente manda `hello` con
+su versión y con si esta caja tiene báscula e impresora.
+
+**Los códigos de error se distinguen a propósito**, y el lado de la página tiene que respetarlo:
+`sin_bascula` es una caja que no tiene báscula —normal, y hay que pedir el peso a mano—;
+`sin_lectura` es una báscula que está y no contesta, que sí es una falla. Confundirlas convierte una
+caja sin hardware en una caja averiada.
+
+#### Lo que se comprobó contra el binario real, en esa máquina
+
+| Comprobación | Resultado |
+|---|---|
+| Origen configurado pide WebSocket | **101** |
+| Origen ajeno | **403**, y queda en la bitácora |
+| Mismo nombre por `http://` en vez de `https://` | **403** |
+| Puerto de escucha | `127.0.0.1:7878`, **nunca** `0.0.0.0` |
+| Firewall de Windows | No preguntó nada — solo pregunta por lo que escucha hacia afuera |
+
+#### Tres cosas que costaron y no se deducen leyendo
+
+- **La primera lectura del día llegaba antes de que el puerto estuviera abierto.** El bucle abre en
+  segundo plano, así que el primer `scale.read` tras encender fallaba y funcionaba al segundo
+  intento. Un error que se cura solo es de los más difíciles de diagnosticar por teléfono; ahora se
+  espera al puerto dentro del mismo presupuesto de tiempo.
+- **La bitácora va sin tildes.** El archivo es UTF-8 pero la consola de Windows lee en la página de
+  códigos del sistema, y `configuración leída` salía `configuraciA3n leA-da`. Es el archivo que
+  alguien abre cuando algo no funciona.
+- **Copiar el `.exe` por SSH no dispara SmartScreen.** La advertencia la produce la marca de origen
+  que pone el navegador al descargar, y `scp` no la pone. Bajarlo con Chrome en la caja sí la
+  produciría.
+
+#### Lo que falta para que esto sirva de algo
+
+**Nada de la página lo llama todavía.** `parse_scale()` sigue sin tener quien lo invoque y
+`scale_transport` sigue en `keys`. El agente está puesto y probado, pero la mitad del lado web —el
+cliente WebSocket y el punto de entrada que recibe la trama cruda— es trabajo aparte, con su propia
+compuerta de despliegue porque toca código que Casaletto ejecuta.
+
+Y aunque estuviera, **no daría un peso**: `scale_format` está vacío, y sin el formato real de la
+trama `parse_scale()` devuelve `null` a propósito. Eso son los cinco minutos con la báscula.
+
 ### 5.11 Fuentes de estos datos
 
 - Manual de usuario ROCHI RC-SERIE (11 páginas), sección *"Conexión USB a PC"*:
@@ -1000,6 +1057,7 @@ una máquina que maneja dinero, esa clase de herramienta modifica servicios del 
 | `scale-probe.exe` | En el escritorio, **ejecutado de punta a punta** en esta máquina |
 | `POS-58-Setup.exe` | Copiado, **sin instalar** — ver abajo |
 | Acceso a la caja | Modo kiosco, con arranque automático |
+| **`pos-agent.exe` 1.0.0** | En `C:\POS\agente\`, **corriendo**, tarea `AgentePOS` (§5.10e) |
 
 **Por qué la impresora no se instaló.** Es un instalador con ventanas y por SSH no hay escritorio
 donde dibujarlas: arranca y muere. Pero hay una razón mejor: **la impresora no está conectada**.

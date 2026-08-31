@@ -437,33 +437,51 @@ deshabilitado con el motivo —esconderlo haría que el cliente crea que el ajus
 Esto arrastra dos cosas: se construye en **Bootstrap 3** (§9.11) y **toca el punto de venta**, así que
 necesita la misma compuerta de pruebas que cualquier cambio que afecte a Casaletto.
 
-### 9.14 El historial de migraciones de plataforma vive en la base de Casaletto
+### 9.14 El historial de migraciones de plataforma vivía en la base de Casaletto
 
-Verificado en producción el 2026-08-31: **no existe `platform_control.migrations`**. Las cuatro
-migraciones del namespace `Platform` están registradas en **`ospos.ospos_migrations`**, la base de
-Casaletto, con `group = 'platform'`. Paraíso tiene cero filas de ese namespace.
+> **Corregido el 2026-08-31.** Se conserva el diagnóstico porque la causa sigue viva en el framework y
+> volverá a morder a quien use el comando de siempre.
 
-La causa está en el framework: `MigrationRunner::setGroup()` solo fija qué migraciones aplican; el
-historial se escribe siempre sobre `$this->db`, que se resuelve una sola vez en el constructor a
-partir del **grupo por defecto** (`MigrationRunner.php:150-156`). El `-g platform` dirige el DDL, no
-el historial.
+Verificado en producción: **no existía `platform_control.migrations`**. Las cuatro migraciones del
+namespace `Platform` estaban registradas en **`ospos.ospos_migrations`**, la base de Casaletto, con
+`group = 'platform'`. Paraíso tenía cero filas de ese namespace. Staging estaba igual.
 
-Tres consecuencias:
+La causa está en el framework y no se puede configurar: `MigrationRunner::latest()` llama a
+`ensureTable()` **antes** que a `setGroup()`, y `$this->db` se resolvió una sola vez en el constructor
+a partir del **grupo por defecto** (`MigrationRunner.php:150-156`). El `-g platform` dirige el DDL de
+cada migración, nunca el historial.
 
-1. **`platform_control` no es autocontenido.** Restaurar la base de Casaletto de un respaldo anterior
-   se llevaría por delante el historial de migraciones de la plataforma.
-2. **Correr `php spark migrate -n Platform -g platform` desde otro contexto es peligroso.** Si la
-   conexión por defecto apunta a otro esquema —porque `TenantResolver` la reapuntó, o porque se pasó
-   `MYSQL_DB_NAME`— el runner no ve el historial, da las cuatro por pendientes e **intenta volver a
-   crear `tenants`, `platform_accounts` y `platform_account_tenants`**.
-3. **La plataforma depende hoy de la base de un cliente**, que es justo lo contrario de lo que este
-   módulo persigue.
+Tres consecuencias, que es lo que se corrigió:
 
-**Mientras no se corrija:** toda migración de plataforma se corre desde el contexto por defecto de
-Casaletto, y se comprueba antes con `migrate:status -g platform` que las existentes figuran aplicadas.
-**Corregirlo de verdad** —mover el historial a `platform_control`— es un trabajo aparte: hay que crear
-la tabla allí, copiar las cuatro filas y verificar que el runner las lee, y no debe mezclarse con una
-entrega que ya toca la resolución de host.
+1. **`platform_control` no era autocontenido.** Restaurar la base de Casaletto de un respaldo anterior
+   se habría llevado por delante el historial de migraciones de la plataforma.
+2. **Correr el comando desde otro contexto era peligroso.** Si la conexión por defecto apuntaba a otro
+   esquema —porque `TenantResolver` la reapuntó, o porque se pasó `MYSQL_DB_NAME`— el runner no veía
+   el historial, daba las cuatro por pendientes e **intentaba volver a crear `tenants`,
+   `platform_accounts` y `platform_account_tenants`**.
+3. **La plataforma dependía de la base de un cliente**, justo lo contrario de lo que persigue el
+   aislamiento por esquema.
+
+#### El arreglo: dos comandos
+
+| Comando | Qué hace |
+|---|---|
+| `php spark platform:migrate` | Corre el namespace `Platform` **pasando la conexión de plataforma al runner**, así que `ensureTable()` y todo el historial caen en `platform_control`. Devuelve 0/1 de verdad, a diferencia del `migrate` de serie |
+| `php spark platform:adopt-history` | Paso único por ambiente: importa a `platform_control` las filas que ya existen en el esquema del cliente |
+
+`platform:migrate` **se niega a correr** si detecta las tablas de plataforma sin historial propio, en
+vez de intentarlo y fallar en el `CREATE TABLE`. Es el mismo criterio de `TenantProvisioner::adopt()`:
+comprobar y rechazar antes que apañárselas.
+
+**La adopción no borra las filas del esquema del cliente**, a propósito y por dos razones: escribir en
+la base de un cliente es justo lo que este módulo quiere dejar de hacer, y esas filas son la red que
+impide que un `php spark migrate -n Platform -g platform` hecho por costumbre vuelva a crear las
+tablas — las lee, las ve aplicadas y no hace nada.
+
+**A partir de ahora, toda migración de plataforma se corre con `platform:migrate`.** El comando de
+serie con `-g platform` queda desaconsejado: funciona, pero escribe el historial donde no debe.
+
+Pruebas: `tests/Commands/PlatformMigrationHistoryTest.php`.
 
 ---
 
