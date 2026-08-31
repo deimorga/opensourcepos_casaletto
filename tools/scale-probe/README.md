@@ -207,11 +207,66 @@ sería volver sin archivo.
    Escritorio, junto al programa, y su nombre empieza por `captura-bascula-`.
 10. Presione ENTER para cerrar la ventana.
 
+## SEGUNDA VUELTA — solo si sobró tiempo (formato 9)
+
+**Lea esto entero antes de tocar la báscula.**
+
+Lo anterior captura el formato **en el que la báscula viene puesta**, que es el
+que lee el POS que el cliente usa hoy. Con eso ya se puede trabajar, y por eso
+va primero.
+
+Existe un formato mejor, el **9**: en vez de mandar peso todo el tiempo, la
+báscula espera a que se le pida uno y contesta una sola lectura. Eso quita de
+raíz el problema de "cuál de todas las lecturas tomo".
+
+### La regla que no se rompe
+
+> **Primero capturar. Después reprogramar. Nunca al revés.**
+>
+> Si reprograma primero y algo sale mal —se le olvida el número anterior, la
+> báscula queda en un formato que nadie lee— **se pierde el día entero**, porque
+> la báscula no vuelve. Capturando primero, lo peor que puede pasar es que la
+> segunda vuelta no salga, y ya tenemos lo que fuimos a buscar.
+
+### Antes de tocar nada: anote el formato actual
+
+**Pregúntele al cliente en qué número está configurada**, o revise si su POS lo
+tiene anotado. Si nadie sabe, **anote que nadie sabe** — es un dato, no un
+descuido. Sin ese número no se puede devolver la báscula a como estaba.
+
+### Los pasos, tal como los da el manual del fabricante
+
+1. **Encienda la báscula** y espere a que **todas** las pantallas muestren ceros.
+2. Con el **teclado numérico**, digite el número del formato: el **9**.
+3. **Sostenga presionada la tecla `*`** (la de configuración) **durante 10
+   segundos**. *No la suelte antes de que pasen los 10 segundos.*
+4. Vuelva a correr `scale-probe.exe` y repita la captura completa.
+
+### Cómo saber si funcionó
+
+En el formato 9 la báscula **no manda nada sola**. El programa lo va a reportar
+así:
+
+- En el barrido: **`respondió a: W=…`** y pocos o ningún byte pasivo.
+- Si no responde a `W` y tampoco manda nada solo, **la báscula quedó muda**:
+  vuelva a hacer los pasos con el número que tenía antes.
+
+### Al terminar
+
+**Envíe los DOS archivos** `.txt`, el de la primera vuelta y el de la segunda.
+No borre el primero: si la segunda salió mal, el primero es el que sirve.
+
+---
+
 ## Si algo sale mal
 
 | Lo que ve | Qué hacer |
 |---|---|
 | **"NO SE ENCONTRÓ NINGÚN PUERTO COM"** | Falta el driver CH341SER, o el cable no es de datos, o la báscula está apagada. Instale el driver, **reinicie**, y vuelva a intentar. Pruebe otro puerto USB y otro cable. |
+| **Reprogramé y ahora no manda nada** | Es lo esperado si quedó en formato 9: solo contesta cuando se le pide. Corra el programa otra vez y mire si dice **`respondió a: W`**. Si tampoco, repita los pasos con el número que tenía antes. |
+| **No sé en qué formato estaba** | No reprograme. Capture como está y ya. Sin el número anterior no hay vuelta atrás. |
+| **Aparece `LB` en la pantalla de peso** | Es **batería descargada**, no libras. Conecte la báscula a 110 V y espere. |
+| **Se acabaron los cinco minutos a mitad** | Envíe el archivo tal como esté. Un barrido a medias sirve; volver sin archivo, no. |
 | La ventana **se abre y se cierra sola** | Fue un error muy temprano. Abra el Símbolo del sistema, arrastre el `.exe` a la ventana y presione ENTER: así el mensaje se queda a la vista. |
 | Windows dice **"protegió su PC"** | Normal: el programa no está firmado. **Más información** → **Ejecutar de todas formas**. |
 | Dice **"no se pudo abrir el puerto"** | Otro programa está usando la báscula. Cierre cualquier programa de básculas o terminal serial y vuelva a intentar. |

@@ -770,13 +770,70 @@ con división de 10 g** y el equipo del cliente es el **RC-A01E de 5 g**. Son va
 familia. Se asume que comparten el firmware multiformato — es lo más probable — pero se verifica en
 sitio.
 
-### 5.10c Dos advertencias operativas del manual hermano
+### 5.10c Tres advertencias operativas del manual hermano
 
 - **Abrir el puerto antes de encender la báscula.** Si la báscula ya está transmitiendo cuando el
   agente abre el puerto, Windows puede reportarlo como ocupado. El agente debe reintentar la
   apertura en vez de rendirse al primer error.
 - **Herramientas de verificación:** AccessPort o HyperTerminal, ambas gratuitas y para Windows. Es
   lo que se usa en el montaje antes de conectar nuestro agente.
+- **`LB` en la pantalla de peso significa BATERÍA DESCARGADA, no libras.** Se conecta a 110 V y se
+  espera. Con la libra recién retirada del sistema (§3.3), alguien podría leerlo al revés justo el
+  día equivocado.
+
+### 5.10d Qué puede y qué NO puede descubrir scale-probe (2026-08-30)
+
+Escrito porque la pregunta *"¿cuántos formatos encuentra?"* tiene una respuesta que no es la
+intuitiva, y equivocarse cuesta la única sesión con la báscula.
+
+**Hay tres cosas distintas que se llaman "formato" y no conviene mezclarlas:**
+
+| Qué es | Cuántas | Quién las recorre |
+|---|---|---|
+| Configuración serial (baudios, bits, paridad) | **6** | scale-probe, automáticamente |
+| Estímulos activos (`W`, `W+CRLF`, `$`, `ENQ`, `CR`, `P`, `S`, `SI+CRLF`) | **8** | scale-probe, automáticamente |
+| **Formato de emisión de la báscula** (`0`–`9`, `F`) | **1** | **Nadie. Se captura el que esté puesto.** |
+
+Son 48 combinaciones de las dos primeras. La tercera **no se barre**, y esa es la parte importante.
+
+#### Por qué solo se captura uno
+
+El formato de emisión **se cambia en el teclado físico de la báscula**, no por el puerto: se digita
+el número y se sostiene la tecla `*` diez segundos. Enviar bytes no reprograma nada, y eso es una
+garantía deliberada del diseño (`sweep.go`, comentario de `Probe`): una herramienta capaz de
+reconfigurar la báscula por accidente sería peligrosa en manos de un operario apurado.
+
+Consecuencia: **la captura devuelve el formato en que el cliente tiene la báscula hoy**, que es el
+que lee su POS actual. Eso ya sirve — el agente puede hablar ese formato y listo.
+
+#### Los huecos de la tabla, que son reales
+
+La tabla del §5.10b tiene **diez filas**: `0 1 2 3 4 5 7 8 9 F`. El propio manual se contradice de
+dos maneras:
+
+- **Falta el `6`.** El texto dice que se digita *"de 0 a 9"*, pero el 6 no aparece en la tabla. El
+  dígito existe; qué emite, nadie lo documentó.
+- Dice *"cuenta con 9 versiones"* sobre una tabla de diez filas.
+
+Y sobre todo: **es la tabla del diseño hermano (ACS-268), no del RC-A01E**. Coincide en capacidad,
+división, clase de precisión y parámetros seriales, pero sigue siendo hipótesis, no inventario.
+
+**Por eso el archivo de captura vale más que la tabla:** el volcado hexadecimal describe lo que la
+báscula hace, la tabla solo lo que debería hacer.
+
+#### El orden de la sesión de cinco minutos
+
+1. **Capturar como esté.** Garantiza salir con datos pase lo que pase.
+2. **Anotar en qué formato estaba**, preguntándole al cliente. Sin ese número no hay vuelta atrás.
+3. **Solo si sobró tiempo**, reprogramar al **formato 9** y capturar otra vez.
+
+**Nunca al revés.** Reprogramar primero y que algo falle deja la báscula en un formato que nadie lee
+y sin captura — y la báscula no vuelve. La segunda vuelta es una mejora, no un requisito: el
+formato 9 evita elegir una lectura dentro de un chorro continuo, pero el modo continuo funciona y
+está soportado.
+
+El procedimiento en lenguaje de quien lo ejecuta está en `tools/scale-probe/README.md`, sección
+*"SEGUNDA VUELTA"*, con la secuencia de teclas y cómo saber si funcionó.
 
 ### 5.11 Fuentes de estos datos
 

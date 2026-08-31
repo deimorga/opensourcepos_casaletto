@@ -255,6 +255,31 @@ se elige cuál desde su propio teclado. Uno de ellos funciona **por petición**:
 peso y la báscula responde con una sola lectura. Es el que vamos a usar, y es más confiable que
 escuchar un flujo continuo, porque no hay riesgo de tomar el peso a mitad del bamboleo.
 
+### 4.3b Los cinco minutos con la báscula: qué se logra y qué no (2026-08-30)
+
+La báscula se presta **una vez y por cinco minutos**. Conviene que el negocio sepa qué esperar de
+esa sesión, porque de ahí sale una expectativa que hay que ajustar.
+
+**Lo que se logra:** conectarla, grabar todo lo que emite y salir con un archivo. Con ese archivo se
+termina la integración **sin volver a necesitar la báscula**.
+
+**Lo que NO se logra:** probar todos los modos en que la báscula puede hablar. Esa báscula puede
+emitir en unos diez modos distintos, pero **solo habla en el que está configurada**, y cambiar de
+modo se hace en su teclado, no desde el computador. Así que de la sesión sale **uno**: el que el
+cliente usa hoy.
+
+**Y con ese uno basta.** Nuestro programa aprende a leer ese modo. No hay ninguna ventaja en
+conocer los otros nueve.
+
+**Hay una segunda vuelta opcional.** Existe un modo mejor —la báscula contesta solo cuando se le
+pide, en vez de mandar peso todo el tiempo— y si sobra tiempo se cambia y se captura otra vez.
+**Va segundo a propósito**: si se cambiara primero y algo saliera mal, la báscula quedaría en un
+modo que nadie lee y sin captura, y no hay segunda visita. El corte en seco nos da permiso para
+reprogramarla, porque el POS anterior se apaga ese mismo día.
+
+**Lo que le pedimos al cliente:** que nos diga **en qué número está configurada** hoy. Es un dato de
+diez segundos, y sin él no se puede devolver a como estaba.
+
 ### 4.4 Una advertencia legal que encontramos en el manual, y que no es nuestra decisión
 
 Al leer el manual del fabricante apareció algo que el negocio tiene que saber. En la contraportada,
