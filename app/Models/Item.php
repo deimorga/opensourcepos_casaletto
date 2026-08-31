@@ -481,33 +481,49 @@ class Item extends Model
      */
     public function get_info_by_id_or_number(string $item_id, bool $include_deleted = true): stdClass|string
     {
-        $builder = $this->db->table('items');
-        $builder->groupStart();
-        $builder->where('items.item_number', $item_id);
-
-        // Check if $item_id is a number and not a string starting with 0
-        // because cases like 00012345 will be seen as a number where it is a barcode
-        if (ctype_digit(strval($item_id)) && !str_starts_with($item_id, '0')) {
-            $builder->orWhere('items.item_id', $item_id);
-        }
-
-        $builder->groupEnd();
+        // THE ITEM NUMBER WINS, ALWAYS. Two queries, not one with an OR.
+        //
+        // Upstream ran a single query with `item_number = X OR item_id = X` and a LIMIT 1, and its
+        // own comment admitted the problem -- "in case two are returned due to barcode and item_id
+        // clash" -- while leaving which one survives to whatever the database felt like returning
+        // first. No ORDER BY, so it is arbitrary.
+        //
+        // That is not academic. A shop whose codes are short numbers hits it on nearly every one:
+        // Paraiso de la Canasta imported 1.184 references of which 212 use codes like 56 or 214,
+        // and ALL 212 collided with some other item's item_id. Typing 56 for an avocado rang up a
+        // cherry jelly. A wrong-product sale is silent -- the cashier sees a name they were not
+        // looking at only if they read the line.
+        //
+        // item_number is what the business prints, types and scans. item_id is a surrogate key
+        // nobody outside the database ever sees. When both could match, the printed code is the
+        // answer; the id is only a fallback for a caller that already has one.
+        $byNumber = $this->db->table('items')->where('items.item_number', $item_id);
 
         if (!$include_deleted) {
-            $builder->where('items.deleted', 0);
+            $byNumber->where('items.deleted', 0);
         }
 
-        // Limit to only 1 so there is a result in case two are returned
-        // due to barcode and item_id clash
-        $builder->limit(1);
+        $query = $byNumber->limit(1)->get();
 
-        $query = $builder->get();
-
-        if ($query->getNumRows() == 1) {
+        if ($query->getNumRows() === 1) {
             return $query->getRow();
         }
 
-        return '';
+        // Only now the surrogate key, and only when the input can be one. A value starting with 0
+        // is a barcode with a leading zero (00012345), never an id.
+        if (!ctype_digit(strval($item_id)) || str_starts_with($item_id, '0')) {
+            return '';
+        }
+
+        $byId = $this->db->table('items')->where('items.item_id', $item_id);
+
+        if (!$include_deleted) {
+            $byId->where('items.deleted', 0);
+        }
+
+        $query = $byId->limit(1)->get();
+
+        return $query->getNumRows() === 1 ? $query->getRow() : '';
     }
 
     /**
@@ -515,23 +531,30 @@ class Item extends Model
      */
     public function get_item_id(string $item_number, bool $ignore_deleted = false, bool $deleted = false): bool|int
     {
-        $builder = $this->db->table('items');
-        $builder->groupStart();
-        $builder->where('item_number', $item_number);
-        $builder->orWhere('item_id', $item_number);
-        $builder->groupEnd();
+        // Same rule as get_info_by_id_or_number(): the printed code wins over the surrogate key.
+        // Kept in step with it deliberately -- two lookups that disagree about what a code means
+        // would be worse than either rule on its own.
+        $byNumber = $this->db->table('items')->where('item_number', $item_number);
 
         if (!$ignore_deleted) {
-            $builder->where('items.deleted', $deleted);
+            $byNumber->where('items.deleted', $deleted);
         }
 
-        $query = $builder->get();
+        $query = $byNumber->get();
 
-        if ($query->getNumRows() == 1) {    // TODO: ===
+        if ($query->getNumRows() === 1) {
             return $query->getRow()->item_id;
         }
 
-        return false;
+        $byId = $this->db->table('items')->where('item_id', $item_number);
+
+        if (!$ignore_deleted) {
+            $byId->where('items.deleted', $deleted);
+        }
+
+        $query = $byId->get();
+
+        return $query->getNumRows() === 1 ? $query->getRow()->item_id : false;
     }
 
     /**

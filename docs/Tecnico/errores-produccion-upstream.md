@@ -257,3 +257,39 @@ nombres de proveedor y agencia, valores y definiciones de atributo, descripcione
 regalo, nombres de empleado, comentarios de cliente, categorías, comentarios de recepción, nombres de
 ubicación, nombres de mesa y nombres de artículo. **Reparar esos dos campos regulariza el 100% del
 daño existente**; la fase 1b es prevención.
+
+## Un código tecleado podía vender otro producto (2026-08-31)
+
+**Defecto de OSPOS de origen, encontrado al cargar el catálogo del segundo negocio.**
+
+`Item::get_info_by_id_or_number()` resolvía un código con **una sola consulta**:
+
+```sql
+WHERE item_number = X OR item_id = X   LIMIT 1
+```
+
+Sin `ORDER BY`. El propio comentario de upstream admitía el problema —*"Limit to only 1 so there is
+a result in case two are returned due to barcode and item_id clash"*— y dejaba en manos del motor
+cuál de las dos filas sobrevivía.
+
+**Cómo se manifestó.** Paraíso de la Canasta importó 1.184 referencias, **212 de ellas con códigos
+cortos** (`56`, `214`, `800`). Las 212 chocaron con el `item_id` de otro artículo. Teclear `56`
+—AGUACATE HASS, que se vende al peso— metía al carrito **GELATINA FRUTIÑO CEREZA**, por unidad.
+
+Una venta de producto equivocado **no da ningún error**: el cajero solo lo nota si lee la línea.
+
+**Arreglo.** Dos consultas en vez de una: **primero `item_number`, y solo si nadie lo reclama, el
+`item_id`**. `item_number` es lo que el negocio imprime, teclea y escanea; `item_id` es una clave
+sustituta que nadie ve fuera de la base. Cuando ambas podrían responder, gana el código impreso.
+
+Se aplicó la misma regla a `get_item_id()`, deliberadamente: dos búsquedas que discrepen sobre qué
+significa un código serían peor que cualquiera de las dos reglas por separado.
+
+**Casaletto no estaba expuesto** —sus códigos llevan prefijo `C`, cero colisiones medidas— pero el
+defecto llevaba ahí desde siempre y le habría tocado el día que alguien creara un artículo con
+código numérico corto.
+
+Se conserva la regla del cero a la izquierda: `00012345` es un código de barras, nunca el artículo
+12345.
+
+**Pruebas:** `tests/Models/ItemCodeResolutionTest.php`, 5 casos.
