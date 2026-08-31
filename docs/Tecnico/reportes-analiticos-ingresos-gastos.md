@@ -1,6 +1,8 @@
 # Diseño técnico — Reportes Analíticos: Ingresos vs Gastos
 
-> **Estado a 2026-08-23: implementado y verificado en staging. Pendiente de desplegar a producción.**
+> **Estado a 2026-08-31: EN PRODUCCIÓN.** Su permiso está registrado en el esquema de producción,
+> verificado por consulta directa. (Hasta el 2026-08-30 este encabezado decía "pendiente de
+> desplegar"; llegó en alguno de los despliegues de esa semana y nadie actualizó la frase.)
 >
 > Su dependencia técnica ya está resuelta: el modo caja de este reporte cruza ingresos y gastos por
 > medio de pago, y eso exigía que el medio de pago dejara de compararse como etiqueta traducida. Esa

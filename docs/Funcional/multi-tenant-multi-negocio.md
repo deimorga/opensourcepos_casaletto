@@ -159,6 +159,47 @@ validación cruzada de aislamiento más exhaustiva, e igualar el nombre y el tem
 los de producción (una diferencia de datos que ya existía antes de este proyecto). El trabajo real que
 sigue no es técnico: es sumar negocios-cliente nuevos, y la plataforma ya está lista para eso.
 
+## 6b. El segundo negocio ya existe (2026-08-31)
+
+**Paraíso de la Canasta** quedó creado en producción, en
+`paraisodelacanasta.ospos-saas.micronuba.net`. Con eso la plataforma deja de ser multi-negocio en
+teoría y pasa a serlo de hecho: dos negocios, cada uno con su base de datos, su usuario de base
+propio y su propia dirección.
+
+**Se creó desde el panel** —el mismo que puede suspender, reactivar y eliminar— y quedó con la
+configuración que necesita un negocio colombiano: pesos sin centavos, tres decimales en las
+cantidades (sin eso se pierde el peso), y español.
+
+**Está vacío.** Falta cargarle su catálogo de referencias.
+
+### Lo que este segundo negocio destapó
+
+Tener un negocio de verdad, y no uno de prueba, sacó a la luz **tres defectos que llevaban meses
+ahí** y que con un solo negocio no se podían manifestar. Los tres están corregidos; se cuentan
+porque explican por qué el sistema es hoy más confiable que hace dos días:
+
+| Qué pasaba | Consecuencia |
+|---|---|
+| Una dirección sin negocio activo mostraba la caja de Casaletto | **Suspender un negocio no lo bloqueaba: lo mandaba a la caja de otro** |
+| Crear un negocio fallaba a mitad de camino | Quedaba a medio construir y había que limpiarlo a mano |
+| La clave de cifrado se regeneraba en cada despliegue | **Cada despliegue dejaba ilegibles las contraseñas guardadas** |
+
+El tercero es el más serio y el que más tiempo llevaba escondido. Casaletto nunca lo sufrió por cómo
+fue incorporado —comparte credenciales y no tiene nada cifrado— pero habría roto a cualquier negocio
+creado con el procedimiento normal.
+
+### Un corte de 7 minutos, y por qué se cuenta
+
+Al desplegar el arreglo del tercero, **producción estuvo caída unos 7 minutos** (2026-08-31, 14:38).
+La causa fue que el mismo defecto vivía en un segundo lugar que no se revisó al corregir el primero.
+
+El sistema hizo lo que debía: al no poder verificar una base de datos, **se negó a atender** en vez
+de atender contra datos en duda. Esa decisión es deliberada y se mantiene. Pero ahora que hay dos
+negocios tiene un costo nuevo que conviene tener presente: **un problema en un negocio deja fuera a
+todos**. Está anotado para revisarse.
+
+El detalle técnico está en `docs/Tecnico/multi-tenant-arquitectura.md`, §§8b, 8c y 8d.
+
 ## 7. Continuidad de Casaletto
 
 Un punto central de este proyecto: **Casaletto no migra datos a ningún lado.** El negocio actual se convierte en el primer negocio-cliente de la plataforma usando su base de datos actual tal cual está. El resto de los negocios se suman después, cada uno con sus propios datos, sin tocar los de Casaletto.

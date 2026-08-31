@@ -1,24 +1,32 @@
 # Alcance funcional — Venta por peso, hardware de caja e inventario para supermercado
 
-> **Estado a 2026-08-28: en construcción.** Ya está hecho el trabajo de fondo que no se ve:
-> los artículos ya pueden decir si se venden por unidad o por kilo, se corrigieron cuatro errores
-> que hacían perder decimales de peso en silencio, y el despliegue ya no puede dejar a un negocio
-> sin poder entrar al sistema. En curso: la pantalla de configuración de la báscula y el campo de
-> peso en la caja.
+> **Estado a 2026-08-31: el software está EN PRODUCCIÓN. Falta el hardware.**
 >
-> **Todavía no está verificado contra una base de datos real.** Las pruebas están escritas, pero el
-> entorno de pruebas local no está disponible, así que 138 de ellas —incluidas las que comprueban
-> estos arreglos— nunca se han ejecutado. **Nada de esto debe llegar a producción antes de correrlas.**
+> Todo lo que depende de nosotros está desplegado y funcionando: los artículos dicen si se venden
+> por unidad o por kilo, la caja pide el peso y calcula contra el precio por kilo, se corrigieron
+> los cuatro errores que hacían perder decimales en silencio, y está el registro de merma. Probado
+> en el navegador con datos reales de Casaletto —ver §3.1— y con **523 pruebas automáticas**.
 >
-> **Actualización del 2026-08-28:** báscula identificada y documentada (ROCHI RC-A01E, y es
-> **multiprotocolo**) — §4.3. Periféricos confirmados en §3.4; el terminal será **Windows**, así que
-> el diseño se mantiene íntegro. **Falta confirmar si habrá pistola lectora.**
+> **Casaletto ya se está beneficiando.** No era solo para el cliente nuevo: tiene 71 artículos que
+> vende al peso, y dos de esos errores le estaban costando plata desde antes de este proyecto.
+>
+> **El segundo negocio ya existe.** *Paraíso de la Canasta* está creado en producción, en
+> `paraisodelacanasta.ospos-saas.micronuba.net`, configurado y vacío. Falta cargarle su catálogo.
+>
+> **Lo que falta es el hardware, y depende de terceros:**
+> - La báscula se presta **una vez y por cinco minutos** — §4.3b explica qué se logra y qué no.
+> - El programa que la lee está construido y ensayado, pero **sin probar contra la báscula real**.
+> - **Falta confirmar si habrá pistola lectora.**
+>
+> **Dos decisiones que siguen en pie:** el paso a producción del cliente nuevo será un **corte en
+> seco** —se apaga el POS anterior, sin plan de retorno— y el formato de la báscula se averigua por
+> cuenta propia, porque el proveedor del firmware cerró el soporte.
+>
 > **Atención al §4.4: el fabricante advierte que esta báscula no es apta para actividades
-> mercantiles.** Es un riesgo del negocio del cliente, no del desarrollo, pero hay que informarlo.
+> mercantiles.** Es un riesgo del negocio del cliente, no del desarrollo, pero hay que informarlo
+> por escrito.
 >
-> **Plan de trabajo aprobado el 2026-08-28.** Dos decisiones de ese día: el paso a producción será
-> un **corte en seco** —se apaga el POS anterior, sin plan de retorno— y el formato de la báscula se
-> averigua por cuenta propia, porque **el proveedor del firmware cerró el soporte**.
+> **La libra ya no existe en el sistema** (§3.1b): todo se pesa en kilogramos.
 >
 > Diseño técnico en `docs/Tecnico/venta-por-peso-y-hardware-de-caja.md`.
 

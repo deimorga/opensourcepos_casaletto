@@ -1,6 +1,6 @@
 # Alcance funcional — Reportes Analíticos: Ingresos vs Gastos
 
-> **Estado a 2026-08-23: implementado y verificado en staging; pendiente de producción.**
+> **Estado a 2026-08-31: EN PRODUCCIÓN**, verificado por consulta directa al esquema.
 > Los defectos que bloqueaban su modo caja ya están corregidos y en producción — ver
 > `docs/Tecnico/correccion-codificacion-tildes.md`.
 

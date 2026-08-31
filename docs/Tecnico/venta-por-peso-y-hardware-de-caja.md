@@ -1,14 +1,22 @@
 # Diseño técnico — Venta por peso, hardware de caja e inventario para supermercado
 
-> **Estado a 2026-08-28: en construcción.** Vías **V1, V2 y V3 implementadas y en `develop`**
-> (`524da70b2`): el entrypoint que migra antes de servir, la columna `unit_of_measure`, y los cuatro
-> defectos de precisión del peso.
+> **Estado a 2026-08-31: TODO EL SOFTWARE ESTÁ EN PRODUCCIÓN.** Staging y producción en `d7daead10`.
 >
-> **Verificación pendiente y NO menor:** el demonio de Docker está caído en la máquina de
-> desarrollo, así que **las 138 pruebas con base de datos nunca se han ejecutado** — incluidas las
-> que prueban estos arreglos. Las 130 sin base de datos pasan, y ninguna falla es de aserción: los
-> 138 errores son todos `Connection refused`. **Esto no está verificado hasta correr la suite
-> completa contra una base real.**
+> Desplegadas y verificadas: el entrypoint que migra antes de servir, `unit_of_measure`, los cuatro
+> defectos de precisión, el campo de peso en la caja, la pantalla de configuración de báscula, el
+> registro de merma con causa, y los arreglos de `parse_barcode()`.
+>
+> **523 pruebas verdes** contra MariaDB real, y verificación en el navegador con datos de Casaletto:
+> 0,735 + 0,740 = **1,475** y $38.350 exactos (§3.3 del funcional tiene el detalle).
+>
+> **Cambio de rumbo desde entonces, léase antes de tocar nada:**
+> - **La libra se agregó y se quitó** (§3.3). `ALLOWED_UNITS_OF_MEASURE` es `['unit','kg']` y así se
+>   queda. Los datos del propio cliente desmintieron la afirmación que la motivó.
+> - **Existe un segundo negocio real**: Paraíso de la Canasta. Eso convirtió en incidentes tres
+>   defectos latentes del multi-tenant — ver §§8b, 8c y 8d de
+>   `docs/Tecnico/multi-tenant-arquitectura.md`, incluido **un corte de producción de 7 minutos**.
+> - **El `.exe` del cliente resultó ser el driver de la impresora**, no el software de la báscula
+>   (§5.11). No cambia el plan: la trama ya estaba documentada por otra vía.
 >
 > **Actualización del 2026-08-28:** báscula documentada del todo — ROCHI RC-A01E, chip CH340,
 > **9600 8-N-1** sobre puerto COM virtual (§5.8). El terminal del cliente será **Windows**, así que
