@@ -1,0 +1,7 @@
+# Ejecutables compilados: no van al repositorio, se generan con `go build`.
+/pos-agent
+/pos-agent.exe
+
+# Bitácora y configuración de un ensayo local.
+/pos-agent.log
+/config.json
