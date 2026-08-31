@@ -1,14 +1,12 @@
 # Alcance funcional — Gestión de la plataforma y de los negocios-cliente
 
-> **Estado a 2026-08-31: requerimiento planteado, sin construir nada.**
+> **Estado a 2026-08-31: alcance CERRADO. Trece decisiones tomadas por el dueño de la plataforma.
+> Sin construir nada todavía.**
 >
-> Nace de una pregunta del dueño de la plataforma al aprovisionar el segundo negocio real:
-> *"¿cuál es el usuario del negocio que creamos, cuál es su contraseña, quién la crea?"*. Al
-> buscar las respuestas quedó claro que el panel de administración cubre el ciclo de vida del
-> **negocio**, pero casi nada del de las **personas** que lo administran.
->
-> **Se trabaja en paralelo, en otra conversación.** No mezclar con la implementación del cliente
-> supermercado, que sigue por su cuenta.
+> Nace de una pregunta al aprovisionar el segundo negocio real: *"¿cuál es el usuario del negocio que
+> creamos, cuál es su contraseña, quién la crea?"*. Buscando la respuesta quedó claro que el panel
+> cubre el ciclo de vida del **negocio** y casi nada del de las **personas** que lo administran — y,
+> al mirar más a fondo, que tampoco deja el negocio en condiciones de vender.
 >
 > Diseño técnico en `docs/Tecnico/gestion-de-plataforma-y-negocios.md`.
 
@@ -16,176 +14,350 @@
 
 ## 1. Para quién es esto
 
-Tres papeles distintos, y hoy solo el primero está resuelto:
-
-| Papel | Qué necesita | Hoy |
+| Papel | Dónde vive su identidad | Qué puede hacer |
 |---|---|---|
-| **Superadministrador de la plataforma** (nosotros) | Dar de alta negocios, suspenderlos, cobrar, dar soporte | Puede crear/suspender/eliminar negocios, **nada más** |
-| **Dueño de un negocio** | Entrar a su negocio, y a ninguno más | El mecanismo existe a medias y **no funciona** |
-| **Administrador dentro del negocio** | Operar su punto de venta | Funciona, es OSPOS de siempre |
+| **Superadministrador** (nosotros) | `platform_control.platform_accounts` | Todo el ciclo de vida de cualquier negocio, y entrar a gestionarlo |
+| **Dueño de un negocio** (el cliente) | `platform_accounts` + su `employees` | Entrar a su negocio, y a ninguno más |
+| **Empleado del negocio** | `employees` de su tenant | Operar el punto de venta. Es OSPOS de siempre y no se toca |
+
+**Los superadministradores son usuarios nuestros.** El cliente **no los ve en su lista de empleados y
+no los puede editar ni eliminar**. Su credencial no vive en la base del cliente.
 
 ---
 
-## 2. Lo que hay hoy, verificado
+## 2. La regla que ordena todo: dónde entra cada quién
 
-No es una impresión: se revisó el código y el estado real de producción.
+**Una sola credencial, dos resultados, según la puerta.**
 
-**Sí existe** un panel en `/platform/admin`, protegido, que lista negocios y permite **crear,
-suspender, reactivar y eliminar** (con confirmación, y con la opción aparte de borrar además la base
-de datos). Crear un negocio deja el esquema montado, migrado, con su propio usuario de base y su
-configuración.
+| Dirección | Qué obtienes |
+|---|---|
+| `ospos-saas.micronuba.net` | La **consola de plataforma**: negocios, su configuración, superadministradores |
+| `<negocio>.ospos-saas.micronuba.net` | **El punto de venta de ese negocio**, con todos los privilegios |
 
-**Al crear un negocio, el sistema inventa la contraseña:**
+Un superadministrador entra en las dos con el mismo usuario y la misma contraseña. La cambia una vez
+y le sirve en todos los negocios, incluidos los que se creen mañana.
 
-- El usuario **siempre se llama `admin`**. No se puede elegir.
-- La contraseña es **aleatoria**, de 16 caracteres. Nadie la escoge.
-- **Se muestra una sola vez**, en el mensaje de confirmación. Si se cierra esa pantalla, se perdió y
-  no hay forma de recuperarla desde ninguna pantalla.
+**Estado real, verificado contra el servidor el 2026-08-31:**
+
+| Pieza | Hoy | Qué falta |
+|---|---|---|
+| DNS de la raíz | Ya apunta al servidor | Nada |
+| Certificado | El SAN ya incluye la raíz además del comodín | Nada |
+| La raíz responde | **404** — el proxy no tiene regla para ese host | Una regla de enrutado |
+| El panel | Vive en `pos-casaletto.micronuba.net/platform/login`, la dirección de un cliente | Mudarlo a la raíz y **redirigir** la vieja |
+| El panel en subdominios | `paraisodelacanasta…/platform/login` responde **200** | Que deje de existir ahí |
+
+---
+
+## 3. Lo que hay hoy, verificado
+
+**Sí existe** un panel protegido que lista negocios y permite crear, suspender, reactivar y eliminar
+(con confirmación, y con la opción aparte de borrar la base de datos). Crear un negocio deja el
+esquema montado, migrado y con su propio usuario de base.
+
+**Al crear un negocio el sistema inventa la contraseña:** el usuario siempre se llama `admin`, la
+contraseña es aleatoria de 16 caracteres, y **se muestra una sola vez**.
 
 Ese reemplazo no es un detalle: el molde con el que nace cada negocio trae **el usuario y la
-contraseña reales de Casaletto**. Si el sistema no los cambiara, cada cliente nuevo nacería pudiendo
-entrar con las credenciales de otro cliente. Está resuelto, y conviene que quede escrito por qué.
+contraseña reales de Casaletto**. Sin ese paso, cada cliente nuevo nacería pudiendo entrar con las
+credenciales de otro cliente. Está resuelto, y conviene que quede escrito por qué.
 
 ---
 
-## 3. Lo que falta, y por qué duele
+## 4. Lo que falta, y por qué duele
 
-### 3.1 No se puede gestionar quién es superadministrador
+### 4.1 Hay una llave suelta: la cuenta huérfana
 
-| Necesidad | Hoy |
-|---|---|
-| Ver quiénes son superadministradores | No hay pantalla |
-| Crear otro | **Solo por línea de comandos en el servidor** |
-| Editar o eliminar uno | No existe |
-| Que cambie su propia contraseña | No existe pantalla |
+`platform_accounts` tiene dos filas, **ambas con poder total sobre todos los negocios**:
 
-**El riesgo es concreto y está vivo.** Hay dos cuentas con poder total sobre todos los negocios. Una
-de ellas es la que se creó al montar la plataforma y **nadie sabe su contraseña**. No se puede
-eliminar sin entrar a la base de datos. Es una llave suelta, y va a seguir suelta hasta que exista
-esa pantalla.
+- `deimorga@gmail.com` — la del dueño de la plataforma.
+- `admin@ospos-saas.micronuba.net` — creada al montar la plataforma con
+  `php spark platform:create-account … --admin`. **Nadie anotó su contraseña.**
 
-### 3.2 Si se pierde la contraseña de un negocio, no hay salida por pantalla
+Se llama huérfana porque no pertenece a nadie: nadie la usa y nadie puede usarla, pero existe y puede
+crear, suspender y **eliminar cualquier negocio junto con su base de datos**. No se puede borrar desde
+ninguna pantalla ni rotar, porque no se conoce su clave. La única salida hoy es entrar a la base.
+
+> **Mientras el login de cada negocio no acepte credenciales de plataforma, esa cuenta solo administra
+> negocios. En cuanto lo acepte, podrá entrar a todos.** Por eso eliminarla deja de ser higiene y pasa
+> a ser **condición previa** de la entrada por URL.
+
+### 4.2 Un negocio nuevo nace con la configuración de otro país
+
+El aprovisionador escribe **una sola** clave de configuración: el nombre de la empresa. Todo lo demás
+queda como lo siembra el molde, pensado para Estados Unidos.
+
+| Clave | Semilla | Paraíso hoy | Qué implica |
+|---|---|---|---|
+| `quantity_decimals` | `0` | `3` | Sin el 3, **el peso se pierde en silencio**. Corregido a mano |
+| `barcode_content` | `id` | `item_number` | Sin `item_number`, **un código tecleado vende otro producto**. Corregido a mano |
+| `number_locale` | `en_US` | `es_CO` | Corregido a mano |
+| `currency_decimals` | `2` | `0` | El peso colombiano no tiene centavos. Corregido a mano |
+| `language_code` | `en` | `es-MX` *(era `es-ES`)* | **Se escapó al aprovisionar.** Corregido el 2026-08-31 |
+| `country_codes` | `us` | `us` | Sin corregir en los **dos** negocios |
+| `tax_included` | `0` | `0` | Igual en los dos. Queda por decidir, no por asumir |
+| `timezone` | `America/Bogota` | `America/Bogota` | Correcto |
+
+**Paraíso no está roto** —se comprobó en producción, alguien ya corrigió casi todo a mano—. Y eso es
+justamente la prueba del problema: dejar un negocio funcionando depende de que una persona recuerde
+diez ajustes, uno por uno, sin lista. **Y uno se escapó:** `language_code` quedó en `es-ES` mientras
+Casaletto corría `es-MX`, así que las traducciones escritas para un negocio no se veían en el otro.
+Se corrigió el 2026-08-31 —negocio y empleados—, pero nadie lo habría notado hasta que una pantalla
+saliera en inglés.
+
+Aprovisionar deja de ser "crear el esquema" y pasa a ser **"dejar el negocio en condiciones de
+vender"**.
+
+### 4.3 No podemos entrar a gestionar el negocio de un cliente
+
+Hoy **no existe ningún camino** de una cuenta de plataforma hacia el punto de venta de un negocio.
+`PlatformLogin::select()` **solo redirige** a la dirección del negocio: te lleva hasta la puerta y
+sigue pidiéndote las credenciales de ese negocio. La pantalla "elija su negocio" es, en la práctica,
+un directorio de enlaces.
+
+### 4.4 Si se pierde la contraseña de un negocio, no hay salida por pantalla
 
 Se muestra una vez y nunca más. Si el cliente la pierde —y va a pasar— hoy toca entrar a la base de
 datos a mano. Eso no es algo que se pueda pedir en una llamada de soporte.
 
-### 3.3 El dueño de un negocio no puede entrar
+### 4.5 El listado de negocios no se puede leer
 
-Existe la idea de que un dueño entre y elija su negocio, pero **la tabla que los vincula está
-vacía** y **no hay pantalla para llenarla**. En la práctica ese camino no funciona para nadie.
+Muestra la dirección corta, el nombre técnico de la base y el estado. **No muestra el nombre del
+negocio** —ni se guarda— ni cuándo se creó, ni si alguien ha entrado alguna vez.
 
-### 3.4 El listado no se puede leer
+### 4.6 Los negocios nuevos se llaman "John Doe"
 
-Muestra tres datos: la dirección corta, el nombre técnico de la base y el estado. **No muestra el
-nombre del negocio** —de hecho ni se guarda— ni cuándo se creó, ni quién lo administra. Con dos
-negocios se tolera; con diez es inservible.
-
-### 3.5 Los negocios nuevos se llaman "John Doe"
-
-El sistema cambia el usuario y la contraseña, pero **no el nombre de la persona**. Un cliente nuevo
-entra y ve un nombre en inglés que no tiene nada que ver con él. Es pequeño y da muy mala impresión.
+El sistema cambia el usuario y la contraseña, pero no la fila de la persona.
 
 ---
 
-## 4. Decisiones que hay que tomar antes de construir
+## 5. Las decisiones, cerradas el 2026-08-31
 
-No son detalles de implementación: cambian lo que se construye.
+| # | Decisión |
+|---|---|
+| **D1** | El superadministrador es **invisible** para el cliente: no aparece en su lista de empleados ni lo puede editar o eliminar |
+| **D2** | **Existe "entrar a gestionar"** un negocio. Era el requisito central; deja de estar fuera de alcance |
+| **D3** | **La raíz es la plataforma; el subdominio es el negocio.** La dirección actual del panel **redirige**, no se corta. **Casaletto aparece en el listado** como un negocio más, gestionable |
+| **D4** | **La credencial de soporte es central.** En cada negocio se crea el empleado de soporte igual que hoy se crea el administrador —usuario, nombre, todos los permisos—, pero **su contraseña propia nunca se usa**: quien abre esa sesión es la cuenta de plataforma |
+| **D5** | La contraseña del negocio **se autogenera y se puede volver a ver** mientras el cliente no la haya cambiado. **Sin cambio obligatorio** en el primer ingreso. En cuanto el cliente la cambia, deja de verse y solo queda restablecerla |
+| **D6** | **Se registran las modificaciones, no los accesos.** Consecuencia asumida: el sistema no podrá responder "¿quién entró y cuándo?", solo "quién cambió qué" |
+| **D7** | La sesión de soporte tiene **todos los permisos** |
+| **D8** | **Tres intentos fallidos por cada dos horas**, contados **sobre la cuenta**. La ventana se cura sola. Otro superadministrador puede desbloquear, y el mensaje de error no revela si el correo existe |
+| **D9** | **Un solo usuario inicial por negocio**, con todos los permisos, que después crea a los demás |
+| **D10** | Los registros hechos desde una sesión de soporte muestran la etiqueta **«Soporte»**, sin exponer el usuario |
+| **D11** | **Segundo factor TOTP**, solo para `is_platform_admin = 1` |
+| **D12** | **Un solo perfil de configuración**, «Colombia · comercio al detal», aplicado en el alta. **Tres claves quedan bloqueadas** y el cliente no las puede cambiar; el resto sí es configuración suya |
+| **D13** | El perfil se aplica a **Paraíso de forma explícita y revisada**. A **Casaletto no se le toca nada** sin comparar antes clave por clave |
 
-**4.1 ¿Quién elige la contraseña del negocio nuevo?**
-Hoy la inventa el sistema y la muestra una vez. Tres caminos:
-- *(a)* Seguir igual, pero pudiendo regenerarla desde el panel.
-- *(b)* Que el superadministrador la escriba al crear el negocio.
-- *(c)* Que el sistema genere una temporal y **obligue a cambiarla en el primer ingreso**.
+### Sobre D11, el segundo factor
 
-**Recomendación: (c) combinada con (a).** Es la única en la que, pasado el primer día, la contraseña
-del cliente **no la conoce nadie más** — ni nosotros. Y regenerar sigue disponible para soporte.
+**Solo para superadministradores.** Hoy son dos cuentas, y una es la huérfana que se elimina: en la
+práctica, **una persona**.
 
-**4.2 ¿Guardamos el nombre del negocio en el registro?**
-Hoy solo se usa para escribirlo dentro del negocio y se descarta. Guardarlo es barato y hace legible
-el listado. **Recomendación: sí.**
+- **Los empleados de cada negocio no instalan nada** y nada cambia para ellos.
+- **Los dueños de negocio tampoco**: cuando tengan cuenta de plataforma (Entrega 5) la llevarán con
+  `is_platform_admin = 0`.
 
-**4.3 ¿Debe existir "entrar como" para dar soporte?**
+La asimetría es deliberada: la credencial de un cajero abre una caja; la de superadministrador abre
+todos los negocios de todos los clientes.
 
-**El dueño de la plataforma la pidió expresamente el 2026-08-31**, con estas palabras: *"¿cómo hago
-para tener un usuario y que todos los clientes reconozcan mi usuario? Si yo cambio la contraseña,
-que ese cambio me sirva para todos mis negocios."* Deja de ser una hipótesis de diseño y pasa a ser
-una necesidad de operación declarada.
+**No hace falta elegir aplicación.** TOTP es un estándar: la app Contraseñas de Apple lo hace de forma
+nativa, y también sirven 1Password, Bitwarden, Google Authenticator, Microsoft Authenticator o Authy.
+La aplicación **no muestra el secreto**: el secreto se genera una vez al registrar y se guarda en los
+dos lados; a partir de ahí la app muestra un código de seis dígitos que cambia cada 30 segundos, y la
+plataforma calcula el mismo para compararlo. **El secreto no vuelve a viajar**, y por eso no hace
+falta correo, SMS ni WhatsApp.
 
-**Hallazgo que hay que tener presente al decidirla.** Se verificó en el código: hoy **no existe
-ningún camino** de una cuenta de plataforma hacia el POS de un negocio. `PlatformLogin::select()`
-**solo redirige a la dirección del negocio** — no inicia sesión, no crea nada. Se aterriza en su
-pantalla de entrada y sigue pidiendo las credenciales de ESE negocio. La pantalla "elija su negocio"
-es, en la práctica, **un directorio de enlaces**.
+El factor va pegado **a la credencial, no a la pantalla**: se pide tanto en la consola raíz como al
+entrar a un negocio. Protegerla en un sitio y dejarla suelta en el otro no tendría sentido.
 
-**Los tres caminos, con su costo:**
+### Sobre D12, qué contiene el perfil «Colombia · comercio al detal»
 
-| Camino | Resuelve | Cuesta |
+El perfil no es una idea, es esta lista. Sin ella escrita, «aplicar el perfil» no significa nada.
+
+#### Las tres que quedan bloqueadas
+
+No se bloquea el perfil entero: hay claves que legítimamente cambian entre negocios. Se bloquean estas
+tres porque **cambiarlas no es una preferencia, es un daño**, y las tres ya causaron incidentes reales
+en este proyecto.
+
+| Clave | Valor obligatorio | Qué pasa si cambia |
 |---|---|---|
-| Replicar el mismo empleado en cada negocio | Sí, hoy, sin código | Cambiar la clave obliga a tocar cada base. Con quince clientes es inviable, y basta olvidar uno para dejar una llave vieja abierta |
-| **"Entrar como" desde el panel** | **Sí, y es lo que se pidió** | Es la función más peligrosa del sistema |
-| Autenticación central de verdad | Sí, elegante | Cirugía sobre el camino de autenticación de TODOS los negocios, incluido el que está vendiendo |
+| `quantity_decimals` | `3` | En `0` **el peso se pierde en silencio**: la venta cuadra en plata y el inventario queda mal |
+| `barcode_content` | `item_number` | En `id` **un código tecleado vende otro producto**. Pasó en Paraíso el 2026-08-31: teclear `56` (aguacate, al peso) metía gelatina de cereza. **212 de 1.184 referencias colisionaban** |
+| `language_code` | `es-MX` | Una variante distinta **parte el mantenimiento en dos**. El 2026-08-30 el aviso de peso salió en inglés porque la traducción se escribió solo en `es-ES` |
 
-**Recomendación: el segundo, y no sin estas tres condiciones.** Da acceso completo a los datos y al
-dinero de un cliente **sin su contraseña y sin que él se entere**:
+**Esas tres no son configuración, son cableado.** El resto sí es configuración del cliente.
 
-1. **Registro de auditoría** — quién entró, a qué negocio, cuándo, y qué hizo.
-2. **Aviso visible en pantalla** de que se está actuando como soporte y no como el dueño.
-3. **Que el cliente sepa que existe**, por contrato. No como sorpresa el día que pregunte quién
-   cambió un precio.
+> **El bloqueo no basta en la consola.** El negocio puede cambiar las tres desde **su propia pantalla
+> de configuración**. Si solo se bloquean en la consola de plataforma, el candado es decorativo: hay
+> que impedirlo también del lado del punto de venta.
 
-Sin lo primero, el día que un cliente haga esa pregunta no habrá con qué responderle.
+#### Las demás, que el perfil fija pero el negocio puede cambiar
 
-**Estado: la definición la trabaja el dueño de la plataforma directamente con el agente de este
-requerimiento** (acordado 2026-08-31).
+| Clave | Valor inicial | Por qué es suya |
+|---|---|---|
+| `number_locale` | `es_CO` | |
+| `currency_decimals` | `0` | Un cliente podría querer centavos |
+| `language` | `spanish` | Va de la mano de `language_code` |
+| `timezone` | `America/Bogota` | Un cliente fuera de Bogotá lo necesitaría distinto |
+| `company` | el nombre del negocio | Evidentemente suya |
+| `country_codes` | **por decidir** | Hoy `us` en los dos negocios |
+| `tax_included` | **por decidir** | Hoy `0` en los dos. El documento de venta por peso recomendaba `1` |
 
-**4.4 ¿Un superadministrador puede eliminarse a sí mismo?**
-Hay que decidir la regla que impide quedarse sin ningún administrador. **Recomendación: no permitir
-borrar el último, y no permitir que alguien se borre a sí mismo.**
+**Las dos últimas son lo único que queda por decidir del módulo**, y ninguna bloquea el arranque.
 
-**4.5 ¿Qué pasa con la cuenta huérfana que ya existe?**
-Hay que decidir si se elimina o se recupera. **Recomendación: eliminarla en cuanto exista la
-pantalla**, y que el primer uso del módulo sea justamente ese.
+#### El idioma vive en DOS sitios, y el del empleado manda
 
----
+Hallazgo que cambia cómo se implementa el perfil. `ospos_employees` tiene **sus propias columnas**
+`language` y `language_code`, y **ganan sobre la configuración del negocio**: si el empleado que entró
+tiene un idioma propio no vacío, ese es el que se usa.
 
-## 5. Alcance propuesto, en tres entregas
+**Un perfil que solo escriba la configuración del negocio no funciona.** Todo empleado que se cree
+después nace con el suyo, y el del aprovisionador no lo alcanza. El perfil tiene que cubrir **los dos
+sitios**, y **el alta de empleados tiene que heredar del perfil** en vez de dejar el campo suelto.
 
-Ordenadas por lo que quita riesgo primero.
+#### Estado actual, verificado el 2026-08-31
 
-### Entrega 1 — Cerrar la llave suelta
-- Pantalla de **superadministradores**: ver, crear, eliminar.
-- **Cambiar la propia contraseña.**
-- Reglas de seguridad de 4.4.
-
-*Con esto se puede eliminar la cuenta huérfana, que es el riesgo abierto de hoy.*
-
-### Entrega 2 — Soporte sin entrar a la base de datos
-- **Restablecer la contraseña del administrador de un negocio** desde el panel, mostrándola una vez.
-- **Guardar y mostrar el nombre del negocio**, más la fecha de creación.
-- **Corregir el "John Doe"** al crear.
-
-### Entrega 3 — El dueño entra a lo suyo
-- Pantalla para **vincular una persona con sus negocios**.
-- Que el flujo de "elija su negocio" funcione de verdad.
-- Obligar el cambio de contraseña en el primer ingreso, si se aprueba 4.1(c).
+- **Paraíso quedó en `es-MX`**: la configuración del negocio y sus dos empleados (`admin`,
+  `angela.rodriguez`). La tarea que salía de aquí **ya se ejecutó**.
+- **A Casaletto no se le tocó nada**, según D13. De paso: tres de sus seis empleados tienen el idioma
+  vacío, así que caen al del negocio, que ya es `es-MX`. **Están bien**, pero conviene saberlo el día
+  que se le aplique el perfil.
 
 ---
 
-## 6. Lo que este trabajo NO incluye
+## 6. Las pantallas del módulo
 
-- **"Entrar como" un negocio.** Decisión 4.3, va aparte.
+Todas viven en la consola de plataforma, que es una aplicación aparte del punto de venta y la usan una
+o dos personas. Debe ser densa y sobria, no bonita.
+
+### 6.1 Superadministradores *(nueva)*
+No es un CRUD genérico: tiene que contestar **¿cuál de estas cuentas no debería existir?**
+- Correo, fecha de alta, quién la creó y **último ingreso** — la columna que delata a la cuenta huérfana.
+- Crear, eliminar, cambiar la propia contraseña, activar el segundo factor.
+- Nadie se borra a sí mismo; no se puede borrar el último; se confirma **escribiendo el correo**.
+- Desbloquear a otro superadministrador tras los tres intentos fallidos.
+
+### 6.2 Listado de negocios *(rehecha)*
+Hoy muestra el nombre técnico de la base de datos. Con diez negocios es inservible.
+- Nombre real, dirección como enlace, estado, fecha de alta.
+- **Si alguien ha entrado alguna vez**: un negocio entregado y nunca usado es información que se quiere ver.
+- Suspender, reactivar, eliminar — **con las protecciones de 6.6**.
+
+### 6.3 Ficha del negocio *(nueva)*
+Donde de verdad se gestiona un cliente. Es la pantalla que hoy no existe y que hace falta.
+- Su configuración editable: idioma, IVA, decimales, contenido del código de barras.
+- **Consultar** la contraseña del administrador mientras no la haya cambiado, y **restablecerla** después.
+- Sus dueños vinculados.
+- El botón de **Entrar a gestionar**.
+
+### 6.4 Alta de negocio *(nueva)*
+Un formulario que deja el negocio listo, no uno que deja un esquema vacío.
+- Nombre, dirección, perfil de configuración y **correo del dueño** — el vínculo se crea aquí, que es
+  el único momento en que se tiene ese dato. Una pantalla aparte para llenarlo seguiría vacía, como
+  hoy.
+- Al terminar, el **bloque de entrega completo** —dirección, usuario, contraseña— **copiable de una
+  vez**, porque eso es lo que se pega en un mensaje al cliente.
+- Cerrar exige un clic explícito («Ya los guardé»), no desaparecer al navegar. Y la pantalla dice que
+  se puede volver a consultar, que es lo que quita el pánico de perderla.
+
+### 6.5 Registro de actividad *(nueva)*
+- Qué modificamos dentro del negocio de un cliente, con la etiqueta «Soporte».
+- Altas, suspensiones y bajas de negocios.
+- Cambios de configuración y restablecimientos de contraseña hechos desde la consola.
+
+### 6.6 La pantalla de eliminar, con freno *(a corregir — riesgo vivo)*
+Hoy eliminar un negocio es **una casilla y un botón**, y la casilla borra su base de datos completa.
+El listado incluye a **Casaletto**, así que ese botón está hoy a dos clics de destruir la base del
+negocio que está vendiendo.
+- Confirmación **escribiendo el slug del negocio**, no una casilla.
+- Los negocios **adoptados** (Casaletto) no se pueden eliminar desde la consola.
+- Borrar la base de datos exige **una confirmación aparte** y deja constancia en el registro.
+
+### 6.7 Elegir negocio *(corregida)*
+Existe pero no funciona para nadie: la tabla que la alimenta está vacía y, aunque se llenara, solo
+redirige. Con el vínculo creado en el alta y la entrada por URL, el dueño aterriza **dentro** de su
+negocio.
+
+---
+
+## 7. Alcance, en cinco entregas
+
+Ordenadas para que cada una deje el sistema mejor aunque la siguiente se demore.
+
+### Entrega 1 — La casa propia
+- Regla de proxy para `ospos-saas.micronuba.net`.
+- Tratamiento explícito de la raíz, para que no corra sobre la base de un cliente.
+- Sesión de plataforma con almacenamiento propio.
+- **Quitar el panel de los subdominios de cliente.**
+- Redirección desde la dirección actual.
+- **Freno en la pantalla de eliminar** (§6.6): confirmar escribiendo el slug, y bloquear la baja de
+  negocios adoptados. Es lo único de esta entrega que corrige un riesgo ya existente.
+
+### Entrega 2 — Cerrar la llave suelta
+- Pantalla de **superadministradores**: ver, crear, eliminar, con último ingreso.
+- **Cambiar la propia contraseña** y **activar el segundo factor**, con códigos de rescate.
+- Salvaguardas: ni a sí mismo, ni al último, confirmación escribiendo el correo, desbloqueo por otro
+  superadministrador.
+- Registro de actividad del panel.
+- **Eliminar la cuenta huérfana** — y en el mismo movimiento **crear una segunda cuenta real**, para
+  no quedarse con una sola: es la que desbloquea tras los tres intentos y la que salva si se pierde el
+  teléfono con el segundo factor.
+
+### Entrega 3 — Que un negocio nazca funcionando
+- **Perfil de configuración** aplicado en el alta.
+- **Ficha del negocio** con su configuración editable.
+- Nombre del negocio guardado, listado legible, fin del "John Doe".
+- **Consultar** la contraseña inicial mientras no se haya cambiado, y **restablecerla** después.
+- Bloque de entrega copiable: dirección, usuario y contraseña, todo junto.
+- **Bloquear las tres claves de cableado** también en la pantalla de configuración del negocio, no
+  solo en la consola.
+- El alta de empleados **hereda el idioma del perfil**.
+- ~~Aplicar el perfil a Paraíso~~ — **ya ejecutado el 2026-08-31**.
+
+### Entrega 4 — Entrar a gestionar
+- Empleado de soporte, invisible para el cliente, creado en el alta y en los negocios existentes.
+- **Entrada por la URL del negocio** con la credencial de plataforma.
+- Aviso permanente en pantalla mientras dure la sesión de soporte.
+- Registro de las **modificaciones** hechas dentro del negocio, con la etiqueta «Soporte».
+
+### Entrega 5 — El dueño entra a lo suyo
+- Vínculo cuenta↔negocio creado desde el alta.
+- Qué empleado es esa cuenta dentro de ese negocio.
+- El dueño aterriza **dentro** de su negocio, no en un formulario de entrada.
+
+---
+
+## 8. Lo que este trabajo NO incluye
+
 - **Cobros, facturación o planes.** No existe nada de eso y no se aborda aquí.
-- **Autoservicio de registro.** Los negocios los damos de alta nosotros; no hay un formulario
-  público y no debe haberlo.
+- **Autoservicio de registro.** Los negocios los damos de alta nosotros; no hay formulario público y
+  no debe haberlo.
 - **Cambiar cómo se aísla un negocio de otro.** Eso ya funciona y no se toca.
+- **Segundo factor para usuarios de negocio.** Ver D11.
+- **Carga masiva de artículos.** Requerimiento aparte, detenido por decisión del 2026-08-31.
 
 ---
 
-## 7. Cómo sabremos que quedó bien
+## 9. Cómo sabremos que quedó bien
 
-- Se puede crear un segundo superadministrador **sin abrir una terminal**.
-- Se puede eliminar la cuenta huérfana, y el sistema **impide** quedarse sin ninguna.
-- Un cliente que perdió su contraseña se resuelve **desde el panel, en una llamada**.
-- El listado, con diez negocios, se lee de un vistazo.
-- Un negocio recién creado **no dice "John Doe"** en ninguna parte.
-- Casaletto y Paraíso de la Canasta siguen comportándose exactamente igual.
+- `ospos-saas.micronuba.net` abre la consola, y `…/platform` **ya no responde** desde el subdominio de
+  ningún cliente.
+- Se crea un superadministrador **sin abrir una terminal**, y se elimina la cuenta huérfana.
+- El sistema **impide** quedarse sin ningún administrador.
+- Tres intentos fallidos frenan el acceso **sin dejar fuera de la plataforma al dueño**, porque otro
+  superadministrador puede desbloquear.
+- Un negocio recién creado **vende un artículo al peso correctamente** sin que nadie toque su
+  configuración, y no sale en inglés ni dice "John Doe".
+- Se entra a gestionar cualquier negocio **con la misma contraseña de siempre**, y las modificaciones
+  quedan registradas.
+- El cliente **no ve el usuario de soporte** en su lista de empleados ni lo puede modificar.
+- Un cliente que perdió su contraseña se resuelve **en una llamada**: se consulta si no la ha
+  cambiado, se restablece si sí.
+- **Eliminar un negocio exige escribir su slug**, y Casaletto no se puede eliminar desde la consola.
+- Un cliente **no puede cambiar** los decimales de cantidad, el contenido del código de barras ni el
+  idioma **desde su propia pantalla de configuración**.
+- Un empleado creado después del alta **nace con el idioma del perfil**, no con el campo vacío.
+- Quedan **dos superadministradores reales**, de modo que ninguno pueda quedar encerrado fuera.
+- **Casaletto y Paraíso siguen comportándose exactamente igual.**
