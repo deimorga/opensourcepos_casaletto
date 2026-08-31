@@ -240,6 +240,7 @@ return [
     "price_per_lb"                     => "Price per pound",
     "weight_example"                   => "for example",
     "add_weighed_item"                 => "Add to sale",
+    "weight_cancel"                    => "Cancel",
     "weight_keypad"                    => "Numeric keypad",
     "weight_backspace"                 => "Delete the last digit",
     "weight_invalid"                   => "Enter the weight as a number greater than zero.",
