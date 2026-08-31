@@ -266,6 +266,48 @@ un servidor — `.env` sin clave y variable presente (la escribe), `.env` con cl
 idempotente), sin clave y sin variable (falla con código 1), y una clave que empieza por guion (no se
 lee como opción, por eso `printf` y no `echo`).
 
+## 8d. Incidente: producción caída 7 minutos al desplegar el arreglo anterior (2026-08-31, 14:38)
+
+Se documenta porque la causa es instructiva y porque el arreglo del §8c no se puede leer sin ella.
+
+**Qué pasó.** Al desplegar el §8c a producción, el entrypoint falló al migrar y —por su política
+deliberada— **no arrancó Apache**. Casaletto y Paraíso de la Canasta estuvieron fuera unos 7 minutos.
+
+```
+tenant_paraisodelacanasta: Unable to connect to the database.
+Access denied for user '****'@'%' to database 'tenant_paraisodelacanasta'
+  FAILED: tenant_paraisodelacanasta
+[entrypoint] FATAL: migrations failed. Apache will NOT start.
+```
+
+**La causa: el mismo defecto del §8b, en el otro sitio que lanza migraciones.**
+`scripts/migrate-tenants.sh` invoca `tenant:migrate-one` pasándole **solo `MYSQL_DB_NAME`**. Arreglé
+`TenantProvisioner` unas horas antes y no busqué el segundo llamador.
+
+**Por qué no se había visto nunca.** El entrypoint migra todos los tenants en cada arranque, pero
+mientras el único tenant fue el adoptado, las credenciales compartidas ya poseían su esquema. **Este
+fue el primer arranque con un tenant aprovisionado en el registro.** El defecto llevaba ahí desde que
+existe el entrypoint; lo que cambió fue el dato.
+
+**Lo que hizo bien la política de fallo, y lo que costó.** El contenedor se negó a servir en vez de
+servir contra un esquema en duda: eso es lo correcto y por eso se diseñó así. El costo es que un
+fallo de migración **es una caída total**, no una degradación. Con dos negocios ya no es una hipótesis.
+
+**Arreglo.** `TenantMigrateOne::useTenantCredentials()` resuelve las credenciales del propio esquema
+desde el registro y reabre la conexión. Se leen **dentro** del comando, no las pasa quien lo invoca,
+para que no lleguen a una línea de comandos, a un volcado de entorno ni al stdout del bucle. Un
+tenant sin credenciales propias —el adoptado— conserva las compartidas, que es lo correcto para él.
+
+**Lecciones, sin adornos:**
+
+1. **Un defecto encontrado en un sitio se busca en todos.** `TenantProvisioner` y
+   `migrate-tenants.sh` lanzan la misma migración; arreglar uno y no mirar el otro fue el error.
+2. **Un cambio que no toca la base de datos igual puede tumbar el sitio**, si toca el arranque. El
+   despliegue del §8c no traía migraciones y aun así fue el más peligroso de los cinco.
+3. **La política de "caída ruidosa" hay que revisarla ahora que hay dos negocios.** Que un tenant
+   falle tumbe a todos merece discutirse: podría migrarse el resto y dejar fuera solo al que falla.
+   Queda anotado, no resuelto.
+
 ## 9. Infraestructura Docker/Traefik
 
 Hoy `docker/docker-mysql.yml` es un único contenedor MariaDB (imagen `mariadb:10.5`, EOL desde jun 2025) con una sola BD creada vía `MYSQL_DATABASE`, incluido por `docker-compose.local.yml`, `docker-compose.staging.yml` y `docker-compose.prod.yml`, cada uno con un solo contenedor de app y un router Traefik **estático** (`Host()` fijo, ej. `docker-compose.prod.yml:57`).
