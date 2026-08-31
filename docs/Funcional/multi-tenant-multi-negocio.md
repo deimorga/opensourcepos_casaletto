@@ -208,7 +208,7 @@ nadie.
 
 | # | Tema | Por qué importa | Estado |
 |---|---|---|---|
-| 1 | **Carga masiva de artículos: crear Y actualizar** | Paraíso tiene 1.184 artículos sin precio. El cliente los va a cargar, y hacerlo de a uno desde la ficha no es viable. La importación CSV crea bien, pero **actualizar** exige conocer el `Id` interno de cada fila, que el cliente no tiene | Por analizar |
+| 1 | **Carga masiva de artículos: crear Y actualizar** | Paraíso tiene 1.184 artículos sin precio. La importación crea bien, pero **actualizar** exige el `Id` interno de cada fila, que el cliente no tiene ni puede exportar | **Documentado aparte**: `docs/Funcional/carga-masiva-de-articulos.md`. Se trabaja en paralelo |
 | 2 | **Módulo de superadministrador insuficiente** | Hoy no se puede crear, editar ni eliminar un superadministrador desde pantalla; solo existe la cuenta que se creó por línea de comandos | **Documentado aparte**: `docs/Funcional/gestion-de-plataforma-y-negocios.md`. Se trabaja en paralelo |
 | 3 | **Que un negocio con problemas no tumbe a los demás** | La política actual de arranque es todo-o-nada: si un esquema falla, ningún negocio atiende. Con dos negocios ya costó un corte | Por definir |
 | 4 | **Rotación de la contraseña de plataforma** | La cuenta de superadministrador no tiene pantalla para cambiar su propia clave | Por definir |
