@@ -200,6 +200,19 @@ todos**. Está anotado para revisarse.
 
 El detalle técnico está en `docs/Tecnico/multi-tenant-arquitectura.md`, §§8b, 8c y 8d.
 
+## 6c. Backlog abierto (2026-08-31)
+
+Cosas identificadas trabajando, **no comprometidas todavía**, que hay que definir y garantizar antes
+de dar por cerrado el montaje del segundo negocio. Se anotan aquí para que no vivan en la cabeza de
+nadie.
+
+| # | Tema | Por qué importa | Estado |
+|---|---|---|---|
+| 1 | **Carga masiva de artículos: crear Y actualizar** | Paraíso tiene 1.184 artículos sin precio. El cliente los va a cargar, y hacerlo de a uno desde la ficha no es viable. La importación CSV crea bien, pero **actualizar** exige conocer el `Id` interno de cada fila, que el cliente no tiene | Por analizar |
+| 2 | **Módulo de superadministrador insuficiente** | Hoy no se puede crear, editar ni eliminar un superadministrador desde pantalla; solo existe la cuenta que se creó por línea de comandos | **Documentado aparte**: `docs/Funcional/gestion-de-plataforma-y-negocios.md`. Se trabaja en paralelo |
+| 3 | **Que un negocio con problemas no tumbe a los demás** | La política actual de arranque es todo-o-nada: si un esquema falla, ningún negocio atiende. Con dos negocios ya costó un corte | Por definir |
+| 4 | **Rotación de la contraseña de plataforma** | La cuenta de superadministrador no tiene pantalla para cambiar su propia clave | Por definir |
+
 ## 7. Continuidad de Casaletto
 
 Un punto central de este proyecto: **Casaletto no migra datos a ningún lado.** El negocio actual se convierte en el primer negocio-cliente de la plataforma usando su base de datos actual tal cual está. El resto de los negocios se suman después, cada uno con sus propios datos, sin tocar los de Casaletto.
