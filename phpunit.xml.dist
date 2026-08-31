@@ -61,5 +61,14 @@
         <env name="MYSQL_USERNAME" value="admin" force="true"/>
         <env name="MYSQL_PASSWORD" value="pointofsale" force="true"/>
         <env name="MYSQL_DB_NAME" value="ospos" force="true"/>
+
+        <!-- El registro de negocios vive en su propio esquema en producción, pero el usuario de
+             pruebas no tiene permisos para crear uno. Se apunta al mismo esquema de pruebas: el
+             grupo platform usa prefijo vacío, así que su tabla `tenants` no choca con las de OSPOS,
+             que van todas con `ospos_`. Sirve igual en CI, donde el servicio MariaDB es el mismo. -->
+        <env name="PLATFORM_DB_HOST_NAME" value="127.0.0.1" force="true"/>
+        <env name="PLATFORM_DB_USERNAME" value="admin" force="true"/>
+        <env name="PLATFORM_DB_PASSWORD" value="pointofsale" force="true"/>
+        <env name="PLATFORM_DB_NAME" value="ospos" force="true"/>
     </php>
 </phpunit>
