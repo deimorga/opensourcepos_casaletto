@@ -230,15 +230,14 @@ return [
     "visa"                             => "",
     "wallet"                           => "Monedero",
     // El aviso de peso. Las claves llevan como sufijo el código de la unidad en que se vende el
-    // artículo (App\Models\Item::ALLOWED_UNITS_OF_MEASURE), para que una tercera unidad al peso sea
-    // una entrada aquí y no una edición de app/Views/sales/register.php. Nada se convierte entre
-    // ellas: cada precio es el precio de una unidad del propio artículo, así que rotular en kilos un
-    // producto que se vende por libra no es un error de etiqueta sino de precio.
+    // artículo, y hoy el kilogramo es la única unidad al peso que existe
+    // (App\Models\Item::ALLOWED_UNITS_OF_MEASURE explica por qué una segunda es un riesgo y no una
+    // función). El sufijo se conserva porque aquí no se convierte nada: el precio es el precio de
+    // una unidad del propio artículo, así que rotular con la unidad equivocada sería un error de
+    // precio y no de etiqueta.
     "weigh_item"                       => "Pesar",
     "weight_in_kg"                     => "Peso en kilogramos",
-    "weight_in_lb"                     => "Peso en libras",
     "price_per_kg"                     => "Precio por kilogramo",
-    "price_per_lb"                     => "Precio por libra",
     "weight_example"                   => "por ejemplo",
     "add_weighed_item"                 => "Agregar a la venta",
     "weight_cancel"                    => "Cancelar",

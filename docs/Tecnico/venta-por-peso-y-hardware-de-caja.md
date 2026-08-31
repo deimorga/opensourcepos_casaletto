@@ -308,6 +308,64 @@ Encontrados al implementar, deliberadamente **no** resueltos por quedar fuera de
 - **`Sale_lib::add_item()` no copiaba la unidad a la línea del carrito** (~`:1140-1175`), que es el
   eslabón que le da sentido a la columna en la venta. Corresponde a la vía de la caja.
 
+### 3.3 La libra: se agregó, se usó, y se quitó (2026-08-30)
+
+**Estado: `lb` NO existe. `ALLOWED_UNITS_OF_MEASURE` es `['unit', 'kg']` y así debe quedarse.**
+Esta sección existe para que nadie la agregue otra vez creyendo que amplía una lista.
+
+El 2026-08-29 el negocio afirmó que el QUESO DE CABEZA se vende por libra. Se agregó el código `lb`
+(modelo, selector, etiquetas del aviso de peso, símbolo de la línea) y la migración
+`20260905000000` movió dos artículos hacia él. **Solo llegó a staging.**
+
+Al día siguiente el propio dueño corrigió la interpretación: la medida estándar es el kilogramo, y
+una libra se registra en kilogramos. **Los datos de producción lo confirman sin ambigüedad**, y son
+la razón por la que esto se cerró en una tarde en vez de discutirse:
+
+| Evidencia | Qué dice |
+|---|---|
+| `unit_price` = 26.000 y líneas de venta 0,192 / 0,250 / 0,500 | Un cuarto vale $6.500 → **$26.000 el kilo** |
+| Si fuera por libra | El mismo cuarto costaría $14.330 y el kilo $57.000 — no es lo que vale un queso de cabeza |
+| Descripción de Siigo | `Unidad: kilogramo` |
+| Dos meses de operación | Las cajeras venían digitando kilos |
+
+El otro artículo convertido, **CAFÉ MAKOR LIBRA**, muestra el error desde el otro lado: ahí "libra"
+es el tamaño del empaque, no algo que se pese. Es una unidad. La regla original del backfill
+(`20260903000000`), que dejaba `Unidad: libra` en `unit`, resultó ser la correcta — por una razón
+que en su momento nadie tenía.
+
+**Por qué no se dejó `lb` "por si acaso".** Nada en este sistema convierte entre unidades de peso: el
+precio es el precio de una unidad del propio artículo. Un artículo puesto en la unidad de peso
+equivocada se cobra a **2,2 veces el precio equivocado, sin ningún error en ninguna parte** — la
+misma clase de pérdida silenciosa que este proyecto entero existe para eliminar. Una opción en un
+menú desplegable que produce eso no es una función, es un riesgo. El comentario del §3 ya lo había
+anticipado: *"una tabla invita a que alguien agregue libra y gramo sin que nadie haya definido las
+conversiones"*.
+
+**Cómo se deshizo, y por qué en dos migraciones y no en una:**
+
+- `20260905000000` quedó **vaciada, no borrada**. Staging ya tiene su fila de versión, y CodeIgniter
+  recorre el directorio para decidir qué está pendiente: borrar el archivo dejaría esa fila
+  apuntando a nada. Vaciada también es correcta para quien no la ha corrido — no hacer nada es
+  exactamente lo que corresponde. Y no podía quedarse como estaba: referenciaba
+  `Item::UNIT_OF_MEASURE_LB`, una constante que ya no existe, así que el siguiente tenant en migrar
+  habría muerto con un error fatal.
+- `20260907000000_RevertPoundUnitOfMeasure` saca de `lb` toda fila que haya quedado ahí:
+  descrita como kilogramo → `kg`; cualquier otra → `unit`. Es no-op en producción y en todo negocio
+  nuevo.
+
+**El código defiende la ausencia, no solo la quita.** Una fila que todavía tenga `'lb'` —una sesión
+que sobrevive al despliegue, un tenant a medio migrar— se lee como `unit`: entra al carrito con
+cantidad 1, visible y corregible en la caja. No se lee como `kg`, porque adivinar que un código
+desconocido significa kilogramos haría que la registradora exija un peso para algo que nadie pesa.
+Hay pruebas que afirman esa ausencia (`ItemUnitOfMeasureTest::testAPoundIsNotAUnitOfMeasureAnyMore`,
+`ItemsUnitOfMeasureFormTest::testTheSelectorOffersOnlyTheUnitAndTheKilogram`) para que volver a
+agregarla sea una decisión consciente y no un descuido.
+
+**La lección operativa**, que vale más que el caso: *"el cliente dijo que es por libra"* no es un
+dato verificado. Los dos meses de ventas del propio cliente sí lo son, y estaban a una consulta de
+distancia. La afirmación verbal y la aritmética de su catálogo se contradecían, y ganó la
+aritmética.
+
 ## 4. Arquitectura del peso: el transporte es un enchufe
 
 ### 4.1 Las tres capas y dónde está el muro

@@ -115,7 +115,6 @@ return [
     "type"                               => "Item Type",
     "unit_of_measure"                    => "Unit of Measure",
     "unit_of_measure_kg"                 => "Kilogram",
-    "unit_of_measure_lb"                 => "Pound",
     "unit_of_measure_unit"               => "Unit",
     "unit_price"                         => "Retail Price",
     "unit_price_number"                  => "Unit price must be a number.",

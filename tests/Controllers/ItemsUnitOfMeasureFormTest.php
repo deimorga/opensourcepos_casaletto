@@ -95,11 +95,23 @@ class ItemsUnitOfMeasureFormTest extends CIUnitTestCase
     }
 
     /**
-     * The pound is why this whole change exists, so it gets its own line.
+     * The selector offers a unit and a kilogram, and nothing else.
+     *
+     * A pound was briefly on offer here and taking it away was the point of a later change, so this
+     * asserts the absence rather than trusting the list above to notice. Nothing converts between
+     * weighed units, so an item put on the wrong one is charged 2.2 times the wrong price in
+     * silence -- the reason the option is gone is exactly the reason nobody should be able to pick
+     * it back up from this screen.
      */
-    public function testThePoundIsOnOffer(): void
+    public function testTheSelectorOffersOnlyTheUnitAndTheKilogram(): void
     {
-        $this->assertArrayHasKey(Item::UNIT_OF_MEASURE_LB, Item::units_of_measure_options());
+        $options = Item::units_of_measure_options();
+
+        $this->assertSame(
+            [Item::UNIT_OF_MEASURE_UNIT, Item::UNIT_OF_MEASURE_KG],
+            array_keys($options)
+        );
+        $this->assertArrayNotHasKey('lb', $options, 'The pound must not be offered again.');
     }
 
     private function extractLabelCall(string $field): string

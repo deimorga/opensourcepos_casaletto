@@ -227,9 +227,10 @@ use App\Models\Item;
               //
               // The options come from Item::units_of_measure_options() and not from the
               // $units_of_measure the controller still passes, because a list kept beside the
-              // codes cannot fall behind them -- which is exactly what happened when 'lb' became a
-              // valid code while the selector went on offering two. When app/Controllers/Items.php
-              // is next touched, $data['units_of_measure'] should be that same call, or dropped. ?>
+              // codes cannot fall behind them -- which is exactly what happened once already, when
+              // a third code became valid while the selector went on offering two. When
+              // app/Controllers/Items.php is next touched, $data['units_of_measure'] should be that
+              // same call, or dropped. ?>
         <div class="form-group form-group-sm">
             <?= form_label(lang('Items.unit_of_measure'), 'unit_of_measure', ['class' => 'control-label col-xs-3']) ?>
             <div class="col-xs-4">

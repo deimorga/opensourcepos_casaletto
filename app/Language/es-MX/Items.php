@@ -115,7 +115,6 @@ return [
     "type"                               => "",
     "unit_of_measure"                    => "Unidad de Medida",
     "unit_of_measure_kg"                 => "Kilogramo",
-    "unit_of_measure_lb"                 => "Libra",
     "unit_of_measure_unit"               => "Unidad",
     "unit_price"                         => "",
     "unit_price_number"                  => "",
