@@ -38,6 +38,68 @@ La solución correcta es un **namespace PSR-4 separado**: las 3 migraciones de e
 
 **Gotcha real encontrado corriendo la suite completa de tests (no solo las migraciones sueltas)**: 9 archivos de test (`EmployeeTest`, `SalesControllerTest`, `SalesKitControllerTest`, `HomeTest`, `ConfigTest`, `EmployeesControllerTest`, `CustomersCsvImportTest`, `ItemsCsvImportTest`, `Summary_taxes_test`) declaraban `protected $namespace = null;` — en CI4, `$namespace = null` en `DatabaseTestTrait` significa **"migrar todos los namespaces registrados"**, no solo `App`. Antes de esta fase eso no importaba porque `App` era el único namespace; en cuanto se registró `Platform`, esos 9 tests empezaron a intentar correr también las migraciones de `platform` (con credenciales no configuradas en el entorno de test) y fallaban con `Unable to connect to the database`. Se corrigieron los 9 archivos a `protected $namespace = 'App';` (su intención real siempre fue "solo mis migraciones"), validado con la suite completa: 166/166 verdes de nuevo. **Cualquier test nuevo que use `DatabaseTestTrait` debe declarar `$namespace` explícito (`'App'`), nunca `null`**, ahora que hay más de un namespace de migraciones en el proyecto.
 
+## 4b. Un subdominio sin negocio activo se rechaza, no cae a la base por defecto (2026-08-30)
+
+**Qué pasaba.** `TenantResolver` buscaba un tenant `status='active'` con el slug del Host y, si no lo
+encontraba, no hacía nada. La conexión `default` seguía apuntando a lo que dicen las `MYSQL_*`, o
+sea al esquema de Casaletto. En la práctica:
+
+```
+supermercado.ospos-saas.micronuba.net  →  HTTP 200  "Casaletto Anapoima | OSPOS | Login"
+```
+
+Un subdominio que nadie registró, y **todo subdominio suspendido**, servía la base de Casaletto.
+Suspender un negocio no lo bloqueaba: le entregaba la caja de otro.
+
+**Por qué estaba así, y por qué dejó de valer.** Era correcto cuando se escribió, en la Fase 4:
+Casaletto era el único negocio, su subdominio no estaba registrado, y caer al comportamiento de
+siempre era justo lo que se quería. El spike de validación lo probó a propósito y lo dio por bueno.
+**La premisa venció el 2026-08-03**, cuando Casaletto quedó registrado como tenant. Nadie volvió a
+mirar la decisión porque nada falló — el modo de falla equivocado no produce errores, produce
+respuestas.
+
+**Alcance real del riesgo.** No era una fuga de datos: seguía pidiendo credenciales, y los usuarios
+del otro negocio no existen en el esquema de Casaletto. Era el **modo de falla equivocado**, y el
+que más caro sale en cuanto hay un segundo negocio pagando.
+
+**Qué se hizo.**
+
+| Host | Antes | Ahora |
+|---|---|---|
+| Sin sufijo comodín (`pos-casaletto.micronuba.net`, staging, local) | pasa de largo | **igual, pasa de largo** |
+| Comodín + tenant activo | usa su esquema | igual |
+| Comodín + tenant suspendido | **base de Casaletto** | **HTTP 503**, con aviso |
+| Comodín + slug inexistente | **base de Casaletto** | **HTTP 404**, con aviso |
+
+La consulta ahora trae la fila **sin filtrar por estado**, para poder distinguir "suspendido" de "no
+existe". Lo que eso revela —que un slug existe en la plataforma— es un nombre de negocio en un
+subdominio, no un secreto; y decirle a un cliente suspendido que está suspendido ahorra una tarde de
+llamadas.
+
+**El rechazo no renderiza una vista, y eso no es pereza.** Renderizar una vista de OSPOS leería
+`app_config` —tema, nombre, idioma— por la conexión `default`, que es precisamente la base que esta
+petición no debe tocar. La respuesta es HTML autocontenido construido en el filtro, sin base de
+datos y sin capa de vistas. Un rechazo que consultara el esquema equivocado para decir "esquema
+equivocado" sería peor que el defecto que reemplaza.
+
+**Pruebas:** `tests/Filters/TenantResolverTest.php`, 7 casos. La más importante es
+`testAHostOutsideTheWildcardIsLeftCompletelyAlone` — si ese camino se rompe, el negocio que está
+vendiendo se cae.
+
+Dos trampas que costaron tiempo y quedan anotadas ahí mismo, porque hacen que las pruebas pasen sin
+probar nada:
+
+- Bajo PHPUnit el framework está en modo CLI y `Services::request()` devuelve un `CLIRequest`, cuyo
+  `getServer('HTTP_HOST')` **siempre** es `null`. Hay que construir un `IncomingRequest` a mano.
+- Desde CodeIgniter 4.7 la petición lee su arreglo de servidor del servicio `superglobals`, que
+  fotografía `$_SERVER` al construirse. Escribir en `$_SERVER` dentro de la prueba no cambia nada;
+  hay que usar `service('superglobals')->setServer(...)`.
+
+Y una tercera, sobre el filtro y no sobre las pruebas: `service('response')` es **compartido**, así
+que dos llamadas al filtro en el mismo proceso devuelven el mismo objeto. En producción da igual
+—una petición, una respuesta— pero una prueba que guarde dos respuestas y las compare está
+comparando una consigo misma.
+
 ## 5. Resolución de tenant (el punto técnico más delicado)
 
 ### 5.1 Por qué el orden de ejecución importa
@@ -166,10 +228,11 @@ Todo este trabajo se desarrolla en la rama `feature/multi-tenant-saas` (creada d
 - **Fase 3 (schema de control y registro de tenants)**: completa, solo en `feature/multi-tenant-saas` (no se despliega a staging/producción todavía — no tiene ningún uso hasta que exista el resto del multi-tenant). Grupo de conexión `platform` en `app/Config/Database.php`; 3 migraciones nuevas en `app/Platform/Database/Migrations/` (namespace `Platform`, ver sección 4.1) creando `tenants`, `platform_accounts`, `platform_account_tenants` con sus FKs. Validado de verdad: `up`/`down`/`up` corridos contra un schema `platform_control` real en Docker, esquema resultante verificado columna por columna, y la suite completa de PHPUnit corrida dos veces (detectó y permitió corregir el gotcha de `$namespace = null` en 9 tests, documentado arriba) — 166/166 verdes al cierre.
 - **Fase 4 (Filter de resolución de tenant + spike de validación)**: completa, solo en `feature/multi-tenant-saas`.
   - `app/Filters/TenantResolver.php` (nuevo), registrado como primer elemento de `required.before` en `app/Config/Filters.php`. Lee el header `Host`, extrae el slug quitando el sufijo wildcard configurado, busca en `platform.tenants` (conexión `platform`, fija) un tenant `status='active'` con ese slug. Si lo encuentra, muta `config(Database::class)->default['database']` con el `db_name` del tenant y puebla `TenantContext` (`app/Libraries/TenantContext.php`, nuevo — holder estático de solo lectura). **Solo se sobreescribe `database`**, no host/usuario/contraseña — todos los tenants comparten el mismo servidor y credenciales hasta la Fase 7 (provisión), que les da un usuario MySQL propio con `GRANT` limitado a su schema.
-  - Si el Host no matchea ningún wildcard configurado, o matchea pero no hay tenant activo con ese slug (incluye el caso de un tenant con `status='suspended'`), el filtro simplemente no hace nada — la conexión `default` sigue usando lo que ya configuran las variables `MYSQL_*`, es decir el comportamiento actual de Casaletto, sin cambios.
+  - Si el Host no matchea ningún wildcard configurado, el filtro no hace nada — la conexión `default` sigue usando lo que ya configuran las variables `MYSQL_*`, es decir el comportamiento actual de Casaletto, sin cambios. **Ese sigue siendo el caso hoy y no se toca.**
+  - ~~Si matchea pero no hay tenant activo con ese slug (incluye `status='suspended'`), el filtro tampoco hace nada.~~ **CORREGIDO el 2026-08-30 — ver sección 4b.** Esa segunda mitad era correcta cuando se escribió y dejó de serlo el 2026-08-03, al registrarse Casaletto como tenant.
   - `app/Config/App.php`: nueva propiedad `$allowedHostnameWildcards` (sufijos con punto inicial, ej. `.midominio.com`, vía env var `ALLOWED_HOSTNAME_WILDCARDS`), consultada en `getValidHost()` además del match exacto ya existente — necesario para que `baseURL`/links generados no se rompan en subdominios de tenant.
   - `app/Config/OSPOS.php`: la clave de cache de `'settings'` ahora se sufija con el slug del tenant activo (`settings_<slug>`) vía `TenantContext::isResolved()`/`::slug()`, cerrando la fuga de config entre tenants detectada en la auditoría original.
-  - **Spike de validación ejecutado de verdad** (no solo revisado): 2 schemas de tenant reales (`tenant_demo1`, `tenant_demo2`, cada uno con una tabla `marker` de valor único) + 1 tenant `suspended`, servidos por el mismo contenedor de app, probados con `curl -H "Host: ..."` contra un endpoint de debug temporal (removido antes del commit). Resultado: cada Host devolvió el `SELECT DATABASE()` y el valor de `marker` correctos de su propio schema; el tenant suspendido y un Host sin wildcard cayeron correctamente a `ospos` (el comportamiento de hoy); `/login` sin tenant siguió devolviendo `HTTP 200` sin errores. Confirma que el swap de conexión ocurre antes de que `Config\Session` (o cualquier otra cosa) abra la conexión `default`.
+  - **Spike de validación ejecutado de verdad** (no solo revisado): 2 schemas de tenant reales (`tenant_demo1`, `tenant_demo2`, cada uno con una tabla `marker` de valor único) + 1 tenant `suspended`, servidos por el mismo contenedor de app, probados con `curl -H "Host: ..."` contra un endpoint de debug temporal (removido antes del commit). Resultado: cada Host devolvió el `SELECT DATABASE()` y el valor de `marker` correctos de su propio schema; el tenant suspendido y un Host sin wildcard cayeron a `ospos` — **lo que entonces era el comportamiento correcto y desde el 2026-08-30 ya no lo es para el suspendido; ver sección 4b**; `/login` sin tenant siguió devolviendo `HTTP 200` sin errores. Confirma que el swap de conexión ocurre antes de que `Config\Session` (o cualquier otra cosa) abra la conexión `default`.
   - Suite completa de PHPUnit corrida después de todo esto: 166/166 verdes, sin regresión.
 - **Fase 5 (orquestador de migraciones multi-tenant)**: completa, solo en `feature/multi-tenant-saas` (no wireado a `deploy-staging.yml`/`deploy-production.yml` todavía — esos ambientes no tienen schema `platform_control`, eso llega en la Fase 10).
   - `scripts/migrate-tenants.sh`: recorre `platform.tenants` (activos) y corre las migraciones de `App` contra el schema de cada uno, uno a la vez, reportando éxito/fallo por tenant y con código de salida distinto de cero si alguno falló (para que el pipeline de deploy no promueva el contenedor nuevo en ese caso).

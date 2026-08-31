@@ -25,11 +25,36 @@ use CodeIgniter\HTTP\ResponseInterface;
  * host/user/password, only swapping `database` -- the pre-Fase-7
  * behavior.
  *
- * A Host that doesn't match any active tenant (including Casaletto's
- * own current subdomain, which isn't registered as a tenant yet) is
- * not an error -- it falls through and the `default` connection keeps
- * using whatever MYSQL_* env vars already configure, i.e. today's
- * single-tenant behavior, unchanged.
+ * TWO DIFFERENT "NO TENANT", AND THEY MUST NOT BEHAVE THE SAME
+ *
+ * A Host that matches NO configured wildcard -- Casaletto's own
+ * pos-casaletto.micronuba.net, staging, localhost, anything in dev --
+ * is not a tenant request at all. It falls through untouched and the
+ * `default` connection keeps using whatever MYSQL_* env vars already
+ * configure. That is the legacy single-tenant path and it stays.
+ *
+ * A Host that DOES match a wildcard but resolves to no active tenant is
+ * refused, and that is a change made on 2026-08-30. It used to fall
+ * through as well, on the reasoning -- correct at the time -- that
+ * Casaletto was the only business and its subdomain was not registered,
+ * so falling back to today's behavior was exactly right.
+ *
+ * That premise expired on 2026-08-03, when Casaletto was registered as a
+ * tenant. What was left was this: ANY unregistered subdomain, and every
+ * SUSPENDED one, silently served Casaletto's schema. Suspending a
+ * business did not lock it out -- it handed it another business's till.
+ * Authentication still stood in the way, so it was not a data leak; it
+ * was the wrong failure mode, and the wrong one to keep once a second
+ * paying tenant exists.
+ *
+ * THE REFUSAL RENDERS NO VIEW, ON PURPOSE
+ *
+ * Rendering an OSPOS view would read app_config -- theme, company name,
+ * language -- over the `default` connection, which is precisely the
+ * database this request must not touch. The response is therefore
+ * self-contained HTML built here, with no database access and no view
+ * layer. A refusal that queries the wrong schema to say "wrong schema"
+ * would be worse than the bug it replaces.
  */
 class TenantResolver implements FilterInterface
 {
@@ -42,15 +67,25 @@ class TenantResolver implements FilterInterface
             return;
         }
 
+        // Fetched WITHOUT the status filter so the two failures can be told
+        // apart. A suspended business being told it is suspended is the
+        // difference between one support call and an afternoon of them; the
+        // information that disclosed -- that a slug exists on the platform --
+        // is a business name on a subdomain, not a secret.
         $tenant = db_connect('platform')
             ->table('tenants')
             ->where('slug', $slug)
-            ->where('status', 'active')
             ->get()
             ->getRow();
 
         if ($tenant === null) {
-            return;
+            return $this->refuse(404, 'Este negocio no existe.',
+                'La dirección no corresponde a ningún negocio de la plataforma. Revise que esté bien escrita.');
+        }
+
+        if ($tenant->status !== 'active') {
+            return $this->refuse(503, 'Este negocio está suspendido.',
+                'El acceso está temporalmente deshabilitado. Comuníquese con su proveedor del servicio.');
         }
 
         // Mutate whichever group is actually active (Config\Database's
@@ -81,6 +116,30 @@ class TenantResolver implements FilterInterface
 
     public function after(RequestInterface $request, ResponseInterface $response, $arguments = null)
     {
+    }
+
+    /**
+     * The refusal page: self-contained, no view, no database.
+     *
+     * Returning a ResponseInterface from before() short-circuits the request,
+     * so nothing downstream ever opens the `default` connection -- which is
+     * the whole point. See the class comment.
+     */
+    private function refuse(int $status, string $title, string $detail): ResponseInterface
+    {
+        $body = '<!doctype html><html lang="es"><head><meta charset="utf-8">'
+            . '<meta name="viewport" content="width=device-width,initial-scale=1">'
+            . '<title>' . esc($title) . '</title>'
+            . '<style>body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#f7f7f8;'
+            . 'color:#24292f;display:flex;min-height:100vh;align-items:center;justify-content:center;'
+            . 'margin:0;padding:1.5rem}main{max-width:32rem;text-align:center}'
+            . 'h1{font-size:1.35rem;margin:0 0 .6rem}p{margin:0;line-height:1.55;color:#57606a}</style>'
+            . '</head><body><main><h1>' . esc($title) . '</h1><p>' . esc($detail) . '</p></main></body></html>';
+
+        return service('response')
+            ->setStatusCode($status)
+            ->setContentType('text/html')
+            ->setBody($body);
     }
 
     /**

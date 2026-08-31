@@ -44,6 +44,37 @@ El administrador de plataforma da de alta un negocio-cliente nuevo desde la **pl
 ### 4.4 Gestión de sedes dentro de un negocio (sin cambios)
 Cada negocio sigue pudiendo tener varias sedes, gestionarlas, y filtrar reportes/ventas/inventario por sede, exactamente como ya funciona hoy.
 
+## 4b. Qué pasa cuando una dirección no corresponde a ningún negocio (corregido 2026-08-30)
+
+Cada negocio entra por su propia dirección. Faltaba definir qué debe ver alguien que llega a una
+dirección **que no corresponde a ningún negocio activo**, y hasta esta fecha veía algo indebido:
+**la pantalla de entrada de Casaletto**.
+
+No era una fuga de información —seguía pidiendo usuario y contraseña, y las claves de un negocio no
+sirven en la base de otro—, pero era el comportamiento equivocado, y tenía una consecuencia concreta
+que se iba a notar apenas entrara el segundo cliente:
+
+> **Suspender un negocio no lo bloqueaba: lo mandaba a la caja de Casaletto.**
+
+Si algún día suspendemos a un cliente por falta de pago, su personal habría terminado frente a la
+pantalla de otro negocio.
+
+**Cómo quedó:**
+
+| Quién llega | Qué ve ahora |
+|---|---|
+| Un negocio activo, por su dirección | Su propia caja, como siempre |
+| Un negocio **suspendido** | *"Este negocio está suspendido. Comuníquese con su proveedor del servicio."* |
+| Una dirección **mal escrita o inexistente** | *"Este negocio no existe."* |
+| Casaletto, por su dirección de siempre | **Exactamente igual que antes.** No cambia nada |
+
+Se distinguen a propósito los dos avisos: un cliente suspendido tiene que poder saber que está
+suspendido, y no confundirlo con haber escrito mal la dirección.
+
+**Lo que esto NO cambia:** la dirección de siempre de Casaletto, y la de cualquier negocio activo,
+se comportan idénticamente. La corrección solo actúa sobre direcciones que antes no debían haber
+funcionado.
+
 ## 5. Alcance y fuera de alcance
 
 **Dentro de alcance de este proyecto:**
