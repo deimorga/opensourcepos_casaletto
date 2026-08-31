@@ -30,6 +30,10 @@
 # serving traffic against a half-migrated schema is silent and corrupts
 # data. Prefer the loud failure.
 
+# It also pins the encryption key before anything can generate one. See
+# the section below; that has to happen BEFORE migrations, because a
+# migration is what generates one.
+
 set -euo pipefail
 
 log() { echo "[entrypoint] $*"; }
@@ -58,6 +62,54 @@ until php -r '
     waited=$((waited + 2))
 done
 log "Database is up (after ${waited}s)."
+
+# ------------------------------------------------------------ encryption key
+# Pin the key BEFORE migrations, because a migration is what generates one.
+#
+# app/Database/Migrations/20220127000000_convert_to_ci4.php calls
+# check_encryption(), which -- finding no key -- mints a fresh one and
+# writes it into .env. That file lives INSIDE the image, so every
+# `docker compose up --build` starts again with no key, and the first
+# thing that runs a migration on a fresh schema mints another one.
+#
+# What that cost, on 2026-08-30: creating a business encrypts its database
+# password with the key the parent process booted with, while the migration
+# child mints a DIFFERENT one and writes it to .env. The next HTTP request
+# reads the new key, cannot decrypt the password, and the business serves
+# HTTP 500. Worse, and the reason this is fixed rather than worked around:
+# EVERY deploy rotated the key, so every stored tenant password -- and the
+# SMTP and messaging credentials, which use the same key -- became
+# unreadable. Casaletto never noticed only because it was adopted rather
+# than provisioned, so its db_password is NULL.
+#
+# Writing it into .env rather than trusting the container variable is not
+# belt-and-braces. CodeIgniter resolves this setting by looking for
+# `encryption.key` in $_ENV first and only then the underscore spelling in
+# $_SERVER -- and under Apache the container's own variables are not in
+# $_SERVER at all, which is exactly why the variable that has been passed
+# in all along was never the key in use. A line in .env is read by DotEnv
+# into $_ENV, in every SAPI, and wins.
+ENV_FILE="${ENV_FILE:-/app/.env}"
+
+if [ ! -f "$ENV_FILE" ]; then
+    log "FATAL: ${ENV_FILE} does not exist. The image is expected to ship one."
+    exit 1
+fi
+
+if grep -qE '^[[:space:]]*encryption\.key[[:space:]]*=' "$ENV_FILE"; then
+    log "Encryption key already set in ${ENV_FILE}; leaving it alone."
+elif [ -n "${encryption_key:-}" ]; then
+    # Appended, never echoed. printf rather than echo so a key that happens
+    # to start with a dash is not read as an option.
+    printf "\nencryption.key = '%s'\n" "${encryption_key}" >> "$ENV_FILE"
+    log "Encryption key pinned into ${ENV_FILE} from the environment."
+else
+    log "FATAL: no encryption key. Set encryption_key in the environment"
+    log "       (docker-compose passes it from ENCRYPTION_KEY on the host)."
+    log "       Refusing to start rather than let a migration mint one:"
+    log "       a fresh key makes every stored tenant password unreadable."
+    exit 1
+fi
 
 # -------------------------------------------------------------- run migrations
 # SKIP_MIGRATIONS is an escape hatch for the rare case where an operator

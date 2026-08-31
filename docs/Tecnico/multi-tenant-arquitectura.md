@@ -212,6 +212,60 @@ una lista de argumentos en vez de `exec()` con una cadena:
 de pruebas no puede `CREATE DATABASE`, por diseño — pero fijan el contrato con el proceso hijo, que
 es donde vivía el defecto.
 
+## 8c. La clave de cifrado se regeneraba en cada despliegue (2026-08-31)
+
+El defecto más caro de esta tanda, y el que estuvo escondido más tiempo. Encontrado persiguiendo por
+qué el primer negocio aprovisionado tras un despliegue daba HTTP 500.
+
+**El mecanismo.** `check_encryption()` (`app/Helpers/security_helper.php`) genera una clave nueva y
+la escribe como `encryption.key` en **`.env`** cuando no encuentra ninguna. Ese archivo vive **dentro
+de la imagen**, así que cada `docker compose up --build` arranca sin clave. Quien dispara la
+generación es una **migración**: `20220127000000_convert_to_ci4` la llama, y solo corre en esquemas
+nuevos — por eso el detonante visible era crear un tenant.
+
+En ese momento hay dos procesos con claves distintas:
+
+| Proceso | Clave |
+|---|---|
+| El padre (`tenant:create`), que **cifra** el `db_password` | la que tenía al arrancar |
+| El hijo de migración, que ejecuta `convert_to_ci4` | **genera una nueva** y la escribe en `.env` |
+| La siguiente petición HTTP, que **descifra** | lee la nueva de `.env` → **falla** |
+
+Cronología verificada en producción: contenedor recreado 04:25:55, `.env` reescrito **04:26:31**,
+aprovisionamiento 04:26:33.
+
+**El daño real es mayor que el síntoma.** No es que crear tenants sea incómodo: **cada despliegue
+rotaba la clave**, así que todo lo cifrado con la anterior quedaba ilegible — el `db_password` de
+cada tenant, y también la contraseña SMTP y la del servicio de mensajes, que usan la misma clave
+(`app/Controllers/Config.php`). Casaletto nunca lo notó por una razón afortunada: entró por
+`tenant:adopt`, su `db_password` es `NULL` y comparte credenciales, así que su resolución nunca pasa
+por el descifrado.
+
+**Por qué la variable del contenedor no servía, aunque llevaba meses pasándose.** Se comprobó
+comparando huellas: la clave en uso y la variable `encryption_key` del contenedor eran **distintas**.
+`BaseConfig::getEnvValue()` busca `encryption.key` en `$_ENV` **antes** que la forma con guion bajo
+en `$_SERVER`, y bajo Apache las variables de entorno del contenedor **no están en `$_SERVER`**. En
+CLI sí. De ahí que CLI y HTTP pudieran diferir.
+
+**El arreglo.** `docker/entrypoint.sh` fija la clave en `.env` **antes de las migraciones** —tiene
+que ser antes, porque una migración es la que la genera— tomándola de la variable del contenedor.
+Escribirla en `.env` no es cinturón y tirantes: es el único lugar que DotEnv carga en `$_ENV`, que es
+donde CodeIgniter mira primero, en todos los SAPI.
+
+Si no hay clave, **el contenedor se niega a arrancar**. Misma política que las migraciones: una
+caída ruidosa es recuperable, una clave nueva silenciosa deja ilegible lo que ya estaba guardado.
+
+**El paso que no se puede saltar al desplegarlo.** La clave en uso vivía solo en el `.env` efímero
+del contenedor. Hubo que **leerla del contenedor vivo y guardarla en el `.env` del host** ANTES de
+desplegar; desplegar primero la habría destruido, y con ella el `db_password` de Paraíso de la
+Canasta. Se verificó por huella `sha256` que la clave guardada es la que estaba en uso, sin
+imprimirla nunca. Respaldos del `.env` anterior en `/root/POS_Casaletto*/.env.bak-*`.
+
+**Verificación del bloque:** las cuatro situaciones se probaron aisladas antes de acercar el script a
+un servidor — `.env` sin clave y variable presente (la escribe), `.env` con clave (no la toca, es
+idempotente), sin clave y sin variable (falla con código 1), y una clave que empieza por guion (no se
+lee como opción, por eso `printf` y no `echo`).
+
 ## 9. Infraestructura Docker/Traefik
 
 Hoy `docker/docker-mysql.yml` es un único contenedor MariaDB (imagen `mariadb:10.5`, EOL desde jun 2025) con una sola BD creada vía `MYSQL_DATABASE`, incluido por `docker-compose.local.yml`, `docker-compose.staging.yml` y `docker-compose.prod.yml`, cada uno con un solo contenedor de app y un router Traefik **estático** (`Host()` fijo, ej. `docker-compose.prod.yml:57`).
