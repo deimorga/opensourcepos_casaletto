@@ -121,7 +121,8 @@ class TenantProvisioner
         // ..." can't find it. Same reasoning applies here even though
         // this code path can also be invoked from an HTTP controller.
         $sparkPath = ROOTPATH . 'spark';
-        exec('MYSQL_DB_NAME=' . escapeshellarg($dbIdentifier) . ' php ' . escapeshellarg($sparkPath) . ' tenant:migrate-one 2>&1', $output, $exitCode);
+
+        [$output, $exitCode] = $this->runMigration($sparkPath, $dbIdentifier, $dbPassword);
 
         if ($exitCode !== 0) {
             throw new RuntimeException(
@@ -187,6 +188,79 @@ class TenantProvisioner
             'db_name'        => $dbIdentifier,
             'admin_password' => $adminPassword,
         ];
+    }
+
+    /**
+     * Environment for the migration child process.
+     *
+     * The whole reason this method exists: the child has to connect as the tenant's OWN MySQL
+     * user, not as the application's. Until 2026-08-30 only MYSQL_DB_NAME was overridden, so the
+     * subprocess connected with the shared credentials -- which hold privileges on `ospos` and
+     * `platform_control` and nothing else. Every attempt died on "Access denied for user ... to
+     * database 'tenant_...'" AFTER the schema and the user had already been created, leaving a
+     * half-built tenant behind and no row in platform.tenants. The user this connects as was
+     * created seconds earlier by create(), with ALL PRIVILEGES on exactly this one schema.
+     *
+     * Built from the full current environment rather than a curated list: the child boots the
+     * whole framework and needs CI_ENVIRONMENT, the PLATFORM_DB_* group, the encryption key and
+     * whatever else the container passes in. Naming them here would mean this breaks, silently and
+     * much later, the first time somebody adds one.
+     *
+     * @return array<string, string>
+     */
+    private function migrationEnvironment(string $dbIdentifier, string $dbPassword): array
+    {
+        $env = getenv();
+
+        $env['MYSQL_DB_NAME']  = $dbIdentifier;
+        $env['MYSQL_USERNAME'] = $dbIdentifier;
+        $env['MYSQL_PASSWORD'] = $dbPassword;
+
+        return $env;
+    }
+
+    /**
+     * Runs `tenant:migrate-one` against the new schema, as that schema's own user.
+     *
+     * proc_open rather than exec(): the password has to reach the child through its environment,
+     * and `exec("MYSQL_PASSWORD=... php spark ...")` would put a freshly minted database
+     * credential on a command line, where `ps` shows it to every process on the host for as long
+     * as the migration runs. In the env array it stays out of the process table, and out of any
+     * shell history or trace that records command lines.
+     *
+     * @return array{0: list<string>, 1: int} the child's output lines, and its exit status
+     */
+    private function runMigration(string $sparkPath, string $dbIdentifier, string $dbPassword): array
+    {
+        $descriptors = [
+            1 => ['pipe', 'w'],
+            2 => ['pipe', 'w'],
+        ];
+
+        $process = proc_open(
+            ['php', $sparkPath, 'tenant:migrate-one'],
+            $descriptors,
+            $pipes,
+            ROOTPATH,
+            $this->migrationEnvironment($dbIdentifier, $dbPassword)
+        );
+
+        if (!is_resource($process)) {
+            return [['Could not start the migration process.'], 1];
+        }
+
+        // Both pipes are drained before proc_close, which waits on the child: reading afterwards
+        // would deadlock on a process that fills a pipe buffer, and a failed migration is exactly
+        // the case that prints a lot.
+        $stdout = (string) stream_get_contents($pipes[1]);
+        $stderr = (string) stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+
+        $exitCode = proc_close($process);
+        $lines = preg_split('/\r\n|\r|\n/', trim($stdout . "\n" . $stderr)) ?: [];
+
+        return [array_values(array_filter($lines, static fn ($line) => trim($line) !== '')), $exitCode];
     }
 
     /**
