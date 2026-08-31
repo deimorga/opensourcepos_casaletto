@@ -95,6 +95,17 @@ cambia el alcance; sí explica por qué esa herramienta pasó a ser obligatoria.
 Para un producto que se vende por unidad no cambia nada: se escanea y entra con cantidad 1, igual
 que hoy.
 
+**Probado en el ambiente de pruebas el 2026-08-30, con datos reales de Casaletto.** Se cargó el
+QUESO DE CABEZA: la caja no lo metió al carrito, pidió el peso, y lo pidió **en libras** —que es
+como lo vende el negocio— con el precio por libra a la vista y un teclado numérico en pantalla.
+Digitado 0,735, la línea quedó en $19.110 exactos. Se volvió a entrar a la línea para editarla y el
+peso siguió siendo 0,735: antes de este trabajo se habría convertido en 1 kilo y en $26.000. Pesada
+una segunda bolsa de 0,740, la cantidad quedó en **1,475** y el total en $38.350; con el error
+anterior habrían sido 1,47 y $38.220, es decir **$130 perdidos en cada venta de dos bolsas**.
+
+En esa misma prueba se encontró y corrigió que **el aviso de peso salía en inglés**. La traducción
+estaba escrita, pero en la variante de español equivocada. Ya quedó en español.
+
 ### 3.2 Lo que cambia en la ficha del artículo
 
 Aparece un campo nuevo: **unidad de medida**. Dice si el artículo se vende por unidad o por peso.

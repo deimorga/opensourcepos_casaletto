@@ -260,7 +260,7 @@ helper('url');
                                 </button>
                                 <button type="submit" class="btn btn-default" id="cancel_weight_button" tabindex="<?= ++$tabindex ?>"
                                     formaction="<?= esc(site_url("$controller_name/cancelWeight")) ?>" formnovalidate>
-                                    <span class="glyphicon glyphicon-remove" aria-hidden="true">&nbsp;</span><?= esc(Sale_lib::translate_or('Common.cancel', 'Cancel')) ?>
+                                    <span class="glyphicon glyphicon-remove" aria-hidden="true">&nbsp;</span><?= esc(Sale_lib::translate_or('Sales.weight_cancel', 'Cancel')) ?>
                                 </button>
                             </div>
                         </div>

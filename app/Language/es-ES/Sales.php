@@ -239,6 +239,7 @@ return [
     "price_per_lb"                     => "Precio por libra",
     "weight_example"                   => "por ejemplo",
     "add_weighed_item"                 => "Agregar a la venta",
+    "weight_cancel"                    => "Cancelar",
     "weight_keypad"                    => "Teclado numérico",
     "weight_backspace"                 => "Borrar el último dígito",
     "weight_invalid"                   => "Escriba el peso como un número mayor que cero.",

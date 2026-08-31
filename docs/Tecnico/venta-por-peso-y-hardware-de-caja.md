@@ -1017,10 +1017,15 @@ El criterio que se aplica acá:
 Detectados por la vía V6 y **no** resueltos, por quedar fuera de su alcance de archivos. Ninguno
 bloquea la salida a producción, pero conviene que estén escritos y no en la cabeza de nadie:
 
-- **Faltan 9 claves de idioma**, hoy servidas por texto en inglés a través de un ayudante de
-  respaldo: `Sales.weigh_item`, `weight_in_kilograms`, `price_per_kilogram`, `weight_example`,
-  `add_weighed_item`, `weight_keypad`, `weight_backspace`, `weight_invalid`, y **`Common.cancel`,
-  que no existe en el repositorio**. Cuando se agreguen, los sitios que las usan no cambian.
+- ~~**Faltan 9 claves de idioma**~~ **RESUELTO el 2026-08-30**, al verlo en pantalla en staging:
+  el aviso de peso salía **entero en inglés** sobre una caja en español. La causa no era que
+  faltaran las claves — estaban escritas, pero en **`es-ES`**, y la aplicación corre en **`es-MX`**.
+  Un ambiente en español no basta para descubrirlo: hay que mirar *esa* variante. Se poblaron las
+  claves en `es-MX` (`Sales`, `Items`, `Reports`, `Config`) y se cambió `Common.cancel` —que no
+  existe en el repositorio— por `Sales.weight_cancel`, que sí. Los sitios de llamada no cambiaron,
+  tal como estaba previsto: `Sale_lib::translate_or()` cede el paso solo. Verificado con una
+  comparación de claves `en` contra `es-MX` y `es-ES` de los diez archivos que tocó este trabajo:
+  cero faltantes.
 - **ESC cancela la venta entera** mientras el campo de peso tiene el foco. Es comportamiento global
   preexistente, no una regresión — pero al lado de una petición de peso, ESC obviamente debería
   significar "cancelar el peso". Arreglarlo implica tocar el manejador global de atajos.
