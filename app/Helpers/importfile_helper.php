@@ -186,6 +186,19 @@ function csv_read_text_cell(string $value): string
         return $matches[1];
     }
 
+    // Y el apóstrofo de «esto es texto», por dos caminos distintos que llegan al mismo sitio:
+    //
+    // - Lo pone `csv_neutralise_formula()` al exportar un valor que empieza por `=`, `+`, `-` o `@`.
+    //   Si el cliente reenvía el archivo sin abrirlo, vuelve tal cual y hay que quitarlo o el código
+    //   quedaría guardado con un apóstrofo delante y el artículo sería inencontrable.
+    // - Y lo escriben a mano los usuarios de Excel para forzar que una celda se trate como texto.
+    //
+    // Excel lo quita solo al guardar, así que quitarlo aquí no puede perder un apóstrofo que alguien
+    // quisiera de verdad: un código que empiece por apóstrofo no existe.
+    if (str_starts_with($trimmed, "'")) {
+        return substr($trimmed, 1);
+    }
+
     return $value;
 }
 

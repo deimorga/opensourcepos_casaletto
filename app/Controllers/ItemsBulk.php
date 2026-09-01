@@ -195,10 +195,11 @@ class ItemsBulk extends Secure_Controller
         // rápido y menos cierto --y no cabría.
         $result = $this->importer->apply($this->importer->plan($path));
 
-        // Se borra el CSV subido pero NO se llama a `discard()`: eso se llevaría también el testigo de
-        // la sesión, y con él la foto del «cómo estaba antes» que esta misma pantalla acaba de ofrecer.
-        // Sin el archivo, un F5 sobre este POST ya no puede aplicar dos veces.
-        @unlink($path);
+        // Se consume el CSV pero se conserva el testigo, y con él la foto del «cómo estaba antes» que
+        // esta misma pantalla va a ofrecer. Sin el archivo, un F5 sobre este POST ya no puede aplicar
+        // dos veces. El ciclo de vida lo gobierna `Import_staging` y solo él: si la ruta se borrara
+        // desde aquí, el nombre y la ubicación los sabrían dos sitios.
+        $this->staging->consumeUpload();
 
         $fallidas = array_map(static fn (array $fila): int => $fila['line'], $result['failed']);
 

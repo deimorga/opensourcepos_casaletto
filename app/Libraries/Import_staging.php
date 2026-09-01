@@ -146,6 +146,29 @@ final class Import_staging
     }
 
     /**
+     * Consume el archivo subido pero conserva el testigo y la foto del «cómo estaba antes».
+     *
+     * ESTE MÉTODO EXISTE PORQUE `discard()` HACE DEMASIADO PARA ESTE MOMENTO
+     *
+     * Al aplicar hay que quitar el CSV --si se queda, un F5 sobre el POST vuelve a aplicarlo todo--
+     * pero **no** el testigo: la pantalla de resultado acaba de ofrecer «descargar cómo estaba antes»,
+     * y esa foto se localiza precisamente por el testigo. Llamar a `discard()` ahí dejaría el botón
+     * apuntando a la nada.
+     *
+     * Sin este método, quien aplica tiene que borrar el archivo por su cuenta --y entonces la ruta y
+     * el nombre los conocen dos sitios, que es como una de las dos partes se queda atrás el día que
+     * algo cambie de sitio.
+     */
+    public function consumeUpload(): void
+    {
+        $path = $this->currentPath();
+
+        if ($path !== null) {
+            @unlink($path);
+        }
+    }
+
+    /**
      * Dónde se guarda el «cómo estaba antes», que se genera justo antes de aplicar.
      *
      * Vive con el mismo testigo y muere con él: es la foto de ESTE cambio, y conservarla más allá

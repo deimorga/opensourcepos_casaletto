@@ -162,6 +162,31 @@ final class ImportStagingTest extends CIUnitTestCase
         $this->assertFileExists($nuevo, 'Barrer no puede llevarse el archivo de quien está trabajando ahora.');
     }
 
+    /**
+     * Al aplicar hay que quitar el CSV --si se queda, un F5 vuelve a aplicarlo todo-- pero NO el
+     * testigo: la pantalla de resultado acaba de ofrecer «descargar cómo estaba antes», y esa foto se
+     * localiza por el testigo. `discard()` se llevaría las dos cosas.
+     */
+    public function testConsumingTheUploadKeepsTheSnapshotReachable(): void
+    {
+        $ruta = $this->sembrar();
+        $foto = $this->staging->previousSnapshotPath();
+        file_put_contents($foto, 'la foto');
+
+        $this->staging->consumeUpload();
+
+        $this->assertFileDoesNotExist($ruta, 'Sin esto, un F5 aplicaría los cambios dos veces.');
+        $this->assertFileExists($foto);
+        $this->assertSame($foto, $this->staging->previousSnapshotPath(), 'El testigo sigue en pie.');
+    }
+
+    public function testConsumingWithNothingStoredIsNotAnError(): void
+    {
+        $this->staging->consumeUpload();
+
+        $this->assertNull($this->staging->currentPath());
+    }
+
     // ========== Dónde vive ==========
 
     public function testItLivesInItsOwnDirectoryAndNotWhereDownloadsAreServed(): void
