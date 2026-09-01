@@ -261,7 +261,17 @@ final class Item_export_lib
 
             // La única columna que se envuelve, y solo si es un número lo bastante largo para que
             // Excel lo destroce. Los 1.184 códigos de Paraíso son EAN de 13 dígitos.
-            'Barcode' => csv_text_cell((string)($item->item_number ?? '')),
+            //
+            // Y va DESPUÉS de neutralizar, no antes. Las dos protecciones no se estorban --una actúa
+            // solo sobre valores de puros dígitos y la otra solo sobre los que empiezan por símbolo,
+            // así que nunca coinciden-- pero el orden inverso sí rompería: neutralizar un valor ya
+            // envuelto le pondría un apóstrofo delante del `="`, y Excel lo mostraría literal.
+            //
+            // Sin esto, un código de artículo que empezara por `=` se ejecutaría como fórmula al
+            // abrir la hoja del cliente. Hoy no hay ninguno en producción --comprobado-- pero el
+            // cliente puede teclear uno mañana, y esta exportación es lo que lo llevaría hasta su
+            // Excel. `csv_read_text_cell()` quita el apóstrofo al releer, así que el viaje cierra.
+            'Barcode' => csv_text_cell(csv_neutralise_formula((string)($item->item_number ?? ''))),
 
             'Item Name'   => csv_neutralise_formula((string)$item->name),
             'Category'    => csv_neutralise_formula((string)$item->category),

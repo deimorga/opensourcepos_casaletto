@@ -235,6 +235,33 @@ final class ItemExportLibTest extends CIUnitTestCase
         $this->assertSame((string) $id, $fila['Id']);
     }
 
+    /**
+     * Un código que empieza por `=` es una fórmula que la hoja del cliente EJECUTA al abrirse. Hoy no
+     * hay ninguno en producción, pero esta exportación es lo que llevaría uno hasta su Excel, y el
+     * cliente puede teclearlo mañana.
+     *
+     * Las dos protecciones no se estorban --una actúa sobre puros dígitos, la otra sobre símbolos--
+     * pero el orden importa: neutralizar un valor ya envuelto le pondría un apóstrofo delante del
+     * `="` y Excel lo mostraría literal.
+     */
+    public function testACodeThatStartsLikeAFormulaIsNeutralised(): void
+    {
+        $id = $this->crearArticulo(['name' => 'Código con fórmula', 'item_number' => '=SUM(A1)']);
+
+        $celda = $this->filaDe($id)['Barcode'];
+
+        $this->assertSame("'=SUM(A1)", $celda);
+        $this->assertSame('=SUM(A1)', csv_read_text_cell($celda), 'Y el viaje de ida y vuelta lo devuelve intacto.');
+    }
+
+    public function testNeutralisingDoesNotBreakTheEanWrapper(): void
+    {
+        // El orden inverso daría «'="7702028000316"», que Excel enseña tal cual y destruye el viaje.
+        $id = $this->crearArticulo(['name' => 'EAN otra vez', 'item_number' => '7702028000316']);
+
+        $this->assertStringStartsWith('="', $this->filaDe($id)['Barcode']);
+    }
+
     // ========== Que el archivo no se rompa ==========
 
     public function testANameWithACommaAQuoteAndALineBreakComesBackTheSame(): void
