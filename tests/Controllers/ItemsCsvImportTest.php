@@ -13,6 +13,24 @@ use App\Models\Stock_location;
 use App\Models\Supplier;
 use Config\Database;
 
+/**
+ * AVISO: ESTE ARCHIVO NO PROTEGE LA IMPORTACIÓN. Leer antes de confiar en él.
+ *
+ * Tiene 37 pruebas y **ninguna invoca `Items::postImportCsvFile()`**. Tampoco `validateCSVData()` ni
+ * `validateCSVStockLocations()`: varias pruebas **reimplementan esa lógica dentro del propio test** y
+ * afirman sobre su copia. Cambiar el controlador no pondría roja ni una.
+ *
+ * Lo que sí ejercita de verdad es el helper --`generate_*_headers()`, `get_csv_file()`,
+ * `bom_exists()`-- y el modelo. Eso vale y se mantiene.
+ *
+ * Se deja tal cual a propósito. La carga masiva (`app/Controllers/ItemsBulk.php`) **no modifica este
+ * flujo**: vive aparte, con sus propias pruebas sobre librerías que sí se pueden probar. Reescribir
+ * estas 37 costaría como la funcionalidad entera y no compraría nada mientras el flujo viejo no
+ * cambie. Retirarlo, y estas pruebas con él, es Entrega 2.
+ *
+ * Si alguien va a tocar `Items::postImportCsvFile()`: esta suite no es una red. Escriba antes las
+ * pruebas que faltan.
+ */
 class ItemsCsvImportTest extends CIUnitTestCase
 {
     use DatabaseTestTrait;

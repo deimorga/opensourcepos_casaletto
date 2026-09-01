@@ -80,6 +80,21 @@ use App\Models\Employee;
 <?= view('partial/table_filter_persistence', ['additional_params' => ['stock_location']]) ?>
 
 <div id="title_bar" class="btn-toolbar print_hide">
+    <?php
+    // La carga masiva es una PÁGINA, no un modal, y por eso es un enlace y no un `modal-dlg`.
+    //
+    // El modal de BootstrapDialog construye sus botones al abrirse y no los deja cambiar, así que no
+    // puede pasar de «Continuar» a «Aplicar / Cancelar»; y una vista previa de mil filas con sus
+    // errores no cabe. Además la página sobrevive a un F5 y a que el cliente se vaya a Excel a
+    // corregir el archivo, cosa que un modal no.
+    //
+    // El botón viejo de importar NO se retira: su flujo sigue vivo y funcionando. Retirarlo es
+    // Entrega 2.
+    ?>
+    <a class="btn btn-primary btn-sm pull-right" href="<?= site_url('items/bulk') ?>" title="<?= lang('Items.bulk_upload_title') ?>">
+        <span class="glyphicon glyphicon-transfer">&nbsp;</span><?= lang('Items.bulk_upload_title') ?>
+    </a>
+
     <button class="btn btn-info btn-sm pull-right modal-dlg" data-btn-submit="<?= lang('Common.submit') ?>" data-href="<?= "$controller_name/csvImport" ?>" title="<?= lang('Items.import_items_csv') ?>">
         <span class="glyphicon glyphicon-import">&nbsp;</span><?= lang('Common.import_csv') ?>
     </button>

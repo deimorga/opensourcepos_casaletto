@@ -31,6 +31,46 @@ class Item_taxes extends Model
     }
 
     /**
+     * Los impuestos de MUCHOS artículos, en una sola consulta.
+     *
+     * `get_info()` es por artículo: exportar 1.184 artículos con él son 1.184 consultas. Esto es una.
+     *
+     * Se devuelven TODOS los impuestos de cada artículo, no los dos primeros. El archivo solo tiene
+     * sitio para dos, pero quien exporta necesita saber que hay un tercero para no borrarlo al
+     * reimportar -- ver la regla del tercer impuesto en `docs/Tecnico/carga-masiva-de-articulos.md`.
+     *
+     * @param list<int> $item_ids
+     * @return array<int, list<array{name: string, percent: string}>> por `item_id`
+     */
+    public function get_info_bulk(array $item_ids): array
+    {
+        $item_ids = array_values(array_unique(array_map('intval', $item_ids)));
+
+        if ($item_ids === []) {
+            return [];
+        }
+
+        $rows = $this->db->table('items_taxes')
+            ->select('item_id, name, percent')
+            ->whereIn('item_id', $item_ids)
+            // Sin orden explícito, «los dos primeros» dependería del capricho del motor y el mismo
+            // catálogo se exportaría distinto entre dos descargas.
+            ->orderBy('item_id', 'asc')
+            ->orderBy('percent', 'asc')
+            ->orderBy('name', 'asc')
+            ->get()
+            ->getResultArray();
+
+        $taxes = [];
+
+        foreach ($rows as $row) {
+            $taxes[(int)$row['item_id']][] = ['name' => (string)$row['name'], 'percent' => (string)$row['percent']];
+        }
+
+        return $taxes;
+    }
+
+    /**
      * Inserts or updates an item's taxes
      */
     public function save_value(array &$items_taxes_data, int $item_id): bool

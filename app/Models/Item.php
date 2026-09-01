@@ -405,6 +405,98 @@ class Item extends Model
     }
 
     /**
+     * Los artículos que salen en el archivo que se le entrega al cliente.
+     *
+     * POR QUÉ NO SE USA `get_all()`, QUE HACE CASI LO MISMO
+     *
+     * Por dos cosas, y las dos muerden justo con 1.184 artículos:
+     *
+     * 1. **`get_all()` ordena por `items.name`, que NO es único.** Paginar con `LIMIT/OFFSET` sobre
+     *    una columna repetida hace que MariaDB pueda devolver la misma fila en dos lotes y saltarse
+     *    otra: el archivo saldría con artículos duplicados y con artículos que faltan, sin avisar.
+     *    No es teórico -- medido el 2026-09-01: Casaletto tiene 3 nombres repetidos y Paraíso 14.
+     *    Aquí se ordena por `item_id`, que es la clave primaria.
+     * 2. **`get_all()` no filtra `item_type`**, así que trae kits, entradas por monto y artículos
+     *    TEMPORALES. Los TEMP los crea el propio punto de venta al cobrar algo suelto; sacarlos en el
+     *    archivo del cliente y que este los reimporte los **resucita**. Un kit no se puede
+     *    reconstruir desde estas columnas, así que reimportarlo lo convertiría en un artículo suelto.
+     *
+     * Se pagina para no traer 1.184 objetos a memoria de golpe.
+     *
+     * @param int $rows      cuántos por lote. 0 = todos.
+     * @param int $offset    desde cuál.
+     */
+    public function get_all_for_export(int $rows = 0, int $offset = 0): ResultInterface
+    {
+        $builder = $this->db->table('items');
+
+        $builder->where('items.deleted', 0);
+        $builder->where('items.item_type', ITEM);
+        $builder->orderBy('items.item_id', 'asc');
+
+        if ($rows > 0) {
+            $builder->limit($rows, $offset);
+        }
+
+        return $builder->get();
+    }
+
+    /**
+     * Cuántos artículos va a traer la exportación. Para saber cuántos lotes hacen falta.
+     */
+    public function count_all_for_export(): int
+    {
+        return $this->db->table('items')
+            ->where('items.deleted', 0)
+            ->where('items.item_type', ITEM)
+            ->countAllResults();
+    }
+
+    /**
+     * Resuelve un lote de códigos de artículo de una sola consulta.
+     *
+     * DISTINGUE TRES COSAS QUE HOY SON INDISTINGUIBLES
+     *
+     * `get_info_by_id_or_number()` devuelve la cadena vacía **tanto si no existe ningún artículo con
+     * ese código como si existen varios**. Para un emparejamiento masivo eso no sirve: «no existe»
+     * significa crear y «hay varios» significa parar y decirlo (D6). Confundirlos crearía un artículo
+     * duplicado cada vez que hay una ambigüedad.
+     *
+     * Y **no incluye borrados**, al revés que aquel, cuyo valor por omisión sí los trae: emparejar
+     * contra un artículo borrado lo revive sin que nadie lo haya pedido.
+     *
+     * Solo artículos normales: un código que pertenezca a un kit o a un temporal se devuelve con su
+     * `item_type` para que quien llame pueda rechazar la fila en vez de escribirle encima.
+     *
+     * @param list<string> $item_numbers
+     * @return array<string, list<object>> el código, y los artículos vivos que lo llevan. Una lista
+     *                                     de más de uno es la ambigüedad de D6.
+     */
+    public function resolve_item_numbers(array $item_numbers): array
+    {
+        $item_numbers = array_values(array_unique(array_filter($item_numbers, static fn ($code): bool => $code !== '' && $code !== null)));
+
+        if ($item_numbers === []) {
+            return [];
+        }
+
+        $rows = $this->db->table('items')
+            ->select('item_id, item_number, item_type, name')
+            ->whereIn('item_number', $item_numbers)
+            ->where('deleted', 0)
+            ->get()
+            ->getResult();
+
+        $found = [];
+
+        foreach ($rows as $row) {
+            $found[(string)$row->item_number][] = $row;
+        }
+
+        return $found;
+    }
+
+    /**
      * Returns all the items
      */
     public function get_all(int $stock_location_id = NEW_ENTRY, int $rows = 0, int $limit_from = 0): ResultInterface

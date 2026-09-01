@@ -1,0 +1,155 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Controllers;
+
+use App\Libraries\Import_staging;
+use App\Libraries\Item_export_lib;
+use App\Libraries\Item_import_lib;
+use App\Models\Attribute;
+use App\Models\Stock_location;
+use CodeIgniter\HTTP\DownloadResponse;
+use CodeIgniter\HTTP\RedirectResponse;
+use Config\OSPOS;
+use Throwable;
+
+/**
+ * Descargar el catálogo, corregirlo en Excel, y volver a subirlo.
+ *
+ * POR QUÉ ESTO NO VIVE EN `Items.php`
+ *
+ * Porque `Items.php` no se toca. Esa decisión hace tres cosas a la vez:
+ *
+ * - **No hay que reescribir 37 pruebas que no protegen nada.** `ItemsCsvImportTest` no invoca el
+ *   controlador ni una sola vez y varias de sus pruebas reimplementan la lógica y afirman sobre esa
+ *   copia. Cambiar el flujo viejo obligaría a rehacerlas para saber si algo se rompió.
+ * - **No se le quita nada a nadie.** Quien hoy cargue existencias por archivo sigue pudiendo: ese
+ *   camino queda intacto. El camino nuevo las ignora a propósito, pero es otro camino.
+ * - **Los dos carriles de desarrollo dejan de competir** por el archivo más grande del módulo.
+ *
+ * Retirar el flujo viejo es Entrega 2, y entonces sí con su prueba.
+ *
+ * EL PERMISO ES EL DE ARTÍCULOS, A PROPÓSITO
+ *
+ * `Secure_Controller('items')`. No se inventa un permiso propio: `Employee::has_module_grant()`
+ * compara con `like(..., 'after')`, o sea por prefijo, así que un permiso llamado `items_algo` dejaría
+ * entrar a TODO el módulo de artículos a quien solo debiera tener eso. Quien puede editar artículos
+ * puede hacer esto; quien no, no.
+ *
+ * Ojo: la descarga baja el catálogo con costos y márgenes. Que exija el mismo permiso que editar es la
+ * decisión, no un descuido.
+ */
+class ItemsBulk extends Secure_Controller
+{
+    private Item_export_lib $exporter;
+    private Item_import_lib $importer;
+    private Import_staging $staging;
+
+    public function __construct()
+    {
+        parent::__construct('items');
+
+        $this->exporter = new Item_export_lib();
+        $this->importer = new Item_import_lib();
+        $this->staging  = new Import_staging();
+    }
+
+    /**
+     * «Descargar mis artículos»: el catálogo entero, en las columnas que la importación lee.
+     */
+    public function getExportCatalog(): DownloadResponse
+    {
+        return $this->response->download($this->exporter->fileName(), $this->exporter->toCsv());
+    }
+
+    /**
+     * «Descargar plantilla vacía»: solo los encabezados, para empezar de cero.
+     *
+     * Es lo mismo que hace `Items::getGenerateCsvFile()`. Se repite aquí para que las dos descargas
+     * vivan juntas en la pantalla nueva; ambas llaman al mismo generador, así que no se pueden separar.
+     */
+    public function getTemplate(): DownloadResponse
+    {
+        helper('importfile');
+
+        return $this->response->download(
+            'plantilla_articulos.csv',
+            generate_import_items_csv(
+                model(Stock_location::class)->get_allowed_locations(),
+                model(Attribute::class)->get_definition_names(),
+            ),
+        );
+    }
+
+    /**
+     * La pantalla. Página completa, no un modal.
+     *
+     * El modal de BootstrapDialog construye sus botones al abrirse y no los deja cambiar, así que no
+     * puede pasar de «Continuar» a «Aplicar / Cancelar». Y una vista previa de mil filas con sus
+     * errores no cabe ahí. Una página, además, sobrevive a un F5 y a que el cliente se vaya a Excel a
+     * corregir; un modal no.
+     */
+    public function getIndex(): string
+    {
+        return view('items/bulk_import', [
+            'config'  => config(OSPOS::class)->settings,
+            'preview' => null,
+            'error'   => null,
+        ]);
+    }
+
+    /**
+     * Paso 1: se sube el archivo y se enseña qué haría. **No escribe nada.**
+     */
+    public function postPreview(): string|RedirectResponse
+    {
+        throw new \LogicException('Carril B: sin implementar.');
+    }
+
+    /**
+     * Paso 2: se aplica el plan que se acaba de enseñar.
+     *
+     * Antes de escribir nada genera el «cómo estaba antes», que es la única red que tiene el cliente
+     * si el resultado no es el que esperaba. Que esa foto falle **no impide aplicar**: es una red, no
+     * un requisito, y negarse a trabajar porque no se pudo guardar una copia sería peor.
+     */
+    public function postApply(): string|RedirectResponse
+    {
+        throw new \LogicException('Carril B: sin implementar.');
+    }
+
+    /**
+     * «Descargar cómo estaba antes»: la foto del catálogo justo antes del último cambio aplicado.
+     */
+    public function getPrevious(): DownloadResponse|RedirectResponse
+    {
+        $path = $this->staging->previousSnapshotPath();
+
+        if ($path === null || ! is_file($path)) {
+            return redirect()->to('items/bulk')->with('error', lang('Items.bulk_file_expired'));
+        }
+
+        return $this->response->download('articulos_antes_del_cambio.csv', (string) file_get_contents($path));
+    }
+
+    /**
+     * La foto previa, generada justo antes de aplicar.
+     *
+     * Se traga sus propios fallos a propósito: ver el comentario de `postApply()`.
+     */
+    protected function snapshotBeforeApplying(): void
+    {
+        $path = $this->staging->previousSnapshotPath();
+
+        if ($path === null) {
+            return;
+        }
+
+        try {
+            $this->exporter->writeTo($path);
+        } catch (Throwable $e) {
+            log_message('error', 'No se pudo guardar el «cómo estaba antes» del catálogo: ' . $e->getMessage());
+        }
+    }
+}

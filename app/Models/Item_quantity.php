@@ -119,6 +119,41 @@ class Item_quantity extends Model
     }
 
     /**
+     * Las existencias de MUCHOS artículos en TODAS las bodegas, en una sola consulta.
+     *
+     * `get_item_quantity()` es por artículo **y por bodega**: exportar 1.184 artículos con dos
+     * bodegas son 2.368 consultas. Esto es una.
+     *
+     * Un artículo sin fila en una bodega sencillamente no aparece en el resultado. Quien llame decide
+     * qué significa eso -- en la exportación, cero.
+     *
+     * @param list<int> $item_ids
+     * @return array<int, array<int, string>> `[item_id][location_id] => cantidad`
+     */
+    public function get_quantities_bulk(array $item_ids): array
+    {
+        $item_ids = array_values(array_unique(array_map('intval', $item_ids)));
+
+        if ($item_ids === []) {
+            return [];
+        }
+
+        $rows = $this->db->table('item_quantities')
+            ->select('item_id, location_id, quantity')
+            ->whereIn('item_id', $item_ids)
+            ->get()
+            ->getResultArray();
+
+        $quantities = [];
+
+        foreach ($rows as $row) {
+            $quantities[(int)$row['item_id']][(int)$row['location_id']] = (string)$row['quantity'];
+        }
+
+        return $quantities;
+    }
+
+    /**
      * changes to quantity of an item according to the given amount.
      * if $quantity_change is negative, it will be subtracted,
      * if it is positive, it will be added to the current quantity

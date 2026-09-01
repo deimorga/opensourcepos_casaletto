@@ -803,6 +803,58 @@ class Attribute extends Model
 
 
     /**
+     * Los valores de atributo de MUCHOS artículos, en una sola consulta.
+     *
+     * `get_attribute_values()` es por artículo, y además está muerta (su propio `TODO` lo dice).
+     * Exportar 1.184 artículos llamándola serían 1.184 consultas. Esto es una.
+     *
+     * FILTRA POR ARTÍCULO Y SOLO POR ARTÍCULO
+     *
+     * `attribute_links` guarda también los atributos de una VENTA y de una RECEPCIÓN, en las mismas
+     * filas. `get_attribute_values()` no los excluye, así que devuelve valores que no son del
+     * artículo. Aquí se exigen `sale_id` y `receiving_id` nulos: lo que sale es el atributo del
+     * artículo y nada más.
+     *
+     * Las tres columnas de valor van juntas porque **el tipo decide cuál es la buena**: `DATE` usa
+     * `attribute_date`, `DECIMAL` usa `attribute_decimal`, y el resto `attribute_value`
+     * (`getAttributeDataType()` en `app/Helpers/attribute_helper.php`). Leer siempre la misma daría
+     * vacío en las fechas y en los decimales.
+     *
+     * @param list<int> $item_ids
+     * @return array<int, array<int, array{attribute_value: ?string, attribute_decimal: ?string, attribute_date: ?string}>>
+     *         `[item_id][definition_id] => las tres columnas`
+     */
+    public function get_attribute_values_bulk(array $item_ids): array
+    {
+        $item_ids = array_values(array_unique(array_map('intval', $item_ids)));
+
+        if ($item_ids === []) {
+            return [];
+        }
+
+        $rows = $this->db->table('attribute_links')
+            ->select('attribute_links.item_id, attribute_links.definition_id, attribute_values.attribute_value, attribute_values.attribute_decimal, attribute_values.attribute_date')
+            ->join('attribute_values', 'attribute_links.attribute_id = attribute_values.attribute_id')
+            ->whereIn('attribute_links.item_id', $item_ids)
+            ->where('attribute_links.sale_id', null)
+            ->where('attribute_links.receiving_id', null)
+            ->get()
+            ->getResultArray();
+
+        $values = [];
+
+        foreach ($rows as $row) {
+            $values[(int)$row['item_id']][(int)$row['definition_id']] = [
+                'attribute_value'   => $row['attribute_value'],
+                'attribute_decimal' => $row['attribute_decimal'],
+                'attribute_date'    => $row['attribute_date'],
+            ];
+        }
+
+        return $values;
+    }
+
+    /**
      * @param int $item_id
      * @return array
      */

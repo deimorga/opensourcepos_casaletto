@@ -7,6 +7,21 @@ use CodeIgniter\Router\RouteCollection;
  */
 $routes->setDefaultController('Login');
 
+// ---------------------------------------------------------------------------------------------
+// Carga masiva de artículos: descargar el catálogo, corregirlo en Excel, volver a subirlo.
+//
+// Rutas EXPLÍCITAS y no auto-routing. El resto del módulo de artículos va por auto-routing, pero aquí
+// hay un paso intermedio --ver la vista previa antes de aplicar-- y las direcciones tienen que ser
+// estables: el cliente va a dejar la pantalla abierta mientras corrige el archivo en Excel, y puede
+// recargarla. Ver app/Controllers/ItemsBulk.php.
+// ---------------------------------------------------------------------------------------------
+$routes->get('items/bulk', 'ItemsBulk::getIndex');
+$routes->get('items/bulk/catalog', 'ItemsBulk::getExportCatalog');
+$routes->get('items/bulk/template', 'ItemsBulk::getTemplate');
+$routes->post('items/bulk/preview', 'ItemsBulk::postPreview');
+$routes->post('items/bulk/apply', 'ItemsBulk::postApply');
+$routes->get('items/bulk/previous', 'ItemsBulk::getPrevious');
+
 $routes->get('/', 'Login::index');
 $routes->get('login', 'Login::index');
 $routes->post('login', 'Login::index');
