@@ -45,16 +45,16 @@ class TenantProvisioner
             return 'A slug is required.';
         }
 
-        if (!preg_match('/^[a-z0-9-]{1,20}$/', $slug)) {
-            return "Invalid slug '$slug' -- must be 1-20 lowercase letters, digits, or hyphens.";
+        if (! preg_match('/^[a-z0-9-]{1,20}$/', $slug)) {
+            return "Invalid slug '{$slug}' -- must be 1-20 lowercase letters, digits, or hyphens.";
         }
 
         if (in_array($slug, self::RESERVED_SLUGS, true)) {
-            return "Slug '$slug' is reserved and cannot be used for a tenant.";
+            return "Slug '{$slug}' is reserved and cannot be used for a tenant.";
         }
 
         if (db_connect('platform')->table('tenants')->where('slug', $slug)->countAllResults() > 0) {
-            return "Tenant slug '$slug' already exists.";
+            return "Tenant slug '{$slug}' already exists.";
         }
 
         return null;
@@ -68,6 +68,7 @@ class TenantProvisioner
      * in platform.tenants.
      *
      * @return array{slug: string, db_name: string, admin_password: string}
+     *
      * @throws RuntimeException on any provisioning failure.
      */
     public function create(string $slug, ?string $companyName = null): array
@@ -82,7 +83,7 @@ class TenantProvisioner
         $provisionUser     = getenv('PLATFORM_PROVISION_USERNAME');
         $provisionPassword = getenv('PLATFORM_PROVISION_PASSWORD');
 
-        if (!$provisionUser || !$provisionPassword) {
+        if (! $provisionUser || ! $provisionPassword) {
             throw new RuntimeException('PLATFORM_PROVISION_USERNAME/PLATFORM_PROVISION_PASSWORD env vars are required (see docs/Tecnico/multi-tenant-arquitectura.md section 11 for the one-time DBA runbook that creates this user).');
         }
 
@@ -101,9 +102,9 @@ class TenantProvisioner
                 'DBCollat' => $hostConfig['DBCollat'] ?? 'utf8mb4_general_ci',
             ], false);
 
-            $provisioner->query("CREATE DATABASE `$dbIdentifier`");
-            $provisioner->query("CREATE USER '$dbIdentifier'@'%' IDENTIFIED BY '$dbPassword'");
-            $provisioner->query("GRANT ALL PRIVILEGES ON `$dbIdentifier`.* TO '$dbIdentifier'@'%'");
+            $provisioner->query("CREATE DATABASE `{$dbIdentifier}`");
+            $provisioner->query("CREATE USER '{$dbIdentifier}'@'%' IDENTIFIED BY '{$dbPassword}'");
+            $provisioner->query("GRANT ALL PRIVILEGES ON `{$dbIdentifier}`.* TO '{$dbIdentifier}'@'%'");
             // No FLUSH PRIVILEGES: GRANT/CREATE USER/DROP USER take effect
             // immediately, and FLUSH PRIVILEGES needs the RELOAD privilege,
             // which the scoped platform_provisioner user deliberately does
@@ -126,8 +127,8 @@ class TenantProvisioner
 
         if ($exitCode !== 0) {
             throw new RuntimeException(
-                "Migration failed for $dbIdentifier -- NOT registering in platform.tenants. Schema/user already exist; fix and re-run tenant:migrate-one manually, or drop them and retry.\n"
-                . implode("\n", $output)
+                "Migration failed for {$dbIdentifier} -- NOT registering in platform.tenants. Schema/user already exist; fix and re-run tenant:migrate-one manually, or drop them and retry.\n"
+                . implode("\n", $output),
             );
         }
 
@@ -242,10 +243,10 @@ class TenantProvisioner
             $descriptors,
             $pipes,
             ROOTPATH,
-            $this->migrationEnvironment($dbIdentifier, $dbPassword)
+            $this->migrationEnvironment($dbIdentifier, $dbPassword),
         );
 
-        if (!is_resource($process)) {
+        if (! is_resource($process)) {
             return [['Could not start the migration process.'], 1];
         }
 
@@ -258,7 +259,7 @@ class TenantProvisioner
         fclose($pipes[2]);
 
         $exitCode = proc_close($process);
-        $lines = preg_split('/\r\n|\r|\n/', trim($stdout . "\n" . $stderr)) ?: [];
+        $lines    = preg_split('/\r\n|\r|\n/', trim($stdout . "\n" . $stderr)) ?: [];
 
         return [array_values(array_filter($lines, static fn ($line) => trim($line) !== '')), $exitCode];
     }
@@ -297,6 +298,7 @@ class TenantProvisioner
      * a dedicated user later is a separate, optional hardening step.
      *
      * @return array{slug: string, db_name: string}
+     *
      * @throws RuntimeException on any precondition failure.
      */
     public function adopt(string $slug, string $existingDbName): array
@@ -311,7 +313,7 @@ class TenantProvisioner
         }
 
         if (db_connect('platform')->table('tenants')->where('db_name', $existingDbName)->countAllResults() > 0) {
-            throw new RuntimeException("Database '$existingDbName' is already registered to a tenant.");
+            throw new RuntimeException("Database '{$existingDbName}' is already registered to a tenant.");
         }
 
         $hostConfig = config(Database::class)->default;
@@ -340,11 +342,11 @@ class TenantProvisioner
             // so a connection failure here would otherwise slip past our
             // own checks below unwrapped, surfacing a raw driver error
             // instead of a message that names which database failed.
-            throw new RuntimeException("Could not connect to '$existingDbName': " . $e->getMessage(), 0, $e);
+            throw new RuntimeException("Could not connect to '{$existingDbName}': " . $e->getMessage(), 0, $e);
         }
 
-        if (!$hasTables) {
-            throw new RuntimeException("'$existingDbName' does not look like an OSPOS schema (missing employees/app_config tables).");
+        if (! $hasTables) {
+            throw new RuntimeException("'{$existingDbName}' does not look like an OSPOS schema (missing employees/app_config tables).");
         }
 
         $latestAvailable = (new MY_Migration(config('Migrations')))->setNamespace('App')->get_latest_migration();
@@ -360,8 +362,8 @@ class TenantProvisioner
 
         if ($currentVersion !== $latestAvailable) {
             throw new RuntimeException(
-                "'$existingDbName' is not on the latest App migration (has $currentVersion, latest is $latestAvailable). "
-                . 'Migrate it first (ej. MYSQL_DB_NAME=' . $existingDbName . ' php spark tenant:migrate-one) and retry adoption.'
+                "'{$existingDbName}' is not on the latest App migration (has {$currentVersion}, latest is {$latestAvailable}). "
+                . 'Migrate it first (ej. MYSQL_DB_NAME=' . $existingDbName . ' php spark tenant:migrate-one) and retry adoption.',
             );
         }
 
@@ -374,8 +376,8 @@ class TenantProvisioner
 
         if ($defaultAdmin !== null) {
             throw new RuntimeException(
-                "'$existingDbName' still has the public upstream default admin credential (admin/pointofsale). "
-                . 'Change it before adopting this business as a tenant.'
+                "'{$existingDbName}' still has the public upstream default admin credential (admin/pointofsale). "
+                . 'Change it before adopting this business as a tenant.',
             );
         }
 
@@ -397,8 +399,8 @@ class TenantProvisioner
      */
     public function setStatus(string $slug, string $status): bool
     {
-        if (!in_array($status, ['active', 'suspended'], true)) {
-            throw new RuntimeException("Invalid status '$status'.");
+        if (! in_array($status, ['active', 'suspended'], true)) {
+            throw new RuntimeException("Invalid status '{$status}'.");
         }
 
         return db_connect('platform')->table('tenants')
@@ -449,17 +451,17 @@ class TenantProvisioner
     public function delete(string $slug, bool $dropSchema = false): bool
     {
         $platformDb = db_connect('platform');
-        $tenant = $platformDb->table('tenants')->where('slug', $slug)->get()->getRow();
+        $tenant     = $platformDb->table('tenants')->where('slug', $slug)->get()->getRow();
 
         if ($tenant === null) {
-            throw new RuntimeException("Tenant slug '$slug' not found.");
+            throw new RuntimeException("Tenant slug '{$slug}' not found.");
         }
 
         if ($this->isAdopted($tenant)) {
             throw new RuntimeException(
-                "Tenant '$slug' was adopted, not provisioned: its schema '{$tenant->db_name}' existed before the "
+                "Tenant '{$slug}' was adopted, not provisioned: its schema '{$tenant->db_name}' existed before the "
                 . 'platform did and has no dedicated database user. It cannot be deleted from here. Unregister it by '
-                . 'hand, with a backup taken first, if that is really what you want.'
+                . 'hand, with a backup taken first, if that is really what you want.',
             );
         }
 
