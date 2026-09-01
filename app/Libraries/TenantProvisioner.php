@@ -599,9 +599,13 @@ class TenantProvisioner
      * nada. La única fuente de verdad es la fila de `employees` de ese negocio, y hay que ir a
      * leerla.
      *
+     * Lanza SOLO si el slug no existe, que es un error de programación o una dirección inventada.
+     * Un negocio inalcanzable NO es una excepción: es el estado `unreachable`, porque esta es la
+     * pantalla desde la que se reactiva un negocio suspendido y no puede caerse justo ahí.
+     *
      * @return array{state: string, username: string|null, password: string|null, set_at: string|null}
      *
-     * @throws RuntimeException if the slug is unknown or the business cannot be reached.
+     * @throws RuntimeException if no business carries that slug.
      */
     public function adminCredential(string $slug): array
     {
@@ -679,10 +683,14 @@ class TenantProvisioner
             $username = self::DEFAULT_ADMIN_USERNAME;
         }
 
-        $tenantDb = $this->connectToTenant($tenant);
-
+        // La conexión va DENTRO del try. Abrirla descifra la contraseña de base de datos del
+        // negocio, y si la clave de cifrado ya no es la que la guardó, eso lanza una excepción de
+        // cifrado -- no una RuntimeException. Fuera del try saldría de aquí sin envolver, la
+        // pantalla que llama solo atrapa RuntimeException, y una avería de la plataforma se vería
+        // como un error 500 sin explicación en vez de como un mensaje que nombra el negocio.
         try {
-            $exists = $tenantDb->table('employees')->where('username', $username)->countAllResults() > 0;
+            $tenantDb = $this->connectToTenant($tenant);
+            $exists   = $tenantDb->table('employees')->where('username', $username)->countAllResults() > 0;
         } catch (Throwable $e) {
             throw new RuntimeException("Could not read the employees of '{$slug}': " . $e->getMessage(), 0, $e);
         }
