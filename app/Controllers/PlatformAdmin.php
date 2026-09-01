@@ -3,9 +3,8 @@
 namespace App\Controllers;
 
 use App\Libraries\TenantProvisioner;
-use App\Models\PlatformAccount;
+use App\Models\PlatformActivity;
 use CodeIgniter\Exceptions\PageNotFoundException;
-use CodeIgniter\HTTP\Exceptions\RedirectException;
 use CodeIgniter\HTTP\RedirectResponse;
 use CodeIgniter\HTTP\ResponseInterface;
 use RuntimeException;
@@ -23,19 +22,28 @@ use RuntimeException;
  * Deliberately offers no "log in as this tenant" action (impersonation
  * stays out of scope, see docs/Funcional/multi-tenant-multi-negocio.md
  * section 5).
+ *
+ * ENTREGA 2: THE GUARD AND THE LOG BOTH MOVED
+ *
+ * The admin check used to live in this constructor. It now comes from Platform_Controller, which
+ * every screen of the console shares -- including the one that answers a pending second factor,
+ * which this class had no way of knowing about and would have bounced back to the login form
+ * forever.
+ *
+ * And what used to be only a `log_message('critical', ...)` line is now also a row in
+ * `platform_activity_log`. The critical lines stay where they are, written BEFORE the destructive
+ * call, because they are the only trace that survives a process which dies halfway through a DROP.
+ * The activity row is written AFTER, and only on success: a log entry announcing a deletion that
+ * was rolled back is worse than no entry at all. The two answer different questions and neither
+ * replaces the other.
  */
-class PlatformAdmin extends BaseController
+class PlatformAdmin extends Platform_Controller
 {
-    private PlatformAccount $account;
     private TenantProvisioner $provisioner;
 
     public function __construct()
     {
-        $this->account = model(PlatformAccount::class);
-
-        if (!$this->account->isPlatformAdmin()) {
-            throw new RedirectException('platform/login');
-        }
+        parent::__construct();
 
         $this->provisioner = new TenantProvisioner();
     }
@@ -54,7 +62,12 @@ class PlatformAdmin extends BaseController
             $adopted[$tenant->slug] = $this->provisioner->isAdopted($tenant);
         }
 
-        return view('platform/admin/index', ['tenants' => $tenants, 'adopted' => $adopted]);
+        return view('platform/admin/index', [
+            'title'   => lang('Platform.admin_panel_title'),
+            'nav'     => 'businesses',
+            'tenants' => $tenants,
+            'adopted' => $adopted,
+        ]);
     }
 
     public function newTenant(): string
@@ -62,9 +75,9 @@ class PlatformAdmin extends BaseController
         return view('platform/admin/form', ['error' => null]);
     }
 
-    public function create(): string|RedirectResponse
+    public function create(): RedirectResponse|string
     {
-        $slug = (string) $this->request->getPost('slug');
+        $slug        = (string) $this->request->getPost('slug');
         $companyName = (string) $this->request->getPost('company_name');
 
         try {
@@ -73,22 +86,41 @@ class PlatformAdmin extends BaseController
             return view('platform/admin/form', ['error' => $e->getMessage()]);
         }
 
+        // The generated admin password is NOT in the detail, and must never be: this table is read
+        // by people and kept forever, while that password is meant to be shown once and changed.
+        $this->logActivity(
+            PlatformActivity::TENANT_CREATED,
+            PlatformActivity::TARGET_TENANT,
+            (string) $result['slug'],
+            ['company_name' => $companyName],
+        );
+
         return redirect()->to('platform/admin')->with(
             'message',
-            "Negocio '{$result['slug']}' creado. Usuario admin: admin / contraseña: {$result['admin_password']} (entrégala de forma segura, no queda visible de nuevo)."
+            "Negocio '{$result['slug']}' creado. Usuario admin: admin / contraseña: {$result['admin_password']} (entrégala de forma segura, no queda visible de nuevo).",
         );
     }
 
+    /**
+     * The tenant is looked up first, and a slug nobody registered is a 404 rather than a silent
+     * redirect. setStatus() on an unknown slug updates nothing and says nothing, so without this
+     * the activity log would gain a row claiming a business was suspended when no such business
+     * exists -- a log that can lie about the easy cases is not worth reading on the hard ones.
+     */
     public function suspend(string $slug): RedirectResponse
     {
+        $this->findTenant($slug);
         $this->provisioner->setStatus($slug, 'suspended');
+        $this->logActivity(PlatformActivity::TENANT_SUSPENDED, PlatformActivity::TARGET_TENANT, $slug);
 
         return redirect()->to('platform/admin');
     }
 
     public function activate(string $slug): RedirectResponse
     {
+        $this->findTenant($slug);
         $this->provisioner->setStatus($slug, 'active');
+        $this->logActivity(PlatformActivity::TENANT_ACTIVATED, PlatformActivity::TARGET_TENANT, $slug);
 
         return redirect()->to('platform/admin');
     }
@@ -106,6 +138,10 @@ class PlatformAdmin extends BaseController
     {
         $tenant = $this->findTenant($slug);
 
+        // Still its own standalone page rather than the console layout, like the new-business form
+        // above. Both were written and reviewed for Entrega 1 and are waiting to be certified on
+        // staging; rewriting their markup now would put that certification back to the start for
+        // no gain. Converting them is a follow-up, not a prerequisite.
         return view('platform/admin/confirm_delete', [
             'tenant'  => $tenant,
             'adopted' => $this->provisioner->isAdopted($tenant),
@@ -126,11 +162,25 @@ class PlatformAdmin extends BaseController
      *  3. Destroying the schema needs its NAME typed as well, separately.
      *     "ospos" warns far more than "casaletto" does.
      *
-     * Until the activity log arrives (Entrega 2, see
-     * docs/Funcional/gestion-de-plataforma-y-negocios.md section 6.5)
-     * the record of who did this is a critical log line, written BEFORE
-     * the destructive call so it survives a process that dies halfway
-     * through a DROP.
+     * TWO RECORDS, AND BOTH ARE NEEDED
+     *
+     * The critical log lines are written BEFORE the destructive call, so
+     * they survive a process that dies halfway through a DROP -- which
+     * is exactly the case where somebody will want to know what was
+     * being attempted. They say "is deleting", in the present, because
+     * at that point it has not happened yet.
+     *
+     * The activity rows (section 6.5) are written AFTER, and only if the
+     * teardown returned. A row in a table people read that announces a
+     * deletion which was then rolled back is worse than no row: the
+     * critical log is a technical trace, this one is the answer to "what
+     * did we change?".
+     *
+     * A refusal produces neither: none of the twelve actions in
+     * App\Models\PlatformActivity covers "somebody tried and mistyped",
+     * and inventing one here would mean adding a language key, which
+     * this Entrega closed on purpose. The refusal keeps its critical log
+     * line, which is where it has been since Entrega 1.
      */
     public function delete(string $slug): ResponseInterface
     {
@@ -140,31 +190,51 @@ class PlatformAdmin extends BaseController
             return $this->refuse($slug, lang('Platform.delete_refused_adopted', [$slug, $tenant->db_name]));
         }
 
-        if (!$this->typedCorrectly((string) $tenant->slug, $this->request->getPost('confirm_slug'))) {
+        if (! $this->typedCorrectly((string) $tenant->slug, $this->request->getPost('confirm_slug'))) {
             return $this->refuse($slug, lang('Platform.delete_refused_slug', [$slug]));
         }
 
         $dropSchema = $this->request->getPost('drop_schema') === '1';
 
-        if ($dropSchema && !$this->typedCorrectly((string) $tenant->db_name, $this->request->getPost('confirm_db_name'))) {
+        if ($dropSchema && ! $this->typedCorrectly((string) $tenant->db_name, $this->request->getPost('confirm_db_name'))) {
             return $this->refuse($slug, lang('Platform.delete_refused_db_name', [$tenant->db_name]));
         }
 
-        $who = $this->actor();
+        $who  = $this->actor();
         $when = date('c');
 
-        log_message('critical', "PLATFORM DELETE [$when] $who is deleting business '$slug' (schema '{$tenant->db_name}').");
+        log_message('critical', "PLATFORM DELETE [{$when}] {$who} is deleting business '{$slug}' (schema '{$tenant->db_name}').");
 
         if ($dropSchema) {
-            log_message('critical', "PLATFORM DROP SCHEMA [$when] $who is destroying database '{$tenant->db_name}', of business '$slug'. This cannot be undone.");
+            log_message('critical', "PLATFORM DROP SCHEMA [{$when}] {$who} is destroying database '{$tenant->db_name}', of business '{$slug}'. This cannot be undone.");
         }
 
         try {
             $this->provisioner->delete($slug, $dropSchema);
         } catch (RuntimeException $e) {
-            log_message('critical', "PLATFORM DELETE FAILED [$when] $who tried to delete business '$slug': " . $e->getMessage());
+            log_message('critical', "PLATFORM DELETE FAILED [{$when}] {$who} tried to delete business '{$slug}': " . $e->getMessage());
 
             return redirect()->to('platform/admin')->with('error', $e->getMessage());
+        }
+
+        $this->logActivity(
+            PlatformActivity::TENANT_DELETED,
+            PlatformActivity::TARGET_TENANT,
+            $slug,
+            ['db_name' => (string) $tenant->db_name, 'schema_dropped' => $dropSchema],
+        );
+
+        // A separate row, not just a flag on the one above. Unregistering a business and destroying
+        // its database are two decisions on this screen -- the second has its own confirmation
+        // field -- and the log has to be able to answer "when did we destroy a database?" without
+        // reading the detail of every deletion.
+        if ($dropSchema) {
+            $this->logActivity(
+                PlatformActivity::TENANT_SCHEMA_DROPPED,
+                PlatformActivity::TARGET_TENANT,
+                $slug,
+                ['db_name' => (string) $tenant->db_name],
+            );
         }
 
         return redirect()->to('platform/admin')->with('message', lang('Platform.deleted', [$slug]));
@@ -178,7 +248,7 @@ class PlatformAdmin extends BaseController
         $tenant = db_connect('platform')->table('tenants')->where('slug', $slug)->get()->getRow();
 
         if ($tenant === null) {
-            throw PageNotFoundException::forPageNotFound("No business is registered under the slug '$slug'.");
+            throw PageNotFoundException::forPageNotFound("No business is registered under the slug '{$slug}'.");
         }
 
         return $tenant;
@@ -202,21 +272,23 @@ class PlatformAdmin extends BaseController
      */
     private function refuse(string $slug, string $message): RedirectResponse
     {
-        log_message('critical', 'PLATFORM DELETE REFUSED [' . date('c') . '] ' . $this->actor() . " on business '$slug': $message");
+        log_message('critical', 'PLATFORM DELETE REFUSED [' . date('c') . '] ' . $this->actor() . " on business '{$slug}': {$message}");
 
         return redirect()->to('platform/admin/' . $slug . '/delete')->with('error', $message);
     }
 
     /**
-     * Who is doing this, for the log. Named, not just an id: the id
-     * means nothing to whoever reads the log a month from now.
+     * Who is doing this, for the critical log. Named, not just an id:
+     * the id means nothing to whoever reads the log a month from now.
+     *
+     * Reads Platform_Controller's copy of the row rather than asking the
+     * session again. Past that constructor there is always somebody, so
+     * there is no longer an "unidentified session" branch to write.
      */
     private function actor(): string
     {
-        $account = $this->account->getLoggedInAccount();
+        $account = $this->currentAccount();
 
-        return $account === null
-            ? 'an unidentified session'
-            : $account->email . ' (platform_account #' . $account->id . ')';
+        return $account->email . ' (platform_account #' . $account->id . ')';
     }
 }
