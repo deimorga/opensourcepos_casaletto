@@ -29,6 +29,16 @@ $routes->post('platform/admin/(:segment)/activate', 'PlatformAdmin::activate/$1'
 $routes->get('platform/admin/(:segment)/delete', 'PlatformAdmin::confirmDelete/$1');
 $routes->post('platform/admin/(:segment)/delete', 'PlatformAdmin::delete/$1');
 
+// Entrega 3 -- la ficha del negocio y el restablecimiento de su contraseña (secciones 6.3 y D5).
+//
+// La ficha va DESPUÉS de todas las rutas de arriba y no antes. `(:segment)` acepta cualquier cosa
+// que no lleve barra, incluido `new`, así que puesta primero se tragaría `platform/admin/new` y el
+// formulario de alta dejaría de existir. CodeIgniter resuelve por orden de declaración y esa es
+// toda la protección que hay.
+$routes->get('platform/admin/(:segment)/reset-password', 'PlatformAdmin::confirmResetPassword/$1');
+$routes->post('platform/admin/(:segment)/reset-password', 'PlatformAdmin::resetPassword/$1');
+$routes->get('platform/admin/(:segment)', 'PlatformAdmin::show/$1');
+
 // ---------------------------------------------------------------------------------------------
 // Entrega 2 -- "Cerrar la llave suelta". Superadministrators, the second factor, and the record
 // of what the console changed. See docs/Funcional/gestion-de-plataforma-y-negocios.md section 6

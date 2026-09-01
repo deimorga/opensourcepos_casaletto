@@ -2,11 +2,13 @@
 
 namespace App\Controllers;
 
+use App\Libraries\TenantConfigProfile;
 use App\Libraries\TenantProvisioner;
 use App\Models\PlatformActivity;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\HTTP\RedirectResponse;
 use CodeIgniter\HTTP\ResponseInterface;
+use Config\App as AppConfig;
 use RuntimeException;
 
 /**
@@ -57,9 +59,13 @@ class PlatformAdmin extends Platform_Controller
         // businesses listed and manageable (Casaletto is one), so the listing
         // shows the reason instead of quietly dropping the action.
         $adopted = [];
+        $names   = [];
+        $urls    = [];
 
         foreach ($tenants as $tenant) {
             $adopted[$tenant->slug] = $this->provisioner->isAdopted($tenant);
+            $names[$tenant->slug]   = $this->businessName($tenant);
+            $urls[$tenant->slug]    = $this->tenantUrl((string) $tenant->slug);
         }
 
         return view('platform/admin/index', [
@@ -67,6 +73,8 @@ class PlatformAdmin extends Platform_Controller
             'nav'     => 'businesses',
             'tenants' => $tenants,
             'adopted' => $adopted,
+            'names'   => $names,
+            'urls'    => $urls,
         ]);
     }
 
@@ -92,13 +100,134 @@ class PlatformAdmin extends Platform_Controller
             PlatformActivity::TENANT_CREATED,
             PlatformActivity::TARGET_TENANT,
             (string) $result['slug'],
-            ['company_name' => $companyName],
+            ['company_name' => $companyName, 'profile' => TenantConfigProfile::ID],
         );
 
-        return redirect()->to('platform/admin')->with(
-            'message',
-            "Negocio '{$result['slug']}' creado. Usuario admin: admin / contraseña: {$result['admin_password']} (entrégala de forma segura, no queda visible de nuevo).",
+        // A la ficha del negocio, con la contraseña ya a la vista, y NO al listado con la
+        // contraseña dentro de un mensaje flash. Dos razones, y las dos importan:
+        //
+        // 1. Ese mensaje se guarda en la sesión, que en esta consola vive en una tabla de
+        //    `platform_control`: la contraseña del cliente acababa escrita en claro en nuestra base
+        //    de datos hasta la siguiente petición. Aquí solo existe en el cuerpo de una respuesta.
+        // 2. La frase decía «no queda visible de nuevo», que desde esta entrega es falso. La ficha
+        //    la vuelve a mostrar mientras el cliente no la haya cambiado, y ese es justamente el
+        //    miedo que D5 vino a quitar.
+        return redirect()->to('platform/admin/' . rawurlencode((string) $result['slug']) . '?reveal=1');
+    }
+
+    /**
+     * La ficha del negocio (§6.3): dónde se gestiona un cliente en concreto.
+     *
+     * LA CONTRASEÑA SE MUESTRA CON UN CLIC, NO SIEMPRE
+     *
+     * El estado se calcula siempre -- hay que ir a preguntarle al negocio si su hash sigue siendo el
+     * nuestro, y esa comprobación es la que borra la copia cuando el cliente ya la cambió -- pero el
+     * texto en claro solo viaja en la respuesta cuando alguien lo pidió con `?reveal=1`. Abrir la
+     * ficha para mirar el estado de un negocio no debería dejar una contraseña en pantalla, ni en la
+     * captura que alguien haga de ella.
+     *
+     * Y es una GET y no una POST a propósito: mostrar no cambia nada, así que refrescar la página
+     * vuelve a mostrar exactamente lo mismo. La dirección lleva la marca, nunca el secreto.
+     */
+    public function show(string $slug): string
+    {
+        $tenant = $this->findTenant($slug);
+
+        return view('platform/admin/detail', [
+            'title'      => lang('Platform.business_title', [$this->businessName($tenant)]),
+            'nav'        => 'businesses',
+            'tenant'     => $tenant,
+            'name'       => $this->businessName($tenant),
+            'url'        => $this->tenantUrl($slug),
+            'adopted'    => $this->provisioner->isAdopted($tenant),
+            'credential' => $this->provisioner->adminCredential($slug),
+            'reveal'     => $this->request->getGet('reveal') === '1',
+            'settings'   => $this->currentSettings($slug),
+            'wiring'     => TenantConfigProfile::WIRING,
+            'profile_id' => TenantConfigProfile::ID,
+        ]);
+    }
+
+    /**
+     * Confirmación del restablecimiento.
+     *
+     * NO se pide escribir el slug, a diferencia de la baja. La baja destruye y no se deshace; esto
+     * se deshace haciéndolo otra vez, y la pantalla existe para llegar a un cliente que está al
+     * teléfono sin poder entrar a su negocio. Poner ahí un campo que teclear alarga esa llamada sin
+     * evitar ningún daño.
+     *
+     * Lo que sí hace la pantalla es NOMBRAR: el negocio, su base de datos y el usuario exacto al que
+     * se le va a cambiar la contraseña. Casaletto es el caso incómodo -- su usuario no es `admin` y
+     * sus empleados son personas reales -- y por eso el usuario es un campo, relleno con el que la
+     * plataforma tenga guardado, y no una suposición del código.
+     */
+    public function confirmResetPassword(string $slug): string
+    {
+        $tenant = $this->findTenant($slug);
+
+        return view('platform/admin/confirm_reset_password', [
+            'title'    => lang('Platform.reset_password_title'),
+            'nav'      => 'businesses',
+            'tenant'   => $tenant,
+            'username' => trim((string) ($tenant->admin_username ?? '')) !== ''
+                ? (string) $tenant->admin_username
+                : TenantProvisioner::DEFAULT_ADMIN_USERNAME,
+        ]);
+    }
+
+    /**
+     * Restablece la contraseña del administrador de un negocio (D5).
+     *
+     * Redirige a la ficha con la contraseña a la vista en vez de pintarla aquí. Es lo que hace que
+     * refrescar la página no genere otra contraseña distinta: la consola no regenera el testigo CSRF
+     * en cada envío, así que una respuesta HTML servida directamente desde este POST se podría
+     * reenviar con F5 y dejar al cliente con una contraseña que ya no es la que se le dictó.
+     */
+    public function resetPassword(string $slug): RedirectResponse
+    {
+        $this->findTenant($slug);
+
+        $username = trim((string) $this->request->getPost('username'));
+
+        try {
+            $result = $this->provisioner->resetAdminPassword($slug, $username === '' ? null : $username);
+        } catch (RuntimeException $e) {
+            return redirect()->to('platform/admin/' . rawurlencode($slug) . '/reset-password')
+                ->with('error', $e->getMessage());
+        }
+
+        // La contraseña NO va en el detalle. Esta tabla la leen personas y se guarda para siempre;
+        // lo que hace falta saber dentro de un año es a quién se le restableció, no cuál fue.
+        $this->logActivity(
+            PlatformActivity::TENANT_PASSWORD_RESET,
+            PlatformActivity::TARGET_TENANT,
+            $slug,
+            ['username' => $result['username']],
         );
+
+        return redirect()->to('platform/admin/' . rawurlencode($slug) . '?reveal=1')
+            ->with('message', lang('Platform.reset_password_done', [$result['username']]));
+    }
+
+    /**
+     * Lo que el negocio tiene hoy en las claves del perfil, o un arreglo vacío si no se le pudo
+     * preguntar.
+     *
+     * Un negocio suspendido, o uno cuya base ya no está, no puede dejar sin abrir su propia ficha:
+     * es precisamente la pantalla desde la que se le reactiva. La tabla de configuración se queda
+     * sin dibujar y lo dice; lo demás sigue funcionando.
+     *
+     * @return array<string, string|null>
+     */
+    private function currentSettings(string $slug): array
+    {
+        try {
+            return $this->provisioner->currentSettings($slug, array_keys(TenantConfigProfile::appConfig('')));
+        } catch (RuntimeException $e) {
+            log_message('error', "No se pudo leer la configuración del negocio '{$slug}': " . $e->getMessage());
+
+            return [];
+        }
     }
 
     /**
@@ -238,6 +367,41 @@ class PlatformAdmin extends Platform_Controller
         }
 
         return redirect()->to('platform/admin')->with('message', lang('Platform.deleted', [$slug]));
+    }
+
+    /**
+     * Cómo se llama este negocio en pantalla. El nombre guardado si lo hay, y el slug si no --
+     * Casaletto y Paraíso se dieron de alta antes de que la columna existiera, e inventarles un
+     * nombre desde aquí sería peor que enseñar el que ya se conoce.
+     */
+    private function businessName(object $tenant): string
+    {
+        $name = trim((string) ($tenant->company_name ?? ''));
+
+        return $name !== '' ? $name : (string) $tenant->slug;
+    }
+
+    /**
+     * La dirección pública del negocio, construida con el comodín configurado.
+     *
+     * ES UNA COPIA DE PlatformLogin::tenantUrl(), Y ESO ESTÁ ANOTADO A PROPÓSITO
+     *
+     * Lo correcto sería que las dos leyeran de un sitio común -- PlatformContext es el sitio -- pero
+     * ese movimiento obliga a editar PlatformLogin, que esta entrega tiene cerrado porque lo está
+     * tocando el otro lado del trabajo. Duplicar diez líneas y dejar escrito dónde está la otra
+     * copia es menos malo que un conflicto en el archivo del que depende entrar a la consola.
+     * Unificarlas es una tarea de una línea en cuanto las dos entregas estén juntas.
+     */
+    private function tenantUrl(string $slug): string
+    {
+        $appConfig = config(AppConfig::class);
+        $wildcard  = $appConfig->allowedHostnameWildcards[0] ?? null;
+
+        if ($wildcard === null) {
+            return base_url();
+        }
+
+        return ($appConfig->https_on ? 'https' : 'http') . '://' . $slug . $wildcard . '/';
     }
 
     /**

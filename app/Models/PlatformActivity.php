@@ -35,6 +35,10 @@ class PlatformActivity extends Model
     public const TENANT_ACTIVATED         = 'tenant.activated';
     public const TENANT_DELETED           = 'tenant.deleted';
     public const TENANT_SCHEMA_DROPPED    = 'tenant.schema_dropped';
+    // Entrega 3, D5. Restablecer la contraseña de un negocio SÍ es una modificación y por eso está
+    // aquí; consultarla no lo es y por eso no está. Es la misma distinción que D6 hace en todo lo
+    // demás, sostenida también cuando incomoda.
+    public const TENANT_PASSWORD_RESET    = 'tenant.password_reset';
     public const ACCOUNT_CREATED          = 'account.created';
     public const ACCOUNT_DELETED          = 'account.deleted';
     public const ACCOUNT_PASSWORD_CHANGED = 'account.password_changed';
@@ -55,6 +59,7 @@ class PlatformActivity extends Model
         self::TENANT_ACTIVATED,
         self::TENANT_DELETED,
         self::TENANT_SCHEMA_DROPPED,
+        self::TENANT_PASSWORD_RESET,
         self::ACCOUNT_CREATED,
         self::ACCOUNT_DELETED,
         self::ACCOUNT_PASSWORD_CHANGED,

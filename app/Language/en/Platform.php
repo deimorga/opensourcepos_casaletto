@@ -221,4 +221,58 @@ return [
     "action_account_unlocked"        => "Account unlocked",
     "action_account_totp_enabled"    => "Second factor switched on",
     "action_account_totp_disabled"   => "Second factor turned off",
+    "action_tenant_password_reset"   => "Business password reset",
+
+    // =========================================================================================
+    // ENTREGA 3 -- A business that is born able to sell: the configuration profile, the business
+    // detail screen, and the password that can be looked up again (D5, D12).
+    // =========================================================================================
+
+    // ----- 6.2 The listing, made readable -----
+    "business_name"          => "Business",
+    "business_name_unknown"  => "No name recorded",
+    "created_at"             => "Created",
+    "open_business"          => "Open",
+
+    // ----- 6.3 The business detail screen -----
+    "business_title"         => "Business: {0}",
+    "business_identity"      => "Identity",
+    "business_address"       => "Address",
+    "business_back"          => "Back to the listing",
+
+    // The configuration the profile writes, as the business actually has it today.
+    "settings_title"         => "Configuration",
+    "settings_intro"         => "What this business has right now, read from its own configuration. The profile applied at sign-up is «{0}».",
+    "settings_key"           => "Setting",
+    "settings_value"         => "Value",
+    "settings_wired"         => "Wiring",
+    "settings_wired_help"    => "Changing this does not change a preference, it breaks the business. Expected value: {0}.",
+    "settings_missing"       => "not set",
+    "settings_unreachable"   => "This business could not be reached, so its configuration is not shown. Everything else on this screen comes from the platform's own records.",
+    "settings_not_editable_here" => "Editing these from the console is not built yet: they are changed from the business's own configuration screen.",
+
+    // ----- D5, the password that can be looked up -----
+    "credential_title"       => "Administrator password",
+    "credential_username"    => "User",
+    "credential_password"    => "Password",
+    "credential_set_at"      => "Generated",
+    "credential_reveal"      => "Show the password",
+    "credential_hide"        => "Hide",
+    "credential_available"   => "This is still the password we generated: the client has not changed it.",
+    "credential_none"        => "The platform has no copy of this business's password. It was either registered before the console kept one, or the client already changed it. Resetting is the only way in.",
+    "credential_changed"     => "The client changed this password, so the copy has just been discarded. Resetting is the only way in now.",
+    "credential_unreadable"  => "There is a saved copy but it cannot be decrypted: the encryption key is not the one it was saved with. This is a platform fault, not a change made by the client -- do not reset before checking the key.",
+    "credential_unreachable" => "This business could not be reached, so whether its password is still valid could not be checked. Nothing was discarded.",
+    "credential_delivery"    => "Delivery block",
+    "credential_delivery_help" => "This is what gets sent to the client: address, user and password together.",
+    "credential_never_logged" => "It stays visible here for as long as the client does not change it. There is no need to write it down anywhere else.",
+
+    // ----- Resetting it -----
+    "reset_password"         => "Reset the password",
+    "reset_password_title"   => "Reset the administrator password",
+    "reset_password_body"    => "A new password is generated and written into the business straight away. Whoever was using the old one stops being able to sign in the moment this is done.",
+    "reset_password_user"    => "User whose password is reset",
+    "reset_password_user_help" => "It must already exist in this business. A business we provisioned uses «{0}»; an adopted one uses whatever name it already had.",
+    "reset_password_button"  => "Reset it now",
+    "reset_password_done"    => "New password generated for {0}. It is shown below.",
 ];

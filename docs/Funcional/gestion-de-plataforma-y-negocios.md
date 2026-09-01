@@ -108,6 +108,11 @@ saliera en inglés.
 Aprovisionar deja de ser "crear el esquema" y pasa a ser **"dejar el negocio en condiciones de
 vender"**.
 
+> **Estado a 2026-09-01: corregido, sin desplegar y sin certificar.** El alta aplica el perfil
+> completo de §5, así que un negocio nuevo nace pudiendo vender al peso, leyendo bien los códigos
+> de barras y hablando español. `country_codes` pasa a `co`; `tax_included` se queda como está y
+> sigue siendo lo único pendiente del dueño. **Los dos negocios que ya existen no cambian.**
+
 ### 4.3 No podemos entrar a gestionar el negocio de un cliente
 
 Hoy **no existe ningún camino** de una cuenta de plataforma hacia el punto de venta de un negocio.
@@ -120,14 +125,30 @@ un directorio de enlaces.
 Se muestra una vez y nunca más. Si el cliente la pierde —y va a pasar— hoy toca entrar a la base de
 datos a mano. Eso no es algo que se pueda pedir en una llamada de soporte.
 
+> **Estado a 2026-09-01: resuelto, sin desplegar y sin certificar.** La ficha del negocio muestra la
+> contraseña mientras el cliente no la haya cambiado, y la restablece cuando sí. **Solo para los
+> negocios creados a partir de ahora:** de Casaletto y de Paraíso la plataforma no guarda ninguna
+> copia y no hay forma honesta de deducirla, así que en esos dos la única opción es restablecer.
+
 ### 4.5 El listado de negocios no se puede leer
 
 Muestra la dirección corta, el nombre técnico de la base y el estado. **No muestra el nombre del
 negocio** —ni se guarda— ni cuándo se creó, ni si alguien ha entrado alguna vez.
 
+> **Estado a 2026-09-01: corregido a medias, sin desplegar y sin certificar.** El nombre se guarda al
+> dar de alta, y el listado pasa a mostrarlo junto con la dirección como enlace y la fecha de alta.
+> Las dos filas que ya existen se quedan **sin nombre** —se les muestra el slug y se dice que no lo
+> tienen— hasta que alguien se lo ponga. **«Si alguien ha entrado alguna vez» sigue sin existir**:
+> requiere leer dentro de cada negocio y no entra en esta entrega.
+
 ### 4.6 Los negocios nuevos se llaman "John Doe"
 
 El sistema cambia el usuario y la contraseña, pero no la fila de la persona.
+
+> **Estado a 2026-09-01: corregido, sin desplegar y sin certificar.** El administrador de un negocio
+> nuevo se llama «Administrador» y el nombre del negocio como apellido. Lo que **sigue** con los
+> datos de relleno de la semilla es su correo (`changeme@example.com`) y su teléfono: no se tocan
+> porque nadie los ha decidido, y son datos del cliente, no de la plataforma.
 
 ---
 
@@ -236,10 +257,30 @@ en este proyecto.
 | `language` | `spanish` | Va de la mano de `language_code` |
 | `timezone` | `America/Bogota` | Un cliente fuera de Bogotá lo necesitaría distinto |
 | `company` | el nombre del negocio | Evidentemente suya |
-| `country_codes` | **por decidir** | Hoy `us` en los dos negocios |
-| `tax_included` | **por decidir** | Hoy `0` en los dos. El documento de venta por peso recomendaba `1` |
+| `country_codes` | `co` *(decidido el 2026-09-01)* | Hoy `us` en los dos negocios, que es sencillamente incorrecto para Colombia |
+| `tax_included` | **sigue por decidir** | Hoy `0` en los dos. El perfil **no lo toca**, y un negocio nuevo se queda con el `0` de la semilla |
 
-**Las dos últimas son lo único que queda por decidir del módulo**, y ninguna bloquea el arranque.
+**Sobre `tax_included`, y por qué el perfil lo deja quieto.** El documento de venta por peso
+recomendaba `1`, pero los dos negocios de producción corren con `0`. Fijarlo en `1` desde el perfil
+cambiaría en silencio cómo se calculan los precios de todo negocio futuro a partir de una
+recomendación que producción ya desmiente, y eso **no lo decide quien escribe el código**. Queda
+como pendiente del dueño: mientras no lo resuelva, cada negocio nuevo nace igual que los dos que ya
+funcionan, que es la opción que no sorprende a nadie.
+
+#### Estado a 2026-09-01: construido, **sin desplegar y sin certificar**
+
+El perfil existe y se aplica solo al **dar de alta** un negocio. Escribe la configuración del
+negocio **y** la fila del empleado inicial, que es lo que exige el hallazgo de abajo.
+
+**A los negocios que ya existen no les hace nada**, a propósito y según D13: Paraíso ya se corrigió
+a mano el 2026-08-31 y a Casaletto no se le toca sin comparar antes clave por clave. Aplicárselo a
+un negocio existente sigue siendo una decisión aparte, que hoy no tiene pantalla.
+
+**Lo que este perfil todavía no cubre:** el candado que impide al cliente cambiar las tres claves
+de cableado desde **su propia** pantalla de configuración —eso vive en el punto de venta, no aquí—
+y el **alta de empleados posteriores**, que sigue dejando el idioma suelto. Un empleado creado por
+el cliente después del alta nace con el campo vacío; hoy eso funciona porque cae al idioma del
+negocio, que el perfil ya dejó en `es-MX`, pero se romperá el día que alguien cambie el global.
 
 #### El idioma vive en DOS sitios, y el del empleado manda
 
@@ -279,12 +320,26 @@ Hoy muestra el nombre técnico de la base de datos. Con diez negocios es inservi
 - **Si alguien ha entrado alguna vez**: un negocio entregado y nunca usado es información que se quiere ver.
 - Suspender, reactivar, eliminar — **con las protecciones de 6.6**.
 
+> **Estado a 2026-09-01: rehecha, sin desplegar y sin certificar.** Nombre, dirección como enlace,
+> base de datos, fecha de alta, estado y acciones. **Falta «si alguien ha entrado alguna vez»**, que
+> obliga a leer dentro de cada negocio: es la única línea de esta pantalla que queda pendiente.
+
 ### 6.3 Ficha del negocio *(nueva)*
 Donde de verdad se gestiona un cliente. Es la pantalla que hoy no existe y que hace falta.
 - Su configuración editable: idioma, IVA, decimales, contenido del código de barras.
 - **Consultar** la contraseña del administrador mientras no la haya cambiado, y **restablecerla** después.
 - Sus dueños vinculados.
 - El botón de **Entrar a gestionar**.
+
+> **Estado a 2026-09-01: existe a medias, sin desplegar y sin certificar.** Tiene la identificación
+> del negocio, la contraseña consultable con su bloque de entrega, el restablecimiento, y la
+> configuración del perfil **en solo lectura** —leída del propio negocio, para poder comprobar que
+> el perfil de verdad se aplicó, y señalando en rojo cualquiera de las tres claves de cableado que
+> no esté en su valor.
+>
+> **Lo que NO tiene todavía:** editar esa configuración desde aquí, los dueños vinculados y el botón
+> de «Entrar a gestionar». Los dos últimos son de las Entregas 4 y 5; editar la configuración se
+> quedó fuera de esta y hay que decidir si vuelve.
 
 ### 6.4 Alta de negocio *(nueva)*
 Un formulario que deja el negocio listo, no uno que deja un esquema vacío.
@@ -295,6 +350,15 @@ Un formulario que deja el negocio listo, no uno que deja un esquema vacío.
   vez**, porque eso es lo que se pega en un mensaje al cliente.
 - Cerrar exige un clic explícito («Ya los guardé»), no desaparecer al navegar. Y la pantalla dice que
   se puede volver a consultar, que es lo que quita el pánico de perderla.
+
+> **Estado a 2026-09-01: a medias, sin desplegar y sin certificar.** El formulario sigue pidiendo
+> solo nombre y dirección; el perfil no se elige porque **hay uno solo** (D12) y el **correo del
+> dueño no se pide todavía** —el vínculo cuenta↔negocio es de la Entrega 5—.
+>
+> Lo que sí cambió: al terminar ya no aparece un mensaje con la contraseña dentro que se pierde al
+> navegar. Se aterriza en la **ficha del negocio**, con el bloque de entrega —dirección, usuario y
+> contraseña, todo junto y seleccionable— y la frase que dice que se puede volver a consultar. Por
+> eso mismo **no hace falta el botón de «Ya los guardé»**: no hay nada que se pierda al salir.
 
 ### 6.5 Registro de actividad *(nueva)*
 - Qué modificamos dentro del negocio de un cliente, con la etiqueta «Soporte».
@@ -360,6 +424,18 @@ Ordenadas para que cada una deje el sistema mejor aunque la siguiente se demore.
   teléfono con el segundo factor.
 
 ### Entrega 3 — Que un negocio nazca funcionando
+
+> **Estado a 2026-09-01: construido a medias, sin desplegar y sin certificar.** Están el perfil de
+> configuración, el fin del «John Doe», el nombre del negocio guardado, el listado legible, la
+> contraseña consultable y el restablecimiento, y una primera ficha del negocio. **Las pruebas están
+> escritas pero no se han ejecutado**: la máquina donde se escribió no tiene la base de datos de
+> pruebas levantada. Nada de esto está desplegado ni certificado, y la certificación no la firma
+> quien escribió el código.
+>
+> **Queda fuera, y hay que decidir cuándo entra:** el candado de las tres claves de cableado en la
+> pantalla de configuración del propio negocio, la herencia del idioma al crear empleados
+> posteriores, y editar la configuración desde la ficha.
+
 - **Perfil de configuración** aplicado en el alta.
 - **Ficha del negocio** con su configuración editable.
 - Nombre del negocio guardado, listado legible, fin del "John Doe".
