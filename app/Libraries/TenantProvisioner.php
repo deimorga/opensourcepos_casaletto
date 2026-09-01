@@ -407,6 +407,27 @@ class TenantProvisioner
     }
 
     /**
+     * Was this tenant ADOPTED (registered from an already-existing
+     * schema by adopt()) rather than provisioned by create()?
+     *
+     * The tell is db_user: adopt() deliberately creates no dedicated
+     * MySQL user -- see its docblock -- and inserts the row with
+     * db_user/db_password left empty, so the schema keeps running on
+     * the shared credentials it already used. create(), by contrast,
+     * always writes a db_user equal to the schema name.
+     *
+     * This is not a cosmetic distinction. Casaletto is the real case,
+     * and its db_name is `ospos`: the database the business trades on,
+     * which never belonged to the platform and must not be torn down by
+     * it. Whatever else changes, an adopted tenant's schema was here
+     * first.
+     */
+    public function isAdopted(object $tenant): bool
+    {
+        return trim((string) ($tenant->db_user ?? '')) === '';
+    }
+
+    /**
      * Removes a tenant's platform.tenants row and revokes its dedicated
      * MySQL user, so it can no longer be resolved or connected to.
      *
@@ -415,6 +436,15 @@ class TenantProvisioner
      * has used for every other destructive step (MariaDB upgrade
      * volumes, etc.). Pass $dropSchema=true only when the operator has
      * explicitly confirmed the client's data should be destroyed.
+     *
+     * Refuses outright to touch an ADOPTED tenant, and refuses BEFORE
+     * opening the provisioning connection. This method is the only door
+     * to `DROP DATABASE` in the whole application, so the guarantee
+     * belongs here rather than in the one screen that happens to call
+     * it today: a command, a script or a second screen would each have
+     * to re-implement a check that lives in a controller. Tearing an
+     * adopted tenant down is a deliberate DBA operation, by hand, with
+     * a backup taken first -- never something a web request does.
      */
     public function delete(string $slug, bool $dropSchema = false): bool
     {
@@ -423,6 +453,14 @@ class TenantProvisioner
 
         if ($tenant === null) {
             throw new RuntimeException("Tenant slug '$slug' not found.");
+        }
+
+        if ($this->isAdopted($tenant)) {
+            throw new RuntimeException(
+                "Tenant '$slug' was adopted, not provisioned: its schema '{$tenant->db_name}' existed before the "
+                . 'platform did and has no dedicated database user. It cannot be deleted from here. Unregister it by '
+                . 'hand, with a backup taken first, if that is really what you want.'
+            );
         }
 
         $provisionUser     = getenv('PLATFORM_PROVISION_USERNAME');

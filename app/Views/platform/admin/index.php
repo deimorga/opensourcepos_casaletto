@@ -1,10 +1,18 @@
 <?php
 /**
- * @var array $tenants
+ * Listado de negocios.
+ *
+ * Los adoptados (Casaletto) aparecen igual que los demás -- se gestionan como
+ * los demás -- pero sin enlace de eliminar, y con el motivo escrito al lado.
+ * Esconder la acción sin explicarla solo produce la pregunta de por qué no
+ * está.
+ *
+ * @var array               $tenants
+ * @var array<string, bool> $adopted slug => adoptado
  */
 ?>
 <!doctype html>
-<html lang="en">
+<html lang="<?= esc(service('request')->getLocale()) ?>">
 
 <head>
     <meta charset="utf-8">
@@ -44,7 +52,12 @@
             <tbody>
                 <?php foreach ($tenants as $tenant): ?>
                     <tr>
-                        <td><?= esc($tenant->slug) ?></td>
+                        <td>
+                            <?= esc($tenant->slug) ?>
+                            <?php if ($adopted[$tenant->slug] ?? false): ?>
+                                <span class="badge bg-info text-dark"><?= esc(lang('Platform.adopted')) ?></span>
+                            <?php endif; ?>
+                        </td>
                         <td><?= esc($tenant->db_name) ?></td>
                         <td>
                             <span class="badge <?= $tenant->status === 'active' ? 'bg-success' : 'bg-secondary' ?>">
@@ -61,7 +74,13 @@
                                 <button class="btn btn-sm btn-outline-success" type="submit"><?= esc(lang('Platform.activate')) ?></button>
                                 <?= form_close() ?>
                             <?php endif; ?>
-                            <a class="btn btn-sm btn-outline-danger" href="<?= base_url('platform/admin/' . esc($tenant->slug, 'url') . '/delete') ?>"><?= esc(lang('Platform.delete')) ?></a>
+                            <?php if ($adopted[$tenant->slug] ?? false): ?>
+                                <span class="text-muted small ms-1" title="<?= esc(lang('Platform.adopted_explained', [$tenant->db_name])) ?>">
+                                    <?= esc(lang('Platform.adopted_not_deletable')) ?>
+                                </span>
+                            <?php else: ?>
+                                <a class="btn btn-sm btn-outline-danger" href="<?= base_url('platform/admin/' . esc($tenant->slug, 'url') . '/delete') ?>"><?= esc(lang('Platform.delete')) ?></a>
+                            <?php endif; ?>
                         </td>
                     </tr>
                 <?php endforeach; ?>

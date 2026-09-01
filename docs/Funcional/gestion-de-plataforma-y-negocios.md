@@ -275,6 +275,14 @@ negocio que está vendiendo.
 - Los negocios **adoptados** (Casaletto) no se pueden eliminar desde la consola.
 - Borrar la base de datos exige **una confirmación aparte** y deja constancia en el registro.
 
+> **Estado a 2026-08-31: las tres cosas están escritas y con pruebas locales, sin desplegar.** La
+> pantalla pide escribir el slug; el borrado de la base es una confirmación aparte que exige además
+> escribir su nombre (para Casaletto sería `ospos`, que avisa mucho más que `casaletto`), y
+> cualquiera de las dos mal escrita rechaza la operación entera. Casaletto sigue en el listado, sin
+> enlace de eliminar y con el motivo a la vista. Mientras no exista el registro de actividad
+> (§6.5), cada baja, cada borrado de base y cada rechazo quedan en el registro técnico de errores
+> con quién, qué y cuándo. **Falta probarlo en staging**, que es la única verificación que vale.
+
 ### 6.7 Elegir negocio *(corregida)*
 Existe pero no funciona para nadie: la tabla que la alimenta está vacía y, aunque se llenara, solo
 redirige. Con el vínculo creado en el alta y la entrada por URL, el dueño aterriza **dentro** de su
