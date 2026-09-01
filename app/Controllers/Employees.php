@@ -2,6 +2,7 @@
 
 namespace App\Controllers;
 
+use App\Libraries\Wiring_lock;
 use App\Models\Module;
 use CodeIgniter\HTTP\Exceptions\RedirectException;
 use CodeIgniter\HTTP\ResponseInterface;
@@ -175,20 +176,20 @@ class Employees extends Persons
 
         // Password has been changed OR first time password set
         if (!empty($this->request->getPost('password')) && ENVIRONMENT != 'testing') {
-            $exploded = explode(":", $this->request->getPost('language', FILTER_SANITIZE_FULL_SPECIAL_CHARS));
+            $language = $this->wired_employee_language();
             $employee_data = [
                 'username'      => $this->request->getPost('username'),
                 'password'      => password_hash($this->request->getPost('password'), PASSWORD_DEFAULT),
                 'hash_version'  => 2,
-                'language_code' => $exploded[0] ?? '',
-                'language'      => $exploded[1] ?? ''
+                'language_code' => $language['language_code'],
+                'language'      => $language['language']
             ];
         } else { // Password not changed
-            $exploded = explode(":", $this->request->getPost('language', FILTER_SANITIZE_FULL_SPECIAL_CHARS));
+            $language = $this->wired_employee_language();
             $employee_data = [
                 'username'      => $this->request->getPost('username'),
-                'language_code' => $exploded[0] ?? '',
-                'language'      => $exploded[1] ?? ''
+                'language_code' => $language['language_code'],
+                'language'      => $language['language']
             ];
         }
 
@@ -263,5 +264,41 @@ class Employees extends Persons
     {
         $exists = $this->employee->username_exists($employee_id, $this->request->getGet('username'));
         return $this->response->setJSON(!$exists ? 'true' : 'false');
+    }
+
+    /**
+     * El idioma con el que se guarda un empleado.
+     *
+     * `employees.language_code` GANA sobre `app_config` (`locale_helper.php:20`), así que el candado
+     * de la pantalla de configuración no llega hasta acá: cualquiera con permiso sobre empleados podía
+     * ponerse otra variante en su propio perfil y reproducir exactamente el incidente que D12 existe
+     * para impedir. Una cadena escrita para es-ES es invisible en es-MX: la pantalla sale en inglés y
+     * no da ningún error.
+     *
+     * Con el idioma cableado se fija la pareja completa y el desplegable del formulario se ignora.
+     * Sin cablear -- una instalación que no sea de esta plataforma -- manda lo que eligió la persona.
+     */
+    private function wired_employee_language(): array
+    {
+        $exploded = explode(':', (string)$this->request->getPost('language', FILTER_SANITIZE_FULL_SPECIAL_CHARS));
+        $chosen   = ['language_code' => $exploded[0] ?? '', 'language' => $exploded[1] ?? ''];
+
+        $wired = Wiring_lock::required_value('language_code');
+
+        if ($wired === '') {
+            return $chosen;
+        }
+
+        // La mitad del nombre sale de la misma lista que llena el desplegable, para no tener escrito
+        // "spanish" en dos sitios que puedan separarse.
+        foreach (array_keys(get_languages()) as $pair) {
+            [$code, $name] = array_pad(explode(':', $pair, 2), 2, '');
+
+            if ($code === $wired) {
+                return ['language_code' => $code, 'language' => $name];
+            }
+        }
+
+        return ['language_code' => $wired, 'language' => $chosen['language']];
     }
 }

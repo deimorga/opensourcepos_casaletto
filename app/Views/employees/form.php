@@ -1,4 +1,7 @@
 <?php
+
+use App\Libraries\Wiring_lock;
+
 /**
  * @var string $controller_name
  * @var object $person_info
@@ -95,14 +98,31 @@
                                 $language = '';
                             }
 
+                            // Con el idioma cableado, el desplegable queda a la vista pero no decide:
+                            // `Employees::postSave()` fija la pareja igual. Se deshabilita para que la
+                            // pantalla no prometa una elección que el servidor va a ignorar.
+                            $language_wired = Wiring_lock::is_locked('language_code');
+                            $attributes = ['class' => 'form-control input-sm'];
+
+                            if ($language_wired) {
+                                $attributes['disabled']         = 'disabled';
+                                $attributes['aria-describedby'] = 'employee_language_wired';
+                            }
+
                             echo form_dropdown(
                                 'language',
                                 $languages,
                                 "$language_code:$language",
-                                ['class' => 'form-control input-sm']
+                                $attributes
                             );
                             ?>
                         </div>
+                        <?php if ($language_wired): ?>
+                            <span class="help-block" id="employee_language_wired">
+                                <span class="glyphicon glyphicon-lock" aria-hidden="true"></span>
+                                <?= lang('Config.wired_language_help') ?>
+                            </span>
+                        <?php endif ?>
                     </div>
                 </div>
             </fieldset>

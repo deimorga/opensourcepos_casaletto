@@ -204,6 +204,80 @@ class EmployeesControllerTest extends CIUnitTestCase
         $this->assertTrue($result['success']);
     }
 
+    /**
+     * EL CANDADO DEL IDIOMA NO SE PUEDE SALTAR POR EL PERFIL DE UN EMPLEADO
+     *
+     * `employees.language_code` gana sobre `app_config` (locale_helper.php:20), así que el candado de
+     * la pantalla de configuración no llega hasta acá por sí solo: bastaba con elegir otra variante
+     * en este formulario para reproducir el incidente que D12 existe para impedir. Una cadena escrita
+     * para es-ES es invisible en es-MX -- la pantalla sale en inglés y no da ningún error.
+     */
+    public function testTheWiredLanguageIsForcedNoMatterWhatTheFormPosts(): void
+    {
+        $targetId = $this->createNonAdminEmployee();
+        $this->loginAsAdmin();
+
+        $username = 'idioma_' . uniqid();
+        $response = $this->post('/employees/save/' . $targetId, [
+            'first_name' => 'Idioma',
+            'last_name'  => 'Cableado',
+            'email'      => $username . '@test.com',
+            'username'   => $username,
+            'language'   => 'es-ES:spanish'
+        ]);
+
+        $response->assertStatus(200);
+
+        $row = db_connect()->table('employees')->where('person_id', $targetId)->get()->getRow();
+
+        $this->assertSame('es-MX', $row->language_code, 'La otra variante de español es la del incidente.');
+        $this->assertSame('spanish', $row->language);
+    }
+
+    public function testEnglishCannotBeChosenEitherFromTheEmployeeForm(): void
+    {
+        $targetId = $this->createNonAdminEmployee();
+        $this->loginAsAdmin();
+
+        $username = 'idioma_en_' . uniqid();
+        $this->post('/employees/save/' . $targetId, [
+            'first_name' => 'Idioma',
+            'last_name'  => 'Ingles',
+            'email'      => $username . '@test.com',
+            'username'   => $username,
+            'language'   => 'en:english'
+        ]);
+
+        $row = db_connect()->table('employees')->where('person_id', $targetId)->get()->getRow();
+
+        $this->assertSame('es-MX', $row->language_code);
+    }
+
+    /**
+     * El desplegable trae una opción «Idioma del sistema», que se envía como `:` y deja la columna
+     * vacía. Con el idioma cableado da igual: el efecto es el mismo, y dejarla escrita explícitamente
+     * evita que el empleado dependa de un valor global que alguien pueda mover.
+     */
+    public function testTheSystemLanguageOptionAlsoLandsOnTheWiredValue(): void
+    {
+        $targetId = $this->createNonAdminEmployee();
+        $this->loginAsAdmin();
+
+        $username = 'idioma_sistema_' . uniqid();
+        $this->post('/employees/save/' . $targetId, [
+            'first_name' => 'Idioma',
+            'last_name'  => 'Sistema',
+            'email'      => $username . '@test.com',
+            'username'   => $username,
+            'language'   => ':'
+        ]);
+
+        $row = db_connect()->table('employees')->where('person_id', $targetId)->get()->getRow();
+
+        $this->assertSame('es-MX', $row->language_code);
+        $this->assertSame('spanish', $row->language);
+    }
+
     public function testAdminCanDeleteAnyAccount(): void
     {
         $nonAdminId = $this->createNonAdminEmployee();
