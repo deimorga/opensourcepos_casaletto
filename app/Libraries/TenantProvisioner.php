@@ -1068,6 +1068,50 @@ class TenantProvisioner
      *
      * @throws RuntimeException if the slug is unknown or the business cannot be reached.
      */
+    /**
+     * Copia al registro el nombre que el negocio tiene en SU PROPIA configuración.
+     *
+     * `tenants.company_name` solo se rellena al dar de alta, así que los negocios que existían antes
+     * de la Entrega 3 --Casaletto y Paraíso-- salen en el listado como «(Sin nombre guardado)»
+     * aunque ellos sí sepan cómo se llaman: está en su `app_config.company`.
+     *
+     * NO SE PISA UN NOMBRE YA GUARDADO
+     *
+     * Si el registro ya tiene uno, se respeta. Puede haberlo puesto una persona a propósito para
+     * distinguir dos negocios cuyo `company` es el mismo, y una copia automática que lo machacara
+     * borraría esa decisión sin avisar. Por eso esto rellena huecos y no «sincroniza».
+     *
+     * @return array{slug: string, name: string|null, filled: bool}
+     */
+    public function fillCompanyNameFromBusiness(string $slug): array
+    {
+        $tenant = $this->requireTenant($slug);
+
+        if (trim((string) ($tenant->company_name ?? '')) !== '') {
+            return ['slug' => $slug, 'name' => (string) $tenant->company_name, 'filled' => false];
+        }
+
+        $nombre = trim((string) ($this->currentSettings($slug, ['company'])['company'] ?? ''));
+
+        if ($nombre === '') {
+            return ['slug' => $slug, 'name' => null, 'filled' => false];
+        }
+
+        // La misma validación que el alta: el nombre entra al registro por la misma puerta, no por
+        // una de servicio que acepte lo que la otra rechaza.
+        $nombre = $this->validateCompanyName($nombre, $slug);
+
+        $escrito = db_connect('platform')->table('tenants')
+            ->where('slug', $slug)
+            ->update(['company_name' => $nombre, 'updated_at' => date('Y-m-d H:i:s')]);
+
+        if ($escrito === false) {
+            throw new RuntimeException(lang('Platform.error_company_name_not_saved', [$slug]));
+        }
+
+        return ['slug' => $slug, 'name' => $nombre, 'filled' => true];
+    }
+
     public function currentSettings(string $slug, array $keys): array
     {
         $tenant = $this->requireTenant($slug);

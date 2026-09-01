@@ -86,6 +86,19 @@ $when = static fn (?string $value): ?string => $value === null || $value === ''
                     </td>
                     <td>
                         <a class="btn btn-sm btn-outline-primary" href="<?= base_url('platform/admin/' . rawurlencode((string) $tenant->slug)) ?>"><?= esc(lang('Platform.open_business')) ?></a>
+                        <?php
+                            // «Abrir» lleva a la ficha; esto entra al punto de venta. Va aquí además
+                            // de en la ficha porque desde el listado lo único a mano era el enlace de
+                            // la dirección, que deja al operador en el FORMULARIO de entrada -- que
+                            // es justo lo que el pase de la Entrega 5 vino a evitar.
+                            //
+                            // Solo para un negocio activo: uno suspendido no resuelve, así que el
+                            // pase se gastaría contra una puerta que no abre.
+                        ?>
+                        <?php if ($tenant->status === 'active'): ?>
+                            <a class="btn btn-sm btn-primary"
+                               href="<?= base_url('platform/admin/' . rawurlencode((string) $tenant->slug) . '/enter') ?>"><?= esc(lang('Platform.enter_business')) ?></a>
+                        <?php endif; ?>
                         <?php if ($tenant->status === 'active'): ?>
                             <?= form_open('platform/admin/' . esc($tenant->slug, 'url') . '/suspend', ['class' => 'd-inline']) ?>
                             <button class="btn btn-sm btn-outline-warning" type="submit"><?= esc(lang('Platform.suspend')) ?></button>

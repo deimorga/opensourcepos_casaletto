@@ -309,4 +309,5 @@ return [
     "enter_business"              => "Enter the business",
     "enter_business_help"         => "Opens this business's point of sale with your session here, without typing anything again. It is recorded in the activity log.",
     "enter_needs_second_factor"   => "Entering a business requires two-step verification. Turn it on under “Second factor”.",
+    "error_company_name_not_saved" => "The name of “{0}” was read from its own settings but could not be saved into the platform registry. Nothing was changed.",
 ];

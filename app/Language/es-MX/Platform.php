@@ -316,4 +316,5 @@ return [
     "enter_business"              => "Entrar al negocio",
     "enter_business_help"         => "Abre el punto de venta de este negocio con su sesión de aquí, sin volver a teclear nada. Queda anotado en el registro de actividad.",
     "enter_needs_second_factor"   => "Para entrar a un negocio hace falta tener la verificación en dos pasos activada. Actívela en «Segundo factor».",
+    "error_company_name_not_saved" => "El nombre de «{0}» se leyó de su configuración pero no se pudo guardar en el registro de la plataforma. No se cambió nada.",
 ];
