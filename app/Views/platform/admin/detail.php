@@ -1,5 +1,7 @@
 <?php
 
+use App\Libraries\Wiring_lock;
+
 /**
  * La ficha del negocio (§6.3): la pantalla donde de verdad se gestiona un cliente.
  *
@@ -198,7 +200,13 @@ $notices = [
                         <?php else: ?>
                             <code><?= esc($value) ?></code>
                         <?php endif; ?>
-                        <?php if ($expected !== null && $value !== $expected): ?>
+                        <?php
+                            // La comparación va por `Wiring_lock` y no con `!==` a mano: era una
+                            // TERCERA copia de la misma regla, y la que le pintaba a un negocio con
+                            // el valor histórico `number` una alarma roja permanente sobre un ajuste
+                            // que ya era el correcto.
+                        ?>
+                        <?php if ($expected !== null && ! Wiring_lock::matches_wiring($key, (string)$value)): ?>
                             <div class="text-danger small"><?= esc(lang('Platform.settings_wired_help', [$expected])) ?></div>
                         <?php endif; ?>
                     </td>

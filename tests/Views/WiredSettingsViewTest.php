@@ -258,6 +258,20 @@ final class WiredSettingsViewTest extends CIUnitTestCase
 
     // ========== The barcode radios finally show the truth ==========
 
+    /**
+     * `number` es como se llamaba antes esta opción, y `Barcode_lib` la lee igual que `item_number`
+     * (Barcode_lib.php:183: cualquier cosa que no sea `id`). Un negocio que la arrastre está en el
+     * valor correcto, y avisarle de lo contrario es una alarma que además no tiene forma de quitar,
+     * porque los radios están deshabilitados.
+     */
+    public function testTheLegacyBarcodeValueIsNotWarnedAbout(): void
+    {
+        $this->assertStringNotContainsString(
+            lang('Config.wired_setting_mismatch', ['item_number']),
+            $this->barcode(['barcode_content' => 'number'])
+        );
+    }
+
     public function testTheItemNumberRadioIsSelectedForABusinessWiredToItemNumber(): void
     {
         // It used to compare against 'number', so a business on 'item_number' -- the value D12

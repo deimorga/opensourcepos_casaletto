@@ -87,13 +87,6 @@ final class TenantConfigProfile
      */
     public const WIRING = Wiring_lock::WIRED_VALUES;
 
-    /** @deprecated Se conserva el orden histórico solo como referencia de lectura. */
-    private const WIRING_HISTORICAL_ORDER = [
-        'quantity_decimals' => '3',
-        'barcode_content'   => 'item_number',
-        'language_code'     => 'es-MX',
-    ];
-
     /**
      * Las que el perfil fija y el negocio sí puede cambiar después desde su propia configuración.
      *
