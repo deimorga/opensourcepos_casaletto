@@ -227,13 +227,43 @@ en este proyecto.
 > de configuración**. Si solo se bloquean en la consola de plataforma, el candado es decorativo: hay
 > que impedirlo también del lado del punto de venta.
 
+#### Cómo lo ve el negocio en su pantalla (escrito el 2026-09-01; sin desplegar y sin certificar)
+
+Las tres siguen **a la vista** en la configuración del negocio, en el mismo sitio de siempre: dos en
+la pestaña **Regional** (los decimales de cantidad y el idioma) y una en **Código de barras** (qué
+lleva el código). Lo que cambia es que **están fijas**: se ven en gris, no se pueden tocar, y al lado
+hay un candado y una frase que dice **por qué** está fija y **a quién pedirle el cambio**.
+
+**No se esconden a propósito.** Un ajuste que desaparece hace creer al cliente que su sistema no lo
+tiene, y la llamada que llega después es «¿por qué mi punto de venta no puede hacer esto?». Prefiere
+verse fijo y explicado que no verse.
+
+**Y no es solo la pantalla.** Quien intente el cambio por fuera de la pantalla —enviando el formulario
+a mano— también se lo encuentra rechazado. El freno de verdad está en el servidor; lo de la pantalla
+es que al cliente no se le invite a intentarlo.
+
+**Si se rechaza, no se guarda nada de esa pestaña.** Esas pantallas guardan sus quince ajustes de una
+sola vez, así que dejar pasar los otros catorce e ignorar el bloqueado significaría poner un mensaje
+verde sobre una pantalla que no hizo lo que dice. Es justo el tipo de silencio que puso a estas tres
+claves en la lista. El mensaje dice cuál ajuste se rechazó, que no se guardó nada, y que lo pida a su
+proveedor.
+
+**A un negocio que hoy esté en el valor equivocado, la pantalla se lo dice.** Debajo del ajuste
+aparece un aviso en rojo: este negocio no está en el valor requerido, que es tal, pídaselo a su
+proveedor. El candado **no corrige nada por su cuenta** —cambiarle un valor a un negocio que está
+vendiendo es una operación revisada, clave por clave, según D13—, pero tampoco lo congela en silencio.
+
+> **Lo que falta para cerrar el círculo.** Ese aviso manda al cliente a pedirlo, y **la consola de
+> plataforma todavía no tiene la pantalla que fije estas tres claves sobre un negocio ya existente**.
+> Hasta que exista, corregir un negocio mal cableado sigue siendo trabajo a mano.
+
 #### Las demás, que el perfil fija pero el negocio puede cambiar
 
 | Clave | Valor inicial | Por qué es suya |
 |---|---|---|
 | `number_locale` | `es_CO` | |
 | `currency_decimals` | `0` | Un cliente podría querer centavos |
-| `language` | `spanish` | Va de la mano de `language_code` |
+| `language` | `spanish` | Va de la mano de `language_code`. **En la práctica queda fijo también**: es el mismo desplegable, y cada opción que dice «spanish» lleva un código distinto |
 | `timezone` | `America/Bogota` | Un cliente fuera de Bogotá lo necesitaría distinto |
 | `company` | el nombre del negocio | Evidentemente suya |
 | `country_codes` | **por decidir** | Hoy `us` en los dos negocios |
@@ -365,8 +395,9 @@ Ordenadas para que cada una deje el sistema mejor aunque la siguiente se demore.
 - Nombre del negocio guardado, listado legible, fin del "John Doe".
 - **Consultar** la contraseña inicial mientras no se haya cambiado, y **restablecerla** después.
 - Bloque de entrega copiable: dirección, usuario y contraseña, todo junto.
-- **Bloquear las tres claves de cableado** también en la pantalla de configuración del negocio, no
-  solo en la consola.
+- ~~**Bloquear las tres claves de cableado** también en la pantalla de configuración del negocio, no
+  solo en la consola.~~ — **escrito el 2026-09-01; sin desplegar y sin certificar.** Ver §5, «Cómo lo
+  ve el negocio en su pantalla».
 - El alta de empleados **hereda el idioma del perfil**.
 - ~~Aplicar el perfil a Paraíso~~ — **ya ejecutado el 2026-08-31**.
 
