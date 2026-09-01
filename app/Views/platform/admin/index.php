@@ -18,11 +18,26 @@
  * azul #3498db: 1,14:1 de contraste, o sea prácticamente invisible, y hace falta 4,5:1. Ahora es
  * texto negro sobre el gris claro del tema, con borde para que se siga leyendo como etiqueta.
  *
- * @var array               $tenants
- * @var array<string, bool> $adopted slug => adoptado
+ * ENTREGA 3: LA TABLA PASA A CONTESTAR «QUÉ NEGOCIO ES ESTE»
+ *
+ * Mostraba el slug, el nombre técnico de la base y el estado. Con dos negocios ya se leía mal y el
+ * nombre real no estaba en ninguna parte porque no se guardaba. Ahora la primera columna es el
+ * nombre, y el slug pasa a ser lo que es: un detalle técnico, debajo y en pequeño.
+ *
+ * Las filas dadas de alta antes de que existiera la columna se quedan sin nombre, y lo dicen. No se
+ * les inventa uno.
+ *
+ * @var array                 $tenants
+ * @var array<string, bool>   $adopted slug => adoptado
+ * @var array<string, string> $names   slug => nombre real, o el slug si no hay ninguno guardado
+ * @var array<string, string> $urls    slug => su dirección pública
  */
 $this->extend('platform/console_layout');
 $this->section('content');
+
+$when = static fn (?string $value): ?string => $value === null || $value === ''
+    ? null
+    : date('Y-m-d', (int) strtotime($value));
 ?>
 
 <div class="mb-3">
@@ -33,28 +48,44 @@ $this->section('content');
     <table class="table table-bordered align-middle bg-body">
         <thead>
             <tr>
-                <th scope="col"><?= esc(lang('Platform.slug')) ?></th>
+                <th scope="col"><?= esc(lang('Platform.business_name')) ?></th>
+                <th scope="col"><?= esc(lang('Platform.business_address')) ?></th>
                 <th scope="col"><?= esc(lang('Platform.database')) ?></th>
+                <th scope="col"><?= esc(lang('Platform.created_at')) ?></th>
                 <th scope="col"><?= esc(lang('Platform.status')) ?></th>
                 <th scope="col"><?= esc(lang('Platform.actions')) ?></th>
             </tr>
         </thead>
         <tbody>
             <?php foreach ($tenants as $tenant): ?>
+                <?php $named = trim((string) ($tenant->company_name ?? '')) !== ''; ?>
                 <tr>
                     <th scope="row" class="fw-normal">
-                        <?= esc($tenant->slug) ?>
+                        <a href="<?= base_url('platform/admin/' . rawurlencode((string) $tenant->slug)) ?>">
+                            <?= esc($names[$tenant->slug] ?? $tenant->slug) ?>
+                        </a>
+                        <?php if (! $named): ?>
+                            <span class="text-body-secondary small">(<?= esc(lang('Platform.business_name_unknown')) ?>)</span>
+                        <?php endif; ?>
                         <?php if ($adopted[$tenant->slug] ?? false): ?>
                             <span class="badge text-bg-light border"><?= esc(lang('Platform.adopted')) ?></span>
                         <?php endif; ?>
+                        <div class="text-body-secondary small"><code><?= esc($tenant->slug) ?></code></div>
                     </th>
-                    <td><?= esc($tenant->db_name) ?></td>
+                    <td>
+                        <a href="<?= esc($urls[$tenant->slug] ?? '', 'attr') ?>" rel="noopener noreferrer" target="_blank">
+                            <?= esc($urls[$tenant->slug] ?? '') ?>
+                        </a>
+                    </td>
+                    <td><code><?= esc($tenant->db_name) ?></code></td>
+                    <td><?= esc($when($tenant->created_at ?? null) ?? lang('Platform.never')) ?></td>
                     <td>
                         <span class="badge <?= $tenant->status === 'active' ? 'text-bg-success' : 'text-bg-secondary' ?>">
                             <?= esc($tenant->status) ?>
                         </span>
                     </td>
                     <td>
+                        <a class="btn btn-sm btn-outline-primary" href="<?= base_url('platform/admin/' . rawurlencode((string) $tenant->slug)) ?>"><?= esc(lang('Platform.open_business')) ?></a>
                         <?php if ($tenant->status === 'active'): ?>
                             <?= form_open('platform/admin/' . esc($tenant->slug, 'url') . '/suspend', ['class' => 'd-inline']) ?>
                             <button class="btn btn-sm btn-outline-warning" type="submit"><?= esc(lang('Platform.suspend')) ?></button>

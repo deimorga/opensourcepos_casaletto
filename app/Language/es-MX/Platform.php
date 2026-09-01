@@ -226,4 +226,58 @@ return [
     "action_account_unlocked"        => "Cuenta desbloqueada",
     "action_account_totp_enabled"    => "Segundo factor encendido",
     "action_account_totp_disabled"   => "Segundo factor apagado",
+    "action_tenant_password_reset"   => "Contraseña del negocio restablecida",
+
+    // =========================================================================================
+    // ENTREGA 3 -- Que un negocio nazca funcionando: el perfil de configuración, la ficha del
+    // negocio y la contraseña que se puede volver a consultar (D5, D12).
+    // =========================================================================================
+
+    // ----- 6.2 El listado, que ahora se puede leer -----
+    "business_name"          => "Negocio",
+    "business_name_unknown"  => "Sin nombre guardado",
+    "created_at"             => "Alta",
+    "open_business"          => "Abrir",
+
+    // ----- 6.3 La ficha del negocio -----
+    "business_title"         => "Negocio: {0}",
+    "business_identity"      => "Identificación",
+    "business_address"       => "Dirección",
+    "business_back"          => "Volver al listado",
+
+    // La configuración que escribe el perfil, tal como el negocio la tiene hoy.
+    "settings_title"         => "Configuración",
+    "settings_intro"         => "Lo que este negocio tiene ahora mismo, leído de su propia configuración. El perfil que se aplica al darlo de alta es «{0}».",
+    "settings_key"           => "Clave",
+    "settings_value"         => "Valor",
+    "settings_wired"         => "Cableado",
+    "settings_wired_help"    => "Cambiar esto no cambia una preferencia, rompe el negocio. Valor esperado: {0}.",
+    "settings_missing"       => "sin definir",
+    "settings_unreachable"   => "No se pudo llegar a este negocio, así que su configuración no se muestra. Todo lo demás de esta pantalla sale del registro de la plataforma.",
+    "settings_not_editable_here" => "Editarlas desde la consola todavía no está construido: se cambian desde la pantalla de configuración del propio negocio.",
+
+    // ----- D5, la contraseña consultable -----
+    "credential_title"       => "Contraseña del administrador",
+    "credential_username"    => "Usuario",
+    "credential_password"    => "Contraseña",
+    "credential_set_at"      => "Generada",
+    "credential_reveal"      => "Ver la contraseña",
+    "credential_hide"        => "Ocultar",
+    "credential_available"   => "Sigue siendo la contraseña que generamos: el cliente no la ha cambiado.",
+    "credential_none"        => "La plataforma no tiene copia de la contraseña de este negocio. O se dio de alta antes de que la consola guardara una, o el cliente ya la cambió. La única salida es restablecerla.",
+    "credential_changed"     => "El cliente cambió esta contraseña, así que la copia se acaba de descartar. Ahora la única salida es restablecerla.",
+    "credential_unreadable"  => "Hay una copia guardada pero no se puede descifrar: la clave de cifrado no es la que la guardó. Es una avería de la plataforma, no un cambio del cliente — no restablezca nada antes de revisar la clave.",
+    "credential_unreachable" => "No se pudo llegar a este negocio, así que no se pudo comprobar si su contraseña sigue siendo válida. No se descartó nada.",
+    "credential_delivery"    => "Bloque de entrega",
+    "credential_delivery_help" => "Esto es lo que se le manda al cliente: dirección, usuario y contraseña, todo junto.",
+    "credential_never_logged" => "Se puede volver a consultar aquí mientras el cliente no la cambie. No hace falta apuntarla en ningún otro sitio.",
+
+    // ----- Restablecerla -----
+    "reset_password"         => "Restablecer la contraseña",
+    "reset_password_title"   => "Restablecer la contraseña del administrador",
+    "reset_password_body"    => "Se genera una contraseña nueva y se escribe en el negocio de inmediato. Quien estuviera usando la anterior deja de poder entrar en ese mismo momento.",
+    "reset_password_user"    => "Usuario al que se le restablece",
+    "reset_password_user_help" => "Tiene que existir ya en ese negocio. Un negocio aprovisionado por nosotros usa «{0}»; uno adoptado conserva el nombre que ya tenía.",
+    "reset_password_button"  => "Restablecerla ahora",
+    "reset_password_done"    => "Contraseña nueva generada para {0}. Se muestra abajo.",
 ];

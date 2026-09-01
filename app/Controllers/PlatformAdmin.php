@@ -2,11 +2,13 @@
 
 namespace App\Controllers;
 
+use App\Libraries\TenantConfigProfile;
 use App\Libraries\TenantProvisioner;
 use App\Models\PlatformActivity;
 use CodeIgniter\Exceptions\PageNotFoundException;
 use CodeIgniter\HTTP\RedirectResponse;
 use CodeIgniter\HTTP\ResponseInterface;
+use Config\App as AppConfig;
 use RuntimeException;
 
 /**
@@ -57,9 +59,13 @@ class PlatformAdmin extends Platform_Controller
         // businesses listed and manageable (Casaletto is one), so the listing
         // shows the reason instead of quietly dropping the action.
         $adopted = [];
+        $names   = [];
+        $urls    = [];
 
         foreach ($tenants as $tenant) {
             $adopted[$tenant->slug] = $this->provisioner->isAdopted($tenant);
+            $names[$tenant->slug]   = $this->businessName($tenant);
+            $urls[$tenant->slug]    = $this->tenantUrl((string) $tenant->slug);
         }
 
         return view('platform/admin/index', [
@@ -67,6 +73,8 @@ class PlatformAdmin extends Platform_Controller
             'nav'     => 'businesses',
             'tenants' => $tenants,
             'adopted' => $adopted,
+            'names'   => $names,
+            'urls'    => $urls,
         ]);
     }
 
@@ -92,7 +100,7 @@ class PlatformAdmin extends Platform_Controller
             PlatformActivity::TENANT_CREATED,
             PlatformActivity::TARGET_TENANT,
             (string) $result['slug'],
-            ['company_name' => $companyName],
+            ['company_name' => $companyName, 'profile' => TenantConfigProfile::ID],
         );
 
         return redirect()->to('platform/admin')->with(
@@ -238,6 +246,41 @@ class PlatformAdmin extends Platform_Controller
         }
 
         return redirect()->to('platform/admin')->with('message', lang('Platform.deleted', [$slug]));
+    }
+
+    /**
+     * Cómo se llama este negocio en pantalla. El nombre guardado si lo hay, y el slug si no --
+     * Casaletto y Paraíso se dieron de alta antes de que la columna existiera, e inventarles un
+     * nombre desde aquí sería peor que enseñar el que ya se conoce.
+     */
+    private function businessName(object $tenant): string
+    {
+        $name = trim((string) ($tenant->company_name ?? ''));
+
+        return $name !== '' ? $name : (string) $tenant->slug;
+    }
+
+    /**
+     * La dirección pública del negocio, construida con el comodín configurado.
+     *
+     * ES UNA COPIA DE PlatformLogin::tenantUrl(), Y ESO ESTÁ ANOTADO A PROPÓSITO
+     *
+     * Lo correcto sería que las dos leyeran de un sitio común -- PlatformContext es el sitio -- pero
+     * ese movimiento obliga a editar PlatformLogin, que esta entrega tiene cerrado porque lo está
+     * tocando el otro lado del trabajo. Duplicar diez líneas y dejar escrito dónde está la otra
+     * copia es menos malo que un conflicto en el archivo del que depende entrar a la consola.
+     * Unificarlas es una tarea de una línea en cuanto las dos entregas estén juntas.
+     */
+    private function tenantUrl(string $slug): string
+    {
+        $appConfig = config(AppConfig::class);
+        $wildcard  = $appConfig->allowedHostnameWildcards[0] ?? null;
+
+        if ($wildcard === null) {
+            return base_url();
+        }
+
+        return ($appConfig->https_on ? 'https' : 'http') . '://' . $slug . $wildcard . '/';
     }
 
     /**

@@ -2,6 +2,7 @@
 
 namespace App\Libraries;
 
+use CodeIgniter\Database\BaseConnection;
 use Config\Database;
 use RuntimeException;
 use Throwable;
@@ -25,6 +26,15 @@ use Throwable;
  * runbook in docs/Tecnico/multi-tenant-arquitectura.md section 11),
  * never full root -- same least-privilege principle already used for
  * each tenant's own dedicated GRANT.
+ *
+ * ENTREGA 3: APROVISIONAR DEJA DE SER «CREAR EL ESQUEMA»
+ *
+ * Hasta hoy create() dejaba un esquema migrado y poco más: escribía una sola clave de configuración
+ * -- el nombre de la empresa -- y el resto se quedaba con la semilla estadounidense de
+ * initial_schema.sql. Un negocio nacía sin poder vender al peso, con el código de barras apuntando
+ * al identificador interno, en inglés, y con su administrador llamándose «John Doe». Ahora aplica el
+ * perfil de configuración completo (App\Libraries\TenantConfigProfile, D12), le pone nombre a la
+ * persona, y guarda el nombre del negocio en platform_control para que el listado se pueda leer.
  */
 class TenantProvisioner
 {
@@ -35,6 +45,19 @@ class TenantProvisioner
      * not business slugs.
      */
     private const RESERVED_SLUGS = ['staging', 'www', 'admin', 'platform', 'login', 'api', 'app'];
+
+    /**
+     * El usuario que create() deja como administrador del negocio nuevo. D9: uno solo, con todos
+     * los permisos, que después crea a los demás.
+     */
+    public const DEFAULT_ADMIN_USERNAME = 'admin';
+
+    /**
+     * `people.last_name` y `tenants.company_name` son los dos VARCHAR(255); `app_config.value` es
+     * VARCHAR(500). Manda el más corto. Un nombre más largo se RECHAZA en vez de recortarse: el
+     * truncamiento mudo es exactamente el defecto que ya rompió `db_password` en este módulo.
+     */
+    private const MAX_COMPANY_NAME = 255;
 
     /**
      * @return string|null Error message, or null if the slug is valid and free.
@@ -67,7 +90,7 @@ class TenantProvisioner
      * the default admin account initial_schema.sql seeds, and the row
      * in platform.tenants.
      *
-     * @return array{slug: string, db_name: string, admin_password: string}
+     * @return array{slug: string, db_name: string, admin_username: string, admin_password: string}
      *
      * @throws RuntimeException on any provisioning failure.
      */
@@ -78,7 +101,7 @@ class TenantProvisioner
             throw new RuntimeException($error);
         }
 
-        $companyName = $companyName !== null && $companyName !== '' ? $companyName : $slug;
+        $companyName = $this->validateCompanyName($companyName, $slug);
 
         $provisionUser     = getenv('PLATFORM_PROVISION_USERNAME');
         $provisionPassword = getenv('PLATFORM_PROVISION_PASSWORD');
@@ -89,7 +112,7 @@ class TenantProvisioner
 
         $dbIdentifier = 'tenant_' . str_replace('-', '_', $slug);
         $dbPassword   = bin2hex(random_bytes(16));
-        $hostConfig   = config(Database::class)->default;
+        $hostConfig   = $this->hostConfig();
 
         try {
             $provisioner = Database::connect([
@@ -139,8 +162,6 @@ class TenantProvisioner
         // tenant's own new user (not the provisioner) to do this
         // doubles as proof the GRANT actually restricts it to this one
         // schema, not just that it exists.
-        $adminPassword = bin2hex(random_bytes(8));
-
         try {
             $tenantDb = Database::connect([
                 'hostname' => $hostConfig['hostname'],
@@ -153,16 +174,12 @@ class TenantProvisioner
                 'DBCollat' => $hostConfig['DBCollat'] ?? 'utf8mb4_general_ci',
             ], false);
 
-            $tenantDb->table('employees')->where('person_id', 1)->update([
-                'username'     => 'admin',
-                'password'     => password_hash($adminPassword, PASSWORD_DEFAULT),
-                'hash_version' => 2,
-            ]);
-
-            $tenantDb->table('app_config')->where('key', 'company')->update(['value' => $companyName]);
+            $admin = $this->seedInitialAdmin($tenantDb, $companyName);
         } catch (Throwable $e) {
             throw new RuntimeException('Post-migration default-admin reset failed: ' . $e->getMessage(), 0, $e);
         }
+
+        $adminPassword = $admin['password'];
 
         // service('encrypter')->encrypt() with the configured rawData=false
         // already returns a printable, storable string (hex HMAC + base64
@@ -174,21 +191,147 @@ class TenantProvisioner
         // failed" because the stored ciphertext had been cut off).
         $encryptedDbPassword = service('encrypter')->encrypt($dbPassword);
 
+        $now = date('Y-m-d H:i:s');
+
         db_connect('platform')->table('tenants')->insert([
-            'slug'        => $slug,
-            'db_name'     => $dbIdentifier,
-            'db_user'     => $dbIdentifier,
-            'db_password' => $encryptedDbPassword,
-            'status'      => 'active',
-            'created_at'  => date('Y-m-d H:i:s'),
-            'updated_at'  => date('Y-m-d H:i:s'),
+            'slug' => $slug,
+            // Se guarda además de escribirlo dentro del negocio. Leerlo del negocio para pintar el
+            // listado abriría una conexión por fila y dejaría la lista sin dibujar en cuanto un
+            // negocio estuviera suspendido o con su base caída.
+            'company_name' => $companyName,
+            'db_name'      => $dbIdentifier,
+            'db_user'      => $dbIdentifier,
+            'db_password'  => $encryptedDbPassword,
+            'status'       => 'active',
+            'created_at'   => $now,
+            'updated_at'   => $now,
         ]);
 
         return [
             'slug'           => $slug,
             'db_name'        => $dbIdentifier,
+            'admin_username' => $admin['username'],
             'admin_password' => $adminPassword,
         ];
+    }
+
+    /**
+     * Todo lo que hay que escribir DENTRO de un esquema recién migrado para que deje de ser un
+     * OSPOS de fábrica y sea el negocio de este cliente: el usuario, la contraseña, el nombre de la
+     * persona y el perfil de configuración.
+     *
+     * ES PÚBLICO Y RECIBE LA CONEXIÓN PORQUE SI NO, NO SE PUEDE PROBAR
+     *
+     * Estaba todo dentro de create(), atado a crear un esquema y un usuario de MySQL nuevos. En el
+     * entorno de pruebas el usuario de la base NO puede crear bases de datos -- a propósito, es la
+     * misma restricción que impide que una prueba borre un esquema de verdad. Lo que sí se puede
+     * probar, y es donde estaban los defectos, es el bloque que escribe en el esquema ya migrado.
+     * Separado, se le pasa cualquier esquema OSPOS y se comprueba lo que dejó escrito.
+     *
+     * LAS TRES ESCRITURAS VAN JUNTAS Y EN ESTE ORDEN
+     *
+     * La credencial primero, porque es la que puede fallar por una clave única. Luego el nombre de
+     * la persona, que es la fila que la semilla deja en «John Doe» y que hasta hoy no se tocaba.
+     * Y el perfil al final, que incluye el idioma del empleado -- después del UPDATE de `employees`,
+     * nunca antes, o el primero lo sobreescribiría.
+     *
+     * @param string      $companyName ya validado por validateCompanyName()
+     * @param int         $personId    el empleado inicial: `person_id` 1 en un esquema sembrado
+     * @param string|null $username    solo para las pruebas; en producción siempre el de serie
+     *
+     * @return array{username: string, password: string, hash: string}
+     */
+    public function seedInitialAdmin(
+        BaseConnection $tenantDb,
+        string $companyName,
+        int $personId = 1,
+        ?string $username = null,
+    ): array {
+        $username ??= self::DEFAULT_ADMIN_USERNAME;
+        $password = $this->generateAdminPassword();
+        $hash     = password_hash($password, PASSWORD_DEFAULT);
+
+        // initial_schema.sql siembra cada esquema nuevo con el usuario y el hash bcrypt REALES de
+        // Casaletto. Sin este reemplazo, la contraseña de administrador de todo negocio nuevo sería
+        // la de otro cliente. Ver docs/Tecnico/multi-tenant-arquitectura.md §16.
+        $tenantDb->table('employees')->where('person_id', $personId)->update([
+            'username'     => $username,
+            'password'     => $hash,
+            'hash_version' => 2,
+        ]);
+
+        // La fila de `people`, que hasta hoy NO se tocaba: la semilla la deja en «John Doe» y así se
+        // llamaba el administrador de todo negocio nuevo. Es el mismo `person_id` que el update de
+        // arriba, a propósito -- son dos tablas de la misma persona, y separarlos en dos pasos con
+        // condiciones distintas es exactamente cómo se llegó a que una quedara sin cambiar.
+        $tenantDb->table('people')->where('person_id', $personId)->update([
+            'first_name' => TenantConfigProfile::ADMIN_FIRST_NAME,
+            'last_name'  => $companyName,
+        ]);
+
+        // El perfil «Colombia · comercio al detal» (D12), que sustituye al UPDATE de una sola clave
+        // que había aquí. Escribe `app_config` Y la fila del empleado: el idioma vive en los dos
+        // sitios y el del empleado gana, así que un perfil que solo escriba el primero deja al
+        // negocio hablando el idioma de la semilla.
+        (new TenantConfigProfile())->applyTo($tenantDb, $companyName, $personId);
+
+        return ['username' => $username, 'password' => $password, 'hash' => $hash];
+    }
+
+    /**
+     * El nombre de la empresa, comprobado antes de que llegue a ninguna tabla.
+     *
+     * Vacío cae al slug, que es lo que hacía este código desde siempre. Demasiado largo se rechaza:
+     * `people.last_name` y `tenants.company_name` son VARCHAR(255) y MySQL no está en modo estricto
+     * en todas partes, así que un nombre de 300 caracteres se guardaría cortado en unos sitios y
+     * entero en otros sin decir nada. Este proyecto ya perdió un día por un truncamiento mudo.
+     */
+    private function validateCompanyName(?string $companyName, string $slug): string
+    {
+        $companyName = trim((string) $companyName);
+
+        if ($companyName === '') {
+            return $slug;
+        }
+
+        // mb_strlen y no strlen: el límite de la columna es en bytes, pero rechazar por bytes le
+        // diría a un nombre con tildes que es más largo de lo que se ve escrito. 255 caracteres
+        // multibyte podrían pasarse de 255 bytes, así que se comprueban las dos cosas.
+        if (mb_strlen($companyName) > self::MAX_COMPANY_NAME || strlen($companyName) > self::MAX_COMPANY_NAME) {
+            throw new RuntimeException(
+                'The company name is too long (maximum ' . self::MAX_COMPANY_NAME . ' characters). Nothing was created.',
+            );
+        }
+
+        return $companyName;
+    }
+
+    /**
+     * La contraseña que se le entrega al cliente. 16 caracteres hexadecimales, 64 bits de entropía,
+     * exactamente como estaba antes de que esto fuera un método: extraerlo es lo que permitirá
+     * restablecerla sin recrear el negocio.
+     */
+    private function generateAdminPassword(): string
+    {
+        return bin2hex(random_bytes(8));
+    }
+
+    /**
+     * Las credenciales compartidas y el servidor, leídos de una instancia NUEVA de Config\Database.
+     *
+     * Y no de `config(Database::class)`, que es la compartida y que TenantResolver reescribe en
+     * sitio: en una petición de la consola de plataforma, `pointAtControlSchema()` ya le puso a ese
+     * arreglo el host, el usuario y la contraseña de `platform_control`. Usarlo aquí haría que un
+     * negocio adoptado se intentara abrir con el usuario de la plataforma, que no tiene ningún
+     * permiso en el esquema del cliente -- y fallaría solo en Casaletto, solo desde la consola, y
+     * solo en producción. Una instancia nueva vuelve a leer las variables MYSQL_* del entorno, que
+     * es lo que TenantResolver no toca.
+     *
+     * @return array<string, mixed>
+     */
+    private function hostConfig(): array
+    {
+        return (new Database())->default;
     }
 
     /**
@@ -316,7 +459,10 @@ class TenantProvisioner
             throw new RuntimeException("Database '{$existingDbName}' is already registered to a tenant.");
         }
 
-        $hostConfig = config(Database::class)->default;
+        // hostConfig() y no config(Database::class): ese arreglo lo reescribe TenantResolver en
+        // sitio, y aqui se usan el usuario y la contrasena compartidos, no solo el nombre del
+        // servidor. Ver el comentario del metodo.
+        $hostConfig = $this->hostConfig();
         $prefix     = $hostConfig['DBPrefix'] ?? 'ospos_';
 
         try {
@@ -469,7 +615,7 @@ class TenantProvisioner
         $provisionPassword = getenv('PLATFORM_PROVISION_PASSWORD');
 
         if ($provisionUser && $provisionPassword) {
-            $hostConfig = config(Database::class)->default;
+            $hostConfig = $this->hostConfig();
 
             try {
                 $provisioner = Database::connect([
