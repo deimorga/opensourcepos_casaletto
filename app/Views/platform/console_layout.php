@@ -1,5 +1,7 @@
 <?php
 
+use App\Libraries\PlatformContext;
+
 /**
  * La envoltura común de la consola de plataforma: cabecera, navegación, avisos y pie.
  *
@@ -30,7 +32,17 @@ $items = [
 ];
 ?>
 <!doctype html>
-<html lang="<?= esc(service('request')->getLocale()) ?>">
+<?php
+    // El idioma que DECLARA la página sale de la misma constante que el que HABLA.
+    //
+    // `service('request')->getLocale()` no lo fija nadie en la consola, así que caía al
+    // `defaultLocale` de la aplicación: la página salía marcada como inglés con todo el contenido en
+    // español. Un lector de pantalla la lee con la voz equivocada y el traductor del navegador se
+    // ofrece a traducir de un idioma al mismo. `Platform_Controller` ya fija el idioma del texto
+    // desde `PlatformContext::LOCALE`; esto es la otra mitad, y desde la misma fuente para que no
+    // puedan separarse.
+?>
+<html lang="<?= esc(PlatformContext::LOCALE) ?>">
 
 <head>
     <meta charset="utf-8">

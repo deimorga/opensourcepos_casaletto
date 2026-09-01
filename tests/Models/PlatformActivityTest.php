@@ -240,6 +240,10 @@ final class PlatformActivityTest extends CIUnitTestCase
             PlatformActivity::TENANT_ACTIVATED,
             PlatformActivity::TENANT_DELETED,
             PlatformActivity::TENANT_SCHEMA_DROPPED,
+            // La Entrega 3: restablecerle la contraseña al administrador de un negocio. Se anota
+            // quién y a qué usuario, NUNCA la contraseña -- esta tabla la leen personas y se guarda
+            // para siempre.
+            PlatformActivity::TENANT_PASSWORD_RESET,
             PlatformActivity::ACCOUNT_CREATED,
             PlatformActivity::ACCOUNT_DELETED,
             PlatformActivity::ACCOUNT_PASSWORD_CHANGED,

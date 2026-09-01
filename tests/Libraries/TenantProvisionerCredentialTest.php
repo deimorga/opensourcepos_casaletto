@@ -122,7 +122,16 @@ final class TenantProvisionerCredentialTest extends CIUnitTestCase
             'db_user'               => '',
             'status'                => 'active',
             'admin_username'        => self::USERNAME,
-            'admin_password_hash'   => password_hash($this->password, PASSWORD_DEFAULT),
+
+            // EL HASH DEL EMPLEADO, NO OTRO HASH DE LA MISMA CONTRASEÑA
+            //
+            // `adminCredential()` compara las dos cadenas con `hash_equals()`, que es lo correcto:
+            // lo que dice si el cliente cambió su contraseña no es que siga siendo la misma palabra,
+            // sino que la fila del negocio siga teniendo EL MISMO hash que guardamos. bcrypt sala
+            // cada llamada, así que dos `password_hash()` de la misma contraseña dan cadenas
+            // distintas -- sembrar una segunda hacía que el estado fuera `changed` desde el primer
+            // instante, y que las pruebas de «deja de mostrarse» pasaran sin comprobar nada.
+            'admin_password_hash'   => $this->employeeHash(),
             'admin_password_cipher' => service('encrypter')->encrypt($this->password),
             'admin_password_set_at' => date('Y-m-d H:i:s'),
         ]);

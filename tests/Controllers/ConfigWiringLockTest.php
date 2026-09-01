@@ -36,6 +36,58 @@ final class ConfigWiringLockTest extends CIUnitTestCase
     protected $refresh     = false;
     protected $namespace   = 'App';
 
+    /** Toda la tabla `app_config` tal y como estaba antes de esta prueba. */
+    private array $configuracionOriginal = [];
+
+    /**
+     * ESTE ARCHIVO ESCRIBE EN UNA BASE QUE COMPARTE CON TODA LA SUITE
+     *
+     * `$refresh` está en falso -- como en el resto de la casa -- así que nada devuelve la base a su
+     * sitio entre pruebas, y aquí se hacen POST de verdad contra `/config/saveLocale`, que escribe
+     * `app_config`. Sin esto, el idioma, los decimales y el país que deja una prueba se los
+     * encuentran puestos las que corren después, EN OTROS ARCHIVOS.
+     *
+     * Pasó: la Entrega 3 dejó rojas `CustomersCsvImportTest` y `ExpensesCashSourceTest`, que no
+     * tienen nada que ver con esto, sin que nadie tocara su código. Un fallo así se busca durante
+     * horas en el sitio equivocado, porque el archivo culpable pasa.
+     *
+     * Se guarda la tabla entera y se devuelve entera. Enumerar las claves que cada prueba toca sería
+     * más barato y volvería a fallar en cuanto alguien añadiera una.
+     */
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->configuracionOriginal = [];
+
+        foreach ($this->db->table('app_config')->get()->getResultArray() as $fila) {
+            $this->configuracionOriginal[$fila['key']] = $fila['value'];
+        }
+    }
+
+    protected function tearDown(): void
+    {
+        foreach ($this->configuracionOriginal as $clave => $valor) {
+            $this->db->table('app_config')->where('key', $clave)->update(['value' => $valor]);
+        }
+
+        // Y las que no existían antes: una prueba puede crear una clave nueva, y dejarla ahí cambia
+        // lo que lee `config(OSPOS::class)` en todo lo que venga detrás.
+        $sobrantes = array_diff(
+            array_column($this->db->table('app_config')->get()->getResultArray(), 'key'),
+            array_keys($this->configuracionOriginal),
+        );
+
+        if ($sobrantes !== []) {
+            $this->db->table('app_config')->whereIn('key', $sobrantes)->delete();
+        }
+
+        db_connect()->resetDataCache();
+        config(OSPOS::class)->update_settings();
+
+        parent::tearDown();
+    }
+
     protected function resetSession(): void
     {
         $session = Services::session();

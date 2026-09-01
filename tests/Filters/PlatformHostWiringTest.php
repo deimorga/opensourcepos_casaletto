@@ -91,17 +91,28 @@ final class PlatformHostWiringTest extends CIUnitTestCase
         parent::tearDown();
     }
 
-    public function testTheFilterIsRegisteredForEveryPlatformUri(): void
+    /**
+     * TODAS las direcciones, no solo `platform/*`.
+     *
+     * Acotado a `platform/*`, el filtro dejaba la dirección propia de la consola sirviendo el punto
+     * de venta en «/» -- y con la conexión por defecto apuntando a `platform_control`, esa pantalla
+     * ofrecía un botón «Migrar» sin autenticación que habría construido el esquema del punto de
+     * venta dentro de la base de control de la plataforma. Encontrado en producción el 2026-09-01,
+     * minutos después de que el filtro se desplegara por primera vez.
+     *
+     * Si alguien vuelve a estrechar esto, vuelve ese agujero.
+     */
+    public function testTheFilterIsRegisteredForEveryUriAndNotOnlyTheConsoleOnes(): void
     {
         $filters = config(Filters::class);
 
         $this->assertArrayHasKey('platformhost', $filters->aliases);
         $this->assertSame(PlatformHost::class, $filters->aliases['platformhost']);
         $this->assertSame(
-            ['platform', 'platform/*'],
+            ['*'],
             $filters->filters['platformhost']['before'] ?? null,
-            'Both the bare segment and everything under it: platform/admin/<slug>/delete is a '
-            . 'platform URI too.',
+            'Acotarlo a platform/* deja la raíz del apex sirviendo el punto de venta, con su botón '
+            . 'de migrar sin autenticar.',
         );
     }
 
