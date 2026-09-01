@@ -1,9 +1,18 @@
 <?php
+
+use App\Libraries\Wiring_lock;
+
 /**
+ * What a printed or typed code carries is wiring rather than preference (D12), so that one setting
+ * is shown fixed and explained instead of hidden. The refusal that protects it is server-side, in
+ * Config::refuse_wired_changes(); this only stops the customer being invited to try.
+ *
  * @var array $support_barcode
  * @var array $config
  * @var array $barcode_fonts
  */
+
+$wired_barcode_content = (string)($config['barcode_content'] ?? '');
 ?>
 
 <?= form_open('config/saveBarcode/', ['id' => 'barcode_config_form', 'class' => 'form-horizontal']) ?>
@@ -100,17 +109,28 @@
                 <div class="col-xs-8">
                     <label class="radio-inline">
                         <?= form_radio([
-                            'name'    => 'barcode_content',
-                            'value'   => 'id',
-                            'checked' => $config['barcode_content'] == 'id'
+                            'name'             => 'barcode_content',
+                            'value'            => 'id',
+                            'checked'          => $wired_barcode_content === 'id',
+                            'disabled'         => 'disabled',
+                            'aria-describedby' => 'barcode_content_wired'
                         ]) ?>
                         <?= lang('Config.barcode_id') ?>
                     </label>
+                    <?php
+                    // Barcode_lib reads every value that is not 'id' as the item number
+                    // (Barcode_lib.php:97 and :183), and that is what this radio has always meant.
+                    // It used to be worth 'number' and to check itself against 'number', so a
+                    // business actually wired to 'item_number' -- the value D12 requires, and the
+                    // one Paraiso has -- saw NEITHER radio selected.
+                    ?>
                     <label class="radio-inline">
                         <?= form_radio([
-                            'name'    => 'barcode_content',
-                            'value'   => 'number',
-                            'checked' => $config['barcode_content'] == 'number'
+                            'name'             => 'barcode_content',
+                            'value'            => 'item_number',
+                            'checked'          => $wired_barcode_content !== 'id',
+                            'disabled'         => 'disabled',
+                            'aria-describedby' => 'barcode_content_wired'
                         ]) ?>
                         <?= lang('Config.barcode_number') ?>
                     </label>
@@ -124,6 +144,13 @@
                         ]) ?>
                         <?= lang('Config.barcode_generate_if_empty') ?>
                     </label>
+                    <span class="help-block" id="barcode_content_wired">
+                        <span class="glyphicon glyphicon-lock" aria-hidden="true"></span>
+                        <?= lang('Config.wired_barcode_content_help') ?>
+                        <?php if (!Wiring_lock::matches_wiring('barcode_content', $wired_barcode_content)): ?>
+                            <strong class="text-danger"><?= lang('Config.wired_setting_mismatch', [Wiring_lock::required_value('barcode_content')]) ?></strong>
+                        <?php endif ?>
+                    </span>
                 </div>
             </div>
 

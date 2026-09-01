@@ -1,10 +1,23 @@
 <?php
+
+use App\Libraries\Wiring_lock;
+
 /**
+ * Two of the settings on this screen -- the number of decimals a quantity keeps, and the language --
+ * are wiring rather than preference (D12). They are shown fixed and explained instead of hidden: a
+ * field that disappears reads as "this system cannot do that", and the business calls to ask why.
+ *
+ * The refusal that actually protects them is server-side, in Config::refuse_wired_changes(). What
+ * happens here is only that the customer is never invited to try.
+ *
  * @var string $currency_code
  * @var array $rounding_options
  * @var string $controller_name
  * @var array $config
  */
+
+$wired_quantity_decimals = (string)($config['quantity_decimals'] ?? '');
+$wired_language_code = (string)($config['language_code'] ?? '');
 ?>
 
 <?= form_open('config/saveLocale/', ['id' => 'locale_config_form', 'class' => 'form-horizontal']) ?>
@@ -118,9 +131,22 @@
                             '2' => '2',
                             '3' => '3'
                         ],
-                        $config['quantity_decimals'],
-                        ['class' => 'form-control input-sm']
+                        $wired_quantity_decimals,
+                        [
+                            'class'            => 'form-control input-sm',
+                            'disabled'         => 'disabled',
+                            'aria-describedby' => 'quantity_decimals_wired'
+                        ]
                     ) ?>
+                </div>
+                <div class="col-xs-6">
+                    <span class="help-block" id="quantity_decimals_wired">
+                        <span class="glyphicon glyphicon-lock" aria-hidden="true"></span>
+                        <?= lang('Config.wired_quantity_decimals_help') ?>
+                        <?php if (!Wiring_lock::matches_wiring('quantity_decimals', $wired_quantity_decimals)): ?>
+                            <strong class="text-danger"><?= lang('Config.wired_setting_mismatch', [Wiring_lock::required_value('quantity_decimals')]) ?></strong>
+                        <?php endif ?>
+                    </span>
                 </div>
             </div>
 
@@ -197,12 +223,30 @@
             <div class="form-group form-group-sm">
                 <?= form_label(lang('Config.language'), 'language', ['class' => 'control-label col-xs-2']) ?>
                 <div class="col-xs-4">
+                    <?php
+                    // One select carries "code:name", so fixing the code fixes the whole field. The
+                    // name half (D12 leaves it to the business) cannot move on its own anyway: every
+                    // option that reads "spanish" is paired with a different code.
+                    ?>
                     <?= form_dropdown(
                         'language',
                         get_languages(),
                         current_language_code(true) . ':' . current_language(true),
-                        ['class' => 'form-control input-sm']
+                        [
+                            'class'            => 'form-control input-sm',
+                            'disabled'         => 'disabled',
+                            'aria-describedby' => 'language_wired'
+                        ]
                     ) ?>
+                </div>
+                <div class="col-xs-6">
+                    <span class="help-block" id="language_wired">
+                        <span class="glyphicon glyphicon-lock" aria-hidden="true"></span>
+                        <?= lang('Config.wired_language_help') ?>
+                        <?php if (!Wiring_lock::matches_wiring('language_code', $wired_language_code)): ?>
+                            <strong class="text-danger"><?= lang('Config.wired_setting_mismatch', [Wiring_lock::required_value('language_code')]) ?></strong>
+                        <?php endif ?>
+                    </span>
                 </div>
             </div>
 
