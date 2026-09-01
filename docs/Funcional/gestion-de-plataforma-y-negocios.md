@@ -171,6 +171,40 @@ falta correo, SMS ni WhatsApp.
 El factor va pegado **a la credencial, no a la pantalla**: se pide tanto en la consola raíz como al
 entrar a un negocio. Protegerla en un sitio y dejarla suelta en el otro no tendría sentido.
 
+#### Cómo se ve al darse de alta (escrito el 2026-09-01; sin desplegar y sin certificar)
+
+**No hay imagen que escanear.** La pantalla de alta muestra la clave escrita, en ocho grupos de
+cuatro, y además el enlace que la aplicación entiende. Hay dos maneras de darse de alta y las dos
+funcionan:
+
+- **Tecleando la clave.** Contraseñas de Apple, 1Password, Bitwarden y cualquier Authenticator
+  aceptan la clave escrita a mano. Son 32 caracteres, y su alfabeto no tiene ni cero, ni uno, ni
+  ocho, así que las confusiones de siempre (O con 0, I con 1, B con 8) no pueden darse.
+- **Abriendo el enlace desde el propio teléfono.** Deja la entrada rellena y no hay nada que teclear.
+
+La entrada quedará en el teléfono con el nombre **«OSPOS Plataforma»** y debajo el correo de la
+cuenta. Conviene saber una cosa antes: quien se dé de alta **en staging y también en producción**
+tendrá dos entradas llamadas igual, y le convendrá renombrar una en su aplicación.
+
+**No se enciende nada hasta que un código real lo demuestre.** El alta pide escribir el código que
+muestre el teléfono, y hasta que ese código sea correcto la cuenta sigue exactamente como estaba.
+Es lo que impide el único final del que no se vuelve: un segundo factor encendido que no funciona,
+en la única cuenta que administra la plataforma, sin correo ni SMS por donde devolvérsela.
+
+Al encenderlo se entregan **diez códigos de rescate**, de un solo uso, en la misma pantalla y una
+sola vez. Son la única forma de entrar si se pierde el teléfono.
+
+**Apagarlo pide la contraseña**, porque apagarlo deja la cuenta detrás de una contraseña sola y es
+justo lo primero que haría quien se encontrase una sesión abierta. Cambiar de teléfono es apagarlo y
+volver a encenderlo.
+
+#### El freno de los tres intentos también cuenta aquí
+
+Los intentos fallidos **en la pantalla del código** cuentan igual que los de la contraseña, sobre la
+misma cuenta y con la misma ventana de dos horas. Sin eso, quien ya hubiera acertado la contraseña
+podría probar códigos de seis dígitos sin límite, y el freno de la contraseña no le estorbaría
+porque ya la pasó.
+
 ### Sobre D12, qué contiene el perfil «Colombia · comercio al detal»
 
 El perfil no es una idea, es esta lista. Sin ella escrita, «aplicar el perfil» no significa nada.
