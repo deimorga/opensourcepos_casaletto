@@ -271,6 +271,25 @@ class PlatformLogin extends BaseController
         }
 
         $account = $this->account->getLoggedInAccount();
+
+        // LA SESIÓN PUEDE APUNTAR A UNA CUENTA QUE YA NO EXISTE
+        //
+        // `isLoggedIn()` solo comprueba que la sesión lleve un id, no que ese id siga teniendo
+        // cuenta detrás. Y esta consola OFRECE eliminar superadministradores: si a alguien se le
+        // elimina mientras está dentro, su sesión sobrevive apuntando a una fila que ya no está.
+        //
+        // Sin esta guarda, `$account->id` sobre null era un 500 en `platform/login` -- la única
+        // pantalla a la que todo lo demás redirige, así que ese navegador quedaba en un bucle sin
+        // poder ni ver el formulario para entrar como otra persona. Solo se salía borrando la
+        // cookie a mano.
+        //
+        // Encontrado el 2026-09-01 sin querer, eliminando en staging una cuenta con la sesión viva.
+        if ($account === null) {
+            $this->account->logout();
+
+            return redirect()->to('platform/login')->with('error', lang('Platform.session_account_gone'));
+        }
+
         $tenants = $this->account->getTenantsForAccount((int) $account->id);
 
         if (count($tenants) === 1) {
