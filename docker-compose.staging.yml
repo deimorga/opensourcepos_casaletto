@@ -71,6 +71,13 @@ services:
             # demo1.staging.ospos-saas.micronuba.net. Con punto inicial --
             # ver App::$allowedHostnameWildcards.
             - ALLOWED_HOSTNAME_WILDCARDS=.staging.ospos-saas.micronuba.net
+            # Entrega 1 del módulo de superadministración: la consola de
+            # plataforma vive en la raíz del dominio del SaaS de staging.
+            # Ver docker-compose.prod.yml para el razonamiento completo --
+            # en resumen: la raíz no termina en el sufijo comodín, así que
+            # sin esta variable App::getValidHost() la rechaza y base_url()
+            # de la consola apuntaría al dominio de un cliente.
+            - PLATFORM_HOSTNAMES=staging.ospos-saas.micronuba.net
             # Ver NOTA en docker/docker-mysql.yml comment above: Sales.php
             # crashea sin esto (Email_lib -> Services::encrypter()). Clave
             # única por ambiente, definida en el .env del VPS, nunca en git.
@@ -138,6 +145,25 @@ services:
             - "traefik.http.routers.ospos-saas-staging.priority=10"
             - "traefik.http.routers.ospos-saas-staging.service=ospos-saas-staging"
             - "traefik.http.services.ospos-saas-staging.loadbalancer.server.port=80"
+            # Router NUEVO para la raíz de staging: la consola de plataforma.
+            # Aditivo, no una ampliación de la regex de arriba -- ver
+            # docker-compose.prod.yml para el porqué.
+            - "traefik.http.routers.ospos-saas-staging-root.rule=Host(`staging.ospos-saas.micronuba.net`)"
+            - "traefik.http.routers.ospos-saas-staging-root.entrypoints=websecure"
+            - "traefik.http.routers.ospos-saas-staging-root.tls.certresolver=le-dns"
+            - "traefik.http.routers.ospos-saas-staging-root.tls.domains[0].main=staging.ospos-saas.micronuba.net"
+            - "traefik.http.routers.ospos-saas-staging-root.tls.domains[0].sans=*.staging.ospos-saas.micronuba.net"
+            # priority AQUÍ NO ES HIGIENE, ES FUNCIONAL. La regex del router
+            # comodín de PRODUCCIÓN, "^[a-z0-9-]+\.ospos-saas\.micronuba\.net$",
+            # matchea también "staging.ospos-saas.micronuba.net" -- "staging"
+            # es una etiqueta válida para ella-- y los dos ambientes comparten
+            # el mismo Traefik. Sin una prioridad mayor que ese 10, la consola
+            # de staging podría terminar servida por el contenedor de
+            # producción.
+            - "traefik.http.routers.ospos-saas-staging-root.priority=20"
+            # OBLIGATORIO: con más de un service por contenedor, sin esto
+            # Traefik descarta la configuración entera. Ver prod.
+            - "traefik.http.routers.ospos-saas-staging-root.service=ospos-saas-staging"
             - "traefik.docker.network=micronuba_public"
 
 networks:

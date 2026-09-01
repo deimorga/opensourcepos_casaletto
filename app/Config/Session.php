@@ -2,10 +2,12 @@
 
 namespace Config;
 
+use App\Libraries\PlatformContext;
 use CodeIgniter\Config\BaseConfig;
 use CodeIgniter\Session\Handlers\BaseHandler;
 use CodeIgniter\Session\Handlers\DatabaseHandler;
 use CodeIgniter\Session\Handlers\FileHandler;
+use Exception;
 
 class Session extends BaseConfig
 {
@@ -130,20 +132,39 @@ class Session extends BaseConfig
     {
         parent::__construct();
 
+        // The platform console keeps its session in the control schema, in a table of its own.
+        // Everybody else is left exactly as they were -- DBGroup null (the default connection, i.e.
+        // this business's own database) and savePath 'sessions'. That is not a formality: if the
+        // host test ever answered true for one business too many, every logged-in cashier there
+        // would be thrown out at once and their session looked for in a table that, for them, does
+        // not exist. See App\Libraries\PlatformContext, which is where that test lives, exactly
+        // once, as an exact match.
+        if (PlatformContext::isPlatform()) {
+            $this->DBGroup  = 'platform';
+            $this->savePath = 'platform_sessions';
+        }
+
         if ($this->driver === DatabaseHandler::class) {
             try {
-                $db = Database::connect();
+                // The group MATTERS, and it was missing until 2026-09-01. Database::connect() with
+                // no argument always hands back the default connection, so this check asked the
+                // wrong database whether the table was there. Harmless while DBGroup was always
+                // null; the moment it is 'platform' the answer is always no -- different schema,
+                // and the default group prefixes every table name with `ospos_` -- so the driver
+                // silently downgraded to file storage and the console's session table would have
+                // stayed empty forever with nothing anywhere explaining it.
+                $db = Database::connect($this->DBGroup);
 
-                if (!$db->tableExists($this->savePath)) {
-                    $this->driver = FileHandler::class;
+                if (! $db->tableExists($this->savePath)) {
+                    $this->driver   = FileHandler::class;
                     $this->savePath = WRITEPATH . 'session';
                 }
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 // Database not available yet (e.g. fresh install before migrations).
                 // Fall back to file-based sessions so the login/migration page
                 // can still be served. Catches mysqli_sql_exception which is
                 // not a subclass of DatabaseException but is a RuntimeException.
-                $this->driver = FileHandler::class;
+                $this->driver   = FileHandler::class;
                 $this->savePath = WRITEPATH . 'session';
             }
         }

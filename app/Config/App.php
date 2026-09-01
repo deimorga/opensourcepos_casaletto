@@ -3,42 +3,32 @@
 namespace Config;
 
 use CodeIgniter\Config\BaseConfig;
-use CodeIgniter\Session\Handlers\DatabaseHandler;
+use RuntimeException;
 
 class App extends BaseConfig
 {
     /**
      * This is the code version of the Open Source Point of Sale you're running.
-     *
-     * @var string
      */
     public string $application_version = '3.4.2';
 
     /**
      * This is the commit hash for the version you are currently using.
-     *
-     * @var string
      */
     public string $commit_sha1 = 'dev';
 
     /**
      * Logs are stored in writable/logs
-     *
-     * @var bool
      */
     public bool $db_log_enabled = false;
 
     /**
      * DB Query Log only long-running queries
-     *
-     * @var bool
      */
     public bool $db_log_only_long = false;
 
     /**
      * Defines whether to require/reroute to HTTPS
-     *
-     * @var bool
      */
     public bool $https_on;    // Set in the constructor
 
@@ -81,6 +71,25 @@ class App extends BaseConfig
      * @var list<string>
      */
     public array $allowedHostnameWildcards = [];
+
+    /**
+     * The hostname(s) that serve the PLATFORM CONSOLE rather than any business:
+     * ospos-saas.micronuba.net in production, staging.ospos-saas.micronuba.net in staging. The
+     * apex of the same domain whose subdomains are the businesses, which is exactly why it needs
+     * its own list -- it matches no allowedHostnameWildcards entry (the apex does not end in
+     * ".ospos-saas.micronuba.net"), so without this it would fall through getValidHost() to
+     * allowedHostnames[0] and the console would build every URL, including the login form's
+     * action, against a CLIENT's domain.
+     *
+     * Configured via PLATFORM_HOSTNAMES (comma-separated), same pattern as ALLOWED_HOSTNAMES.
+     * Include the port on any non-default port -- see App::getValidHost(), which compares the raw
+     * Host header verbatim, and docker-compose.local.yml.
+     *
+     * Read everywhere through App\Libraries\PlatformContext::matches(), never by comparing here.
+     *
+     * @var list<string>
+     */
+    public array $platformHostnames = [];
 
     /**
      * --------------------------------------------------------------------------
@@ -307,7 +316,7 @@ class App extends BaseConfig
         if ($envAllowedHostnames !== null) {
             $this->allowedHostnames = array_values(array_filter(
                 array_map('trim', explode(',', $envAllowedHostnames)),
-                static fn (string $hostname): bool => $hostname !== ''
+                static fn (string $hostname): bool => $hostname !== '',
             ));
         }
 
@@ -317,13 +326,23 @@ class App extends BaseConfig
         if ($envAllowedHostnameWildcards !== null) {
             $this->allowedHostnameWildcards = array_values(array_filter(
                 array_map('trim', explode(',', $envAllowedHostnameWildcards)),
-                static fn (string $suffix): bool => $suffix !== '' && $suffix[0] === '.'
+                static fn (string $suffix): bool => $suffix !== '' && $suffix[0] === '.',
             ));
         }
 
-        $this->https_on = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] == 'on') || (isset($_ENV['FORCE_HTTPS']) && $_ENV['FORCE_HTTPS'] == 'true');
+        $envPlatformHostnames = $this->getEnvString('PLATFORM_HOSTNAMES')
+            ?? $this->getEnvString('app.platformHostnames');
 
-        $host = $this->getValidHost();
+        if ($envPlatformHostnames !== null) {
+            $this->platformHostnames = array_values(array_filter(
+                array_map('trim', explode(',', $envPlatformHostnames)),
+                static fn (string $hostname): bool => $hostname !== '',
+            ));
+        }
+
+        $this->https_on = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') || (isset($_ENV['FORCE_HTTPS']) && $_ENV['FORCE_HTTPS'] === 'true');
+
+        $host          = $this->getValidHost();
         $this->baseURL = $this->https_on ? 'https' : 'http';
         $this->baseURL .= '://' . $host . '/';
         $this->baseURL .= str_replace(basename($_SERVER['SCRIPT_NAME']), '', $_SERVER['SCRIPT_NAME']);
@@ -339,7 +358,8 @@ class App extends BaseConfig
      * In development: Allows localhost fallback with an error log.
      *
      * @return string A validated hostname
-     * @throws \RuntimeException If allowedHostnames is not configured in production
+     *
+     * @throws RuntimeException If allowedHostnames is not configured in production
      */
     private function getValidHost(): string
     {
@@ -350,9 +370,8 @@ class App extends BaseConfig
         // Check $_SERVER first, then $_ENV, then fall back to 'production'
         $environment = $_SERVER['CI_ENVIRONMENT'] ?? $_ENV['CI_ENVIRONMENT'] ?? getenv('CI_ENVIRONMENT') ?: 'production';
 
-        if (empty($this->allowedHostnames) && empty($this->allowedHostnameWildcards)) {
-            $errorMessage =
-                'Security: allowedHostnames is not configured. ' .
+        if (empty($this->allowedHostnames) && empty($this->allowedHostnameWildcards) && empty($this->platformHostnames)) {
+            $errorMessage = 'Security: allowedHostnames is not configured. ' .
                 'Host header injection protection is disabled. ' .
                 'Set app.allowedHostnames in your .env file or ALLOWED_HOSTNAMES environment variable. ' .
                 'Example: app.allowedHostnames = "example.com,www.example.com" ' .
@@ -361,15 +380,34 @@ class App extends BaseConfig
             // Production: Fail explicitly to prevent silent security vulnerabilities
             // Testing and development: Allow localhost fallback
             if ($environment === 'production') {
-                throw new \RuntimeException($errorMessage);
+                throw new RuntimeException($errorMessage);
             }
 
             log_message('error', $errorMessage . ' Using localhost fallback (development only).');
+
             return 'localhost';
         }
 
         if (in_array($httpHost, $this->allowedHostnames, true)) {
             return $httpHost;
+        }
+
+        // The platform console. Without this branch the apex is "not in the whitelist" and falls
+        // through to the fallback below, so base_url() -- and with it the action of the console's
+        // own login form -- would point at whichever business happens to sit at
+        // allowedHostnames[0]. That form carries the superadministrator's password.
+        //
+        // The CONFIGURED spelling is returned, not the received one: the comparison is
+        // case-insensitive (Host headers are, and so is Traefik's Host() matcher), so echoing back
+        // an oddly-cased header would put attacker-chosen bytes into every generated URL. The same
+        // rule lives in App\Libraries\PlatformContext::matches(); the two must agree, or the
+        // session and baseURL would disagree about which application is being served.
+        $lowerHost = strtolower($httpHost);
+
+        foreach ($this->platformHostnames as $platformHostname) {
+            if (strtolower($platformHostname) === $lowerHost) {
+                return $platformHostname;
+            }
         }
 
         foreach ($this->allowedHostnameWildcards as $suffix) {
@@ -378,13 +416,22 @@ class App extends BaseConfig
             }
         }
 
-        // Host not in whitelist - use first configured hostname as fallback
-        log_message('warning',
+        // Host not in whitelist - use first configured hostname as fallback.
+        //
+        // The fallback list is allowedHostnames followed by platformHostnames rather than
+        // allowedHostnames alone: a deployment configured with only wildcards, or only a platform
+        // host, used to reach this line and read index 0 of an empty array. Neither combination
+        // exists in production today, which is precisely why it would have gone unnoticed.
+        $fallbacks = array_merge($this->allowedHostnames, $this->platformHostnames);
+        $fallback  = $fallbacks[0] ?? 'localhost';
+
+        log_message(
+            'warning',
             'Security: Rejected HTTP_HOST "' . $httpHost . '" - not in allowedHostnames whitelist. ' .
-            'Using fallback: ' . $this->allowedHostnames[0]
+            'Using fallback: ' . $fallback,
         );
 
-        return $this->allowedHostnames[0];
+        return $fallback;
     }
 
     private function getEnvString(string $key): ?string
