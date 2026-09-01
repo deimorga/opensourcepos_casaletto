@@ -21,13 +21,12 @@
  *     teléfono, deja la entrada rellena y no hay nada que teclear.
  *
  * Los dos campos se seleccionan enteros con un clic, que es todo lo que hace falta para copiarlos.
- * NO hay botón de «copiar» porque no existe la cadena traducida que lo diría, y un botón rotulado
- * con una palabra que significa otra cosa es peor que ningún botón.
+ * No hay botón de «copiar» y no hace falta: quien registra el factor lo hace en su teléfono, y ahí
+ * lo que sirve no es copiar en el escritorio sino abrir la URI, que deja la entrada rellena sola.
  *
- * Se omiten a propósito las cadenas `Platform.totp_enroll_intro`, `totp_secret_help` y
- * `totp_qr_alt`: las tres hablan de escanear una imagen que aquí no existe, y mandar a alguien a
- * escanear algo que no está es peor que no decirle nada. Están anotadas en el informe de la
- * entrega para que se reescriban -- o para que se añada la librería de QR que describen.
+ * Las cadenas `totp_enroll_intro` y `totp_secret_help` prometían escanear una imagen que aquí no
+ * existe; se reescribieron el 2026-09-01 para que digan lo que la pantalla hace de verdad, y
+ * `totp_qr_alt` se retiró. Si algún día se añade la librería de QR, hay que volver a tocarlas.
  *
  * @var string      $secret_display la clave en grupos de cuatro. La forma sin espacios va dentro
  *                                  de la URI, que es el camino de copiar y pegar.
