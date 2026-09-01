@@ -79,6 +79,23 @@ administrador de otro cliente. Documentado en `docs/Tecnico/multi-tenant-arquite
 **Lo que NO reemplaza:** la fila de `people`. El administrador del negocio nuevo se llama
 **"John Doe"**.
 
+> **Corregido el 2026-09-01; sin desplegar y sin certificar.** Los tres pasos —credencial, nombre de
+> la persona y perfil de configuración— viven ahora juntos en
+> `TenantProvisioner::seedInitialAdmin()`, que recibe la conexión al negocio en vez de abrirla.
+>
+> **Es público y recibe la conexión porque si no, no se puede probar.** Atado a `create()`, el
+> bloque empezaba por `CREATE DATABASE`, y el usuario de la base de pruebas no tiene ese permiso —a
+> propósito—, así que los dos ajustes que más caro han salido en este proyecto no tenían ninguna
+> cobertura posible. Separado, se le pasa cualquier esquema OSPOS y se comprueba lo que dejó escrito.
+>
+> **El orden de las tres escrituras importa:** el perfil va el ÚLTIMO. Escribe el idioma en la fila
+> de `employees`, y el `UPDATE` que pone usuario y contraseña se lo llevaría por delante si fuera
+> después.
+>
+> Lo que sigue sin probarse por prueba automática, y hay que mirar en la certificación: que
+> `create()` de verdad llame a esto, que la fila de `tenants` se escriba entera, y que las
+> migraciones del esquema nuevo pasen. Un negocio creado a mano en staging lo enseña todo de una vez.
+
 ### 2.2 La configuración — el hueco más grave
 
 `create()` escribe **una sola** clave:
@@ -104,6 +121,21 @@ original. **Medido en producción el 2026-08-31:**
 Dos de las claves de la semilla son **los dos defectos de producción que más caro han salido** en este
 proyecto: `quantity_decimals = 0` pierde el peso en silencio, y `barcode_content = id` hace que un
 código tecleado venda otro producto.
+
+> **Corregido el 2026-09-01; sin desplegar y sin certificar.** El `update` de una sola clave lo
+> sustituye `App\Libraries\TenantConfigProfile`, que es el perfil de D12 escrito una vez y en un solo
+> sitio: `WIRING` (las tres bloqueadas), `PREFERENCES` (las que el negocio puede cambiar) y el nombre
+> de la empresa. `applyTo()` escribe `app_config` **y** la fila del empleado, porque el idioma vive
+> en los dos sitios (§2.4).
+>
+> **Cada clave se escribe con «existe o no existe», no con un `UPDATE` a secas.** `app_config` es una
+> tabla clave/valor cuyo contenido depende de por qué migraciones pasó cada esquema; un `UPDATE`
+> sobre una clave ausente no escribe nada, no falla, y el negocio se queda con lo que el código asuma
+> por defecto. Es la misma clase de fallo mudo que todo lo demás de esta sección.
+>
+> `tax_included` **no está en el perfil**, ni en una lista ni en la otra, así que un negocio nuevo se
+> queda con el `0` de la semilla. `country_codes` pasa a `co`. Las dos decisiones están escritas en
+> §5 del documento funcional.
 
 **Paraíso está bien configurado** porque alguien lo corrigió a mano, no porque el sistema lo hiciera.
 Y **una clave se escapó**: `language_code` quedó en `es-ES` frente al `es-MX` de Casaletto, así que
@@ -249,6 +281,93 @@ recuperable. El mecanismo:
 
 **Hereda la dependencia de la clave de cifrado** — ver §9.1. Y no hay cambio obligatorio en el primer
 ingreso (D5), así que esta es la única vía de recuperación además del restablecimiento.
+
+### 5.1 Cómo quedó construido (escrito el 2026-09-01; sin desplegar y sin certificar)
+
+Cuatro columnas aditivas sobre `platform_control.tenants`, en la migración
+`20260903000001_AddAdminCredentialToTenants` (namespace `Platform`, `$DBGroup='platform'`, Forge,
+`down()` reversible), y toda la lógica en `App\Libraries\TenantProvisioner`.
+
+| Columna | Qué guarda |
+|---|---|
+| `admin_username` | A quién pertenece. Hoy siempre `admin`, pero en la Entrega 4 habrá dos usuarios por negocio y suponerlo sería falso |
+| `admin_password_hash` | El hash que **nosotros** escribimos. Es el testigo, no la llave |
+| `admin_password_cipher` | La copia cifrada, **TEXT** |
+| `admin_password_set_at` | Cuándo se generó la que está guardada |
+
+**`admin_password_cipher` es TEXT y no `VARCHAR(255)`.** No es una elección de comodidad: es el
+mismo defecto que ya rompió `tenants.db_password` (§9.1 y el comentario largo dentro de `create()`).
+El cifrado se guarda **sin `base64_encode()` encima** —`service('encrypter')->encrypt()` con
+`rawData=false` ya devuelve texto imprimible— y además la columna no tiene un techo que pueda
+alcanzarse, de modo que ni una contraseña más larga en el futuro ni un cambio de cifrado puedan
+volver a producir un truncamiento mudo. La prueba lo comprueba **metiendo un cifrado real por la
+base y volviéndolo a leer y a descifrar**, no mirando la definición de la columna: MySQL fuera de
+modo estricto corta el valor sin dar error, y esa es exactamente la forma que tiene el defecto.
+
+#### Los cinco estados, y por qué son cinco
+
+`TenantProvisioner::adminCredential()` devuelve uno de estos. Separarlos es la parte que importa:
+tres de ellos parecen «no se puede ver» y significan cosas muy distintas.
+
+| Estado | Qué pasó | Qué hace la consola |
+|---|---|---|
+| `available` | El hash del negocio sigue siendo el nuestro | La muestra |
+| `changed` | El hash difiere, o el usuario ya no existe | **Borra la copia** y ofrece restablecer |
+| `none` | Nunca hubo copia, o ya se borró | Ofrece restablecer. Es el caso de Casaletto y Paraíso |
+| `unreadable` | Hay copia pero no se descifra: la clave de cifrado cambió | **No borra nada.** Es una avería nuestra, no un cambio del cliente |
+| `unreachable` | No se pudo llegar al negocio | **No borra nada.** No comprobamos, luego no sabemos |
+
+Los dos últimos existen para no mentir. Decir «el cliente la cambió» cuando lo que pasó es que
+perdimos la clave manda a buscar el problema al sitio equivocado; y borrar la copia porque la base
+estuvo caída un segundo destruye lo único que había.
+
+**Se consulta el negocio de verdad, no una marca.** Sería más barato guardar una bandera «ya la
+cambió», y sería mentira: el cliente la cambia desde su propio punto de venta, que no le avisa a la
+consola de nada. La única fuente de verdad es la fila de `employees` de ese negocio.
+
+#### Restablecer
+
+`resetAdminPassword($slug, $username)` es la lógica que ya estaba dentro de `create()`, extraída. El
+usuario **se pide, no se supone**: un negocio nuestro tiene `admin`, Casaletto es adoptado y su
+administrador se llama de otra forma. Si el usuario no existe en ese negocio, se niega y lo dice. La
+copia en `platform_control` se escribe **después** de que el negocio tenga la contraseña nueva; al
+revés, un fallo al escribir en el negocio dejaría en la consola una contraseña que allí no abre nada.
+
+#### Dos trampas que se encontraron por el camino
+
+**`config(Database::class)` no sirve para abrir la conexión a un negocio.** TenantResolver
+**reescribe ese arreglo en sitio**, y en una petición de la consola de plataforma
+`pointAtControlSchema()` ya le puso el host, el usuario y la contraseña de `platform_control`.
+Usarlo habría hecho que un negocio **adoptado** —el que cae a las credenciales compartidas, o sea
+Casaletto— se intentara abrir con el usuario de la plataforma, que no tiene ningún permiso en el
+esquema del cliente. Habría fallado **solo en Casaletto, solo desde la consola y solo en
+producción**. `TenantProvisioner::hostConfig()` construye una instancia nueva de `Config\Database`,
+que vuelve a leer las variables `MYSQL_*` del entorno. Se cambiaron también `adopt()` y `delete()`,
+que tenían el mismo patrón.
+
+**La contraseña ya no viaja en un mensaje flash.** La sesión de la consola vive en una tabla de
+`platform_control` (§3), así que el mensaje de `PlatformAdmin::create()` escribía la contraseña del
+cliente **en claro en nuestra base de datos** hasta la petición siguiente. Ahora el alta redirige a
+la ficha con `?reveal=1` y el texto en claro solo existe en el cuerpo de una respuesta.
+
+**Mostrar es una GET; restablecer es una POST que redirige.** Mostrar no cambia nada, así que
+refrescar da lo mismo y la dirección lleva la marca, nunca el secreto. Restablecer sí cambia, y
+redirige en vez de pintar el resultado porque `Config\Security::$regenerate` es `false` en este
+proyecto: una respuesta HTML servida directamente desde ese POST se podría reenviar con F5 y dejar
+al cliente con una contraseña distinta de la que se le dictó.
+
+#### Deuda anotada al cerrar
+
+- **Consultar no se registra en el registro de actividad y restablecer sí.** Es D6 aplicado tal
+  cual: modificaciones sí, accesos no. Consecuencia asumida: el sistema no podrá contestar «¿quién
+  miró la contraseña de este cliente?».
+- **Un administrador dado de baja pero con la contraseña sin cambiar** aparece como `available`. El
+  hash coincide y la afirmación es cierta —esa contraseña sigue siendo la suya—, pero la ficha no
+  avisa de que ese empleado está de baja y no podría entrar. Falta un aviso y esta entrega no tiene
+  dónde ponerlo.
+- **La ficha abre dos conexiones al negocio** por cada carga: una para comprobar la contraseña y
+  otra para leer su configuración. En una consola que usan una o dos personas no molesta; si algún
+  día hay veinte negocios en una sola pantalla, esto no escala y hay que unirlas.
 
 ---
 
@@ -398,15 +517,15 @@ duplica el dato ni se cambia el modelo.
 | CRUD de superadministradores | Controlador nuevo, `PlatformAccounts`; el modelo ya tiene `createAccount()` |
 | Cambiar la propia contraseña y activar TOTP | Rutas nuevas + métodos en `PlatformAccount` |
 | Último ingreso, fecha de alta, quién creó la cuenta | Migración aditiva sobre `platform_accounts` |
-| Perfil de configuración | `TenantProvisioner::create()` + ficha del negocio, escribiendo **`app_config` y `employees`** (§2.4) |
-| Candado de las tres claves de cableado | `Config.php` + `configs/locale_config.php` y `configs/barcode_config.php` (§9.13) |
-| Idioma heredado al crear un empleado | `Employees.php:183` y `:190` |
-| Restablecer y consultar la clave del admin de un negocio | `TenantProvisioner`; la lógica ya está dentro de `create()` y hay que extraerla |
-| `company_name` en el listado | Migración aditiva sobre `platform_control.tenants` + `create()` + `admin/index.php` |
+| ~~Perfil de configuración~~ | **Hecho el 2026-09-01, sin desplegar:** `App\Libraries\TenantConfigProfile`, aplicado desde `seedInitialAdmin()`. Escribe `app_config` y `employees` |
+| Candado de las tres claves de cableado | `Config.php` + `configs/locale_config.php` y `configs/barcode_config.php` (§9.13). **Sigue pendiente** |
+| Idioma heredado al crear un empleado | `Employees.php:183` y `:190`. **Sigue pendiente** |
+| ~~Restablecer y consultar la clave del admin de un negocio~~ | **Hecho el 2026-09-01, sin desplegar:** `TenantProvisioner::adminCredential()` y `::resetAdminPassword()`, más `admin/detail.php` (§5.1) |
+| ~~`company_name` en el listado~~ | **Hecho el 2026-09-01, sin desplegar:** migración `20260903000000` + `create()` + `admin/index.php` |
 | Empleado de soporte | `TenantProvisioner::create()`, y un comando para los negocios existentes |
 | `is_platform_support` | Migración sobre `employees` de cada tenant, `DEFAULT 0` |
 | Vincular cuenta↔negocio | La tabla existe; falta pantalla y una columna de qué empleado es |
-| Nombre real en vez de "John Doe" | `TenantProvisioner::create()`, en el mismo `update` que ya toca `employees` |
+| ~~Nombre real en vez de "John Doe"~~ | **Hecho el 2026-09-01, sin desplegar:** en `seedInitialAdmin()`, junto al `update` de `employees` |
 | Registro de modificaciones | Tabla nueva en `platform_control`, más el filtro `after` de §7.2 |
 | Freno al eliminar un negocio | `PlatformAdmin::confirmDelete/delete` + `admin/confirm_delete.php` |
 
@@ -426,6 +545,18 @@ vive en `.env` y la fija el entrypoint.
 ### 9.2 Hay dos sitios que lanzan migraciones, no uno
 `TenantProvisioner::create()` y `scripts/migrate-tenants.sh`. Un defecto corregido en uno y no en el
 otro **tumbó producción 7 minutos** el 2026-08-31 (§8d). Si se toca la provisión, revisar ambos.
+
+> **Revisados los dos el 2026-09-01.** La Entrega 3 toca la provisión, así que tocaba mirar. **No
+> hay nada que replicar en el script**, y la razón vale la pena escribirla: lo que se añadió al alta
+> son escrituras *posteriores* a la migración —el perfil, el nombre de la persona, la credencial— y
+> el script no aprovisiona, solo corre las migraciones del namespace `App` sobre negocios que ya
+> existen. Las dos migraciones nuevas son del namespace **`Platform`**, que ese script no ejecuta
+> nunca: van con `php spark platform:migrate` (§9.14) y **son un paso manual del despliegue**.
+>
+> Consecuencia deliberada, y es la misma que D13: **a los negocios existentes no les pasa nada**. Ni
+> se les aplica el perfil ni se les guarda contraseña. Es lo correcto —Casaletto no se toca sin
+> comparar clave por clave— pero significa que después de desplegar esto, Casaletto y Paraíso siguen
+> exactamente igual, y su ficha dirá que de ellos no hay contraseña guardada.
 
 ### 9.3 El arranque es todo-o-nada
 El entrypoint migra todos los negocios antes de que Apache atienda. Si uno falla, **ninguno atiende**.
@@ -695,6 +826,24 @@ Lo mínimo que debería traer este trabajo:
 - El login de un negocio acepta una credencial de plataforma y una de `employees`, y rechaza la de
   plataforma de otro entorno.
 - **Eliminar un negocio sin escribir bien el slug no borra nada**, y un tenant adoptado se rechaza.
+
+### 11.1 Lo que la Entrega 3 dejó escrito (2026-09-01; **escrito, sin ejecutar**)
+
+| Archivo | Qué fija |
+|---|---|
+| `tests/Libraries/TenantConfigProfileTest.php` | El perfil escrito contra un OSPOS de verdad: las tres claves de cableado, el resto, `country_codes = co`, que `tax_included` **no se toca**, que el empleado nace en `es-MX`, que una clave ausente se inserta, y que aplicarlo dos veces da lo mismo |
+| `tests/Libraries/TenantProvisionerInitialAdminTest.php` | Que el administrador ya no se llama «John Doe» sino como el negocio, que la credencial sembrada de Casaletto se reemplaza, que el hash devuelto es el escrito, y que el perfil lo aplica el alta |
+| `tests/Libraries/TenantProvisionerCredentialTest.php` | D5 entero: se ve mientras el hash coincide, **deja de verse y la copia se borra** cuando el cliente la cambia, un usuario que ya no existe cuenta como cambiada, y el restablecimiento escribe una contraseña que de verdad abre. Corre **contra un negocio adoptado**, que es el camino de Casaletto |
+| `tests/Database/TenantRegistryColumnsMigrationTest.php` | Las columnas nuevas, que son nullable, que el cifrado **cabe** (metiéndolo por la base y releyéndolo), y que las dos migraciones se deshacen |
+
+Estas pruebas **no se han ejecutado**: se escribieron en una máquina sin la base de datos de pruebas
+levantada. Ejecutarlas y certificar sobre la interfaz desplegada es un paso aparte, y no lo firma
+quien escribió el código.
+
+**Lo que ninguna prueba cubre y hay que mirar a mano en staging:** que `create()` completo funcione
+—empieza por `CREATE DATABASE` y el usuario de pruebas no tiene ese permiso—, es decir, que un
+negocio creado desde la consola nazca con su esquema, su fila en `tenants` con nombre y credencial,
+y su configuración aplicada.
 
 ---
 
