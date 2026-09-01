@@ -33,6 +33,7 @@
         "laminas/laminas-escaper": "2.18.0",
         "paragonie/random_compat": "^2.0.21",
         "picqer/php-barcode-generator": "^2.4.0",
+        "spomky-labs/otphp": "^11.3",
         "tamtamchik/namecase": "^3.0.0"
     },
     "require-dev": {
