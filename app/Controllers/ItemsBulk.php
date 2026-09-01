@@ -101,10 +101,65 @@ class ItemsBulk extends Secure_Controller
 
     /**
      * Paso 1: se sube el archivo y se enseña qué haría. **No escribe nada.**
+     *
+     * SE PINTA LA PÁGINA, NO SE REDIRIGE
+     *
+     * Un patrón POST-redirect-GET obligaría a llevar el plan en la sesión, y un plan de 1.184 filas no
+     * cabe ahí --es la tercera opción que `docs/Tecnico/carga-masiva-de-articulos.md` §4.4 descarta.
+     * Lo que sobrevive entre los dos pasos es el archivo, no el plan: por eso `postApply()` vuelve a
+     * calcularlo sobre el MISMO archivo, y por eso lo que se aplica es lo que se enseñó.
      */
     public function postPreview(): string|RedirectResponse
     {
-        throw new \LogicException('Carril B: sin implementar.');
+        // 1.184 filas con sus consultas en lote no tardan, pero el límite de 30 segundos por omisión
+        // es de una petición corriente y esta no lo es.
+        set_time_limit(240);
+
+        $file      = $this->request->getFile('file_path');
+        $tamanoMax = (int) round(Import_staging::MAX_BYTES / 1024 / 1024) . ' MB';
+
+        if ($file === null || ! $file->isValid()) {
+            // `UPLOAD_ERR_INI_SIZE` lo pone PHP cuando el archivo pasa de `upload_max_filesize`, y ahí
+            // no llega ni un byte: sin este caso el cliente vería «falló la importación» sin motivo.
+            $demasiadoGrande = $file !== null && in_array($file->getError(), [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true);
+
+            return view('items/bulk_import', [
+                'config'  => config(OSPOS::class)->settings,
+                'preview' => null,
+                'error'   => $demasiadoGrande ? lang('Items.bulk_file_too_big', [$tamanoMax]) : lang('Items.csv_import_failed'),
+            ]);
+        }
+
+        if ($file->getSize() > Import_staging::MAX_BYTES) {
+            return view('items/bulk_import', [
+                'config'  => config(OSPOS::class)->settings,
+                'preview' => null,
+                'error'   => lang('Items.bulk_file_too_big', [$tamanoMax]),
+            ]);
+        }
+
+        try {
+            $this->staging->store($file);
+            $path = $this->staging->currentPath();
+        } catch (Throwable $e) {
+            log_message('error', 'Carga masiva: no se pudo guardar el archivo subido: ' . $e->getMessage());
+
+            $path = null;
+        }
+
+        if ($path === null) {
+            return view('items/bulk_import', [
+                'config'  => config(OSPOS::class)->settings,
+                'preview' => null,
+                'error'   => lang('Items.csv_import_failed'),
+            ]);
+        }
+
+        return view('items/bulk_import', [
+            'config'  => config(OSPOS::class)->settings,
+            'preview' => $this->importer->plan($path),
+            'error'   => null,
+        ]);
     }
 
     /**
@@ -116,7 +171,49 @@ class ItemsBulk extends Secure_Controller
      */
     public function postApply(): string|RedirectResponse
     {
-        throw new \LogicException('Carril B: sin implementar.');
+        set_time_limit(240);
+
+        $path = $this->staging->currentPath();
+
+        if ($path === null) {
+            // No es una avería: `writable/uploads` no es un volumen y un despliegue se lo lleva. Se
+            // dice con las mismas palabras con las que se le pediría volver a subirlo, porque eso es
+            // exactamente lo que hay que hacer.
+            return view('items/bulk_import', [
+                'config'  => config(OSPOS::class)->settings,
+                'preview' => null,
+                'error'   => lang('Items.bulk_file_expired'),
+            ]);
+        }
+
+        $this->snapshotBeforeApplying();
+
+        // EL PLAN SE VUELVE A CALCULAR, Y ESO ES LO QUE HACE VERDAD LA PROMESA
+        //
+        // Lo que se guardó entre los dos pasos es el archivo, byte a byte, no el plan: así lo que se
+        // aplica sale del mismo origen que lo que se enseñó. Guardar el plan en la sesión sería más
+        // rápido y menos cierto --y no cabría.
+        $result = $this->importer->apply($this->importer->plan($path));
+
+        // Se borra el CSV subido pero NO se llama a `discard()`: eso se llevaría también el testigo de
+        // la sesión, y con él la foto del «cómo estaba antes» que esta misma pantalla acaba de ofrecer.
+        // Sin el archivo, un F5 sobre este POST ya no puede aplicar dos veces.
+        @unlink($path);
+
+        $fallidas = array_map(static fn (array $fila): int => $fila['line'], $result['failed']);
+
+        // La foto previa puede no haberse podido escribir --es una red, no un requisito-- así que se
+        // comprueba que exista antes de ofrecerla. Un botón que lleva a «el archivo ya no está» es peor
+        // que no tener botón: parece una avería justo cuando el cliente busca su marcha atrás.
+        $foto = $this->staging->previousSnapshotPath();
+
+        return view('items/bulk_import', [
+            'config'             => config(OSPOS::class)->settings,
+            'preview'            => null,
+            'error'              => $fallidas === [] ? null : lang('Items.csv_import_partially_failed', [count($fallidas), implode(', ', $fallidas)]),
+            'result'             => $result,
+            'previous_available' => $foto !== null && is_file($foto),
+        ]);
     }
 
     /**
