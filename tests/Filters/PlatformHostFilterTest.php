@@ -36,6 +36,7 @@ final class PlatformHostFilterTest extends CIUnitTestCase
 {
     private const APEX   = 'ospos-saas.micronuba.net';
     private const LEGACY = 'pos-casaletto.micronuba.net';
+    private const TENANT = 'casaletto.ospos-saas.micronuba.net';
 
     protected function setUp(): void
     {
@@ -171,11 +172,14 @@ final class PlatformHostFilterTest extends CIUnitTestCase
      */
     public function testTheRedirectCannotBeAimedAtAnotherSite(): void
     {
-        $location = $this->runFor(self::LEGACY, '//evil.example.com/platform')->getHeaderLine('Location');
+        // Desde el 2026-09-01 el filtro solo opina sobre rutas de consola, y "//evil…" no lo es:
+        // en el host legacy pasa de largo, que es lo que debe hacer con el sitio de un negocio.
+        $this->assertNull($this->runFor(self::LEGACY, '//evil.example.com/platform'));
 
-        // The host of the destination is the only thing that decides where the browser goes.
+        // Y cuando SI es una ruta de consola, el destino sigue siendo el apex y nadie mas.
+        $location = $this->runFor(self::LEGACY, 'platform//evil.example.com')->getHeaderLine('Location');
+
         $this->assertSame(self::APEX, parse_url($location, PHP_URL_HOST));
-        $this->assertStringNotContainsString('//evil.example.com', $location);
     }
 
     /**
@@ -201,5 +205,43 @@ final class PlatformHostFilterTest extends CIUnitTestCase
         config(App::class)->platformHostnames = [];
 
         $this->assertNull($this->runFor(self::LEGACY));
+    }
+
+    // ===== Lo que se escapo el 2026-09-01, encontrado por el dueno en produccion =====
+
+    public function testEnElApexNingunaOtraRutaLlegaAUnControlador(): void
+    {
+        // "/migrate" es Login::migrate(), que NO pide credenciales y corre las migraciones del POS
+        // contra la conexion por defecto -- que en el apex es platform_control. Un solo POST sin
+        // autenticar habria construido el esquema entero del punto de venta dentro de la base de
+        // control de la plataforma.
+        foreach (['migrate', 'login', 'sales', 'items/view/1'] as $path) {
+            $response = $this->runFor(self::APEX, $path);
+
+            $this->assertNotNull($response, "la ruta '$path' llego al controlador desde el apex");
+            $this->assertSame(404, $response->getStatusCode(), "la ruta '$path' no fue rechazada");
+            $this->assertNull($response->getHeaderLine('Location') ?: null, "la ruta '$path' redirige en vez de rechazar");
+        }
+    }
+
+    public function testLaRaizDelApexLlevaALaConsola(): void
+    {
+        $response = $this->runFor(self::APEX, '');
+
+        $this->assertNotNull($response);
+        $this->assertSame(302, $response->getStatusCode());
+        $this->assertStringEndsWith('/platform/login', $response->getHeaderLine('Location'));
+    }
+
+    public function testUnNegocioSigueSirviendoSuPropioSitio(): void
+    {
+        // El filtro pasa a correr en TODAS las rutas: si opinara sobre las del punto de venta,
+        // dejaria a los dos negocios sin poder vender.
+        foreach (['', 'login', 'sales', 'items'] as $path) {
+            $this->assertNull(
+                $this->runFor(self::TENANT, $path),
+                "el filtro interfirio con la ruta '$path' de un negocio"
+            );
+        }
     }
 }

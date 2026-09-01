@@ -146,7 +146,11 @@ class Filters extends BaseFilters
         // Runs after 'tenantresolver' above -- CodeIgniter merges $globals['before'] ahead of these
         // URI-matched entries -- which is what lets the filter tell a resolved business apart from
         // any other host. See app/Filters/PlatformHost.php.
-        'platformhost' => ['before' => ['platform', 'platform/*']],
+        // EVERY uri, not just platform/*. Scoped to platform/* this filter left the console's own
+        // address serving the point-of-sale application at "/" -- and with the default connection
+        // pointed at platform_control, that offered an unauthenticated "Migrate" button that would
+        // have built the POS schema inside the platform's control database. See PlatformHost.
+        'platformhost' => ['before' => ['*']],
     ];
 
     /**

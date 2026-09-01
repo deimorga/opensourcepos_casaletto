@@ -45,9 +45,35 @@ class PlatformHost implements FilterInterface
 {
     public function before(RequestInterface $request, $arguments = null)
     {
-        $host = $request->getServer('HTTP_HOST') ?? '';
+        $host          = $request->getServer('HTTP_HOST') ?? '';
+        $isConsolePath = $this->isConsolePath($request);
 
         if (PlatformContext::matches($host)) {
+            if ($isConsolePath) {
+                return;
+            }
+
+            // On the console's own address, NOTHING but the console exists.
+            //
+            // Found in production on 2026-09-01, minutes after this filter first shipped scoped to
+            // `platform/*` only: opening the apex at "/" fell through to OSPOS's default controller
+            // -- the point-of-sale login -- which, because TenantResolver points the default
+            // connection at platform_control here, decided the schema needed migrating and offered
+            // a "Migrate" button. That button posts to Login::migrate(), which takes NO credentials
+            // and runs the App namespace's migrations against the default connection. One
+            // unauthenticated POST would have built the entire POS schema inside the platform's own
+            // control database.
+            //
+            // The root path is a redirect because somebody typing the bare address means the
+            // console. Every other path is refused outright, and refused for every method, so no
+            // POST can reach a controller from here.
+            return $this->isRootPath($request)
+                ? $this->redirectToConsole($request, 'platform/login')
+                : $this->refuse();
+        }
+
+        // A business's own site: the filter has no opinion about anything but console paths.
+        if (! $isConsolePath) {
             return;
         }
 
@@ -59,18 +85,47 @@ class PlatformHost implements FilterInterface
             return $this->refuse();
         }
 
+        return $this->redirectToConsole($request);
+    }
+
+    /**
+     * Is this request aimed at the console? Matched on the route path, so it is the same answer the
+     * router would give, and it covers `platform` itself as well as everything beneath it without
+     * also catching a business route that merely starts with those letters.
+     */
+    private function isConsolePath(RequestInterface $request): bool
+    {
+        $path = ltrim($this->routePath($request), '/');
+
+        return $path === 'platform' || str_starts_with($path, 'platform/');
+    }
+
+    private function isRootPath(RequestInterface $request): bool
+    {
+        return ltrim($this->routePath($request), '/') === '';
+    }
+
+    /**
+     * @param string|null $targetPath where to send them, when it is not "the same path over there".
+     *                                The root of the console's own host MUST override it: keeping
+     *                                the path would redirect "/" to "/", which is a loop.
+     */
+    private function redirectToConsole(RequestInterface $request, ?string $targetPath = null): ?ResponseInterface
+    {
         $hostnames = config(App::class)->platformHostnames;
 
         if ($hostnames === []) {
-            // No console configured. Inventing a destination would be worse than doing nothing, and
-            // the legacy address keeps behaving exactly as it did before this filter existed.
-            return;
+            // No console configured. Inventing a destination would be worse than doing nothing.
+            return null;
         }
+
+        $path = $targetPath ?? $this->routePath($request);
 
         return service('response')
             ->setStatusCode(302)
             ->setBody('')
-            ->setHeader('Location', $this->consoleUrl($hostnames[0], $request));
+            ->removeHeader('Location')
+            ->setHeader('Location', $this->consoleUrl($hostnames[0], $path));
     }
 
     public function after(RequestInterface $request, ResponseInterface $response, $arguments = null)
@@ -107,15 +162,18 @@ class PlatformHost implements FilterInterface
      * SCRIPT_NAME, under PHPUnit that subdirectory is "/vendor/bin/" -- which would be appended to
      * the console's address and produce a link to nowhere.
      */
-    private function consoleUrl(string $platformHostname, RequestInterface $request): string
+    private function consoleUrl(string $platformHostname, string $path): string
     {
         $scheme = config(App::class)->https_on ? 'https' : 'http';
 
-        $path = $request instanceof IncomingRequest
+        return $scheme . '://' . $platformHostname . '/' . ltrim($path, '/');
+    }
+
+    private function routePath(RequestInterface $request): string
+    {
+        return $request instanceof IncomingRequest
             ? $request->getPath()
             : $request->getUri()->getPath();
-
-        return $scheme . '://' . $platformHostname . '/' . ltrim($path, '/');
     }
 
     /**
