@@ -135,19 +135,23 @@ class Login extends BaseController
         }
 
         if (Platform_business_entry::isSuccess($resultado)) {
+            // `has_errors` en falso a propósito: la validación del empleado ya dejó puesto su
+            // «usuario o contraseña incorrectos», y enseñar los dos a la vez es contradecirse. Aquí
+            // sabemos exactamente qué pasó y hay un mensaje mejor.
             $data['platform_error'] = $entrada->refuseWithoutSecondFactor();
-            $data['has_errors']     = true;
+            $data['has_errors']     = false;
 
             return view('login', $data);
         }
 
-        if (Platform_business_entry::isLocked($resultado)) {
-            $data['platform_error'] = lang('Login.platform_account_locked');
-            $data['has_errors']     = true;
-
-            return view('login', $data);
-        }
-
+        // UNA CUENTA FRENADA NO SE ANUNCIA AQUÍ, Y ES DELIBERADO.
+        //
+        // Esta pantalla vive en la dirección PÚBLICA de un cliente. Decir «esta cuenta está frenada»
+        // confirmaría que ese correo es de un superadministrador nuestro a cualquiera que lo teclee,
+        // que es justo el oráculo que la consola evita usando un solo mensaje para los tres casos.
+        // Quien esté frenado lo sabrá en la consola, que es donde se desbloquea.
+        //
+        // Se cae al mensaje de siempre devolviendo null, sin distinguirse de una contraseña mala.
         return null;
     }
 

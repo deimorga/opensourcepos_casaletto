@@ -32,7 +32,6 @@ return [
     "platform_second_factor_invalid"  => "That code is not valid. Check that your phone clock is in sync; a recovery code works only once.",
     "platform_second_factor_expired"  => "The sign-in session expired. Enter your email and password again.",
     "platform_second_factor_required" => "This account has no two-step verification. Turn it on in the platform console before entering a business.",
-    "platform_account_locked"         => "This account is on hold after several failed attempts. Another superadministrator can unlock it from the console.",
     "platform_support_employee_missing" => "This business has no support user yet. Create it with “php spark platform:support-employee” before entering.",
     "platform_support_banner"         => "Support session for {0}. Everything you change here is recorded under Support.",
 ];

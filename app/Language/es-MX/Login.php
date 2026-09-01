@@ -32,7 +32,6 @@ return [
     "platform_second_factor_invalid"  => "El código no es válido. Revise que la hora de su teléfono esté sincronizada; un código de rescate solo sirve una vez.",
     "platform_second_factor_expired"  => "La sesión de entrada caducó. Vuelva a escribir su correo y su contraseña.",
     "platform_second_factor_required" => "Esta cuenta no tiene verificación en dos pasos. Actívela en la consola de plataforma antes de entrar a un negocio.",
-    "platform_account_locked"         => "El acceso de esta cuenta está frenado tras varios intentos fallidos. Otro superadministrador puede desbloquearla desde la consola.",
     "platform_support_employee_missing" => "Este negocio todavía no tiene su usuario de soporte. Créelo con «php spark platform:support-employee» antes de entrar.",
     "platform_support_banner"         => "Sesión de soporte de {0}. Todo lo que cambie aquí queda registrado a nombre de Soporte.",
 ];

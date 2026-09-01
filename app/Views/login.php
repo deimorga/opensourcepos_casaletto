@@ -82,7 +82,7 @@ $request = Services::request();
                 // le falta el segundo factor que esta puerta exige.
                 ?>
                 <?php if (! empty($platform_error)): ?>
-                    <div class="alert alert-warning mt-3" role="alert">
+                    <div id="platform-error" class="alert alert-warning mt-3" role="alert">
                         <?= esc($platform_error) ?>
                     </div>
                 <?php endif; ?>
