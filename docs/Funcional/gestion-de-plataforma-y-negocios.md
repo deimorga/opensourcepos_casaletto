@@ -440,16 +440,13 @@ Ordenadas para que cada una deje el sistema mejor aunque la siguiente se demore.
 
 ### Entrega 2 — Cerrar la llave suelta
 
-> **Estado a 2026-09-01: EN PRODUCCIÓN desde 2026-09-01, certificado en staging sobre la interfaz real.** El
-> segundo factor lo certificó el dueño con la aplicación de su teléfono, y el código de rescate de un
-> solo uso también. Se
-> escribió primero la parte que no se ve —dónde se guardan el último ingreso, quién creó cada
-> cuenta, el contador de intentos, el segundo factor, los códigos de rescate y el registro de
-> actividad—, más las salvaguardas de «ni a sí mismo, ni al último». Las pantallas vienen después.
+> **Estado a 2026-09-01: EN PRODUCCIÓN.** Certificada en staging sobre la interfaz real, y el segundo
+> factor lo firmó el dueño con la aplicación de su propio teléfono, incluido el código de rescate de
+> un solo uso. La suite corre en verde en 8.2/8.3/8.4.
 >
-> **Nada de esto se ha probado todavía**: la máquina donde se escribió no tenía la base de datos
-> de pruebas levantada, así que las pruebas están escritas pero no ejecutadas. **No está
-> desplegado y no está certificado.** La cuenta huérfana sigue existiendo.
+> **Lo único que falta es un paso del dueño, y bloquea la Entrega 4:** crear una segunda cuenta real
+> y **después** eliminar `admin@ospos-saas.micronuba.net`, que sigue existiendo con una contraseña
+> que nadie conoce. En ese orden: al revés se pierde el acceso a la plataforma entera.
 
 - Pantalla de **superadministradores**: ver, crear, eliminar, con último ingreso.
 - **Cambiar la propia contraseña** y **activar el segundo factor**, con códigos de rescate.
@@ -462,16 +459,16 @@ Ordenadas para que cada una deje el sistema mejor aunque la siguiente se demore.
 
 ### Entrega 3 — Que un negocio nazca funcionando
 
-> **Estado a 2026-09-01: construido a medias; lo construido está EN PRODUCCIÓN desde 2026-09-01, certificado en staging sobre la interfaz real.** Están el perfil de
-> configuración, el fin del «John Doe», el nombre del negocio guardado, el listado legible, la
-> contraseña consultable y el restablecimiento, y una primera ficha del negocio. **Las pruebas están
-> escritas pero no se han ejecutado**: la máquina donde se escribió no tiene la base de datos de
-> pruebas levantada. Nada de esto está desplegado ni certificado, y la certificación no la firma
-> quien escribió el código.
+> **Estado a 2026-09-01: EN PRODUCCIÓN.** Certificada en staging sobre la interfaz real, con el
+> navegador: el perfil de configuración, el fin del «John Doe», el nombre del negocio guardado, el
+> listado legible, la contraseña consultable, el restablecimiento, la ficha del negocio y el candado
+> de las tres claves de cableado —que llegó a esta entrega y también está desplegado—.
 >
-> **Queda fuera, y hay que decidir cuándo entra:** el candado de las tres claves de cableado en la
-> pantalla de configuración del propio negocio, la herencia del idioma al crear empleados
-> posteriores, y editar la configuración desde la ficha.
+> En el mismo despliegue se le corrigió a Casaletto `barcode_content`, que era el único de los tres
+> cableados que le faltaba. Comprobado antes contra producción: un solo código puramente numérico
+> entre 284 artículos, y cero choques con un `item_id`.
+>
+> **Queda fuera y sin fecha:** editar la configuración desde la ficha de la consola.
 
 - **Perfil de configuración** aplicado en el alta.
 - **Ficha del negocio** con su configuración editable.

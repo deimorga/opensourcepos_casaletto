@@ -898,13 +898,12 @@ Coincide con las cinco entregas del funcional.
 2. **Superadministradores + TOTP + registro de actividad** (§7.1), **eliminar la cuenta huérfana** y
    **crear una segunda cuenta real** — ver §9.12. No toca la provisión ni el arranque.
 
-   > **Estado a 2026-08-31: los cimientos escritos, sin pantallas y sin certificar.** Nada de esto
-   > se ha desplegado ni se ha probado contra una base de datos: en la máquina donde se escribió no
-   > había MariaDB levantada. Las pruebas están escritas y **no se han ejecutado**.
+   > **Estado a 2026-09-01: EN PRODUCCIÓN.** Pantallas incluidas, suite en verde en 8.2/8.3/8.4 y
+   > certificado en staging sobre la interfaz real; el segundo factor lo firmó el dueño con su propio
+   > teléfono.
    >
-   > Se cerraron primero los archivos que las dos mitades siguientes tendrían que editar a la vez
-   > —rutas, claves de idioma, migraciones, `composer.lock`—, para que ninguna de las dos tenga que
-   > tocarlos. Lo que queda de la Entrega son las pantallas y sus controladores.
+   > **Eliminar la cuenta huérfana sigue pendiente, y es paso del dueño:** primero crear una segunda
+   > cuenta real, después borrar `admin@ospos-saas.micronuba.net`. Bloquea la Entrega 4.
 
    | Dónde | Qué quedó escrito |
    |---|---|
@@ -971,9 +970,13 @@ Lo mínimo que debería traer este trabajo:
 | `tests/Libraries/TenantProvisionerCredentialTest.php` | D5 entero: se ve mientras el hash coincide, **deja de verse y la copia se borra** cuando el cliente la cambia, un usuario que ya no existe cuenta como cambiada, y el restablecimiento escribe una contraseña que de verdad abre. Corre **contra un negocio adoptado**, que es el camino de Casaletto |
 | `tests/Database/TenantRegistryColumnsMigrationTest.php` | Las columnas nuevas, que son nullable, que el cifrado **cabe** (metiéndolo por la base y releyéndolo), y que las dos migraciones se deshacen |
 
-Estas pruebas **no se han ejecutado**: se escribieron en una máquina sin la base de datos de pruebas
-levantada. Ejecutarlas y certificar sobre la interfaz desplegada es un paso aparte, y no lo firma
-quien escribió el código.
+Estas pruebas **corren en verde** en 8.2, 8.3 y 8.4 desde el 2026-09-01. Llegar ahí exigió arreglar
+siete fallos que la rama arrastraba, cuatro de ellos por contaminación de la base de pruebas
+compartida (§9.16) y uno porque un hash sembrado nunca podía coincidir bajo `hash_equals()`, lo que
+hacía pasar en verde la prueba central de este archivo **sin ejercitar nada**.
+
+Y la certificación siguió siendo un paso aparte, sobre la interfaz desplegada en staging, con el
+navegador.
 
 **Lo que ninguna prueba cubre y hay que mirar a mano en staging:** que `create()` completo funcione
 —empieza por `CREATE DATABASE` y el usuario de pruebas no tiene ese permiso—, es decir, que un
