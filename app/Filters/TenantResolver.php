@@ -2,12 +2,13 @@
 
 namespace App\Filters;
 
+use App\Libraries\PlatformContext;
 use App\Libraries\TenantContext;
-use Config\App;
-use Config\Database;
 use CodeIgniter\Filters\FilterInterface;
 use CodeIgniter\HTTP\RequestInterface;
 use CodeIgniter\HTTP\ResponseInterface;
+use Config\App;
+use Config\Database;
 
 /**
  * Resolves which tenant a request belongs to from the Host header and,
@@ -25,7 +26,22 @@ use CodeIgniter\HTTP\ResponseInterface;
  * host/user/password, only swapping `database` -- the pre-Fase-7
  * behavior.
  *
- * TWO DIFFERENT "NO TENANT", AND THEY MUST NOT BEHAVE THE SAME
+ * THREE DIFFERENT "NOT A TENANT", AND THEY MUST NOT BEHAVE THE SAME
+ *
+ * (There were two until 2026-09-01, when the platform console got an
+ * address of its own. Anyone adding a fourth: the shape of the mistake
+ * is always the same -- a new kind of host quietly inherits "fall
+ * through to the default connection", which means Casaletto's database.)
+ *
+ * A Host that IS the platform console -- ospos-saas.micronuba.net, the
+ * apex of the same domain whose subdomains are the businesses -- has to
+ * be repointed at the control schema. It matches no wildcard (the apex
+ * does not end in ".ospos-saas.micronuba.net"), so before this branch
+ * existed it took the legacy path below, and the console that
+ * administers every business would have been running on the database of
+ * the business that is currently trading. This branch comes FIRST and
+ * touches no registry: the console must not be takeable offline by a row
+ * in a table it administers.
  *
  * A Host that matches NO configured wildcard -- Casaletto's own
  * pos-casaletto.micronuba.net, staging, localhost, anything in dev --
@@ -61,6 +77,14 @@ class TenantResolver implements FilterInterface
     public function before(RequestInterface $request, $arguments = null)
     {
         $host = $request->getServer('HTTP_HOST') ?? '';
+
+        if (PlatformContext::matches($host)) {
+            $this->pointAtControlSchema();
+            PlatformContext::markResolved();
+
+            return;
+        }
+
         $slug = $this->extractSlug($host);
 
         if ($slug === null) {
@@ -79,13 +103,19 @@ class TenantResolver implements FilterInterface
             ->getRow();
 
         if ($tenant === null) {
-            return $this->refuse(404, 'Este negocio no existe.',
-                'La dirección no corresponde a ningún negocio de la plataforma. Revise que esté bien escrita.');
+            return $this->refuse(
+                404,
+                'Este negocio no existe.',
+                'La dirección no corresponde a ningún negocio de la plataforma. Revise que esté bien escrita.',
+            );
         }
 
         if ($tenant->status !== 'active') {
-            return $this->refuse(503, 'Este negocio está suspendido.',
-                'El acceso está temporalmente deshabilitado. Comuníquese con su proveedor del servicio.');
+            return $this->refuse(
+                503,
+                'Este negocio está suspendido.',
+                'El acceso está temporalmente deshabilitado. Comuníquese con su proveedor del servicio.',
+            );
         }
 
         // Mutate whichever group is actually active (Config\Database's
@@ -101,12 +131,12 @@ class TenantResolver implements FilterInterface
         // CI_ENVIRONMENT=production, where defaultGroup is 'default', so
         // this was never reachable there -- but local reproduction of any
         // tenant-specific issue needs this to work too.
-        $dbConfig = config(Database::class);
-        $activeGroup = $dbConfig->defaultGroup;
-        $defaultGroup = &$dbConfig->{$activeGroup};
+        $dbConfig                 = config(Database::class);
+        $activeGroup              = $dbConfig->defaultGroup;
+        $defaultGroup             = &$dbConfig->{$activeGroup};
         $defaultGroup['database'] = $tenant->db_name;
 
-        if (!empty($tenant->db_user) && !empty($tenant->db_password)) {
+        if (! empty($tenant->db_user) && ! empty($tenant->db_password)) {
             $defaultGroup['username'] = $tenant->db_user;
             $defaultGroup['password'] = service('encrypter')->decrypt($tenant->db_password);
         }
@@ -116,6 +146,34 @@ class TenantResolver implements FilterInterface
 
     public function after(RequestInterface $request, ResponseInterface $response, $arguments = null)
     {
+    }
+
+    /**
+     * Repoints the active connection group at the platform control schema for a console request.
+     *
+     * ALL FOUR KEYS, not just `database`. The tenant swap below only replaces the credentials when
+     * the tenant carries its own, so on a warm request the array can still hold some client's user
+     * and password; copying the schema name alone would then try to open platform_control as a
+     * database user granted nothing there. That fails as an unexplained outage of the console
+     * rather than as a visible configuration mistake.
+     *
+     * The DBPrefix is deliberately NOT copied. The control schema uses an empty prefix while the
+     * tenant groups use `ospos_`, so anything that reaches for the default connection here looks
+     * for `platform_control.ospos_*` -- tables that do not exist. That is the failure mode we want:
+     * an error, rather than a silent read of somebody's data. Everything the console genuinely
+     * needs goes through db_connect('platform') explicitly.
+     */
+    private function pointAtControlSchema(): void
+    {
+        // Same reason as the tenant swap below for mutating whichever group is active rather than
+        // a hardcoded 'default': outside production, defaultGroup is 'development' or 'tests'.
+        $dbConfig     = config(Database::class);
+        $activeGroup  = $dbConfig->defaultGroup;
+        $defaultGroup = &$dbConfig->{$activeGroup};
+
+        foreach (['hostname', 'username', 'password', 'database'] as $key) {
+            $defaultGroup[$key] = $dbConfig->platform[$key];
+        }
     }
 
     /**

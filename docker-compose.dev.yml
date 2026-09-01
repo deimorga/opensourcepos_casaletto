@@ -47,6 +47,20 @@ services:
         environment:
             - CI_ENVIRONMENT=development
             - ALLOWED_HOSTNAMES=localhost
+            # La consola de plataforma. Este compose publica el puerto 80
+            # directamente y no pasa por Traefik, así que aquí no hay router
+            # que añadir: basta con un nombre que resuelva a 127.0.0.1
+            # (/etc/hosts: 127.0.0.1  ospos-saas.localhost) y con que
+            # coincida EXACTAMENTE con esta variable. Sin ella, esa
+            # dirección se serviría como si fuera un negocio.
+            - PLATFORM_HOSTNAMES=ospos-saas.localhost
+            # El esquema de control, que la consola necesita para su registro
+            # de negocios y su tabla de sesiones. Hay que crearlo a mano en
+            # el contenedor mysql y correr `php spark platform:migrate`.
+            - PLATFORM_DB_HOST_NAME=mysql
+            - PLATFORM_DB_USERNAME=admin
+            - PLATFORM_DB_PASSWORD=pointofsale
+            - PLATFORM_DB_NAME=platform_control
             - MYSQL_USERNAME=admin
             - MYSQL_PASSWORD=pointofsale
             - MYSQL_DB_NAME=ospos

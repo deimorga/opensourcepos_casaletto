@@ -75,6 +75,18 @@ services:
             # "staging"/"www"/"admin"/"platform"/"login"/"api"/"app"
             # quedan reservados, nunca asignables a un tenant (Fase 7).
             - ALLOWED_HOSTNAME_WILDCARDS=.ospos-saas.micronuba.net
+            # Entrega 1 del módulo de superadministración: la consola de
+            # plataforma vive en la RAÍZ del dominio del SaaS, no en el
+            # subdominio de ningún cliente. Es un valor aparte, no un
+            # wildcard más: la raíz no termina en ".ospos-saas.micronuba.net"
+            # y por eso ALLOWED_HOSTNAME_WILDCARDS no la cubre. Sin esta
+            # variable, App::getValidHost() la rechaza y cae a
+            # allowedHostnames[0] -- es decir, base_url() de la consola
+            # apuntaría al dominio de Casaletto y el formulario de entrada
+            # mandaría allí la contraseña del superadministrador.
+            # Coincidencia EXACTA (ver App\Libraries\PlatformContext), así
+            # que ningún subdominio de cliente puede confundirse con ella.
+            - PLATFORM_HOSTNAMES=ospos-saas.micronuba.net
             # Ver NOTA en docker/docker-mysql.yml comment above: Sales.php
             # crashea sin esto (Email_lib -> Services::encrypter()). Clave
             # única por ambiente, definida en el .env del VPS, nunca en git.
@@ -137,6 +149,36 @@ services:
             - "traefik.http.routers.ospos-saas.priority=10"
             - "traefik.http.routers.ospos-saas.service=ospos-saas"
             - "traefik.http.services.ospos-saas.loadbalancer.server.port=80"
+            # Router NUEVO para la raíz: la consola de plataforma. Hasta
+            # ahora la raíz devolvía "404 page not found" en texto plano --
+            # la respuesta por defecto del proxy, no de la aplicación --
+            # porque ningún router la reclamaba: la regex de arriba exige
+            # al menos una etiqueta antes de ".ospos-saas".
+            #
+            # Router aparte, NO una ampliación de esa regex. Ampliarla sería
+            # un diff de un carácter, pero si sale mal se caen TODOS los
+            # subdominios de cliente a la vez; este router es aditivo y su
+            # peor fallo es que la consola no responda.
+            - "traefik.http.routers.ospos-saas-root.rule=Host(`ospos-saas.micronuba.net`)"
+            - "traefik.http.routers.ospos-saas-root.entrypoints=websecure"
+            # le-dns y tls.domains explícito: el certificado ya cubre la raíz
+            # además del comodín (verificado en el SAN), y pedirlo por el
+            # mismo resolver evita emitir un segundo certificado para el
+            # mismo nombre.
+            - "traefik.http.routers.ospos-saas-root.tls.certresolver=le-dns"
+            - "traefik.http.routers.ospos-saas-root.tls.domains[0].main=ospos-saas.micronuba.net"
+            - "traefik.http.routers.ospos-saas-root.tls.domains[0].sans=*.ospos-saas.micronuba.net"
+            # priority mayor que la del router comodín. Aquí es higiene --
+            # la regex de arriba no matchea la raíz-- pero en STAGING sí es
+            # funcional: esa misma regex de producción captura también
+            # "staging.ospos-saas.micronuba.net", y los dos ambientes
+            # comparten este Traefik.
+            - "traefik.http.routers.ospos-saas-root.priority=20"
+            # OBLIGATORIO. Con más de un service por contenedor Traefik no
+            # puede resolver la ambigüedad y descarta la configuración
+            # ENTERA -- ya causó un 404 real en producción. Reusa el service
+            # del comodín a propósito: es el mismo contenedor.
+            - "traefik.http.routers.ospos-saas-root.service=ospos-saas"
             - "traefik.docker.network=micronuba_public"
 
 networks:

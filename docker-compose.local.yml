@@ -4,6 +4,7 @@
 # Requiere:
 #   - micronuba-infra corriendo (Traefik en :8090, red micronuba_public activa)
 #   - /etc/hosts: 127.0.0.1  casaletto.local
+#   - /etc/hosts: 127.0.0.1  ospos-saas.local   (la consola de plataforma)
 #
 # Self-contained on purpose (does not layer on top of docker-compose.yml):
 # that file's "ospos" service binds host port 80 (already used by another
@@ -45,6 +46,21 @@ services:
             # local entrypoint is :8090 (not 80/443), the port must be included here
             # or every generated asset/base URL silently drops the port and 404s.
             - ALLOWED_HOSTNAMES=casaletto.local:8090
+            # La consola de plataforma, en su propio host local. CON EL
+            # PUERTO, por el mismo motivo que la nota de arriba: la
+            # comparación es contra el Host header crudo, que en un puerto
+            # no estándar lo incluye. Sin el puerto la consola nunca
+            # coincide y se sirve como si fuera un negocio.
+            # Requiere en /etc/hosts: 127.0.0.1  ospos-saas.local
+            - PLATFORM_HOSTNAMES=ospos-saas.local:8090
+            # El registro de negocios y la sesión de la consola viven en su
+            # propio esquema, igual que en staging y producción. En local el
+            # mismo MariaDB lo sirve; hay que crearlo y darle GRANT a mano
+            # (la imagen oficial solo otorga privilegios sobre MYSQL_DATABASE).
+            - PLATFORM_DB_HOST_NAME=mysql
+            - PLATFORM_DB_USERNAME=admin
+            - PLATFORM_DB_PASSWORD=pointofsale
+            - PLATFORM_DB_NAME=platform_control
             # NOTE: Sales.php's constructor instantiates Email_lib unconditionally,
             # which calls Services::encrypter() with no fallback for an empty key --
             # this hard-crashes the entire Sales/Register module (and anything else
@@ -58,7 +74,17 @@ services:
             - "traefik.enable=true"
             - "traefik.http.routers.casaletto-pos-local.rule=Host(`casaletto.local`)"
             - "traefik.http.routers.casaletto-pos-local.entrypoints=web"
+            # Enlace explícito router->service: al añadir el router de la
+            # consola abajo este contenedor pasa a tener dos routers, y
+            # Traefik descarta la configuración entera cuando no puede
+            # resolver la ambigüedad. Ver docker-compose.prod.yml.
+            - "traefik.http.routers.casaletto-pos-local.service=casaletto-pos-local"
             - "traefik.http.services.casaletto-pos-local.loadbalancer.server.port=80"
+            # Router de la consola de plataforma, mismo contenedor.
+            - "traefik.http.routers.ospos-saas-root-local.rule=Host(`ospos-saas.local`)"
+            - "traefik.http.routers.ospos-saas-root-local.entrypoints=web"
+            - "traefik.http.routers.ospos-saas-root-local.priority=20"
+            - "traefik.http.routers.ospos-saas-root-local.service=casaletto-pos-local"
             - "traefik.docker.network=micronuba_public"
 
 networks:
