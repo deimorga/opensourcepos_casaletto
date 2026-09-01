@@ -357,6 +357,11 @@ return [
     "user_timezone"                             => "Local Timezone:",
     "website"                                   => "Website",
     "wholesale_markup"                          => "",
+    "wired_barcode_content_help"                => "Barcode content is a fixed setting. Printed and typed codes always carry the item number; with the internal id, a typed code sells a different product. Ask your provider if you need it changed.",
+    "wired_language_help"                       => "The language is a fixed setting. Every translation in this system is written for Spanish (Mexico); on another variant, screens come out in English without reporting any error. Ask your provider if you need it changed.",
+    "wired_quantity_decimals_help"              => "Quantity decimals is a fixed setting. Anything sold by weight needs three of them; with fewer, the weight is lost without warning -- the sale still adds up in money and the stock does not. Ask your provider if you need it changed.",
+    "wired_setting_mismatch"                    => "This business is not on the required value, which is {0}. Ask your provider to correct it.",
+    "wired_setting_refused"                     => "These settings are fixed and cannot be changed from here: {0}. Nothing was saved. Ask your provider if you need one of them changed.",
     "work_order_enable"                         => "Work Order Support",
     "work_order_format"                         => "Work Order Format",
 ];

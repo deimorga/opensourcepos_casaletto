@@ -8,6 +8,7 @@ use App\Libraries\Receiving_lib;
 use App\Libraries\Sale_lib;
 use App\Libraries\Tax_lib;
 use App\Libraries\Token_lib;
+use App\Libraries\Wiring_lock;
 use App\Models\Appconfig;
 use App\Models\Attribute;
 use App\Models\Customer_rewards;
@@ -482,6 +483,51 @@ class Config extends Secure_Controller
     }
 
     /**
+     * D12's three wired keys, refused on the way in.
+     *
+     * The screens render those fields disabled, so nothing a customer can click ever reaches here.
+     * What does reach here is a hand-made POST -- and a lock that only lived in the markup would be
+     * decorative against exactly that.
+     *
+     * WHY THE WHOLE REQUEST IS REFUSED, and not just the offending key: these two screens save
+     * fifteen settings in one transaction (Appconfig::batch_save()), the customer pressed Save once,
+     * and dropping one key while reporting success would put a green message on a screen that did
+     * not do what it says. That is the same silent failure -- the number quietly not being what it
+     * looks like -- that put these three keys on the list in the first place. Refusing loudly costs
+     * an honest user nothing, because an honest user cannot get here.
+     *
+     * @param  array<string, mixed> $attempted The locked keys THIS request actually carried. A key
+     *                                         the screen did not submit must be left out entirely:
+     *                                         a disabled field sends nothing, and treating that as
+     *                                         "clear it" would refuse every honest save.
+     * @return ResponseInterface|null          The refusal to return, or null when nothing is wrong.
+     */
+    private function refuse_wired_changes(array $attempted): ?ResponseInterface
+    {
+        $current = [];
+
+        foreach (array_keys($attempted) as $key) {
+            // Straight from app_config rather than from $this->config: the cached settings can lag
+            // behind a value the platform wrote directly into the tenant's database, and comparing
+            // against a stale copy would let this screen quietly put the old value back.
+            $current[$key] = $this->appconfig->get_value($key);
+        }
+
+        $refused = Wiring_lock::refused($attempted, $current);
+
+        if ($refused === []) {
+            return null;
+        }
+
+        $names = array_map(static fn (string $key): string => Wiring_lock::label($key), $refused);
+
+        return $this->response->setJSON([
+            'success' => false,
+            'message' => lang('Config.wired_setting_refused', [implode(', ', $names)])
+        ]);
+    }
+
+    /**
      * Saves locale configuration. Used in app/Views/configs/locale_config.php
      *
      * @throws ReflectionException
@@ -490,13 +536,10 @@ class Config extends Secure_Controller
      */
     public function postSaveLocale(): ResponseInterface
     {
-        $exploded = explode(":", $this->request->getPost('language'));
         $currency_symbol = $this->request->getPost('currency_symbol');
         $batch_save_data = [
             'currency_symbol'       => htmlspecialchars($currency_symbol ?? ''),
             'currency_code'         => $this->request->getPost('currency_code'),
-            'language_code'         => $exploded[0],
-            'language'              => $exploded[1],
             'timezone'              => $this->request->getPost('timezone'),
             'dateformat'            => $this->request->getPost('dateformat'),
             'timeformat'            => $this->request->getPost('timeformat'),
@@ -504,7 +547,6 @@ class Config extends Secure_Controller
             'number_locale'         => $this->request->getPost('number_locale'),
             'currency_decimals'     => $this->request->getPost('currency_decimals', FILTER_SANITIZE_NUMBER_INT),
             'tax_decimals'          => $this->request->getPost('tax_decimals', FILTER_SANITIZE_NUMBER_INT),
-            'quantity_decimals'     => $this->request->getPost('quantity_decimals', FILTER_SANITIZE_NUMBER_INT),
             'country_codes'         => htmlspecialchars($this->request->getPost('country_codes')),
             'payment_options_order' => $this->request->getPost('payment_options_order'),
             'date_or_time_format'   => $this->request->getPost('date_or_time_format') != null,
@@ -513,7 +555,31 @@ class Config extends Secure_Controller
             'financial_year'        => $this->request->getPost('financial_year', FILTER_SANITIZE_NUMBER_INT)
         ];
 
-        $success = $this->appconfig->batch_save($batch_save_data);
+        // language_code is not a field of this form: it is the half before the colon of the single
+        // "code:name" value the language select posts. The lock has to be applied to the derived
+        // code, not to a field name, or picking Spanish (Spain) would walk straight past it.
+        $wired = [];
+        $language = $this->request->getPost('language');
+
+        if ($language !== null) {
+            $exploded = explode(':', (string)$language);
+            $wired['language_code'] = $exploded[0];
+            $batch_save_data['language'] = $exploded[1] ?? '';
+        }
+
+        $quantity_decimals = $this->request->getPost('quantity_decimals', FILTER_SANITIZE_NUMBER_INT);
+
+        if ($quantity_decimals !== null) {
+            $wired['quantity_decimals'] = $quantity_decimals;
+        }
+
+        $refusal = $this->refuse_wired_changes($wired);
+
+        if ($refusal !== null) {
+            return $refusal;
+        }
+
+        $success = $this->appconfig->batch_save($batch_save_data + $wired);
 
         return $this->response->setJSON(['success' => $success, 'message' => lang('Config.saved_' . ($success ? '' : 'un') . 'successfully')]);
     }
@@ -921,11 +987,25 @@ class Config extends Secure_Controller
             'barcode_page_cellspacing'  => $this->request->getPost('barcode_page_cellspacing', FILTER_SANITIZE_NUMBER_INT),
             'barcode_generate_if_empty' => $this->request->getPost('barcode_generate_if_empty') != null,
             'allow_duplicate_barcodes'  => $this->request->getPost('allow_duplicate_barcodes') != null,
-            'barcode_content'           => $this->request->getPost('barcode_content'),
             'barcode_formats'           => json_encode($this->request->getPost('barcode_formats'))
         ];
 
-        $success = $this->appconfig->batch_save($batch_save_data);
+        // D12: what a printed or typed code carries is wiring, not preference. See
+        // refuse_wired_changes() and App\Libraries\Wiring_lock.
+        $wired = [];
+        $barcode_content = $this->request->getPost('barcode_content');
+
+        if ($barcode_content !== null) {
+            $wired['barcode_content'] = $barcode_content;
+        }
+
+        $refusal = $this->refuse_wired_changes($wired);
+
+        if ($refusal !== null) {
+            return $refusal;
+        }
+
+        $success = $this->appconfig->batch_save($batch_save_data + $wired);
 
         return $this->response->setJSON(['success' => $success, 'message' => lang('Config.saved_' . ($success ? '' : 'un') . 'successfully')]);
     }

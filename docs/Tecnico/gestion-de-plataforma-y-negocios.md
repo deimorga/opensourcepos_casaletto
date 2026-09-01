@@ -518,8 +518,8 @@ duplica el dato ni se cambia el modelo.
 | Cambiar la propia contraseña y activar TOTP | Rutas nuevas + métodos en `PlatformAccount` |
 | Último ingreso, fecha de alta, quién creó la cuenta | Migración aditiva sobre `platform_accounts` |
 | ~~Perfil de configuración~~ | **Hecho el 2026-09-01, sin desplegar:** `App\Libraries\TenantConfigProfile`, aplicado desde `seedInitialAdmin()`. Escribe `app_config` y `employees` |
-| Candado de las tres claves de cableado | `Config.php` + `configs/locale_config.php` y `configs/barcode_config.php` (§9.13). **Sigue pendiente** |
-| Idioma heredado al crear un empleado | `Employees.php:183` y `:190`. **Sigue pendiente** |
+| ~~Candado de las tres claves de cableado~~ | **Hecho el 2026-09-01, sin desplegar:** `Wiring_lock` + `Config::refuse_wired_changes()` + las dos vistas del POS (§9.13) |
+| Idioma heredado al crear un empleado | `Employees.php:183` y `:190`. **Sigue pendiente**, y hasta que exista el candado no está cerrado: un empleado puede ponerse otra variante en su perfil y el de `app_config` no lo alcanza |
 | ~~Restablecer y consultar la clave del admin de un negocio~~ | **Hecho el 2026-09-01, sin desplegar:** `TenantProvisioner::adminCredential()` y `::resetAdminPassword()`, más `admin/detail.php` (§5.1) |
 | ~~`company_name` en el listado~~ | **Hecho el 2026-09-01, sin desplegar:** migración `20260903000000` + `create()` + `admin/index.php` |
 | Empleado de soporte | `TenantProvisioner::create()`, y un comando para los negocios existentes |
@@ -674,6 +674,77 @@ deshabilitado con el motivo —esconderlo haría que el cliente crea que el ajus
 Esto arrastra dos cosas: se construye en **Bootstrap 3** (§9.11) y **toca el punto de venta**, así que
 necesita la misma compuerta de pruebas que cualquier cambio que afecte a Casaletto.
 
+#### Cómo quedó construido (escrito el 2026-09-01; sin desplegar y sin certificar)
+
+La regla vive en **`app/Libraries/Wiring_lock.php`**, una clase sin estado, sin base de datos y sin
+vista: solo la lista de claves con su valor obligatorio y la comparación. Se aplica desde dos sitios,
+y en ninguno de los dos se repite la lista.
+
+| Dónde | Qué hace |
+|---|---|
+| `Config::refuse_wired_changes()` | Rechaza la petición del lado del servidor. Lo llaman `postSaveLocale()` y `postSaveBarcode()` antes de tocar nada |
+| `configs/locale_config.php`, `configs/barcode_config.php` | Muestran el campo `disabled`, con el motivo en un `help-block` y `aria-describedby` |
+
+**La regla, en una frase: una clave bloqueada puede quedarse donde está, o moverse al valor que la
+plataforma exige. Cualquier otra cosa se rechaza.**
+
+La segunda mitad de esa frase no es un camino por la interfaz —los campos van deshabilitados, así que
+nada de lo que el cliente pueda pulsar produce ninguno de los dos movimientos—. Es la salida de
+emergencia: sin ella, un negocio dado de alta **antes** de que existiera el perfil se quedaría
+atrapado para siempre en el valor peligroso, y el candado terminaría cementando exactamente lo que
+existe para impedir. La semilla de `initial_schema.sql` trae `quantity_decimals = 0` y
+`barcode_content = id`, que son justo los dos valores que costaron los incidentes.
+
+**Se rechaza la petición entera, no la clave sola.** `Appconfig::batch_save()` guarda las quince
+claves de cada pantalla en una sola transacción y no tiene ninguna noción de clave protegida. Dejar
+pasar las otras catorce e ignorar la bloqueada obligaba a elegir entre dos mentiras: un mensaje verde
+sobre una pantalla que no hizo lo que dice, o un guardado a medias sin forma de contarlo. Rechazar en
+bloque no le cuesta nada a un cliente honesto, porque **un cliente honesto no puede llegar ahí**: el
+campo va deshabilitado y un campo deshabilitado no se envía. Lo que sí llega es un POST hecho a mano,
+y contra eso el candado tiene que ser ruidoso.
+
+**Qué NO se tocó, a propósito:**
+
+- **`Appconfig::batch_save()` no lleva el candado dentro.** El modelo es también por donde la
+  plataforma escribe la configuración de un tenant al darlo de alta; un candado ahí abajo dejaría
+  fuera al único que sí debe fijar estas claves. El candado va en la frontera que alcanza el
+  *cliente*, que son los dos endpoints del controlador.
+- **No repara nada.** Un negocio que ya esté en el valor equivocado se queda como está; lo que hace
+  la pantalla es **decirlo en voz alta** (`Config.wired_setting_mismatch`) en vez de congelarlo en
+  silencio. Escribir el valor correcto sobre un negocio que está vendiendo es una operación revisada
+  clave por clave (D13), no un efecto colateral de que alguien guarde otra pestaña.
+
+**Tres trampas que había que sortear, y cómo:**
+
+1. **`language_code` no es un campo del formulario.** Sale de partir por `:` el valor del select
+   `language`, que viaja como `codigo:nombre`. El candado se aplica al código derivado, no a un
+   nombre de campo; si no, elegir «Español (España)» pasaba de largo. Como consecuencia asumida,
+   `language` —que D12 deja al negocio— queda congelado también: es el mismo select, y todas las
+   opciones que dicen `spanish` llevan un código distinto.
+2. **Un campo `disabled` no se envía.** Si «ausente» contara como cambio, cada guardado honesto de
+   esas dos pantallas quedaría rechazado; y si contara como «vacío», guardar la pestaña de idioma
+   dejaría `language_code` en blanco y todas las pantallas en inglés. Ausente significa «la pantalla
+   no lo ofreció», y esas claves sencillamente no se escriben.
+3. **El valor actual se lee de `app_config`, no de la caché de configuración.** La caché puede ir por
+   detrás de un valor que la plataforma escribiera directo en la base del tenant, y comparar contra
+   una copia vieja dejaría que esta pantalla devolviera el valor anterior sin que nadie se enterara.
+
+**Un arreglo que salió de paso.** El radio de `barcode_content` valía `number` y se marcaba
+comparando contra `number`, pero `Barcode_lib` lee **todo lo que no sea `id`** como número de
+artículo (`Barcode_lib.php:97` y `:183`). Un negocio en `item_number` —el valor que exige D12, y el
+que tiene Paraíso desde la colisión— veía **ningún radio marcado**. Ahora el radio vale
+`item_number` y se marca por `!== 'id'`.
+
+**Cadenas nuevas** en `Config.php` de `en` y `es-MX`: `wired_setting_refused`,
+`wired_setting_mismatch` y una explicación por clave (`wired_quantity_decimals_help`,
+`wired_barcode_content_help`, `wired_language_help`). Van en el archivo de idioma del punto de venta,
+no en `Platform.php`.
+
+**Lo que queda abierto:** si un negocio está en el valor equivocado, la única salida por pantalla es
+que alguien envíe el valor exigido a `/config/saveLocale` o `/config/saveBarcode`. **La consola de
+plataforma todavía no tiene una pantalla que fije estas tres claves sobre un negocio ya existente**,
+y sin ella el aviso de la pantalla del cliente no tiene a quién mandarlo. Es trabajo del otro carril.
+
 ### 9.14 El historial de migraciones de plataforma vivía en la base de Casaletto
 
 > **Corregido el 2026-08-31.** Se conserva el diagnóstico porque la causa sigue viva en el framework y
@@ -820,7 +891,10 @@ Lo mínimo que debería traer este trabajo:
   el empleado inicial**.
 - Un empleado creado después del alta hereda el idioma del perfil, no queda vacío.
 - **Un POST a la configuración del negocio que intente cambiar las tres claves bloqueadas se rechaza**,
-  y las otras claves del perfil sí se dejan cambiar.
+  y las otras claves del perfil sí se dejan cambiar. *(Escrito el 2026-09-01, sin ejecutar:
+  `tests/Libraries/WiringLockTest.php` para la regla, `tests/Controllers/ConfigWiringLockTest.php`
+  para los dos endpoints —incluido el intento por `language` con formato `codigo:nombre`— y
+  `tests/Views/WiredSettingsViewTest.php` para que el campo se vea, se vea fijo y diga por qué.)*
 - El empleado de soporte **no aparece** en la grilla de empleados ni en el selector de reportes.
 - `platform/*` responde en la raíz y **no** en un subdominio de negocio.
 - El login de un negocio acepta una credencial de plataforma y una de `employees`, y rechaza la de
