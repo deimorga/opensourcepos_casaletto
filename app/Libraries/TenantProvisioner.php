@@ -228,7 +228,10 @@ class TenantProvisioner
         $encryptedDbPassword = service('encrypter')->encrypt($dbPassword);
         $now                 = date('Y-m-d H:i:s');
 
-        db_connect('platform')->table('tenants')->insert([
+        // Comprobado, no descartado: con DBDebug apagado un insert fallido devuelve false. Sin esto,
+        // el esquema, el usuario de MySQL y las migraciones quedan hechos, la fila no aterriza, y el
+        // operador acaba en un 404 con una base de datos huérfana que nadie sabe que existe.
+        $registered = db_connect('platform')->table('tenants')->insert([
             'slug' => $slug,
             // Se guarda además de escribirlo dentro del negocio. Leerlo del negocio para pintar el
             // listado abriría una conexión por fila y dejaría la lista sin dibujar en cuanto un
@@ -248,6 +251,15 @@ class TenantProvisioner
             'admin_password_cipher' => service('encrypter')->encrypt($adminPassword),
             'admin_password_set_at' => $now,
         ]);
+
+        if ($registered === false) {
+            throw new RuntimeException(
+                "The schema '{$dbIdentifier}' was created and migrated, but registering '{$slug}' in the "
+                . 'platform failed, so the business is unreachable and the database is orphaned. The admin '
+                . "password generated for it was: {$adminPassword}. Check that `php spark platform:migrate` "
+                . 'has been run, then register it by hand or drop the schema.',
+            );
+        }
 
         return [
             'slug'           => $slug,
@@ -622,6 +634,27 @@ class TenantProvisioner
             return $this->credential(self::CREDENTIAL_NONE, $username === '' ? null : $username);
         }
 
+        // EL DESCIFRADO VA PRIMERO, Y EL ORDEN ES LA MITAD DEL ARREGLO
+        //
+        // `tenants.db_password` está cifrada con la MISMA clave que esta copia. Si la clave se pierde
+        // o cambia, conectarse al negocio también falla -- así que el primer paso que se ejecute es
+        // el que le pone nombre al problema. Comprobando antes la conexión, una clave rota se
+        // anunciaba como «negocio inalcanzable»: un aviso amarillo que invita a esperar y volver más
+        // tarde, cuando lo que hay que hacer es restaurar la clave y nadie lo sabría.
+        //
+        // Descifrar es local y no abre ninguna conexión, así que además es el paso barato. La
+        // contraseña se guarda acá pero NO se devuelve hasta haber comprobado que sigue siendo la
+        // buena, más abajo.
+        try {
+            $password = service('encrypter')->decrypt($cipher);
+        } catch (Throwable $e) {
+            // La copia NO se borra aquí. Si lo que falló es la clave de cifrado, borrarla
+            // convertiría un problema reparable -- restaurar la clave -- en una pérdida definitiva.
+            log_message('critical', "No se pudo descifrar la contraseña guardada del negocio '{$slug}': " . $e->getMessage());
+
+            return $this->credential(self::CREDENTIAL_UNREADABLE, $username, null, $setAt);
+        }
+
         try {
             $currentHash = $this->currentAdminHash($tenant, $username);
         } catch (Throwable $e) {
@@ -636,16 +669,6 @@ class TenantProvisioner
             $this->forgetAdminCredential($slug);
 
             return $this->credential(self::CREDENTIAL_CHANGED, $username);
-        }
-
-        try {
-            $password = service('encrypter')->decrypt($cipher);
-        } catch (Throwable $e) {
-            // La copia NO se borra aquí. Si lo que falló es la clave de cifrado, borrarla
-            // convertiría un problema reparable -- restaurar la clave -- en una pérdida definitiva.
-            log_message('critical', "No se pudo descifrar la contraseña guardada del negocio '{$slug}': " . $e->getMessage());
-
-            return $this->credential(self::CREDENTIAL_UNREADABLE, $username, null, $setAt);
         }
 
         return $this->credential(self::CREDENTIAL_AVAILABLE, $username, $password, $setAt);
@@ -690,7 +713,14 @@ class TenantProvisioner
         // como un error 500 sin explicación en vez de como un mensaje que nombra el negocio.
         try {
             $tenantDb = $this->connectToTenant($tenant);
-            $exists   = $tenantDb->table('employees')->where('username', $username)->countAllResults() > 0;
+
+            // deleted = 0 a propósito: Employee::login() lo exige, así que restablecer la
+            // contraseña de un empleado dado de baja informaría de un éxito, imprimiría un bloque
+            // de entrega, y el cliente seguiría sin poder entrar.
+            $exists = $tenantDb->table('employees')
+                ->where('username', $username)
+                ->where('deleted', 0)
+                ->countAllResults() > 0;
         } catch (Throwable $e) {
             throw new RuntimeException("Could not read the employees of '{$slug}': " . $e->getMessage(), 0, $e);
         }
@@ -706,18 +736,42 @@ class TenantProvisioner
         $hash     = password_hash($password, PASSWORD_DEFAULT);
 
         try {
-            $tenantDb->table('employees')->where('username', $username)->update([
-                'password'     => $hash,
-                'hash_version' => 2,
-            ]);
+            // El resultado se comprueba, no se descarta. Con DBDebug apagado -- que es como corre
+            // producción -- una escritura fallida DEVUELVE false en vez de lanzar, así que ignorarlo
+            // deja creer que se escribió.
+            $written = $tenantDb->table('employees')
+                ->where('username', $username)
+                ->where('deleted', 0)
+                ->update([
+                    'password'     => $hash,
+                    'hash_version' => 2,
+                ]);
         } catch (Throwable $e) {
             throw new RuntimeException("Could not write the new password into '{$slug}': " . $e->getMessage(), 0, $e);
+        }
+
+        if ($written === false) {
+            throw new RuntimeException(
+                "The new password could not be written into '{$slug}'. Nothing was changed, and the old "
+                . 'password still works.',
+            );
         }
 
         // Solo después de que el negocio la tenga. Al revés, un fallo al escribir en el negocio
         // dejaría en la consola una contraseña que allí no abre nada, que es la única forma de que
         // esta pantalla mienta.
-        $this->rememberAdminCredential($slug, $username, $password, $hash);
+        //
+        // Y esta guardada TAMBIÉN se comprueba: si el esquema de plataforma va por detrás -- correr
+        // `platform:migrate` es un paso manual del despliegue -- la contraseña del negocio ya habría
+        // cambiado y la copia no se guardaría. El cliente quedaría fuera con una contraseña que nadie
+        // ha visto nunca. Se avisa con la contraseña en el mensaje, que es lo único que la salva.
+        if (! $this->rememberAdminCredential($slug, $username, $password, $hash)) {
+            throw new RuntimeException(
+                "The password of '{$slug}' WAS changed to: {$password} -- write it down now. The platform "
+                . 'could not save its copy, so this screen will not be able to show it again. Check that '
+                . '`php spark platform:migrate` has been run.',
+            );
+        }
 
         return ['slug' => $slug, 'username' => $username, 'password' => $password];
     }
@@ -877,15 +931,24 @@ class TenantProvisioner
      * exactamente lo que desbordó `tenants.db_password` en VARCHAR(255), lo truncó en silencio y
      * rompió el descifrado sin un solo error. `admin_password_cipher` es TEXT por la misma razón.
      */
-    private function rememberAdminCredential(string $slug, string $username, string $password, string $hash): void
+    private function rememberAdminCredential(string $slug, string $username, string $password, string $hash): bool
     {
-        db_connect('platform')->table('tenants')->where('slug', $slug)->update([
-            'admin_username'        => $username,
-            'admin_password_hash'   => $hash,
-            'admin_password_cipher' => service('encrypter')->encrypt($password),
-            'admin_password_set_at' => date('Y-m-d H:i:s'),
-            'updated_at'            => date('Y-m-d H:i:s'),
-        ]);
+        try {
+            return db_connect('platform')->table('tenants')->where('slug', $slug)->update([
+                'admin_username'        => $username,
+                'admin_password_hash'   => $hash,
+                'admin_password_cipher' => service('encrypter')->encrypt($password),
+                'admin_password_set_at' => date('Y-m-d H:i:s'),
+                'updated_at'            => date('Y-m-d H:i:s'),
+            ]) !== false;
+        } catch (Throwable $e) {
+            // Devuelve, no lanza: quien llama ya cambió la contraseña del negocio y tiene que poder
+            // enseñarla antes de rendirse. Columnas que aún no existen -- `platform:migrate` es un
+            // paso manual del despliegue -- llegan aquí como excepción, no como false.
+            log_message('critical', "No se pudo guardar la copia de la contraseña de '{$slug}': " . $e->getMessage());
+
+            return false;
+        }
     }
 
     /**

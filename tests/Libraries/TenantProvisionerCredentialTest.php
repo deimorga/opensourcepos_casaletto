@@ -357,6 +357,68 @@ final class TenantProvisionerCredentialTest extends CIUnitTestCase
      * dedicado que no existe. Se afirma explícitamente para que quien rompa esa bifurcación vea por
      * qué falla, en vez de encontrarse doce pruebas rojas sin relación aparente.
      */
+    /**
+     * EL ORDEN DE LAS COMPROBACIONES, QUE ES LO QUE SE PRUEBA ACÁ
+     *
+     * `tenants.db_password` está cifrada con la MISMA clave que esta copia. Si la clave se pierde o
+     * se regenera, las dos cosas fallan a la vez: no se puede descifrar la copia Y no se puede
+     * abrir la conexión al negocio. Cuál de los dos fallos se encuentra primero decide qué mensaje
+     * ve la persona -- y son mensajes con acciones opuestas.
+     *
+     * Comprobando antes la conexión, una clave rota se anunciaba como «negocio inalcanzable»: un
+     * aviso amarillo que invita a esperar y volver más tarde. Nadie iría a restaurar la clave.
+     *
+     * Se reproducen los dos fallos a la vez: copia ilegible y negocio inalcanzable.
+     */
+    public function testABrokenKeyIsReportedAsUnreadableAndNotAsAnUnreachableBusiness(): void
+    {
+        db_connect('platform')->table('tenants')->where('slug', self::SLUG)->update([
+            'admin_password_cipher' => 'esto-no-lo-descifra-ninguna-clave',
+            'db_name'               => 'esquema_que_no_existe_' . bin2hex(random_bytes(4)),
+        ]);
+
+        $credential = $this->provisioner->adminCredential(self::SLUG);
+
+        $this->assertSame(
+            TenantProvisioner::CREDENTIAL_UNREADABLE,
+            $credential['state'],
+            'Una clave rota tiene que mandar a restaurar la clave, no a esperar a que el negocio vuelva.',
+        );
+        $this->assertNull($credential['password']);
+    }
+
+    /**
+     * Y la copia SIGUE AHÍ. Borrarla ante un fallo de descifrado convertiría un problema reparable
+     * -- restaurar la clave -- en una pérdida definitiva.
+     */
+    public function testAnUnreadableCopyIsNotErased(): void
+    {
+        db_connect('platform')->table('tenants')->where('slug', self::SLUG)->update([
+            'admin_password_cipher' => 'esto-no-lo-descifra-ninguna-clave',
+        ]);
+
+        $this->provisioner->adminCredential(self::SLUG);
+
+        $this->assertSame('esto-no-lo-descifra-ninguna-clave', $this->tenantRow()->admin_password_cipher);
+    }
+
+    /**
+     * Un negocio de verdad inalcanzable -- suspendido, base caída -- con la copia perfectamente
+     * legible sigue diciendo `unreachable`. El arreglo de arriba no puede haber convertido todo en
+     * «ilegible».
+     */
+    public function testAnUnreachableBusinessWithAReadableCopyStillSaysUnreachable(): void
+    {
+        db_connect('platform')->table('tenants')->where('slug', self::SLUG)->update([
+            'db_name' => 'esquema_que_no_existe_' . bin2hex(random_bytes(4)),
+        ]);
+
+        $credential = $this->provisioner->adminCredential(self::SLUG);
+
+        $this->assertSame(TenantProvisioner::CREDENTIAL_UNREACHABLE, $credential['state']);
+        $this->assertNull($credential['password'], 'Tampoco acá se enseña: no se comprobó que siga valiendo.');
+    }
+
     public function testTheWholeFileRunsAgainstAnAdoptedBusiness(): void
     {
         $this->assertTrue(
