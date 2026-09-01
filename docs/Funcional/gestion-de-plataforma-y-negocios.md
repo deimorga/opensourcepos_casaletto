@@ -1,10 +1,12 @@
 # Alcance funcional — Gestión de la plataforma y de los negocios-cliente
 
-> **Estado a 2026-09-01: Entregas 1, 2 y 3 EN PRODUCCIÓN.** Desplegadas por SSH el 2026-09-01
+> **Estado a 2026-09-01: las CINCO entregas EN PRODUCCIÓN.** Desplegadas por SSH el 2026-09-01
 > por la tarde, con respaldo previo de las tres bases y conteos de los dos negocios idénticos
-> antes y después. La Entrega 3 se certificó en staging sobre la interfaz real, con el navegador,
-> antes de subirla. Queda pendiente que el dueño firme la consola de producción entrando con su
-> propia cuenta, y las Entregas 4 y 5 sin empezar.
+> antes y después de cada una. Todas se certificaron en staging sobre la interfaz real, con el
+> navegador, antes de subirlas.
+>
+> **Lo único pendiente es del dueño:** crear una segunda cuenta de plataforma. Hoy hay una sola, y
+> quedarse fuera de ella se resuelve solo por SSH.
 
 ---
 
@@ -483,12 +485,14 @@ Ordenadas para que cada una deje el sistema mejor aunque la siguiente se demore.
 
 ### Entrega 4 — Entrar a gestionar
 
-> **Estado a 2026-09-01: construida, sin desplegar y sin certificar.** Escrita hoy; falta llevarla a
-> staging y probarla en el navegador, entrando de verdad a un negocio con el segundo factor del
-> dueño. La certificación no la firma quien escribió el código.
+> **Estado a 2026-09-01: EN PRODUCCIÓN.** Certificada en staging sobre la interfaz real, con el
+> navegador: se entró de verdad al punto de venta de un negocio con una credencial de plataforma y su
+> segundo factor, y se comprobó que la contraseña sola no abre, que un empleado del cliente sigue
+> entrando por su puerta sin ver la franja, y que el registro no guarda el cuerpo de las peticiones.
 >
-> **Y no se despliega hasta que la cuenta huérfana esté eliminada**, porque esta entrega le abriría
-> una puerta al punto de venta de cada cliente con todos los permisos.
+> La cuenta huérfana se eliminó antes de desplegar, que era la condición. **Queda un riesgo abierto
+> que no es de código:** hoy hay UNA sola cuenta de plataforma. Sin una segunda, perder el teléfono y
+> los códigos de rescate --o frenarse tras tres intentos-- solo se resuelve por SSH.
 
 - Empleado de soporte, invisible para el cliente, creado en el alta y en los negocios existentes.
 - **Entrada por la URL del negocio** con la credencial de plataforma, **pidiendo el segundo factor**.
@@ -512,10 +516,24 @@ No ve al empleado de soporte en su lista de empleados, ni en los filtros de turn
 de reportes. Sí ve, en su historial, que ciertos movimientos los hizo **«Soporte Micronuba»** — con
 ese nombre, para que su historial no tenga huecos ni nombres que no reconoce.
 
-### Entrega 5 — El dueño entra a lo suyo
-- Vínculo cuenta↔negocio creado desde el alta.
-- Qué empleado es esa cuenta dentro de ese negocio.
-- El dueño aterriza **dentro** de su negocio, no en un formulario de entrada.
+### Entrega 5 — Entrar de un clic
+
+> **Estado a 2026-09-01: EN PRODUCCIÓN.** Certificada en staging con el navegador.
+>
+> **El alcance cambió al construirla, y con decisión del dueño.** El diseño original insinuaba dar
+> cuentas de plataforma a los CLIENTES —«el dueño del negocio»—, lo que choca con todo lo demás de
+> este módulo: los superadministradores son usuarios nuestros e invisibles para el cliente. Se
+> decidió el 2026-09-01 que esta entrega es un atajo NUESTRO, y que a nadie de fuera se le da una
+> credencial de plataforma.
+
+Lo que faltaba de verdad no era el vínculo: era que **«Abrir» dejaba al operador en el FORMULARIO de
+entrada del negocio**, con la sesión de la consola y su segundo factor ya superados y sin servir de
+nada. Había que teclear correo, contraseña y código otra vez para llegar a un sitio al que ya se
+tenía derecho.
+
+- Un **pase de un solo uso** y sesenta segundos lleva de la consola a dentro del punto de venta.
+- No sustituye al segundo factor: lo presupone. Una cuenta sin él no puede entrar ni por aquí.
+- Se registra la **entrada**, no solo lo que se haga después.
 
 ---
 

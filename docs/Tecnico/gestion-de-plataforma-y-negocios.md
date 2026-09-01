@@ -1,6 +1,6 @@
 # Diseño técnico — Gestión de la plataforma y de los negocios-cliente
 
-> **Estado a 2026-09-01: Entregas 1, 2 y 3 EN PRODUCCIÓN** (`c6775c55a`). Desplegadas por SSH,
+> **Estado a 2026-09-01: las CINCO entregas EN PRODUCCIÓN** (`8301acd4e`). Desplegadas por SSH,
 > con `php spark platform:migrate` a mano después del `up -d --build`, como manda §9.14. La suite
 > quedó verde en 8.2/8.3/8.4 tras arreglar siete fallos que arrastraba desde E1 -- cuatro de ellos
 > por contaminación de la base de pruebas compartida, ver §9.15.
@@ -932,6 +932,42 @@ después como «soporte no ve una de mis bodegas».
 
 > La regla para quien añada una llamada nueva: si el resultado se le enseña a alguien, `get_all()`.
 > Si de él dependen permisos o integridad, `get_all_for_permissions()`.
+
+### 9.19 La Entrega 5 acabó siendo otra cosa, y el pase es su única pieza nueva
+
+**El alcance cambió antes de escribir una línea.** El diseño hablaba de «el dueño entra a lo suyo» y
+la tabla `platform_account_tenants` describía las cuentas como «dueños de negocio y administradores de
+plataforma» -- es decir, insinuaba dar credenciales de plataforma a los CLIENTES. Eso choca con todo
+lo demás del módulo, donde los superadministradores son nuestros e invisibles para el cliente. El
+dueño decidió el 2026-09-01 que es un atajo NUESTRO y que a nadie de fuera se le da una credencial.
+
+**Y la mitad ya existía, muerta.** La tabla de vínculos, `getTenantsForAccount()`, `select_business.php`
+y `redirectAfterLogin()` estaban desde la fase 0. Nadie escribía en la tabla y el selector, cuando lo
+hubiera, solo redirigía. El hueco real era otro: **«Abrir» dejaba al operador en el FORMULARIO de
+entrada del negocio**, con la sesión de la consola y su segundo factor ya superados y sin valer nada.
+
+#### El pase, y por qué no es un token firmado
+
+| Propiedad | Lo que impide |
+|---|---|
+| Un solo uso, tachado con `DELETE` + `affectedRows() === 1` | Que el enlace que queda en el historial del navegador abra la caja de un cliente mañana |
+| Sesenta segundos | Que un pase copiado de un registro o de un hombro sirva para algo |
+| Atado a la cuenta Y al negocio | Que un pase para un cliente abra el de otro |
+| Se guarda el hash, no el pase | Que leer esta tabla --un respaldo, una consulta de más-- alcance para entrar |
+
+Un token firmado --JWT o HMAC-- demuestra quién lo emitió y cuándo caduca, pero **no puede ser de un
+solo uso**: quien lo lea puede volver a presentarlo hasta que expire. Para que «un solo uso» sea
+verdad hace falta un sitio donde tacharlo, y tacharlo atómicamente. Por eso hay tabla.
+
+**El borrado va ANTES de mirar la caducidad.** Comprobar primero y borrar después deja una ventana en
+la que dos peticiones simultáneas leen la misma fila y las dos la dan por buena. Aquí el borrado ES la
+comprobación. Efecto secundario deseado: un pase presentado en la puerta equivocada también muere, así
+que no se puede ir probando negocio por negocio hasta encontrar el suyo. Verificado en staging.
+
+**Al canjearlo se vuelve a preguntar todo lo que pudo cambiar en ese minuto:** que la cuenta exista,
+que siga teniendo segundo factor --el pase lo presupone, no lo sustituye--, que el pase sea para ESTE
+negocio, y que el negocio tenga su empleado de soporte. Todos los fallos dan el mismo aviso: la ruta
+es pública y decir «ese pase era de otro negocio» ya cuenta demasiado.
 
 ## 10. Orden de implementación
 
