@@ -281,15 +281,25 @@ final class Item_export_lib
             // decimal. Pasarlos por `to_currency()` metería el formato de `number_locale`, y con
             // es_CO el punto es separador de miles: «1.000» puede ser mil o puede ser uno, y la
             // importación tendría que adivinar. Aquí no hay nada que adivinar.
-            'Cost Price' => (string)$item->cost_price,
-            'Unit Price' => (string)$item->unit_price,
+            //
+            // PERO SE LES QUITAN LOS CEROS DE COLA, Y NO ES COSMÉTICA
+            //
+            // `reorder_level` es `decimal(15,3)`, así que el motor devuelve **`5.000`** para un punto
+            // de reorden de cinco. Ese valor es indistinguible de «cinco mil escrito a la colombiana»,
+            // y la importación lo rechaza por ambiguo -- con razón. Sin recortar, el propio archivo
+            // que generamos fallaría al volver: Casaletto tiene 18 artículos con punto de reorden
+            // distinto de cero, así que no es un caso de laboratorio.
+            //
+            // Y de paso es lo que una persona quiere ver en Excel: «5», no «5.000».
+            'Cost Price' => $this->number($item->cost_price),
+            'Unit Price' => $this->number($item->unit_price),
 
             'Tax 1 Name'    => csv_neutralise_formula($taxes[0]['name'] ?? ''),
-            'Tax 1 Percent' => $taxes[0]['percent'] ?? '',
+            'Tax 1 Percent' => $this->number($taxes[0]['percent'] ?? ''),
             'Tax 2 Name'    => csv_neutralise_formula($taxes[1]['name'] ?? ''),
-            'Tax 2 Percent' => $taxes[1]['percent'] ?? '',
+            'Tax 2 Percent' => $this->number($taxes[1]['percent'] ?? ''),
 
-            'Reorder Level' => (string)$item->reorder_level,
+            'Reorder Level' => $this->number($item->reorder_level),
             'Description'   => csv_neutralise_formula((string)$item->description),
 
             // Nunca vacíos. La importación lee «vacío» como «no», así que un booleano en blanco
@@ -415,5 +425,31 @@ final class Item_export_lib
             . ' archivo solo lleva los dos primeros. Al reimportarlo sus impuestos no se tocan. Ids: '
             . implode(', ', $shown) . $tail
         );
+    }
+
+    /**
+     * Un número tal como debe viajar en el archivo: sin separador de miles, con punto decimal, y sin
+     * ceros de cola.
+     *
+     * Los ceros de cola no son adorno. `decimal(15,3)` devuelve `5.000` para un cinco, y ese valor es
+     * indistinguible de «cinco mil» escrito a la colombiana, así que la importación lo rechaza por
+     * ambiguo. Recortarlo es lo que hace que el archivo que generamos pueda volver a entrar.
+     *
+     * No se toca el valor: `5.000` y `5` son el mismo número. Lo que se quita es la ambigüedad.
+     */
+    private function number(mixed $value): string
+    {
+        $text = trim((string)$value);
+
+        if ($text === '' || !str_contains($text, '.')) {
+            return $text;
+        }
+
+        $text = rtrim(rtrim($text, '0'), '.');
+
+        // `0.000` se queda en cadena vacía tras recortar, y vacío significa «no cambiar»: un cero
+        // exportado como nada dejaría de poder poner un precio en cero. `-0` es el mismo cero con
+        // peor cara.
+        return $text === '' || $text === '-' || $text === '-0' ? '0' : $text;
     }
 }

@@ -262,6 +262,44 @@ final class ItemExportLibTest extends CIUnitTestCase
         $this->assertStringStartsWith('="', $this->filaDe($id)['Barcode']);
     }
 
+    /**
+     * EL CHOQUE ENTRE LOS DOS CARRILES, Y ES REAL.
+     *
+     * `reorder_level` es `decimal(15,3)`, así que el motor devuelve `5.000` para un punto de reorden
+     * de cinco. Ese valor es indistinguible de «cinco mil» escrito a la colombiana, y la importación
+     * lo rechaza por ambiguo -- con razón. Sin recortar los ceros de cola, **el propio archivo que
+     * generamos fallaría al volver**, y no en un caso raro: Casaletto tiene 18 artículos con punto de
+     * reorden distinto de cero.
+     */
+    public function testNumbersComeOutWithoutTrailingZerosSoTheyCanComeBack(): void
+    {
+        $id = $this->crearArticulo([
+            'name'          => 'Con punto de reorden',
+            'item_number'   => 'PRUEBA-REORDEN',
+            'reorder_level' => 5,
+            'unit_price'    => 1500,
+            'cost_price'    => 1000.5,
+        ]);
+
+        $fila = $this->filaDe($id);
+
+        $this->assertSame('5', $fila['Reorder Level'], 'Con «5.000» la importación rechazaría la fila.');
+        $this->assertSame('1500', $fila['Unit Price']);
+        $this->assertSame('1000.5', $fila['Cost Price'], 'Los decimales de verdad se conservan.');
+    }
+
+    public function testAZeroStaysAZeroAndDoesNotBecomeEmpty(): void
+    {
+        // Vacío significa «no cambiar». Un cero exportado como nada dejaría de poder poner un precio
+        // en cero -- que es justo lo que Paraíso tiene hoy en sus 1.184 artículos.
+        $id = $this->crearArticulo(['name' => 'Todo en cero', 'item_number' => 'PRUEBA-CERO']);
+
+        $fila = $this->filaDe($id);
+
+        $this->assertSame('0', $fila['Unit Price']);
+        $this->assertSame('0', $fila['Reorder Level']);
+    }
+
     // ========== Que el archivo no se rompa ==========
 
     public function testANameWithACommaAQuoteAndALineBreakComesBackTheSame(): void
