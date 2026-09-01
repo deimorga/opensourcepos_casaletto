@@ -58,6 +58,11 @@
             "**/Database/Migrations/**"
         ]
     },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\Support\\": "tests/_support/"
+        }
+    },
     "config": {
         "allow-plugins": {
             "phpstan/extension-installer": true

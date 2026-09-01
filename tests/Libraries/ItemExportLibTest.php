@@ -10,6 +10,7 @@ use App\Models\Item;
 use App\Models\Stock_location;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
+use Tests\Support\CuentaConsultas;
 use Config\OSPOS;
 
 /**
@@ -354,9 +355,13 @@ final class ItemExportLibTest extends CIUnitTestCase
     public function testANegativePriceIsNotNeutralised(): void
     {
         // En una columna numérica un `-5` es un menos cinco, no una fórmula. Neutralizarlo lo rompería.
+        //
+        // Sale «-5» y no «-5.00» porque a los números se les recortan los ceros de cola: un `5.000`
+        // de un `decimal(15,3)` es indistinguible de «cinco mil» a la colombiana, y la importación lo
+        // rechazaría por ambiguo. El signo se conserva, que es lo que esta prueba vigila.
         $id = $this->crearArticulo(['name' => 'Precio negativo', 'unit_price' => '-5.00']);
 
-        $this->assertSame('-5.00', $this->filaDe($id)['Unit Price']);
+        $this->assertSame('-5', $this->filaDe($id)['Unit Price']);
     }
 
     // ========== Los booleanos, que vacíos vuelven cambiados ==========
@@ -431,10 +436,11 @@ final class ItemExportLibTest extends CIUnitTestCase
         $fila = $this->filaDe($id);
 
         // La lectura en lote ordena por porcentaje y luego por nombre: 1 (Bolsa), 8 (Consumo), 19 (IVA).
+        // Los porcentajes salen sin ceros de cola, como el resto de los números.
         $this->assertSame('Bolsa', $fila['Tax 1 Name']);
-        $this->assertSame('1.000', $fila['Tax 1 Percent']);
+        $this->assertSame('1', $fila['Tax 1 Percent']);
         $this->assertSame('Consumo', $fila['Tax 2 Name']);
-        $this->assertSame('8.000', $fila['Tax 2 Percent']);
+        $this->assertSame('8', $fila['Tax 2 Percent']);
 
         // Y dos descargas seguidas tienen que dar exactamente lo mismo.
         $this->assertSame($fila, $this->filaDe($id));
@@ -466,9 +472,7 @@ final class ItemExportLibTest extends CIUnitTestCase
 
         $total = model(Item::class)->count_all_for_export();
 
-        $antes     = count($this->db->getQueries());
-        $this->export->toCsv();
-        $consultas = count($this->db->getQueries()) - $antes;
+        $consultas = CuentaConsultas::contar(fn () => $this->export->toCsv());
 
         $lotesLeidos   = intdiv($total, Item_export_lib::BATCH_SIZE) + 1;
         $lotesConFilas = (int) ceil($total / Item_export_lib::BATCH_SIZE);
@@ -489,17 +493,13 @@ final class ItemExportLibTest extends CIUnitTestCase
             $this->markTestSkipped('La base de pruebas ya trae más artículos de los que caben en un lote.');
         }
 
-        $antes     = count($this->db->getQueries());
-        $this->export->toCsv();
-        $conUno    = count($this->db->getQueries()) - $antes;
+        $conUno = CuentaConsultas::contar(fn () => $this->export->toCsv());
 
         for ($i = 0; $i < 40; $i++) {
             $this->crearArticulo(['name' => "Artículo añadido $i"]);
         }
 
-        $antes         = count($this->db->getQueries());
-        $this->export->toCsv();
-        $conCuarentaYUno = count($this->db->getQueries()) - $antes;
+        $conCuarentaYUno = CuentaConsultas::contar(fn () => $this->export->toCsv());
 
         $this->assertSame($conUno, $conCuarentaYUno, 'Cuarenta artículos más no pueden costar ni una consulta más.');
     }

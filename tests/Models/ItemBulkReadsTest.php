@@ -10,6 +10,7 @@ use App\Models\Item_quantity;
 use App\Models\Item_taxes;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
+use Tests\Support\CuentaConsultas;
 use Config\OSPOS;
 
 /**
@@ -196,10 +197,7 @@ final class ItemBulkReadsTest extends CIUnitTestCase
 
     public function testResolvingNothingCostsNoQuery(): void
     {
-        $antes = count($this->db->getQueries());
-        $this->item->resolve_item_numbers([]);
-
-        $this->assertSame($antes, count($this->db->getQueries()));
+        $this->assertSame(0, CuentaConsultas::contar(fn () => $this->item->resolve_item_numbers([])));
     }
 
     // ========== Y que sea UNA consulta, contada ==========
@@ -214,12 +212,10 @@ final class ItemBulkReadsTest extends CIUnitTestCase
             $ids[] = $id;
         }
 
-        $antes = count($this->db->getQueries());
-        $leido = $this->taxes->get_info_bulk($ids);
-        $consultas = count($this->db->getQueries()) - $antes;
+        $medido = CuentaConsultas::medir(fn () => $this->taxes->get_info_bulk($ids));
 
-        $this->assertSame(1, $consultas, 'Artículo por artículo serían 1.184 consultas con Paraíso.');
-        $this->assertCount(5, $leido);
+        $this->assertSame(1, $medido['consultas'], 'Artículo por artículo serían 1.184 consultas con Paraíso.');
+        $this->assertCount(5, $medido['resultado']);
     }
 
     public function testQuantitiesForManyItemsAreOneQuery(): void
@@ -232,34 +228,28 @@ final class ItemBulkReadsTest extends CIUnitTestCase
             $ids[] = $id;
         }
 
-        $antes = count($this->db->getQueries());
-        $leido = $this->quantities->get_quantities_bulk($ids);
-        $consultas = count($this->db->getQueries()) - $antes;
+        $medido = CuentaConsultas::medir(fn () => $this->quantities->get_quantities_bulk($ids));
 
-        $this->assertSame(1, $consultas, 'Por artículo Y por bodega serían 2.368 con Paraíso y dos bodegas.');
-        $this->assertSame('7.000', $leido[$ids[0]][1]);
+        $this->assertSame(1, $medido['consultas'], 'Por artículo Y por bodega serían 2.368 con Paraíso y dos bodegas.');
+        $this->assertSame('7.000', $medido['resultado'][$ids[0]][1]);
     }
 
     public function testAttributesForManyItemsAreOneQuery(): void
     {
         $ids = [$this->crearArticulo('Sin atributos', 'PRUEBA-ATR-1')];
 
-        $antes = count($this->db->getQueries());
-        $this->attributes->get_attribute_values_bulk($ids);
-        $consultas = count($this->db->getQueries()) - $antes;
-
-        $this->assertSame(1, $consultas);
+        $this->assertSame(1, CuentaConsultas::contar(fn () => $this->attributes->get_attribute_values_bulk($ids)));
     }
 
     public function testTheBulkReadsCostNothingWithNoItems(): void
     {
-        $antes = count($this->db->getQueries());
+        $consultas = CuentaConsultas::contar(function (): void {
+            $this->assertSame([], $this->taxes->get_info_bulk([]));
+            $this->assertSame([], $this->quantities->get_quantities_bulk([]));
+            $this->assertSame([], $this->attributes->get_attribute_values_bulk([]));
+        });
 
-        $this->assertSame([], $this->taxes->get_info_bulk([]));
-        $this->assertSame([], $this->quantities->get_quantities_bulk([]));
-        $this->assertSame([], $this->attributes->get_attribute_values_bulk([]));
-
-        $this->assertSame($antes, count($this->db->getQueries()));
+        $this->assertSame(0, $consultas);
     }
 
     /**
