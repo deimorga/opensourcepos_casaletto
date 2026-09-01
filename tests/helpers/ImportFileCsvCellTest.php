@@ -77,6 +77,46 @@ final class ImportFileCsvCellTest extends CIUnitTestCase
         $this->assertSame('Id', $fijas[0]);
     }
 
+    // ========== Que Excel llegue siquiera a ver columnas ==========
+
+    /**
+     * LO QUE FALTABA, Y SIN ELLO NADA DE LO DEMÁS IMPORTA.
+     *
+     * Excel no lee el separador del archivo: usa el de la configuración regional del aparato, que en
+     * español es el punto y coma. Al abrir un CSV separado por comas mete la línea entera en la
+     * columna A. Visto en el iPad del dueño el 2026-09-01 con el catálogo real de Casaletto: toda la
+     * protección de los códigos EAN sobra si Excel ni siquiera interpreta las celdas.
+     */
+    public function testTheTemplateTellsExcelWhatTheSeparatorIs(): void
+    {
+        $plantilla = generate_import_items_csv([], []);
+        $lineas    = explode("\n", substr($plantilla, 3));    // Sin el BOM.
+
+        $this->assertSame('sep=,', trim($lineas[0]));
+        $this->assertSame(self::CABECERA_HISTORICA, trim($lineas[1]), 'Y la cabecera sigue siendo la de siempre, detrás.');
+    }
+
+    /**
+     * A esta comprobación le llega la línea cruda o el primer campo ya interpretado por `fgetcsv()`.
+     * Y ahí está la trampa que casi se me pasa: leyendo con la coma como delimitador, `sep=,` se
+     * parte en dos campos y el primero queda en «sep=» a secas. Exigir un carácter detrás hacía que
+     * la directiva no se reconociera justo en el caso más común, el nuestro.
+     */
+    public function testTheDirectiveIsRecognisedRawAndAlreadyParsed(): void
+    {
+        $this->assertTrue(csv_is_separator_hint('sep=,'), 'La línea cruda.');
+        $this->assertTrue(csv_is_separator_hint('sep='), 'Y el primer campo tras partir por la coma.');
+        $this->assertTrue(csv_is_separator_hint('sep=;'));
+        $this->assertTrue(csv_is_separator_hint('SEP=,'));
+    }
+
+    public function testARealRowIsNeverMistakenForTheDirective(): void
+    {
+        foreach (['1,C10210,AJO', 'Id,Barcode', 'separador', '', 'sep=algo largo'] as $linea) {
+            $this->assertFalse(csv_is_separator_hint($linea), $linea);
+        }
+    }
+
     // ========== El código sobrevive a Excel ==========
 
     public function testAThirteenDigitCodeIsWrappedSoExcelKeepsIt(): void

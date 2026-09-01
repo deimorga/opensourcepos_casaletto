@@ -69,6 +69,11 @@ function import_items_csv_columns(array $stock_locations, array $attributes): ar
 function generate_import_items_csv(array $stock_locations, array $attributes): string
 {
     $csv_headers = pack('CCC', 0xef, 0xbb, 0xbf);    // Encode the Byte-Order Mark (BOM) so that UTF-8 File headers display properly in Microsoft Excel
+
+    // La plantilla vacía sufre lo mismo que el catálogo: sin esta directiva, Excel en configuración
+    // regional española no separa por comas y el cliente escribe sus artículos en una sola columna.
+    // Ver `CSV_SEPARATOR_HINT`.
+    $csv_headers .= CSV_SEPARATOR_HINT . "\n";
     $csv_headers .= generate_csv_header_line($stock_locations, $attributes);
 
     return $csv_headers;
@@ -125,6 +130,46 @@ function generate_attribute_headers(array $attribute_names): string
     }
 
     return $attribute_headers;
+}
+
+/**
+ * La línea que le dice a Excel cuál es el separador.
+ *
+ * POR QUÉ HACE FALTA, Y POR QUÉ SIN ESTO LA FUNCIÓN NO SIRVE
+ *
+ * Excel no lee el separador del archivo: usa el de la configuración regional del aparato. En español
+ * ese separador es el **punto y coma**, así que al abrir un CSV separado por comas **no lo divide en
+ * columnas**: mete la línea entera en la columna A y deja al cliente delante de un muro de texto.
+ *
+ * Visto en producción el 2026-09-01, en el iPad del dueño, con el catálogo real de Casaletto. Toda la
+ * protección de los códigos EAN es inútil si Excel ni siquiera llega a interpretar las celdas.
+ *
+ * `sep=,` en la primera línea es una directiva que Excel y LibreOffice entienden y que **no depende
+ * de la configuración regional de nadie**. Se eligió frente a cambiar el separador a punto y coma
+ * porque aquello arreglaría el Excel en español y rompería el que esté en inglés -- y no sabemos qué
+ * tiene cada cliente. Esto funciona en los dos.
+ *
+ * El precio: Google Sheets no la interpreta y la enseña como una primera fila suelta. Es visible y
+ * molesta, no silenciosa, que es lo que la hace aceptable.
+ */
+const CSV_SEPARATOR_HINT = 'sep=,';
+
+/**
+ * ¿Esta línea es la directiva del separador y no datos?
+ *
+ * Se reconoce cualquier separador, no solo la coma: el archivo puede venir de otra herramienta que
+ * escriba `sep=;`. Lo que importa es no confundirla nunca con la cabecera.
+ *
+ * EL SEPARADOR OPCIONAL AL FINAL NO SOBRA
+ *
+ * A esta función le puede llegar la línea cruda (`sep=,`) o el **primer campo ya interpretado** por
+ * `fgetcsv()`. Y ahí está la trampa: leyendo con la coma como delimitador, `sep=,` se parte en dos
+ * campos y el primero queda en `sep=`, a secas. Exigir un carácter detrás hacía que la directiva no
+ * se reconociera justo en el caso más común -- el nuestro.
+ */
+function csv_is_separator_hint(string $line): bool
+{
+    return preg_match('/^sep=.?$/i', trim($line)) === 1;
 }
 
 /**
@@ -249,6 +294,14 @@ function get_csv_file(string $file_name): array
 
         $headers = fgetcsv($csv_file);
 
+        // La directiva `sep=,` que escribe la exportación del catálogo. Esta pantalla es la vieja,
+        // pero nada impide que alguien suba por aquí el archivo que se bajó por la nueva, y entonces
+        // la cabecera sería «sep=» y no encajaría nada. Saltarla es aditivo: un archivo que no la
+        // traiga se comporta exactamente igual que antes.
+        if ($headers !== false && $headers !== [null] && csv_is_separator_hint((string)($headers[0] ?? ''))) {
+            $headers = fgetcsv($csv_file);
+        }
+
         while (($row = fgetcsv($csv_file)) !== false) {
             if ($row !== [null]) {
                 $csv_rows[] = array_combine($headers, $row);
@@ -302,6 +355,17 @@ function read_items_csv_file(string $file_name): array
     // 8.4, que es una de las versiones donde corre la suite.
     $headers = fgetcsv($handle, 0, ',', '"', '');
 
+    // La directiva `sep=,` que la exportación pone para que Excel separe en columnas. Es la primera
+    // línea del archivo que nosotros mismos generamos, así que hay que saltarla o la cabecera sería
+    // «sep=» y no encajaría ni una columna. Se descuenta también del número de línea, para que el
+    // cliente y nosotros contemos igual.
+    $hint_lines = 0;
+
+    if ($headers !== false && $headers !== [null] && csv_is_separator_hint((string)($headers[0] ?? ''))) {
+        $hint_lines = 1;
+        $headers    = fgetcsv($handle, 0, ',', '"', '');
+    }
+
     if ($headers === false || $headers === [null]) {
         fclose($handle);
 
@@ -320,7 +384,7 @@ function read_items_csv_file(string $file_name): array
     // corridos, y el mensaje «revise la fila 340» manda al cliente a la fila equivocada.
     //
     // Así que cada fila avanza tantas líneas como saltos traiga dentro más la suya.
-    $line = 1 + csv_physical_lines($headers);
+    $line = 1 + $hint_lines + csv_physical_lines($headers);
 
     while (($cells = fgetcsv($handle, 0, ',', '"', '')) !== false) {
         if ($cells === [null]) {

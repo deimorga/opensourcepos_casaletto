@@ -49,9 +49,18 @@ class ImportFileHelperUnitOfMeasureTest extends CIUnitTestCase
         // Strip the BOM, then keep only the fixed block: the stock location and attribute columns
         // are generated per installation and are not part of this contract.
         $csv = generate_import_items_csv([], []);
-        $csv = substr($csv, 3);
+        $csv = substr($csv, 3);    // El BOM.
 
-        return explode(',', $csv);
+        // Y la directiva `sep=,` que el archivo lleva desde el 2026-09-01 para que Excel separe en
+        // columnas. No es parte del contrato que esta prueba protege --que es el ORDEN de las
+        // columnas-- así que se salta para llegar a la línea de encabezados.
+        $lines = explode("\n", $csv);
+
+        if ($lines !== [] && csv_is_separator_hint($lines[0])) {
+            array_shift($lines);
+        }
+
+        return explode(',', $lines[0]);
     }
 
     public function testTheLegacyColumnsKeepTheirExactOrder(): void

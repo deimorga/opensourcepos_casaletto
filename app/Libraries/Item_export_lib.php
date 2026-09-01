@@ -112,6 +112,12 @@ final class Item_export_lib
         $attribute_columns = $this->attribute_columns($attributes);
 
         $csv = pack('CCC', 0xef, 0xbb, 0xbf)    // El BOM, como la plantilla, o Excel abre las tildes rotas.
+            // Y la directiva del separador. Sin ella, Excel en configuración regional española mete
+            // la línea entera en la columna A y el cliente se queda delante de un muro de texto: toda
+            // la protección de los códigos sobra si no llega a interpretar las celdas. Ver
+            // `CSV_SEPARATOR_HINT` en el helper.
+            . CSV_SEPARATOR_HINT
+            . self::LINE_END
             . generate_csv_header_line($stock_locations, $attributes)
             . self::LINE_END;
 

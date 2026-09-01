@@ -154,6 +154,36 @@ final class ImportFileCsvReaderTest extends CIUnitTestCase
         $this->assertSame('Limon', $leido['rows'][1]['cells']['Nombre']);
     }
 
+    public function testTheSeparatorDirectiveIsSkippedAndNotReadAsTheHeader(): void
+    {
+        $leido = read_items_csv_file($this->archivo("sep=,\nId,Barcode\n1,C10210\n"));
+
+        $this->assertSame(['Id', 'Barcode'], $leido['headers'], 'Sin saltarla, la cabecera sería «sep=».');
+        $this->assertCount(1, $leido['rows']);
+        $this->assertSame('C10210', $leido['rows'][0]['cells']['Barcode']);
+    }
+
+    /**
+     * Y el número de línea sigue siendo el del archivo que el cliente tiene abierto: la directiva
+     * ocupa la primera, así que los datos empiezan en la tercera.
+     */
+    public function testTheDirectiveCountsAsALineForTheRowNumbers(): void
+    {
+        $leido = read_items_csv_file($this->archivo("sep=,\nId,Barcode\n1,A\n2,B\n"));
+
+        $this->assertSame(3, $leido['rows'][0]['line']);
+        $this->assertSame(4, $leido['rows'][1]['line']);
+    }
+
+    public function testAFileWithoutTheDirectiveStillWorks(): void
+    {
+        // El archivo puede no haber salido de nosotros.
+        $leido = read_items_csv_file($this->archivo("Id,Barcode\n1,C10210\n"));
+
+        $this->assertSame(['Id', 'Barcode'], $leido['headers']);
+        $this->assertSame(2, $leido['rows'][0]['line']);
+    }
+
     public function testAFileWithOnlyHeadersHasNoRows(): void
     {
         $leido = read_items_csv_file($this->archivo("Id,Barcode\n"));
