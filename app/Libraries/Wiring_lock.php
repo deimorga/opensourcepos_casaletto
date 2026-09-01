@@ -86,7 +86,22 @@ final class Wiring_lock
      */
     public static function matches_wiring(string $key, string $current): bool
     {
-        return ! self::is_locked($key) || $current === self::WIRED_VALUES[$key];
+        if (! self::is_locked($key)) {
+            return true;
+        }
+
+        if ($current === self::WIRED_VALUES[$key]) {
+            return true;
+        }
+
+        // `barcode_content = 'number'` es el valor histórico de esta opción, y `Barcode_lib` lo lee
+        // EXACTAMENTE igual que `item_number`: cualquier cosa que no sea `id` significa número de
+        // artículo. Sin esta equivalencia, un negocio que llevara el valor viejo mostraría una
+        // alarma roja permanente sobre un ajuste que en realidad es el correcto -- y los radios
+        // deshabilitados no le dejarían ninguna forma de quitarla.
+        return $key === 'barcode_content'
+            && $current === 'number'
+            && self::WIRED_VALUES[$key] === 'item_number';
     }
 
     /**

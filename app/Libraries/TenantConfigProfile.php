@@ -78,7 +78,17 @@ final class TenantConfigProfile
      * - `language_code` en otra variante parte el mantenimiento en dos. El 2026-08-30 el aviso de
      *   peso salió en inglés porque la traducción se escribió solo en `es-ES`.
      */
-    public const WIRING = [
+    /**
+     * Las tres claves de cableado, tomadas de `Wiring_lock` y NO copiadas.
+     *
+     * Eran dos listas independientes con los mismos tres pares. Cambiar una sola dejaba al
+     * aprovisionador escribiendo un valor que la pantalla de configuración del propio negocio
+     * marcaría como inválido, y nada lo habría avisado.
+     */
+    public const WIRING = Wiring_lock::WIRED_VALUES;
+
+    /** @deprecated Se conserva el orden histórico solo como referencia de lectura. */
+    private const WIRING_HISTORICAL_ORDER = [
         'quantity_decimals' => '3',
         'barcode_content'   => 'item_number',
         'language_code'     => 'es-MX',

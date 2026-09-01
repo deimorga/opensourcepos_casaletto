@@ -224,4 +224,26 @@ final class WiringLockTest extends CIUnitTestCase
     {
         $this->assertTrue(Wiring_lock::matches_wiring('currency_decimals', 'anything'));
     }
+
+    /**
+     * `number` es el valor histórico de esta opción y `Barcode_lib` lo lee exactamente igual que
+     * `item_number`: cualquier cosa que no sea `id` significa número de artículo. Sin esta
+     * equivalencia, un negocio con el valor viejo arrastraría una alarma roja permanente sobre un
+     * ajuste que ya es el correcto -- y con los radios deshabilitados no tendría forma de quitarla.
+     */
+    public function testTheLegacyBarcodeValueCountsAsTheRequiredOne(): void
+    {
+        $this->assertTrue(Wiring_lock::matches_wiring('barcode_content', 'number'));
+    }
+
+    /**
+     * La equivalencia es de una sola clave y un solo valor. Que `number` pase en `barcode_content`
+     * no puede abrirle la puerta a nada más.
+     */
+    public function testTheLegacyValueDoesNotLeakIntoTheOtherLockedKeys(): void
+    {
+        $this->assertFalse(Wiring_lock::matches_wiring('language_code', 'number'));
+        $this->assertFalse(Wiring_lock::matches_wiring('quantity_decimals', 'number'));
+        $this->assertFalse(Wiring_lock::matches_wiring('barcode_content', 'id'));
+    }
 }
