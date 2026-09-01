@@ -401,6 +401,24 @@ D3 exige que Casaletto siga apareciendo en el listado, así que la respuesta no 
 - **Los tenants adoptados no se eliminan** desde la consola.
 - Borrar el esquema exige una **confirmación aparte** y deja constancia en el registro.
 
+**Estado a 2026-08-31: escrito y con pruebas locales, sin desplegar ni certificar en staging.**
+
+| Dónde | Qué |
+|---|---|
+| `TenantProvisioner::isAdopted()` | Un tenant adoptado es el que tiene `db_user` vacío, que es justo lo que deja `adopt()` |
+| `TenantProvisioner::delete()` | Lanza `RuntimeException` para un adoptado **antes de abrir la conexión de provisión** |
+| `PlatformAdmin::confirmDelete()` | Carga la fila; 404 si el slug no existe; pasa a la vista si es adoptado |
+| `PlatformAdmin::delete()` | `hash_equals()` contra el slug; el `drop_schema` exige además el `db_name`; cualquier fallo rechaza la operación **entera** |
+| `PlatformAdmin` | `log_message('critical', ...)` en cada baja, cada borrado de esquema y cada rechazo, con quién, qué y cuándo, **antes** de la llamada destructiva |
+| `platform/admin/index.php` | Los adoptados no llevan enlace de eliminar, y sí el motivo |
+| `Language/en` y `Language/es-MX` | Las cadenas nuevas, en los dos idiomas (§9.9) |
+| `tests/Libraries/TenantProvisionerDeleteTest.php` | El rechazo ocurre sin abrir la conexión; el control con credenciales inservibles demuestra que sí se abriría para un tenant normal |
+| `tests/Controllers/PlatformAdminDeleteTest.php` | Sin slug, con slug mal escrito, adoptado, esquema sin nombrar y anónimo: no se borra nada |
+
+La garantía se puso en la librería **además** de en el controlador porque `delete()` es la única
+puerta al `DROP DATABASE`: un comando o una segunda pantalla tendrían que repetir cada uno una
+comprobación que viviera solo en el controlador.
+
 ### 9.11 Son dos mundos de interfaz, y la Entrega 4 los cruza
 
 La consola de plataforma es **Bootstrap 5** (`bootswatch5/flatly`), autónoma, sin la cáscara de OSPOS.
