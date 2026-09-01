@@ -2,6 +2,8 @@
 
 namespace Config;
 
+use App\Filters\PlatformHost;
+use App\Filters\TenantResolver;
 use CodeIgniter\Config\Filters as BaseFilters;
 use CodeIgniter\Filters\Cors;
 use CodeIgniter\Filters\CSRF;
@@ -12,7 +14,6 @@ use CodeIgniter\Filters\InvalidChars;
 use CodeIgniter\Filters\PageCache;
 use CodeIgniter\Filters\PerformanceMetrics;
 use CodeIgniter\Filters\SecureHeaders;
-use App\Filters\TenantResolver;
 
 class Filters extends BaseFilters
 {
@@ -26,16 +27,17 @@ class Filters extends BaseFilters
      * or [filter_name => [classname1, classname2, ...]]
      */
     public array $aliases = [
-        'csrf'          => CSRF::class,
-        'toolbar'       => DebugToolbar::class,
-        'honeypot'      => Honeypot::class,
-        'invalidchars'  => InvalidChars::class,
-        'secureheaders' => SecureHeaders::class,
-        'cors'          => Cors::class,
-        'forcehttps'    => ForceHTTPS::class,
-        'pagecache'     => PageCache::class,
-        'performance'   => PerformanceMetrics::class,
+        'csrf'           => CSRF::class,
+        'toolbar'        => DebugToolbar::class,
+        'honeypot'       => Honeypot::class,
+        'invalidchars'   => InvalidChars::class,
+        'secureheaders'  => SecureHeaders::class,
+        'cors'           => Cors::class,
+        'forcehttps'     => ForceHTTPS::class,
+        'pagecache'      => PageCache::class,
+        'performance'    => PerformanceMetrics::class,
         'tenantresolver' => TenantResolver::class,
+        'platformhost'   => PlatformHost::class,
     ];
 
     /**
@@ -135,7 +137,17 @@ class Filters extends BaseFilters
      *
      * @var array<string, array<string, list<string>>>
      */
-    public array $filters = [];
+    public array $filters = [
+        // The platform console answers on ONE address. Registered here, per URI, and NOT as
+        // ['hostname' => ...] on the routes themselves: RouteCollection snapshots HTTP_HOST when it
+        // is built, and under PHPUnit that is a CLIRequest with no host, so host-restricted routes
+        // would vanish from every feature test in this suite.
+        //
+        // Runs after 'tenantresolver' above -- CodeIgniter merges $globals['before'] ahead of these
+        // URI-matched entries -- which is what lets the filter tell a resolved business apart from
+        // any other host. See app/Filters/PlatformHost.php.
+        'platformhost' => ['before' => ['platform', 'platform/*']],
+    ];
 
     /**
      * Constructor to conditionally disable CSRF filter in testing environment
@@ -149,7 +161,7 @@ class Filters extends BaseFilters
         // Remove CSRF filter from globals in testing environment
         if ($isTesting) {
             // Remove the 'csrf' key from $globals['before'] while preserving array structure
-            $this->globals['before'] = array_filter($this->globals['before'], static fn($key) => $key !== 'csrf', ARRAY_FILTER_USE_KEY);
+            $this->globals['before'] = array_filter($this->globals['before'], static fn ($key) => $key !== 'csrf', ARRAY_FILTER_USE_KEY);
         }
     }
 }
