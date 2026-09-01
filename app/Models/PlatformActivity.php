@@ -1,0 +1,157 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Models;
+
+use CodeIgniter\Model;
+
+/**
+ * The console's record of what it changed -- level 1 of section 7 of the technical design.
+ *
+ * D6 fixes both the scope and its cost: MODIFICATIONS are recorded, accesses are not. The system
+ * will therefore never answer "who entered and when" -- `platform_accounts.last_login_at` covers
+ * the only part of that anybody asked for -- and it will always answer "who changed what". That is
+ * a decision, not an omission, and the list of actions below is where it is written down.
+ *
+ * WHAT IS DELIBERATELY ABSENT
+ *
+ * A successful login. A failed attempt. Opening a screen. What IS here is `account.locked`, because
+ * the counter tripping is a real change of state that outlives the request and leaves somebody shut
+ * out until another superadministrator acts.
+ *
+ * WHY THE ACTOR'S EMAIL IS COPIED ONTO EVERY ROW
+ *
+ * The first use of this log is deleting the orphan account. With only an id, the row saying who
+ * deleted it would read "account #2 deleted account #3" and would stop being legible the day
+ * account #2 is itself rotated out. There is no foreign key for the same reason: a log a DELETE
+ * elsewhere can break is not a log.
+ */
+class PlatformActivity extends Model
+{
+    public const TENANT_CREATED           = 'tenant.created';
+    public const TENANT_SUSPENDED         = 'tenant.suspended';
+    public const TENANT_ACTIVATED         = 'tenant.activated';
+    public const TENANT_DELETED           = 'tenant.deleted';
+    public const TENANT_SCHEMA_DROPPED    = 'tenant.schema_dropped';
+    public const ACCOUNT_CREATED          = 'account.created';
+    public const ACCOUNT_DELETED          = 'account.deleted';
+    public const ACCOUNT_PASSWORD_CHANGED = 'account.password_changed';
+    public const ACCOUNT_LOCKED           = 'account.locked';
+    public const ACCOUNT_UNLOCKED         = 'account.unlocked';
+    public const ACCOUNT_TOTP_ENABLED     = 'account.totp_enabled';
+    public const ACCOUNT_TOTP_DISABLED    = 'account.totp_disabled';
+
+    /**
+     * Every action this module writes, in the order the design lists them. Kept as a list so the
+     * activity screen can offer a filter without inventing its own copy of the vocabulary, and so a
+     * typo in a controller shows up as a value that is not in here rather than as a row nobody ever
+     * finds again.
+     */
+    public const ACTIONS = [
+        self::TENANT_CREATED,
+        self::TENANT_SUSPENDED,
+        self::TENANT_ACTIVATED,
+        self::TENANT_DELETED,
+        self::TENANT_SCHEMA_DROPPED,
+        self::ACCOUNT_CREATED,
+        self::ACCOUNT_DELETED,
+        self::ACCOUNT_PASSWORD_CHANGED,
+        self::ACCOUNT_LOCKED,
+        self::ACCOUNT_UNLOCKED,
+        self::ACCOUNT_TOTP_ENABLED,
+        self::ACCOUNT_TOTP_DISABLED,
+    ];
+
+    public const TARGET_TENANT  = 'tenant';
+    public const TARGET_ACCOUNT = 'account';
+
+    protected $DBGroup       = 'platform';
+    protected $table         = 'platform_activity_log';
+    protected $primaryKey    = 'id';
+    protected $returnType    = 'object';
+    protected $allowedFields = [
+        'account_id',
+        'account_email',
+        'action',
+        'target_type',
+        'target_id',
+        'detail',
+        'ip_address',
+        'created_at',
+    ];
+
+    // The table has created_at and no updated_at: a log entry is written once and never edited.
+    // CI4's automatic timestamps would insist on both, so the one there is gets written by hand.
+    protected $useTimestamps = false;
+
+    /**
+     * Writes one entry. Everything but the action is optional, because there is no version of this
+     * that should ever throw: a log that can fail a request it was only observing would be a log
+     * worth removing.
+     *
+     * The actor is resolved from the session when it is not passed, so no caller has to remember
+     * to supply it -- forgetting would produce an anonymous row that looks perfectly legitimate.
+     * Under `php spark` there is no session and the row is genuinely anonymous, which is honest.
+     *
+     * @param string      $action     one of the constants above
+     * @param string|null $targetType self::TARGET_TENANT or self::TARGET_ACCOUNT
+     * @param string|null $targetId   a slug for a business, the numeric id for an account
+     * @param array       $detail     stored as JSON. NEVER put a password, a TOTP secret or a
+     *                                recovery code in here: this table is read by people.
+     * @param object|null $actor      the account doing it, when it is not the one in session
+     */
+    public function record(
+        string $action,
+        ?string $targetType = null,
+        ?string $targetId = null,
+        array $detail = [],
+        ?object $actor = null,
+    ): int {
+        $actor ??= model(PlatformAccount::class)->getLoggedInAccount();
+
+        $this->insert([
+            'account_id'    => $actor === null ? null : (int) $actor->id,
+            'account_email' => $actor === null ? null : (string) $actor->email,
+            'action'        => $action,
+            'target_type'   => $targetType,
+            'target_id'     => $targetId,
+            'detail'        => $detail === [] ? null : json_encode($detail, JSON_UNESCAPED_UNICODE),
+            'ip_address'    => service('request')->getIPAddress(),
+            'created_at'    => date('Y-m-d H:i:s'),
+        ]);
+
+        return (int) $this->getInsertID();
+    }
+
+    /**
+     * The newest first, which is what the screen shows and what the created_at index exists for.
+     *
+     * Ordered by id as well, and not only by created_at: the column has one-second resolution, so
+     * two entries written by the same request would otherwise come back in an order the database
+     * was free to choose.
+     *
+     * @return list<object>
+     */
+    public function recent(int $limit = 200): array
+    {
+        return $this->orderBy('created_at', 'DESC')
+            ->orderBy('id', 'DESC')
+            ->findAll(max(1, $limit));
+    }
+
+    /**
+     * Everything that ever happened to one business or one account -- the query the composite index
+     * over (target_type, target_id) exists for.
+     *
+     * @return list<object>
+     */
+    public function forTarget(string $targetType, string $targetId, int $limit = 200): array
+    {
+        return $this->where('target_type', $targetType)
+            ->where('target_id', $targetId)
+            ->orderBy('created_at', 'DESC')
+            ->orderBy('id', 'DESC')
+            ->findAll(max(1, $limit));
+    }
+}
