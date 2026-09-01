@@ -29,6 +29,67 @@ $routes->post('platform/admin/(:segment)/activate', 'PlatformAdmin::activate/$1'
 $routes->get('platform/admin/(:segment)/delete', 'PlatformAdmin::confirmDelete/$1');
 $routes->post('platform/admin/(:segment)/delete', 'PlatformAdmin::delete/$1');
 
+// ---------------------------------------------------------------------------------------------
+// Entrega 2 -- "Cerrar la llave suelta". Superadministrators, the second factor, and the record
+// of what the console changed. See docs/Funcional/gestion-de-plataforma-y-negocios.md section 6
+// and docs/Tecnico/gestion-de-plataforma-y-negocios.md section 8.
+//
+// EVERY route of the Entrega is declared here AT ONCE, before either half of it is built. Two
+// agents work these screens in parallel and this file is the one they would both have to edit;
+// declaring the routes up front is what keeps that from being a merge conflict on the one file
+// whose conflicts are silent -- a lost line here is a 404 nobody notices until the screen it
+// belonged to is opened.
+//
+// Nothing here is host-restricted, and that is not an oversight: RouteCollection snapshots
+// HTTP_HOST when it is constructed, so a host-restricted route would simply not exist under
+// PHPUnit. The console is confined to its own address by App\Filters\PlatformHost instead.
+//
+// The static paths come before the (:num) patterns. They do not collide today -- "password" and
+// "totp" are not numbers -- but the order costs nothing and survives whoever adds the next one.
+// ---------------------------------------------------------------------------------------------
+
+// The second factor at login (D11). Not under platform/accounts: at this point nobody is logged
+// in, the account is only PENDING, and this is the screen that finishes what platform/login
+// started. A recovery code is typed into the same field as a six-digit code -- one screen,
+// because whoever is on it has already lost their usual way in and does not need a second
+// decision to make.
+$routes->get('platform/login/totp', 'PlatformLogin::totp');
+$routes->post('platform/login/totp', 'PlatformLogin::totp');
+
+// Superadministrators (section 6.1). The listing answers "which of these accounts should not
+// exist?", so it is not a generic CRUD and there is no edit screen: an account is created,
+// unlocked, or removed.
+$routes->get('platform/accounts', 'PlatformAccounts::index');
+$routes->get('platform/accounts/new', 'PlatformAccounts::newAccount');
+$routes->post('platform/accounts/create', 'PlatformAccounts::create');
+
+// Changing your OWN password. There is deliberately no route for changing somebody else's: a
+// superadministrator who cannot get in is unlocked or replaced, never quietly re-keyed by a peer.
+$routes->get('platform/accounts/password', 'PlatformAccounts::password');
+$routes->post('platform/accounts/password', 'PlatformAccounts::changePassword');
+
+// Enrolling, confirming and removing the second factor, always for the account in session.
+// Enrolment is a POST because it mints a secret -- a GET that changes state would be armed by
+// any prefetch. The confirmation is separate and demands a working code, so nothing is ever left
+// switched on that has not been proven to work.
+$routes->get('platform/accounts/totp', 'PlatformTotp::index');
+$routes->post('platform/accounts/totp/enroll', 'PlatformTotp::enroll');
+$routes->post('platform/accounts/totp/confirm', 'PlatformTotp::confirm');
+$routes->post('platform/accounts/totp/disable', 'PlatformTotp::disable');
+$routes->post('platform/accounts/totp/recovery-codes', 'PlatformTotp::regenerateRecoveryCodes');
+
+// Deleting another superadministrator: GET confirms, POST acts, and the POST demands the email
+// typed out. Same shape as the business delete screen above, for the same reason -- a checkbox is
+// something you tick on the wrong row, a name is something you have to read first.
+$routes->get('platform/accounts/(:num)/delete', 'PlatformAccounts::confirmDelete/$1');
+$routes->post('platform/accounts/(:num)/delete', 'PlatformAccounts::delete/$1');
+
+// Lifting the brake of D8 on somebody else. POST only: it changes state.
+$routes->post('platform/accounts/(:num)/unlock', 'PlatformAccounts::unlock/$1');
+
+// The activity log (section 6.5). Read-only, and there is no route that deletes from it.
+$routes->get('platform/activity', 'PlatformActivityLog::index');
+
 $routes->add('no_access/index/(:segment)', 'No_access::index/$1');
 $routes->add('no_access/index/(:segment)/(:segment)', 'No_access::index/$1/$2');
 
