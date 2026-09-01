@@ -3,7 +3,10 @@
 namespace App\Controllers;
 
 use App\Libraries\MY_Migration;
+use App\Libraries\Platform_business_entry;
+use App\Libraries\PlatformTotp;
 use App\Models\Employee;
+use App\Models\PlatformAccount;
 use CodeIgniter\HTTP\RedirectResponse;
 use CodeIgniter\HTTP\ResponseInterface;
 use CodeIgniter\Model;
@@ -72,6 +75,20 @@ class Login extends BaseController
             ];
 
             if (!$this->validate($rules, $messages)) {
+                // LA CREDENCIAL DE PLATAFORMA SE INTENTA AQUÍ, Y NO ANTES.
+                //
+                // El login del negocio ya corrió y ya dijo que no. Eso es deliberado y es lo que
+                // hace que esta entrega no pueda dejar fuera a nadie de Casaletto: la puerta de sus
+                // empleados es exactamente la de ayer, corre primero, y esto solo ocurre cuando
+                // aquella falló. Un fallo aquí niega una entrada nuestra, nunca la de un empleado.
+                //
+                // Ver App\Libraries\Platform_business_entry.
+                $entrada = $this->intentarCredencialDePlataforma($data);
+
+                if ($entrada !== null) {
+                    return $entrada;
+                }
+
                 $data['has_errors'] = !empty($validation->getErrors());
 
                 return view('login', $data);
@@ -79,6 +96,126 @@ class Login extends BaseController
         }
 
         return redirect()->to('home');
+    }
+
+    /**
+     * ¿Lo que se acaba de teclear es una credencial de plataforma?
+     *
+     * Devuelve `null` cuando no lo es --o cuando esto no es el sitio de un negocio-- para que la
+     * pantalla siga diciendo lo de siempre: «usuario o contraseña incorrectos», sin revelar que
+     * existe otro tipo de credencial ni cuál de las dos falló.
+     *
+     * Los cuatro desenlaces que sí se atienden:
+     *
+     * - **Falta el segundo factor**: a la pantalla del código. Es el camino normal de una cuenta
+     *   nuestra, porque entrar a un negocio EXIGE tener el segundo factor puesto.
+     * - **Cuenta sin segundo factor**: se niega y se le dice que lo active. Si bastara con no
+     *   activarlo, el candado se saltaría no poniéndoselo.
+     * - **Frenada**: tres intentos fallidos frenan dos horas, y el freno es el mismo de la consola
+     *   porque vive en el modelo. Se dice, no se disimula: quien está frenado necesita saberlo.
+     * - **Credencial que no es nuestra**: null, y sigue el camino de siempre.
+     *
+     * @param array<string, mixed> $data lo que espera la vista del login.
+     * @return RedirectResponse|string|null
+     */
+    private function intentarCredencialDePlataforma(array &$data): string|RedirectResponse|null
+    {
+        $entrada   = Platform_business_entry::create();
+        $resultado = $entrada->attempt(
+            (string)$this->request->getPost('username'),
+            (string)$this->request->getPost('password'),
+        );
+
+        if ($resultado === null) {
+            return null;
+        }
+
+        if (Platform_business_entry::needsSecondFactor($resultado)) {
+            return redirect()->to('login/totp');
+        }
+
+        if (Platform_business_entry::isSuccess($resultado)) {
+            $data['platform_error'] = $entrada->refuseWithoutSecondFactor();
+            $data['has_errors']     = true;
+
+            return view('login', $data);
+        }
+
+        if (Platform_business_entry::isLocked($resultado)) {
+            $data['platform_error'] = lang('Login.platform_account_locked');
+            $data['has_errors']     = true;
+
+            return view('login', $data);
+        }
+
+        return null;
+    }
+
+    /**
+     * La pantalla del segundo factor, del lado del punto de venta.
+     *
+     * Solo existe mientras haya una entrada a medias: sin la contraseña correcta dada antes, no hay
+     * cuenta pendiente y esto redirige a la entrada. Así la pantalla no es alcanzable por su
+     * dirección ni sirve para averiguar si un correo existe.
+     *
+     * Acepta el código de la aplicación **o** uno de rescate, igual que la consola: quien perdió el
+     * teléfono en la caja de un cliente necesita la misma salida que en su propia consola.
+     *
+     * @return RedirectResponse|string
+     */
+    public function totp(): string|RedirectResponse
+    {
+        $entrada   = Platform_business_entry::create();
+        $pendiente = $entrada->pendingAccountId();
+
+        if ($pendiente === null) {
+            return redirect()->to('login');
+        }
+
+        $data = ['config' => config(OSPOS::class)->settings, 'error' => null];
+
+        if ($this->request->getMethod() !== 'POST') {
+            return view('login_totp', $data);
+        }
+
+        $codigo = trim((string)$this->request->getPost('code'));
+
+        if (! $this->verificarSegundoFactor($pendiente, $codigo)) {
+            // Un mensaje solo para los dos casos --código malo y código de rescate ya usado--
+            // porque distinguirlos diría cuál de los dos se acertó a medias.
+            $data['error'] = lang('Login.platform_second_factor_invalid');
+
+            return view('login_totp', $data);
+        }
+
+        $rechazo = $entrada->finish($pendiente);
+
+        if ($rechazo !== null) {
+            $data['error'] = $rechazo;
+
+            return view('login_totp', $data);
+        }
+
+        return redirect()->to('home');
+    }
+
+    /**
+     * El código de la aplicación, o uno de rescate de un solo uso.
+     *
+     * El de rescate se intenta DESPUÉS: `consumeRecoveryCode()` lo marca como usado, así que
+     * probarlo primero gastaría uno cada vez que alguien teclea mal el de seis dígitos.
+     */
+    private function verificarSegundoFactor(int $accountId, string $codigo): bool
+    {
+        $cuenta = model(PlatformAccount::class)->find($accountId);
+        $totp   = new PlatformTotp();
+        $secreto = $totp->decryptSecret($cuenta->totp_secret ?? null);
+
+        if ($secreto !== null && $totp->verify($secreto, $codigo)) {
+            return true;
+        }
+
+        return model(PlatformAccount::class)->consumeRecoveryCode($accountId, $codigo);
     }
 
     public function migrate(): ResponseInterface

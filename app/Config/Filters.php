@@ -3,6 +3,7 @@
 namespace Config;
 
 use App\Filters\PlatformHost;
+use App\Filters\PlatformSupportAudit;
 use App\Filters\TenantResolver;
 use CodeIgniter\Config\Filters as BaseFilters;
 use CodeIgniter\Filters\Cors;
@@ -38,6 +39,7 @@ class Filters extends BaseFilters
         'performance'    => PerformanceMetrics::class,
         'tenantresolver' => TenantResolver::class,
         'platformhost'   => PlatformHost::class,
+        'platformsupportaudit' => PlatformSupportAudit::class,
     ];
 
     /**
@@ -151,6 +153,11 @@ class Filters extends BaseFilters
         // pointed at platform_control, that offered an unauthenticated "Migrate" button that would
         // have built the POS schema inside the platform's control database. See PlatformHost.
         'platformhost' => ['before' => ['*']],
+
+        // El registro de nivel 2. En `after` y sobre todas las rutas: solo hace algo cuando la
+        // sesión es de soporte y la petición es POST, y no puede tumbar la petición que observa.
+        // Ver app/Filters/PlatformSupportAudit.php.
+        'platformsupportaudit' => ['after' => ['*']],
     ];
 
     /**

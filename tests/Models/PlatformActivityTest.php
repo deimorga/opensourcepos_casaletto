@@ -251,6 +251,8 @@ final class PlatformActivityTest extends CIUnitTestCase
             PlatformActivity::ACCOUNT_UNLOCKED,
             PlatformActivity::ACCOUNT_TOTP_ENABLED,
             PlatformActivity::ACCOUNT_TOTP_DISABLED,
+            // Nivel 2: una escritura dentro del punto de venta durante una sesión de soporte.
+            PlatformActivity::SUPPORT_WRITE,
         ];
 
         $this->assertSame($actions, array_values(PlatformActivity::ACTIONS));

@@ -71,6 +71,23 @@ $request = Services::request();
             </div>
         </div>
 
+        <?php
+        // EL AVISO DE SESIÓN DE SOPORTE (D9)
+        //
+        // Va aquí, en la cabecera compartida, y no en cada pantalla: mientras la sesión sea nuestra
+        // tiene que verse en TODAS, incluidas las que se abran mañana. Y no se puede cerrar --no hay
+        // aspa-- porque su trabajo es que nadie confunda el negocio de un cliente con el suyo propio
+        // y toque algo creyendo que está en otro sitio.
+        //
+        // `role="alert"` para que un lector de pantalla lo anuncie al cargar cada página.
+        ?>
+        <?php if (\App\Libraries\Platform_business_entry::isSupportSession()): ?>
+            <div class="alert alert-warning" role="alert"
+                 style="margin:0;border-radius:0;border-left:0;border-right:0;text-align:center;">
+                <strong><?= esc(lang('Login.platform_support_banner', [\App\Libraries\Platform_business_entry::accountEmail()])) ?></strong>
+            </div>
+        <?php endif; ?>
+
         <div class="navbar navbar-default" role="navigation">
             <div class="container">
                 <div class="navbar-header">

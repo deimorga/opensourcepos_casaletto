@@ -8,6 +8,7 @@
  * @var CodeIgniter\HTTP\IncomingRequest $request
  * @var array $config
  * @var $validation
+ * @var string|null $platform_error
  */
 
 use Config\Services;
@@ -72,6 +73,18 @@ $request = Services::request();
                             <?= $error ?>
                         </div>
                     <?php endforeach; ?>
+                <?php endif; ?>
+
+                <?php
+                // El rechazo de una credencial de plataforma no pasa por el validador --el validador
+                // ya dijo lo suyo sobre el usuario del negocio-- así que se pinta aparte. Solo
+                // aparece en los dos casos en los que callar sería peor: la cuenta está frenada, o
+                // le falta el segundo factor que esta puerta exige.
+                ?>
+                <?php if (! empty($platform_error)): ?>
+                    <div class="alert alert-warning mt-3" role="alert">
+                        <?= esc($platform_error) ?>
+                    </div>
                 <?php endif; ?>
                 
                 <div id="migration-success" class="alert alert-success d-none mt-3">

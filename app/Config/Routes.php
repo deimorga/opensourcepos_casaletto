@@ -10,6 +10,12 @@ $routes->setDefaultController('Login');
 $routes->get('/', 'Login::index');
 $routes->get('login', 'Login::index');
 $routes->post('login', 'Login::index');
+
+// El segundo factor de una entrada de plataforma al punto de venta de un negocio. Solo responde
+// mientras haya una cuenta pendiente en la sesión; sin ella redirige a `login`, así que la ruta no
+// sirve para averiguar nada. Ver App\Libraries\Platform_business_entry.
+$routes->get('login/totp', 'Login::totp');
+$routes->post('login/totp', 'Login::totp');
 $routes->post('migrate', 'Login::migrate');
 
 // Fase 8: neutral login for business owners + platform admins (separate

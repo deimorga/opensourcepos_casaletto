@@ -48,6 +48,13 @@ class PlatformActivity extends Model
     public const ACCOUNT_TOTP_DISABLED    = 'account.totp_disabled';
 
     /**
+     * El nivel 2: una escritura hecha DENTRO del punto de venta de un negocio durante una sesión de
+     * soporte. Lo escribe `App\Filters\PlatformSupportAudit`, y lleva la ruta y el desenlace --
+     * nunca el cuerpo, que puede contener la contraseña de un empleado del cliente.
+     */
+    public const SUPPORT_WRITE = 'support.write';
+
+    /**
      * Every action this module writes, in the order the design lists them. Kept as a list so the
      * activity screen can offer a filter without inventing its own copy of the vocabulary, and so a
      * typo in a controller shows up as a value that is not in here rather than as a row nobody ever
@@ -67,6 +74,7 @@ class PlatformActivity extends Model
         self::ACCOUNT_UNLOCKED,
         self::ACCOUNT_TOTP_ENABLED,
         self::ACCOUNT_TOTP_DISABLED,
+        self::SUPPORT_WRITE,
     ];
 
     public const TARGET_TENANT  = 'tenant';

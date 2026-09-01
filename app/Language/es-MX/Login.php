@@ -22,4 +22,17 @@ return [
     "required_username"             => "El nombre de usuario es obligatorio.",
     "username"                      => "Usuario",
     "welcome"                       => "Bienvenido a {0}!",
+
+    // ===== Entrada de un superadministrador al punto de venta (Entrega 4) =====
+    "platform_second_factor_title"    => "Verificación en dos pasos",
+    "platform_second_factor_help"     => "Escriba el código de seis dígitos de su aplicación de autenticación, o uno de sus códigos de rescate.",
+    "platform_second_factor_code"     => "Código",
+    "platform_second_factor_submit"   => "Continuar",
+    "platform_second_factor_cancel"   => "Volver",
+    "platform_second_factor_invalid"  => "El código no es válido. Revise que la hora de su teléfono esté sincronizada; un código de rescate solo sirve una vez.",
+    "platform_second_factor_expired"  => "La sesión de entrada caducó. Vuelva a escribir su correo y su contraseña.",
+    "platform_second_factor_required" => "Esta cuenta no tiene verificación en dos pasos. Actívela en la consola de plataforma antes de entrar a un negocio.",
+    "platform_account_locked"         => "El acceso de esta cuenta está frenado tras varios intentos fallidos. Otro superadministrador puede desbloquearla desde la consola.",
+    "platform_support_employee_missing" => "Este negocio todavía no tiene su usuario de soporte. Créelo con «php spark platform:support-employee» antes de entrar.",
+    "platform_support_banner"         => "Sesión de soporte de {0}. Todo lo que cambie aquí queda registrado a nombre de Soporte.",
 ];
