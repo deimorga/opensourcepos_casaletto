@@ -357,6 +357,11 @@ return [
     "user_timezone"                             => "Zona horaria local:",
     "website"                                   => "Website",
     "wholesale_markup"                          => "",
+    "wired_barcode_content_help"                => "El contenido del código de barras es un ajuste fijo. Los códigos impresos y tecleados llevan siempre el número de artículo; con el identificador interno, un código tecleado vende otro producto. Pídaselo a su proveedor si necesita cambiarlo.",
+    "wired_language_help"                       => "El idioma es un ajuste fijo. Todas las traducciones de este sistema están escritas para español (México); en otra variante las pantallas salen en inglés sin dar ningún error. Pídaselo a su proveedor si necesita cambiarlo.",
+    "wired_quantity_decimals_help"              => "Los decimales de cantidad son un ajuste fijo. Lo que se vende por peso necesita tres; con menos, el peso se pierde sin avisar: la venta cuadra en plata y el inventario no. Pídaselo a su proveedor si necesita cambiarlo.",
+    "wired_setting_mismatch"                    => "Este negocio no tiene el valor requerido, que es {0}. Pídale a su proveedor que lo corrija.",
+    "wired_setting_refused"                     => "Estos ajustes son fijos y no se pueden cambiar desde acá: {0}. No se guardó nada. Pídaselo a su proveedor si necesita cambiar alguno.",
     "work_order_enable"                         => "Work Order Support",
     "work_order_format"                         => "Work Order Format",
 ];
