@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Session\Session;
 use stdClass;
@@ -61,14 +62,67 @@ class Employee extends Person
     }
 
     /**
+     * Esconde al empleado de soporte de la plataforma de todo listado del cliente.
+     *
+     * POR QUÉ NO SE USA `deleted`
+     *
+     * `employees` tiene un solo mecanismo para esconder, y está usado en todas partes --incluido el
+     * login--. Marcar como borrado algo que no lo está funciona hoy y miente mañana: la primera
+     * consulta que cuente empleados vivos para otra cosa dará un número distinto al de la pantalla y
+     * nadie sabrá por qué. Por eso la columna es propia (migración 20260908000000).
+     *
+     * DÓNDE SE APLICA Y DÓNDE NO
+     *
+     * Se aplica a lo que el cliente LEE: el conteo de la grilla, el listado, las sugerencias y la
+     * búsqueda. **No** se aplica a `login()` ni a `check_password()`, y eso es deliberado: son la
+     * puerta por la que entran los empleados del negocio todos los días, y no se tocan. Tampoco hace
+     * falta -- la contraseña de esa fila no es un hash y `password_verify()` contra ella devuelve
+     * false siempre (ver App\Libraries\Platform_support).
+     *
+     * Esconder de menos es cosmético. **Esconder de más ocultaría a un empleado real**, así que la
+     * condición es de igualdad contra 0 y nunca una negación.
+     */
+    private function hide_platform_support(BaseBuilder $builder): void
+    {
+        $builder->where('is_platform_support', 0);
+    }
+
+    /**
      * Gets total of rows
      */
     public function get_total_rows(): int
     {
         $builder = $this->db->table('employees');
         $builder->where('deleted', 0);
+        $this->hide_platform_support($builder);
 
         return $builder->countAllResults();
+    }
+
+    /**
+     * Todas las filas de empleado, **incluida la de soporte**, para repartir permisos.
+     *
+     * POR QUÉ EXISTE ESTO Y NO SE USA `get_all()`
+     *
+     * `get_all()` responde «los empleados que el negocio VE», y por eso esconde al de soporte. Pero
+     * `Stock_location::_insert_new_permission()` no está pintando una lista: está dando de alta un
+     * permiso nuevo a todo el que deba tenerlo, y una fila escondida sigue necesitándolo.
+     *
+     * Sin esta separación, cada bodega que creara un cliente dejaba al empleado de soporte sin los
+     * permisos de esa ubicación, en silencio y solo para las ubicaciones creadas después de que
+     * entráramos. El síntoma llegaría meses más tarde, como «soporte no ve una de mis bodegas».
+     *
+     * La regla, para quien añada una llamada nueva: si el resultado se le enseña a alguien, es
+     * `get_all()`. Si de él dependen permisos o integridad, es este.
+     */
+    public function get_all_for_permissions(): ResultInterface
+    {
+        $builder = $this->db->table('employees');
+        $builder->where('deleted', 0);
+        $builder->join('people', 'employees.person_id = people.person_id');
+        $builder->orderBy('last_name', 'asc');
+
+        return $builder->get();
     }
 
     /**
@@ -78,6 +132,7 @@ class Employee extends Person
     {
         $builder = $this->db->table('employees');
         $builder->where('deleted', 0);
+        $this->hide_platform_support($builder);
         $builder->join('people', 'employees.person_id = people.person_id');
         $builder->orderBy('last_name', 'asc');
         $builder->limit($limit);
@@ -251,6 +306,7 @@ class Employee extends Person
 
         if (!$unique) {
             $builder->where('deleted', 0);
+            $this->hide_platform_support($builder);
         }
 
         $builder->orderBy('last_name', 'asc');
@@ -264,6 +320,7 @@ class Employee extends Person
 
         if (!$unique) {
             $builder->where('deleted', 0);
+            $this->hide_platform_support($builder);
         }
 
         $builder->like('email', $search);
@@ -278,6 +335,7 @@ class Employee extends Person
 
         if (!$unique) {
             $builder->where('deleted', 0);
+            $this->hide_platform_support($builder);
         }
 
         $builder->like('username', $search);
@@ -292,6 +350,7 @@ class Employee extends Person
 
         if (!$unique) {
             $builder->where('deleted', 0);
+            $this->hide_platform_support($builder);
         }
 
         $builder->like('phone_number', $search);
@@ -346,6 +405,7 @@ class Employee extends Person
         $builder->orLike('CONCAT(first_name, " ", last_name)', $search);
         $builder->groupEnd();
         $builder->where('deleted', 0);
+        $this->hide_platform_support($builder);
 
         // get_found_rows case
         if ($count_only) {

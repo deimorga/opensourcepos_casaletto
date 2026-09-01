@@ -243,8 +243,13 @@ class Stock_location extends Model
         $builder->insert($permission_data);
 
         // Insert grants for new permission
+        //
+        // get_all_for_permissions() y NO get_all(): esto no pinta una lista, da de alta un permiso a
+        // todo el que deba tenerlo. get_all() esconde al empleado de soporte de la plataforma --es
+        // su trabajo-- y usarlo aquí dejaba a soporte sin los permisos de cada bodega nueva, en
+        // silencio. Ver el docblock de get_all_for_permissions().
         $employee = model(Employee::class);
-        $employees = $employee->get_all();
+        $employees = $employee->get_all_for_permissions();
 
         $builder = $this->db->table('grants');
 
