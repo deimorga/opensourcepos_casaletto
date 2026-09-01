@@ -14,6 +14,10 @@ $routes->post('login', 'Login::index');
 // El segundo factor de una entrada de plataforma al punto de venta de un negocio. Solo responde
 // mientras haya una cuenta pendiente en la sesión; sin ella redirige a `login`, así que la ruta no
 // sirve para averiguar nada. Ver App\Libraries\Platform_business_entry.
+// Canjear el pase que emite la consola al abrir un negocio. Solo GET: es el destino de una
+// redirección, no un formulario. Ver App\Libraries\Platform_business_pass.
+$routes->get('login/pass', 'Login::pass');
+
 $routes->get('login/totp', 'Login::totp');
 $routes->post('login/totp', 'Login::totp');
 $routes->post('migrate', 'Login::migrate');
@@ -41,6 +45,10 @@ $routes->post('platform/admin/(:segment)/delete', 'PlatformAdmin::delete/$1');
 // que no lleve barra, incluido `new`, así que puesta primero se tragaría `platform/admin/new` y el
 // formulario de alta dejaría de existir. CodeIgniter resuelve por orden de declaración y esa es
 // toda la protección que hay.
+// Entrega 5 -- entrar al punto de venta del negocio desde la consola, con un pase de un solo uso.
+// Va con las demás rutas de segmento y ANTES de la ficha, por la misma razón de orden de arriba.
+$routes->get('platform/admin/(:segment)/enter', 'PlatformAdmin::enter/$1');
+
 $routes->get('platform/admin/(:segment)/reset-password', 'PlatformAdmin::confirmResetPassword/$1');
 $routes->post('platform/admin/(:segment)/reset-password', 'PlatformAdmin::resetPassword/$1');
 $routes->get('platform/admin/(:segment)', 'PlatformAdmin::show/$1');

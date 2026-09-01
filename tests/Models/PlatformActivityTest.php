@@ -251,7 +251,8 @@ final class PlatformActivityTest extends CIUnitTestCase
             PlatformActivity::ACCOUNT_UNLOCKED,
             PlatformActivity::ACCOUNT_TOTP_ENABLED,
             PlatformActivity::ACCOUNT_TOTP_DISABLED,
-            // Nivel 2: una escritura dentro del punto de venta durante una sesión de soporte.
+            // Nivel 2: entrar al punto de venta de un cliente, y escribir algo estando dentro.
+            PlatformActivity::SUPPORT_ENTERED,
             PlatformActivity::SUPPORT_WRITE,
         ];
 

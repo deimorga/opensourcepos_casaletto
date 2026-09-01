@@ -306,4 +306,7 @@ return [
     "error_support_employee"       => "The support employee could not be created in “{0}”: {1}. Nothing was left half-written.",
     "error_support_write_refused"  => "the database refused the write without giving a reason",
     "error_support_on_create"      => "The business schema was created and migrated and its admin account was set up, but its support employee could not be created, so the business was NOT registered: {0}",
+    "enter_business"              => "Enter the business",
+    "enter_business_help"         => "Opens this business's point of sale with your session here, without typing anything again. It is recorded in the activity log.",
+    "enter_needs_second_factor"   => "Entering a business requires two-step verification. Turn it on under “Second factor”.",
 ];

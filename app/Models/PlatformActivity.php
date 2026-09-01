@@ -55,6 +55,13 @@ class PlatformActivity extends Model
     public const SUPPORT_WRITE = 'support.write';
 
     /**
+     * Alguien entró al punto de venta de un cliente. Se anota la ENTRADA y no solo lo que se haga
+     * después: haber estado dentro de la caja de un negocio es un dato por sí mismo, aunque no se
+     * tocara nada.
+     */
+    public const SUPPORT_ENTERED = 'support.entered';
+
+    /**
      * Every action this module writes, in the order the design lists them. Kept as a list so the
      * activity screen can offer a filter without inventing its own copy of the vocabulary, and so a
      * typo in a controller shows up as a value that is not in here rather than as a row nobody ever
@@ -74,6 +81,7 @@ class PlatformActivity extends Model
         self::ACCOUNT_UNLOCKED,
         self::ACCOUNT_TOTP_ENABLED,
         self::ACCOUNT_TOTP_DISABLED,
+        self::SUPPORT_ENTERED,
         self::SUPPORT_WRITE,
     ];
 

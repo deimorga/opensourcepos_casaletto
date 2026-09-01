@@ -70,7 +70,21 @@ $showable = $state === \App\Libraries\TenantProvisioner::CREDENTIAL_AVAILABLE;
         </tr>
         <tr>
             <th scope="row"><?= esc(lang('Platform.business_address')) ?></th>
-            <td><a href="<?= esc($url, 'attr') ?>" rel="noopener noreferrer" target="_blank"><?= esc($url) ?></a></td>
+            <td>
+                <a href="<?= esc($url, 'attr') ?>" rel="noopener noreferrer" target="_blank"><?= esc($url) ?></a>
+                <?php
+                    // El enlace de arriba lleva al FORMULARIO de entrada del negocio; este entra.
+                    // Van los dos porque no son lo mismo: uno es la dirección que se le da al
+                    // cliente, el otro es nuestra puerta de servicio.
+                ?>
+                <div class="mt-2">
+                    <a class="btn btn-sm btn-outline-primary"
+                       href="<?= base_url('platform/admin/' . rawurlencode((string) $tenant->slug) . '/enter') ?>">
+                        <?= esc(lang('Platform.enter_business')) ?>
+                    </a>
+                    <div class="text-body-secondary small mt-1"><?= esc(lang('Platform.enter_business_help')) ?></div>
+                </div>
+            </td>
         </tr>
         <tr>
             <th scope="row"><?= esc(lang('Platform.database')) ?></th>

@@ -313,4 +313,7 @@ return [
     "error_support_employee"       => "No se pudo crear el empleado de soporte en «{0}»: {1}. No quedó nada a medias.",
     "error_support_write_refused"  => "la base rechazó la escritura sin dar motivo",
     "error_support_on_create"      => "La base del negocio se creó y migró y su administrador quedó puesto, pero no se pudo crear el empleado de soporte, así que el negocio NO se registró: {0}",
+    "enter_business"              => "Entrar al negocio",
+    "enter_business_help"         => "Abre el punto de venta de este negocio con su sesión de aquí, sin volver a teclear nada. Queda anotado en el registro de actividad.",
+    "enter_needs_second_factor"   => "Para entrar a un negocio hace falta tener la verificación en dos pasos activada. Actívela en «Segundo factor».",
 ];

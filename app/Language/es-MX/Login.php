@@ -34,4 +34,5 @@ return [
     "platform_second_factor_required" => "Esta cuenta no tiene verificación en dos pasos. Actívela en la consola de plataforma antes de entrar a un negocio.",
     "platform_support_employee_missing" => "Este negocio todavía no tiene su usuario de soporte. Créelo con «php spark platform:support-employee» antes de entrar.",
     "platform_support_banner"         => "Sesión de soporte de {0}. Todo lo que cambie aquí queda registrado a nombre de Soporte.",
+    "platform_pass_invalid"           => "El pase para entrar a este negocio no es válido o ya se usó. Vuelva a la consola de plataforma y abra el negocio de nuevo.",
 ];

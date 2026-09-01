@@ -4,6 +4,8 @@ namespace App\Controllers;
 
 use App\Libraries\MY_Migration;
 use App\Libraries\Platform_business_entry;
+use App\Libraries\Platform_business_pass;
+use App\Libraries\TenantContext;
 use App\Libraries\PlatformTotp;
 use App\Models\Employee;
 use App\Models\PlatformAccount;
@@ -52,7 +54,11 @@ class Login extends BaseController
                 'latest_version'   => $migration->get_latest_migration(),
                 'gcaptcha_enabled' => $gcaptcha_enabled,
                 'config'           => $config,
-                'validation'       => $validation
+                'validation'       => $validation,
+                // Un canje de pase fallido redirige aquí con su motivo. Se recoge de `flashdata`
+                // --que se consume al leerse-- y no de la sesión, para que refrescar la pantalla no
+                // lo repita eternamente.
+                'platform_error'   => session()->getFlashdata('platform_error')
             ];
 
             if ($this->request->getMethod() !== 'POST') {
@@ -220,6 +226,56 @@ class Login extends BaseController
         }
 
         return model(PlatformAccount::class)->consumeRecoveryCode($accountId, $codigo);
+    }
+
+    /**
+     * Canjear un pase de la consola: entrar al negocio sin volver a teclear nada.
+     *
+     * NO ES UNA PUERTA MÁS, ES LA MISMA UN SALTO DESPUÉS
+     *
+     * Un pase solo lo emite una sesión de consola ya autenticada y con el segundo factor superado.
+     * Lo que hace este método es cobrarlo, y comprobar otra vez todo lo que podría haber cambiado en
+     * los sesenta segundos que dura: que la cuenta siga existiendo, que siga teniendo segundo
+     * factor, que el pase sea para ESTE negocio, y que el negocio tenga su empleado de soporte.
+     *
+     * Cualquier fallo lleva a la pantalla de entrada con un aviso genérico. No se distinguen los
+     * motivos: esta ruta es pública y decir «ese pase era de otro negocio» ya cuenta demasiado.
+     */
+    public function pass(): RedirectResponse
+    {
+        $pase   = (string)$this->request->getGet('t');
+        $canje  = (new Platform_business_pass())->redeem($pase);
+
+        if ($canje === null) {
+            return redirect()->to('login')->with('platform_error', lang('Login.platform_pass_invalid'));
+        }
+
+        // El pase es para un negocio concreto y esta petición la sirve otro: no se entra, y el pase
+        // ya quedó tachado por haberse presentado.
+        if (! TenantContext::isResolved() || TenantContext::tenantId() !== $canje['tenant_id']) {
+            return redirect()->to('login')->with('platform_error', lang('Login.platform_pass_invalid'));
+        }
+
+        $paseLib = new Platform_business_pass();
+
+        if (! $paseLib->accountStillMayEnter($canje['account_id'])) {
+            return redirect()->to('login')->with('platform_error', lang('Login.platform_pass_invalid'));
+        }
+
+        $entrada = Platform_business_entry::create();
+        $soporte = $entrada->supportEmployee();
+
+        if ($soporte === null) {
+            return redirect()->to('login')->with('platform_error', lang('Login.platform_support_employee_missing'));
+        }
+
+        // Se regenera el identificador de sesión al entrar, igual que hace `completeSecondFactor()`
+        // en el otro camino: un identificador que un atacante hubiera fijado antes no puede
+        // sobrevivir a la autenticación.
+        session()->regenerate(true);
+        $entrada->openSupportSession($canje['account_id'], (int)$soporte->person_id);
+
+        return redirect()->to('home');
     }
 
     public function migrate(): ResponseInterface

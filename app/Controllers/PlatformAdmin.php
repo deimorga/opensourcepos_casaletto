@@ -2,6 +2,7 @@
 
 namespace App\Controllers;
 
+use App\Libraries\Platform_business_pass;
 use App\Libraries\TenantConfigProfile;
 use App\Libraries\TenantProvisioner;
 use App\Models\PlatformActivity;
@@ -146,6 +147,42 @@ class PlatformAdmin extends Platform_Controller
             'wiring'     => TenantConfigProfile::WIRING,
             'profile_id' => TenantConfigProfile::ID,
         ]);
+    }
+
+    /**
+     * Entrar al punto de venta de un negocio desde la consola, sin volver a teclear nada.
+     *
+     * Antes «Abrir» era un enlace a la dirección del negocio, y ahí esperaba el FORMULARIO de
+     * entrada: la sesión de consola y su segundo factor, ya superados, no servían de nada y había
+     * que repetir correo, contraseña y código para llegar a un sitio al que ya se tenía derecho.
+     *
+     * Ahora se emite un pase de un solo uso y sesenta segundos --ver `Platform_business_pass`-- y se
+     * redirige con él. El negocio lo canjea y abre la sesión de soporte.
+     *
+     * Se registra la ENTRADA, no solo lo que se haga después: saber que alguien entró a la caja de
+     * un cliente es un dato por sí mismo, aunque no tocara nada.
+     */
+    public function enter(string $slug): RedirectResponse
+    {
+        $tenant  = $this->findTenant($slug);
+        $account = $this->account->getLoggedInAccount();
+
+        // El pase presupone el segundo factor, no lo sustituye: si esta cuenta no lo tiene, entrar
+        // por aquí sería la puerta de atrás de la regla que la entrada por URL ya aplica.
+        if ($account->totp_enabled_at === null) {
+            return redirect()->to('platform/admin/' . rawurlencode($slug))
+                ->with('error', lang('Platform.enter_needs_second_factor'));
+        }
+
+        $pase = (new Platform_business_pass())->mint((int) $account->id, (int) $tenant->id);
+
+        $this->logActivity(
+            PlatformActivity::SUPPORT_ENTERED,
+            PlatformActivity::TARGET_TENANT,
+            $slug,
+        );
+
+        return redirect()->to($this->tenantUrl($slug) . 'login/pass?t=' . rawurlencode($pase));
     }
 
     /**

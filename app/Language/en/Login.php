@@ -34,4 +34,5 @@ return [
     "platform_second_factor_required" => "This account has no two-step verification. Turn it on in the platform console before entering a business.",
     "platform_support_employee_missing" => "This business has no support user yet. Create it with “php spark platform:support-employee” before entering.",
     "platform_support_banner"         => "Support session for {0}. Everything you change here is recorded under Support.",
+    "platform_pass_invalid"           => "The pass to enter this business is not valid or has already been used. Go back to the platform console and open the business again.",
 ];
