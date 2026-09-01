@@ -162,11 +162,17 @@ final class PlatformAccountsTest extends CIUnitTestCase
             $this->withLanguageCode('en');
         }
 
-        $this->assertStringContainsString('Superadministradores', $body);
-        $this->assertStringContainsString('Nunca se usó', $body);
+        // Las tildes salen como entidades (`Nunca se us&oacute;`), que es lo que hace el escapado de
+        // salida y el navegador dibuja bien -- comprobado en la consola desplegada. Lo que esta
+        // prueba quiere saber es si la clave se resuelve en es-MX, no cómo se codifica una vocal, así
+        // que se compara sobre el texto ya decodificado.
+        $texto = html_entity_decode($body, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+        $this->assertStringContainsString('Superadministradores', $texto);
+        $this->assertStringContainsString('Nunca se usó', $texto);
         $this->assertStringNotContainsString(
             'Platform.',
-            $body,
+            $texto,
             'Una clave cruda en pantalla significa que falta en es-MX.',
         );
     }
