@@ -482,10 +482,35 @@ Ordenadas para que cada una deje el sistema mejor aunque la siguiente se demore.
 - ~~Aplicar el perfil a Paraíso~~ — **ya ejecutado el 2026-08-31**.
 
 ### Entrega 4 — Entrar a gestionar
+
+> **Estado a 2026-09-01: construida, sin desplegar y sin certificar.** Escrita hoy; falta llevarla a
+> staging y probarla en el navegador, entrando de verdad a un negocio con el segundo factor del
+> dueño. La certificación no la firma quien escribió el código.
+>
+> **Y no se despliega hasta que la cuenta huérfana esté eliminada**, porque esta entrega le abriría
+> una puerta al punto de venta de cada cliente con todos los permisos.
+
 - Empleado de soporte, invisible para el cliente, creado en el alta y en los negocios existentes.
-- **Entrada por la URL del negocio** con la credencial de plataforma.
-- Aviso permanente en pantalla mientras dure la sesión de soporte.
+- **Entrada por la URL del negocio** con la credencial de plataforma, **pidiendo el segundo factor**.
+  Una cuenta que no lo tenga activado no entra: si bastara con no ponérselo, el candado se saltaría
+  no poniéndoselo.
+- Aviso permanente en pantalla mientras dure la sesión de soporte, **sin forma de cerrarlo**: su
+  trabajo es que nadie confunda el negocio de un cliente con el suyo y toque algo creyendo que está
+  en otro sitio.
 - Registro de las **modificaciones** hechas dentro del negocio, con la etiqueta «Soporte».
+
+#### Lo que NO queda registrado, a propósito
+
+Se anota **qué** se hizo —la ruta, el momento, el desenlace y sobre qué fila— pero **nunca el
+contenido de la petición**. Guardar un empleado en el punto de venta envía su contraseña; nuestra
+tabla de auditoría la leen personas y se guarda para siempre. No es sitio para las credenciales de
+los empleados de un cliente.
+
+#### Lo que el cliente ve, y lo que no
+
+No ve al empleado de soporte en su lista de empleados, ni en los filtros de turnos, ni en el selector
+de reportes. Sí ve, en su historial, que ciertos movimientos los hizo **«Soporte Micronuba»** — con
+ese nombre, para que su historial no tenga huecos ni nombres que no reconoce.
 
 ### Entrega 5 — El dueño entra a lo suyo
 - Vínculo cuenta↔negocio creado desde el alta.

@@ -634,9 +634,16 @@ La consola de plataforma es **Bootstrap 5** (`bootswatch5/flatly`), autónoma, s
 El punto de venta es **Bootstrap 3.4.1** con jQuery, `bootstrap-table` y glyphicons. Cada pantalla usa
 el idioma del sitio donde vive y no se mezclan.
 
-Esto importa porque **la Entrega 4 toca el lado del POS**: el formulario de entrada del negocio, que
-pasa a aceptar dos orígenes de identidad, y el aviso permanente de sesión de soporte. Las dos cosas se
-construyen en Bootstrap 3, no en 5.
+Esto importa porque **la Entrega 4 toca el lado del POS**. Pero al construirla resultó que la
+frontera no está donde decía este documento:
+
+| Pantalla | Lo que dice el código |
+|---|---|
+| `login.php` y la nueva `login_totp.php` | **Bootstrap 5** (`resources/bootswatch5/...`), no 3 |
+| `partial/header.php`, donde vive el aviso de soporte | Bootstrap 3, con sus `navbar-default` y sus glyphicons |
+
+Es decir: la entrada al negocio se construyó en el mundo nuevo y el aviso permanente en el viejo.
+Escrito aquí porque la suposición contraria costaría una tarde a quien la herede.
 
 ### 9.12 Perder el teléfono y los códigos de rescate deja fuera de la plataforma
 
@@ -886,6 +893,45 @@ mientras se escribía. Para entrecomillar dentro de una cadena con huecos: «» 
 **Y no se afirma sobre el texto.** Cinco pruebas comprobaban el rechazo buscando «adopted» o
 «not found» en el mensaje, y se pusieron rojas al traducir sin que cambiara nada de lo que
 comprueban. Se compara contra `lang('Platform.error_*')`, que dice lo mismo en cualquier idioma.
+
+### 9.18 Lo que la Entrega 4 decidió al construirse
+
+**`Employee::login()` no se toca, y es la decisión que más riesgo quitó.**
+El diseño escrito decía que el formulario del negocio pasaría a aceptar «dos orígenes de identidad».
+Al construirlo se vio que no hace falta modificar nada: la credencial de plataforma se intenta en
+`Login::index()` **después** de que la validación del empleado haya fallado. La puerta por la que
+entran los empleados del cliente todos los días queda byte a byte igual y corre primero, así que un
+fallo en lo nuevo puede negarnos la entrada a nosotros y nunca a un empleado del negocio.
+
+**El segundo factor también en esta puerta.** El diseño se escribió antes de que existiera TOTP, y
+tal como estaba, la contraseña de plataforma sola habría abierto el punto de venta de cualquier
+cliente: una contraseña filtrada, todos los negocios a la vez. Se reutiliza `PlatformAccount::login()`
+entero, así que el freno de tres intentos por dos horas cubre esta entrada sin replicarse — que es
+exactamente la razón por la que ese freno se puso en el modelo y no en el controlador.
+
+Y **una cuenta sin segundo factor no entra a un negocio**, aunque sí pueda usar la consola: si
+bastara con no activarlo, el candado se saltaría no poniéndoselo. Es un gradiente deliberado.
+
+**El cuerpo de la petición nunca se registra.** El nivel 2 anota ruta, método y desenlace. El cuerpo
+no: `/employees/save` lleva dentro la contraseña de un empleado del cliente, y `platform_activity` la
+leen personas y se guarda para siempre. De los campos enviados se recoge una lista corta de
+identificadores —`id`, `ids`, `item_id`, `person_id`, `sale_id`, `employee_id`— y nada más, porque la
+ruta no siempre dice sobre qué fila se actuó (`/employees/delete` lleva a quién en `ids[]`).
+`tests/Filters/PlatformSupportAuditTest.php` se pone rojo si eso cambia.
+
+**La etiqueta «Soporte» de D10 no necesitó código.** La fila se llama literalmente «Soporte
+Micronuba», así que todo registro que muestre el nombre del empleado ya la enseña. Se descartó
+construir una capa de presentación para conseguir lo que el propio dato ya dice.
+
+**Y dos consultas de empleados, no una.** `get_all()` responde «los que el negocio VE» y esconde al de
+soporte. `get_all_for_permissions()` responde «todas las filas que deben llevar este permiso» y no
+esconde a nadie. La segunda existe porque `Stock_location::_insert_new_permission()` reparte los
+permisos de una bodega nueva recorriendo la lista: con una sola consulta, cada bodega que creara un
+cliente dejaba a soporte sin permiso sobre ella **en silencio**, y el síntoma habría llegado meses
+después como «soporte no ve una de mis bodegas».
+
+> La regla para quien añada una llamada nueva: si el resultado se le enseña a alguien, `get_all()`.
+> Si de él dependen permisos o integridad, `get_all_for_permissions()`.
 
 ## 10. Orden de implementación
 
