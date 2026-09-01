@@ -283,7 +283,11 @@ function read_items_csv_file(string $file_name): array
         fseek($handle, 3);
     }
 
-    $headers = fgetcsv($handle);
+    // `escape: ''` -- RFC 4180 puro, sin el escape por barra invertida que PHP heredó y que nadie
+    // escribe en un CSV. Sin esto, un valor que TERMINA en barra invertida deja el campo sin cerrar
+    // y el lector **se traga el resto del archivo**. Además el parámetro es obligatorio desde PHP
+    // 8.4, que es una de las versiones donde corre la suite.
+    $headers = fgetcsv($handle, 0, ',', '"', '');
 
     if ($headers === false || $headers === [null]) {
         fclose($handle);
@@ -291,17 +295,28 @@ function read_items_csv_file(string $file_name): array
         return ['headers' => [], 'rows' => []];
     }
 
-    $headers = array_map(static fn ($header): string => trim((string)$header), $headers);
+    $headers  = array_map(static fn ($header): string => trim((string)$header), $headers);
     $expected = count($headers);
     $rows     = [];
-    $line     = 1;    // La cabecera es la línea 1; los datos empiezan en la 2.
 
-    while (($cells = fgetcsv($handle)) !== false) {
-        $line++;
+    // La línea FÍSICA del archivo, que es la que el cliente ve en Excel.
+    //
+    // No basta con contar llamadas a fgetcsv(): una celda entrecomillada puede contener saltos de
+    // línea --un nombre de artículo escrito en dos renglones-- y entonces una sola fila de datos
+    // ocupa varias líneas del archivo. Contando llamadas, todos los números posteriores quedan
+    // corridos, y el mensaje «revise la fila 340» manda al cliente a la fila equivocada.
+    //
+    // Así que cada fila avanza tantas líneas como saltos traiga dentro más la suya.
+    $line = 1 + csv_physical_lines($headers);
 
+    while (($cells = fgetcsv($handle, 0, ',', '"', '')) !== false) {
         if ($cells === [null]) {
+            $line++;
+
             continue;    // Línea en blanco. No es un error y no ocupa número de fila para el cliente.
         }
+
+        $line++;
 
         if (count($cells) !== $expected) {
             $rows[] = [
@@ -309,6 +324,8 @@ function read_items_csv_file(string $file_name): array
                 'cells' => [],
                 'error' => lang('Items.csv_row_column_count', [count($cells), $expected]),
             ];
+
+            $line += csv_physical_lines($cells);
 
             continue;
         }
@@ -318,11 +335,34 @@ function read_items_csv_file(string $file_name): array
             'cells' => array_combine($headers, array_map(static fn ($cell): string => (string)$cell, $cells)),
             'error' => null,
         ];
+
+        $line += csv_physical_lines($cells);
     }
 
     fclose($handle);
 
     return ['headers' => $headers, 'rows' => $rows];
+}
+
+
+/**
+ * Cuántas líneas del archivo ocupa una fila ya interpretada.
+ *
+ * Una celda entrecomillada puede llevar saltos de línea dentro. Sin contarlos, el número de fila que
+ * se le enseña al cliente deja de coincidir con el que ve en Excel en cuanto un solo artículo tiene
+ * el nombre en dos renglones.
+ *
+ * @param array<int|string, string|null> $cells
+ */
+function csv_physical_lines(array $cells): int
+{
+    $extra = 0;
+
+    foreach ($cells as $cell) {
+        $extra += substr_count(str_replace("\r\n", "\n", (string)$cell), "\n");
+    }
+
+    return $extra;
 }
 
 /**

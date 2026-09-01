@@ -116,6 +116,44 @@ final class ImportFileCsvReaderTest extends CIUnitTestCase
         $this->assertSame([], $leido['rows']);
     }
 
+    /**
+     * LA QUE SE ME ESCAPÓ EN LA PRIMERA VERSIÓN.
+     *
+     * Una celda entrecomillada puede llevar saltos de línea dentro --un nombre de artículo escrito en
+     * dos renglones-- y entonces una fila de datos ocupa varias líneas del archivo. Contando llamadas
+     * a `fgetcsv()`, todos los números posteriores quedaban corridos: el mensaje «revise la fila 340»
+     * mandaba al cliente a la fila equivocada, que es peor que no decirle nada.
+     */
+    public function testTheLineNumberSurvivesACellWithNewlinesInside(): void
+    {
+        $leido = read_items_csv_file($this->archivo("Id,Nombre\n1,\"Aceite\nDiana\"\n2,Limon\n3,Pepino\n"));
+
+        $this->assertSame(2, $leido['rows'][0]['line'], 'La fila multilínea empieza en la 2.');
+        $this->assertSame(4, $leido['rows'][1]['line'], 'Y la siguiente está en la 4, no en la 3.');
+        $this->assertSame(5, $leido['rows'][2]['line']);
+    }
+
+    public function testACellWithNewlinesInsideIsReadWhole(): void
+    {
+        $leido = read_items_csv_file($this->archivo("Id,Nombre\n1,\"Aceite\nDiana\"\n"));
+
+        $this->assertSame("Aceite\nDiana", $leido['rows'][0]['cells']['Nombre']);
+    }
+
+    /**
+     * `fgetcsv()` arrastra de PHP un escape por barra invertida que ningún CSV usa. Con él, un valor
+     * que TERMINA en barra invertida deja el campo sin cerrar y el lector **se traga el resto del
+     * archivo**: 1.184 filas se leerían como una. Se pasa `escape: ''` --RFC 4180 puro-- que además
+     * es obligatorio desde PHP 8.4, una de las versiones donde corre esta suite.
+     */
+    public function testAValueEndingInABackslashDoesNotSwallowTheRestOfTheFile(): void
+    {
+        $leido = read_items_csv_file($this->archivo("Id,Nombre\n1,\"ruta\\\\\"\n2,Limon\n3,Pepino\n"));
+
+        $this->assertCount(3, $leido['rows'], 'Si se hubiera tragado el archivo, sería una sola fila.');
+        $this->assertSame('Limon', $leido['rows'][1]['cells']['Nombre']);
+    }
+
     public function testAFileWithOnlyHeadersHasNoRows(): void
     {
         $leido = read_items_csv_file($this->archivo("Id,Barcode\n"));
