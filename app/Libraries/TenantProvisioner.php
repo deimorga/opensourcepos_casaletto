@@ -100,19 +100,19 @@ class TenantProvisioner
     public function validateSlug(?string $slug): ?string
     {
         if ($slug === null || $slug === '') {
-            return 'A slug is required.';
+            return lang('Platform.error_slug_required');
         }
 
         if (! preg_match('/^[a-z0-9-]{1,20}$/', $slug)) {
-            return "Invalid slug '{$slug}' -- must be 1-20 lowercase letters, digits, or hyphens.";
+            return lang('Platform.error_slug_invalid', [$slug]);
         }
 
         if (in_array($slug, self::RESERVED_SLUGS, true)) {
-            return "Slug '{$slug}' is reserved and cannot be used for a tenant.";
+            return lang('Platform.error_slug_reserved', [$slug]);
         }
 
         if (db_connect('platform')->table('tenants')->where('slug', $slug)->countAllResults() > 0) {
-            return "Tenant slug '{$slug}' already exists.";
+            return lang('Platform.error_slug_taken', [$slug]);
         }
 
         return null;
@@ -142,7 +142,8 @@ class TenantProvisioner
         $provisionPassword = getenv('PLATFORM_PROVISION_PASSWORD');
 
         if (! $provisionUser || ! $provisionPassword) {
-            throw new RuntimeException('PLATFORM_PROVISION_USERNAME/PLATFORM_PROVISION_PASSWORD env vars are required (see docs/Tecnico/multi-tenant-arquitectura.md section 11 for the one-time DBA runbook that creates this user).');
+            // El runbook que crea este usuario está en docs/Tecnico/multi-tenant-arquitectura.md §11.
+            throw new RuntimeException(lang('Platform.error_provision_env_missing'));
         }
 
         $dbIdentifier = 'tenant_' . str_replace('-', '_', $slug);
@@ -169,7 +170,7 @@ class TenantProvisioner
             // not have (see docs/Tecnico/multi-tenant-arquitectura.md
             // section 11 -- confirmed empirically, not assumed).
         } catch (Throwable $e) {
-            throw new RuntimeException('Schema/user provisioning failed: ' . $e->getMessage(), 0, $e);
+            throw new RuntimeException(lang('Platform.error_schema_creation', [$e->getMessage()]), 0, $e);
         }
 
         // Fresh child process, not an in-process config mutation -- see
@@ -185,8 +186,7 @@ class TenantProvisioner
 
         if ($exitCode !== 0) {
             throw new RuntimeException(
-                "Migration failed for {$dbIdentifier} -- NOT registering in platform.tenants. Schema/user already exist; fix and re-run tenant:migrate-one manually, or drop them and retry.\n"
-                . implode("\n", $output),
+                lang('Platform.error_migration_failed', [$dbIdentifier, implode(' | ', $output)]),
             );
         }
 
@@ -211,7 +211,7 @@ class TenantProvisioner
 
             $admin = $this->seedInitialAdmin($tenantDb, $companyName);
         } catch (Throwable $e) {
-            throw new RuntimeException('Post-migration default-admin reset failed: ' . $e->getMessage(), 0, $e);
+            throw new RuntimeException(lang('Platform.error_initial_admin', [$e->getMessage()]), 0, $e);
         }
 
         $adminPassword = $admin['password'];
@@ -262,12 +262,7 @@ class TenantProvisioner
             // Tampoco hace falta. El negocio no quedó registrado, así que nadie puede entrar en él
             // con ninguna contraseña: lo accionable es el nombre del esquema huérfano. Registrado a
             // mano, «Restablecer la contraseña» genera una nueva y sí la enseña.
-            throw new RuntimeException(
-                "The schema '{$dbIdentifier}' was created and migrated, but registering '{$slug}' in the "
-                . 'platform failed, so the business is unreachable and the database is orphaned. Check that '
-                . '`php spark platform:migrate` has been run, then register it by hand -- and reset its '
-                . 'admin password from the console afterwards -- or drop the schema.',
-            );
+            throw new RuntimeException(lang('Platform.error_registration_failed', [$dbIdentifier, $slug]));
         }
 
         return [
@@ -361,9 +356,7 @@ class TenantProvisioner
         // diría a un nombre con tildes que es más largo de lo que se ve escrito. 255 caracteres
         // multibyte podrían pasarse de 255 bytes, así que se comprueban las dos cosas.
         if (mb_strlen($companyName) > self::MAX_COMPANY_NAME || strlen($companyName) > self::MAX_COMPANY_NAME) {
-            throw new RuntimeException(
-                'The company name is too long (maximum ' . self::MAX_COMPANY_NAME . ' characters). Nothing was created.',
-            );
+            throw new RuntimeException(lang('Platform.error_company_name_too_long', [self::MAX_COMPANY_NAME]));
         }
 
         return $companyName;
@@ -502,6 +495,12 @@ class TenantProvisioner
      * falls back to the shared credentials the schema already uses
      * today (its own pre-existing behavior, unchanged). Upgrading it to
      * a dedicated user later is a separate, optional hardening step.
+     *
+     * SUS MENSAJES SE QUEDAN EN INGLÉS, Y ES DELIBERADO
+     *
+     * Adoptar no tiene pantalla: se hace con `php spark tenant:adopt`, por SSH y por nosotros. Quien
+     * lee estos mensajes está en una terminal, no en la consola. Los del resto del archivo sí pasan
+     * por `lang()` porque los muestra la consola, que está en español, y los lee el operador.
      *
      * @return array{slug: string, db_name: string}
      *
@@ -731,14 +730,11 @@ class TenantProvisioner
                 ->where('deleted', 0)
                 ->countAllResults() > 0;
         } catch (Throwable $e) {
-            throw new RuntimeException("Could not read the employees of '{$slug}': " . $e->getMessage(), 0, $e);
+            throw new RuntimeException(lang('Platform.error_employees_unreadable', [$slug, $e->getMessage()]), 0, $e);
         }
 
         if (! $exists) {
-            throw new RuntimeException(
-                "Business '{$slug}' has no employee with the username '{$username}', so there is nothing to reset. "
-                . 'Nothing was changed.',
-            );
+            throw new RuntimeException(lang('Platform.error_username_not_found', [$slug, $username]));
         }
 
         $password = $this->generateAdminPassword();
@@ -756,14 +752,11 @@ class TenantProvisioner
                     'hash_version' => 2,
                 ]);
         } catch (Throwable $e) {
-            throw new RuntimeException("Could not write the new password into '{$slug}': " . $e->getMessage(), 0, $e);
+            throw new RuntimeException(lang('Platform.error_password_write', [$slug, $e->getMessage()]), 0, $e);
         }
 
         if ($written === false) {
-            throw new RuntimeException(
-                "The new password could not be written into '{$slug}'. Nothing was changed, and the old "
-                . 'password still works.',
-            );
+            throw new RuntimeException(lang('Platform.error_password_not_written', [$slug]));
         }
 
         // Solo después de que el negocio la tenga. Al revés, un fallo al escribir en el negocio
@@ -843,7 +836,7 @@ class TenantProvisioner
                 ->get()
                 ->getResult();
         } catch (Throwable $e) {
-            throw new RuntimeException("Could not read the settings of '{$slug}': " . $e->getMessage(), 0, $e);
+            throw new RuntimeException(lang('Platform.error_settings_unreadable', [$slug, $e->getMessage()]), 0, $e);
         }
 
         foreach ($rows as $row) {
@@ -864,7 +857,7 @@ class TenantProvisioner
         $tenant = db_connect('platform')->table('tenants')->where('slug', $slug)->get()->getRow();
 
         if ($tenant === null) {
-            throw new RuntimeException("Tenant slug '{$slug}' not found.");
+            throw new RuntimeException(lang('Platform.error_tenant_not_found', [$slug]));
         }
 
         return $tenant;
@@ -898,7 +891,7 @@ class TenantProvisioner
                 ->getRow();
         } catch (Throwable $e) {
             throw new RuntimeException(
-                "Could not read the employees of '{$tenant->slug}': " . $e->getMessage(),
+                lang('Platform.error_employees_unreadable', [$tenant->slug, $e->getMessage()]),
                 0,
                 $e,
             );
@@ -1046,15 +1039,11 @@ class TenantProvisioner
         $tenant     = $platformDb->table('tenants')->where('slug', $slug)->get()->getRow();
 
         if ($tenant === null) {
-            throw new RuntimeException("Tenant slug '{$slug}' not found.");
+            throw new RuntimeException(lang('Platform.error_tenant_not_found', [$slug]));
         }
 
         if ($this->isAdopted($tenant)) {
-            throw new RuntimeException(
-                "Tenant '{$slug}' was adopted, not provisioned: its schema '{$tenant->db_name}' existed before the "
-                . 'platform did and has no dedicated database user. It cannot be deleted from here. Unregister it by '
-                . 'hand, with a backup taken first, if that is really what you want.',
-            );
+            throw new RuntimeException(lang('Platform.error_delete_adopted', [$slug, $tenant->db_name]));
         }
 
         $provisionUser     = getenv('PLATFORM_PROVISION_USERNAME');
@@ -1080,7 +1069,7 @@ class TenantProvisioner
                     $provisioner->query("DROP DATABASE IF EXISTS `{$tenant->db_name}`");
                 }
             } catch (Throwable $e) {
-                throw new RuntimeException('Tenant teardown failed: ' . $e->getMessage(), 0, $e);
+                throw new RuntimeException(lang('Platform.error_teardown_failed', [$e->getMessage()]), 0, $e);
             }
         }
 

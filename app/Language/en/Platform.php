@@ -276,4 +276,27 @@ return [
     "reset_password_button"  => "Reset it now",
     "reset_password_done"    => "New password generated for {0}. It is shown below.",
     "reset_password_uncopied"    => "WRITE IT DOWN NOW. The password of {0} has already been changed in the business, and it is: {1}. The platform could not save its copy, so this screen will not be able to show it again. Check that `php spark platform:migrate` has been run.",
+
+    // ===== Error messages that reach the screen =====
+    //
+    // Thrown by TenantProvisioner and shown verbatim in the console's red alert. The ones NOT here
+    // -- "Invalid status", for instance -- are programming errors that should never reach a screen.
+    "error_slug_required"        => "A slug is required.",
+    "error_slug_invalid"         => "Invalid slug “{0}” -- must be 1-20 lowercase letters, digits, or hyphens.",
+    "error_slug_reserved"        => "Slug “{0}” is reserved and cannot be used for a business.",
+    "error_slug_taken"           => "A business with the slug “{0}” already exists.",
+    "error_company_name_too_long" => "The company name is too long (maximum {0} characters). Nothing was created.",
+    "error_provision_env_missing" => "PLATFORM_PROVISION_USERNAME and PLATFORM_PROVISION_PASSWORD are missing on the server. Without them no new business database can be created. Nothing was created.",
+    "error_schema_creation"      => "The business database could not be created: {0}. Nothing was created.",
+    "error_migration_failed"     => "Schema “{0}” was created but its migrations failed, so the business was NOT registered. Fix it and re-run “tenant:migrate-one” by hand, or drop the schema and retry. Detail: {1}",
+    "error_initial_admin"        => "The business schema was created and migrated, but its admin account could not be set up: {0}",
+    "error_registration_failed"  => "Schema “{0}” was created and migrated, but registering “{1}” in the platform failed: the business is unreachable and the database is orphaned. Check that “php spark platform:migrate” has been run, then register it by hand -- and reset its admin password from this console -- or drop the schema.",
+    "error_tenant_not_found"     => "No business carries the slug “{0}”.",
+    "error_employees_unreadable" => "Could not read the employees of “{0}”: {1}",
+    "error_username_not_found"   => "Business “{0}” has no employee with the username “{1}”, so there is nothing to reset. Nothing was changed.",
+    "error_password_write"       => "Could not write the new password into “{0}”: {1}",
+    "error_password_not_written" => "The new password could not be written into “{0}”. Nothing was changed, and the old password still works.",
+    "error_settings_unreadable"  => "Could not read the settings of “{0}”: {1}",
+    "error_delete_adopted"       => "Business “{0}” was adopted, not provisioned by us: its schema “{1}” existed before the platform did and has no dedicated database user. It cannot be deleted from here. Unregister it by hand, with a backup taken first, if that is really what you want.",
+    "error_teardown_failed"      => "Business teardown failed: {0}",
 ];

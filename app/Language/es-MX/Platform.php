@@ -281,4 +281,29 @@ return [
     "reset_password_button"  => "Restablecerla ahora",
     "reset_password_done"    => "Contraseña nueva generada para {0}. Se muestra abajo.",
     "reset_password_uncopied" => "ANÓTELA AHORA. La contraseña de {0} ya quedó cambiada en el negocio, y es esta: {1}. La plataforma no pudo guardar su copia, así que esta pantalla no va a poder volver a mostrarla. Revise que se haya corrido «php spark platform:migrate».",
+
+    // ===== Mensajes de error que llegan a la pantalla =====
+    //
+    // Los lanza `TenantProvisioner` y la consola los muestra tal cual en el aviso rojo. Estaban en
+    // inglés dentro de una consola que está en español: quien los lee es el operador, no un
+    // programador. Los que NO están aquí -- «Invalid status», por ejemplo -- son errores de
+    // programación que no deberían alcanzar ninguna pantalla, y se dejan como están a propósito.
+    "error_slug_required"        => "Hace falta un slug.",
+    "error_slug_invalid"         => "El slug «{0}» no vale: entre 1 y 20 caracteres, solo minúsculas, dígitos o guiones.",
+    "error_slug_reserved"        => "El slug «{0}» está reservado y no se le puede dar a un negocio.",
+    "error_slug_taken"           => "Ya existe un negocio con el slug «{0}».",
+    "error_company_name_too_long" => "El nombre del negocio es demasiado largo (máximo {0} caracteres). No se creó nada.",
+    "error_provision_env_missing" => "Faltan las variables PLATFORM_PROVISION_USERNAME y PLATFORM_PROVISION_PASSWORD en el servidor. Sin ellas no se puede crear la base de un negocio nuevo. No se creó nada.",
+    "error_schema_creation"      => "No se pudo crear la base de datos del negocio: {0}. No se creó nada.",
+    "error_migration_failed"     => "La base «{0}» se creó pero sus migraciones fallaron, así que NO se registró el negocio. Hay que arreglarlo y volver a correr «tenant:migrate-one» a mano, o borrar la base y reintentar. Detalle: {1}",
+    "error_initial_admin"        => "La base del negocio se creó y migró, pero no se pudo dejar su usuario administrador: {0}",
+    "error_registration_failed"  => "La base «{0}» se creó y migró, pero registrar «{1}» en la plataforma falló: el negocio no es alcanzable y la base quedó huérfana. Compruebe que se haya corrido «php spark platform:migrate», y después regístrelo a mano --y restablézcale la contraseña desde esta consola-- o borre la base.",
+    "error_tenant_not_found"     => "No hay ningún negocio con el slug «{0}».",
+    "error_employees_unreadable" => "No se pudieron leer los empleados de «{0}»: {1}",
+    "error_username_not_found"   => "El negocio «{0}» no tiene ningún empleado que se llame «{1}», así que no hay nada que restablecer. No se cambió nada.",
+    "error_password_write"       => "No se pudo escribir la contraseña nueva en «{0}»: {1}",
+    "error_password_not_written" => "No se pudo escribir la contraseña nueva en «{0}». No se cambió nada y la contraseña anterior sigue funcionando.",
+    "error_settings_unreadable"  => "No se pudo leer la configuración de «{0}»: {1}",
+    "error_delete_adopted"       => "El negocio «{0}» es adoptado, no lo creamos nosotros: su base «{1}» existía antes que la plataforma y no tiene un usuario de base de datos propio. No se puede eliminar desde aquí. Si de verdad es lo que quiere, hay que darlo de baja a mano y con un respaldo tomado antes.",
+    "error_teardown_failed"      => "No se pudo desmontar el negocio: {0}",
 ];
