@@ -412,6 +412,17 @@ Existe pero no funciona para nadie: la tabla que la alimenta está vacía y, aun
 redirige. Con el vínculo creado en el alta y la entrada por URL, el dueño aterriza **dentro** de su
 negocio.
 
+### 6.8 La consola habla en español, también cuando se está quejando
+
+Cuando algo se rechaza —un slug repetido, un usuario que no existe en ese negocio, un negocio adoptado
+que no se puede eliminar— la consola lo dice **en español y nombrando el dato**: qué negocio, qué
+usuario, qué base. No basta con «no se pudo»: quien lee el aviso tiene que poder actuar sin abrir una
+terminal.
+
+Corregido el 2026-09-01, después de verlo en producción el mismo día del despliegue: al restablecer
+con un usuario equivocado, la pantalla contestó en inglés. El detalle técnico está en §9.17 del
+documento técnico.
+
 ---
 
 ## 7. Alcance, en cinco entregas

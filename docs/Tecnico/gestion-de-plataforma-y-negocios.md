@@ -856,6 +856,37 @@ escribía en claro y para siempre; peor aún, en producción el operador ve la p
 y no la leería nunca. Lo que hay que enseñar una sola vez va por `flashdata`, que se consume al
 leerse, nunca por una excepción ni por el registro de actividad, que se guarda para siempre.
 
+### 9.17 El texto de una excepción es interfaz de usuario
+
+`PlatformAdmin` y `PlatformAccounts` muestran `$e->getMessage()` tal cual en el aviso rojo de la
+consola. Eso convierte cada `RuntimeException` del aprovisionador en una cadena que lee el operador,
+no un programador —y estuvieron en inglés dentro de una consola en español hasta el 2026-09-01.
+
+Se vio en producción, el mismo día del despliegue: al restablecer con un usuario que no existía, la
+pantalla contestó *«Business 'casaletto' has no employee with the username 'admin'»*.
+
+**La regla:** todo `throw` en un camino que llegue a una pantalla saca su texto de
+`lang('Platform.error_*')`. Las excepciones declaradas, y son solo dos:
+
+| Dónde | Por qué se queda en inglés |
+|---|---|
+| `TenantProvisioner::adopt()` | No tiene pantalla. Se corre con `php spark tenant:adopt`, por SSH y por nosotros; quien lo lee está en una terminal |
+| `setStatus()` | El controlador solo le pasa literales (`'suspended'` / `'active'`), así que un estado inválido es un error de programación que no puede llegar por pantalla |
+
+`tests/Language/PlatformErrorStringsTest.php` lo vigila: exige que las dos listas de idioma lleven las
+mismas claves, que todas resuelvan, que las que nombran un negocio lo interpolen de verdad, y que
+nadie vuelva a lanzar texto escrito a mano fuera de esas dos excepciones —que van nombradas en la
+prueba, para que sean una decisión y no un hueco.
+
+**Y las comillas simples de ICU.** En MessageFormat la comilla simple ESCAPA lo que viene detrás, así
+que `'{0}'` se imprime literal y no sustituye nada. Las doce cadenas inglesas escritas ese día lo
+llevaban, y habrían dicho `Slug '{0}' is reserved` en pantalla. Lo encontró la prueba de arriba
+mientras se escribía. Para entrecomillar dentro de una cadena con huecos: «» o "", nunca ''.
+
+**Y no se afirma sobre el texto.** Cinco pruebas comprobaban el rechazo buscando «adopted» o
+«not found» en el mensaje, y se pusieron rojas al traducir sin que cambiara nada de lo que
+comprueban. Se compara contra `lang('Platform.error_*')`, que dice lo mismo en cualquier idioma.
+
 ## 10. Orden de implementación
 
 Coincide con las cinco entregas del funcional.
