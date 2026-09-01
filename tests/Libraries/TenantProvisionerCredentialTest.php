@@ -287,7 +287,7 @@ final class TenantProvisionerCredentialTest extends CIUnitTestCase
     public function testAnUnknownBusinessIsAnError(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessageMatches('/not found/i');
+        $this->expectExceptionMessage(lang('Platform.error_tenant_not_found', ['no-existe']));
 
         $this->provisioner->adminCredential('no-existe');
     }

@@ -148,8 +148,11 @@ final class TenantProvisionerDeleteTest extends CIUnitTestCase
 
     public function testDeletingAnAdoptedTenantIsRefused(): void
     {
+        // Se compara con la CLAVE y no con una palabra suelta del mensaje: los textos de la
+        // consola están traducidos, y afirmar sobre «adopted» ataba la prueba al idioma en el que
+        // se escribieron. Lo que importa es que sea ESTE rechazo y no otro.
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessageMatches('/adopted/i');
+        $this->expectExceptionMessage(lang('Platform.error_delete_adopted', ['casaletto', 'ospos']));
 
         $this->provisioner->delete('casaletto');
     }
@@ -178,11 +181,14 @@ final class TenantProvisionerDeleteTest extends CIUnitTestCase
             $this->provisioner->delete('casaletto', true);
             $this->fail('An adopted tenant must not be deletable.');
         } catch (RuntimeException $e) {
-            $this->assertMatchesRegularExpression('/adopted/i', $e->getMessage());
-            $this->assertStringNotContainsString(
-                'teardown',
+            $this->assertSame(
+                lang('Platform.error_delete_adopted', ['casaletto', 'ospos']),
                 $e->getMessage(),
-                'A teardown error means the connection was opened first -- one statement away from DROP DATABASE.',
+            );
+            $this->assertStringNotContainsString(
+                lang('Platform.error_teardown_failed', ['']),
+                $e->getMessage(),
+                'Un error de desmontaje significa que la conexión se abrió primero -- a una sentencia del DROP DATABASE.',
             );
         }
     }
@@ -197,7 +203,7 @@ final class TenantProvisionerDeleteTest extends CIUnitTestCase
         $this->useUnusableProvisionCredentials();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessageMatches('/teardown/i');
+        $this->expectExceptionMessage(lang('Platform.error_teardown_failed', ['']));
 
         $this->provisioner->delete('paraiso');
     }
@@ -213,7 +219,7 @@ final class TenantProvisionerDeleteTest extends CIUnitTestCase
     public function testAnUnknownSlugIsStillReportedAsNotFound(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessageMatches('/not found/i');
+        $this->expectExceptionMessage(lang('Platform.error_tenant_not_found', ['no-existe']));
 
         $this->provisioner->delete('no-existe');
     }
