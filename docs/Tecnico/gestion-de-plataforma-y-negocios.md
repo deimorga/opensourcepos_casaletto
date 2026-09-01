@@ -271,6 +271,86 @@ Tres intentos fallidos por cada dos horas, **contados sobre la cuenta**, con ven
 Dos añadidos que lo hacen seguro: que **otro superadministrador pueda desbloquear** desde el panel, y
 que el mensaje de error **no revele si el correo existe**. Aplica en los dos caminos de entrada.
 
+**La ventana no se extiende.** El ancla es el primer fallo y no se mueve: tres fallos a las 10:00
+cierran hasta las 12:00 exactas, y un cuarto intento a las 11:59 no empuja el final a las 13:59. Es
+lo que quiere decir «se cura sola», y la alternativa —reescribir el ancla en cada intento— convierte
+el freno en una cárcel: un atacante que golpee cada media hora deja al dueño legítimo fuera para
+siempre, y gratis.
+
+### 6.2 Cómo quedó construido (escrito el 2026-09-01; sin desplegar y sin certificar)
+
+Las piezas y las decisiones que no estaban en el diseño y hubo que tomar al implementarlo.
+
+| Pieza | Dónde vive |
+|---|---|
+| El cálculo TOTP y el secreto | `app/Libraries/PlatformTotp.php` |
+| El freno de D8, con reloj inyectado | `app/Libraries/PlatformLoginThrottle.php` |
+| Alta, confirmación y baja | `app/Controllers/PlatformTotp.php` + `app/Views/platform/accounts/totp*.php` |
+| El reto al entrar | `PlatformLogin::totp()` + `app/Views/platform/login_2fa.php` |
+
+**`spomky-labs/otphp` 11.5.0**, ya en `composer.lock` desde la Fase 0.
+
+#### Las seis decisiones de implementación
+
+1. **La ventana de ±1 período NO se pide con el `$leeway` de otphp.** Su margen está en segundos y
+   no puede llegar a 30 (`$leeway < $period`), así que compara `at($t-29)`, `at($t)` y `at($t+29)`.
+   En el último segundo de un período, `$t-29` cae **dentro del mismo contador** y el anterior nunca
+   se comprueba: el mismo código de hace medio minuto se acepta o se rechaza según en qué segundo
+   se pulse el botón. Aquí se calculan los tres contadores contiguos —`at($t-30)`, `at($t)`,
+   `at($t+30)`— y el borde deja de existir.
+
+2. **Secreto de 160 bits (20 bytes, 32 caracteres base32), no los 64 bytes que otphp genera por
+   defecto.** Son los del RFC 4226 §4 (R6), los que emite todo el mundo y los que toda aplicación
+   acepta. Sin QR, la clave **se teclea**: 104 caracteres serían una fuente de errores por sí solos.
+
+3. **Sin librería de código QR, y sin añadir ninguna.** La pantalla muestra la clave en grupos de
+   cuatro y la URI `otpauth://` copiable y como enlace.
+
+4. **Diez códigos de rescate, no ocho.** El diseño decía «ocho o diez»; manda
+   `PlatformAccount::RECOVERY_CODE_COUNT`, que la Fase 0 fijó en 10, y la cadena de idioma
+   `Platform.recovery_codes_intro` ya dice «Diez códigos» y está congelada.
+
+5. **El secreto viaja cifrado también en la sesión**, entre el POST que lo acuña y el que lo
+   confirma. La sesión de la consola es la de base de datos (`platform_sessions`): en claro, el
+   secreto quedaría legible en una segunda tabla que nadie mira.
+
+6. **El freno de D8 se aplica también al reto del segundo factor**, sobre las mismas dos columnas.
+   D8 cuenta sobre la cuenta, no sobre la pantalla; sin esto, seis dígitos con tres valores válidos
+   a la vez son un espacio recorrible por quien ya pasó la contraseña.
+
+#### Deuda anotada al cerrar
+
+- **`PlatformAccount::login()` conserva su propia copia del freno.** Ese archivo estaba congelado en
+  esta entrega, así que hay dos cuerpos de código para una sola regla. Coinciden hoy —las constantes
+  se importan del modelo, no se copian—, pero el paso siguiente es borrar los métodos privados del
+  modelo y delegar en la librería.
+- **`PlatformLogin` repite la cadena `'platform_pending_account_id'`**, que en el modelo es una
+  constante privada, para poder retirar la marca sin ascenderla. Su sitio natural es un
+  `abandonSecondFactor()` en el modelo.
+- **Tres cadenas de idioma prometen una imagen que no existe**: `totp_enroll_intro`,
+  `totp_secret_help` y `totp_qr_alt` hablan de escanear un QR. Las vistas **no las usan**. Hay que
+  reescribirlas, o añadir la librería de QR que describen.
+- **Falta una cadena `Platform.copy`**, así que la pantalla de alta no tiene botón de copiar: los
+  campos se seleccionan enteros con un clic.
+- **Las tres pantallas de dentro de la consola extienden `platform/console_layout`**, que es de la
+  otra mitad de la Entrega 2 y llega en su rama. Pasan `title` y `nav = 'totp'`. Mientras las dos
+  ramas no se junten, las pruebas de `PlatformTotpEnrolmentTest` no pueden renderizar nada.
+  **`platform/login_2fa.php` NO la extiende**, a propósito: en el reto la sesión solo está
+  pendiente, y una barra de navegación cuyos cinco enlaces devuelven al mismo sitio no informa,
+  confunde. Esa pantalla continúa la de entrada y comparte su marco.
+- **`failed_login_first_at` sigue siendo un DATETIME sin zona.** La librería fija la zona al
+  construirse y la usa para escribir y para leer, así que un cambio de `date_default_timezone_set()`
+  a media petición no la mueve. Lo que eso no arregla es una fila escrita por el modelo bajo otra
+  zona: eso solo lo cierra guardar UTC en la columna, que es un cambio de esquema.
+
+#### Qué comprobar en la certificación
+
+- El alta **con la aplicación real del teléfono del dueño**: que la clave tecleada funcione, que el
+  enlace `otpauth://` abra la entrada rellena, y que la entrada se lea bien.
+- Que un código de la ventana anterior (30 s) entre y uno de dos ventanas (60 s) no.
+- Que el reloj del VPS tenga NTP: **TOTP no depende de la zona horaria, depende del reloj**.
+- Que `totp_secret` en la base tenga la longitud del cifrado y **no esté truncado** en 512.
+
 ---
 
 ## 7. El registro de modificaciones (D6)
