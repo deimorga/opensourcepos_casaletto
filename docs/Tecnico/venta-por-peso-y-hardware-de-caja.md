@@ -1136,6 +1136,28 @@ Verificado en los dos sentidos: con llave entra, con contraseña `Permission den
 Y una del canal: el shell por defecto es `cmd`, así que `comando1; comando2` no separa nada — se
 imprime literal. Para varias órdenes, `powershell -NoProfile -Command -` alimentado por stdin.
 
+### El reinicio que convirtió el arranque automático en un hecho (2026-08-31)
+
+Hasta este punto, «arranca solo» era una suposición: las dos tareas figuraban como *nunca
+ejecutada*, porque se crearon después del último inicio de sesión. Se reinició el equipo a propósito
+para verlo.
+
+| Qué | Resultado |
+|---|---|
+| Llegar al escritorio | **Solo**, sin que nadie escriba nada. La cuenta no exige contraseña |
+| `PuntoDeVenta` | Disparó al iniciar sesión, resultado `0`; **Chrome abrió la caja** |
+| `AgentePOS` | Disparó al iniciar sesión, resultado `267009` = *en ejecución*, que es lo correcto para un proceso que no termina |
+| El agente | Entrada nueva en la bitácora tras el arranque, y `/estado` respondiendo en `127.0.0.1:7878` |
+
+**Y el SSH no volvió, que es lo correcto.** `ssh-encender.cmd` hace `sc config sshd start= demand`
+**a propósito**: el acceso remoto es de una sesión, no permanente. Un reinicio lo apaga, y volver a
+entrar exige que alguien toque la pantalla.
+
+Conviene tenerlo presente el día del montaje, porque no es evidente: **después de cualquier
+reinicio, incluidos los que Windows se toma por su cuenta para actualizar, no hay entrada remota
+hasta que alguien esté frente al equipo.** No es una avería que haya que arreglar; es el modelo que
+se eligió, funcionando.
+
 ### Comprobado, no supuesto
 
 - El terminal **alcanza el POS del negocio**: `HTTP 200`, 12.144 bytes.

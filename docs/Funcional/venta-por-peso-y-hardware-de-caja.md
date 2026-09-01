@@ -331,8 +331,9 @@ sin esa pausa el cajero se encontraría con una página de error que no sabría 
 Es el programa que le habla a la báscula, a la impresora y al cajón: lo único que no puede vivir en
 la página, porque un navegador no tiene forma de abrir el puerto de una báscula.
 
-**Ya está instalado y corriendo en el terminal**, y arranca solo con el equipo. No se ve: no tiene
-ventana, y el cajero no tiene que abrirlo ni saber que existe.
+**Ya está instalado y corriendo en el terminal**, y arranca solo con el equipo — **comprobado
+reiniciándolo**: se encendió, llegó solo a la caja y el programa quedó en marcha sin que nadie
+hiciera nada. No se ve: no tiene ventana, y el cajero no tiene que abrirlo ni saber que existe.
 
 **Lo que hace por dentro, que importa aunque no se vea:** no interpreta el peso. Lo entrega tal como
 lo dijo la báscula y es el sistema el que lo traduce. Suena a detalle técnico y es una decisión de
