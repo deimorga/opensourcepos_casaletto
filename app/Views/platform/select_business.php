@@ -1,10 +1,12 @@
 <?php
+
+use App\Libraries\PlatformContext;
 /**
  * @var array $tenants
  */
 ?>
 <!doctype html>
-<html lang="en">
+<html lang="<?= esc(PlatformContext::LOCALE) ?>">
 
 <head>
     <meta charset="utf-8">

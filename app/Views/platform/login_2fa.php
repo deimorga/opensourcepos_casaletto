@@ -1,4 +1,6 @@
 <?php
+
+use App\Libraries\PlatformContext;
 /**
  * El reto del segundo factor, al entrar (D11).
  *
@@ -16,7 +18,7 @@
  */
 ?>
 <!doctype html>
-<html lang="<?= esc(service('request')->getLocale()) ?>">
+<html lang="<?= esc(PlatformContext::LOCALE) ?>">
 
 <head>
     <meta charset="utf-8">

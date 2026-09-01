@@ -1,11 +1,13 @@
 <?php
+
+use App\Libraries\PlatformContext;
 /**
  * @var bool $has_errors
  * @var string|null $error
  */
 ?>
 <!doctype html>
-<html lang="en">
+<html lang="<?= esc(PlatformContext::LOCALE) ?>">
 
 <head>
     <meta charset="utf-8">
