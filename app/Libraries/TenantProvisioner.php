@@ -34,7 +34,12 @@ use Throwable;
  * initial_schema.sql. Un negocio nacía sin poder vender al peso, con el código de barras apuntando
  * al identificador interno, en inglés, y con su administrador llamándose «John Doe». Ahora aplica el
  * perfil de configuración completo (App\Libraries\TenantConfigProfile, D12), le pone nombre a la
- * persona, y guarda el nombre del negocio en platform_control para que el listado se pueda leer.
+ * persona, y guarda en platform_control el nombre del negocio y una copia cifrada de la contraseña
+ * inicial.
+ *
+ * Y aparecen aquí las dos operaciones que hasta ahora solo existían atadas a crear un esquema desde
+ * cero: adminCredential() consulta esa contraseña mientras siga siendo válida, y
+ * resetAdminPassword() la rehace sin recrear el negocio (D5).
  */
 class TenantProvisioner
 {
@@ -58,6 +63,36 @@ class TenantProvisioner
      * truncamiento mudo es exactamente el defecto que ya rompió `db_password` en este módulo.
      */
     private const MAX_COMPANY_NAME = 255;
+
+    // Los tres estados en que puede estar la contraseña del administrador de un negocio (D5). Son
+    // excluyentes y la ficha muestra una cosa distinta en cada uno.
+    //
+    // NONE      -- la plataforma nunca guardó una copia. Es el caso de Casaletto y Paraíso, dados
+    //              de alta antes de que esto existiera, y el de cualquier negocio cuya copia se
+    //              borró porque el cliente ya cambió la contraseña. Solo queda restablecer.
+    // AVAILABLE -- el hash que hay hoy en el negocio sigue siendo el que escribimos: la copia es la
+    //              contraseña de verdad y se puede mostrar.
+    // CHANGED   -- el hash difiere (o el usuario ya no existe). El cliente la cambió; la copia se
+    //              borra en ese mismo momento y este estado solo se ve una vez.
+    public const CREDENTIAL_NONE      = 'none';
+    public const CREDENTIAL_AVAILABLE = 'available';
+    public const CREDENTIAL_CHANGED   = 'changed';
+
+    /**
+     * La copia está pero no se puede descifrar: la clave de cifrado cambió bajo los pies. No es un
+     * estado del negocio sino una avería de la plataforma, y se distingue de CHANGED a propósito --
+     * decirle a alguien «el cliente la cambió» cuando lo que pasó es que perdimos la llave manda a
+     * buscar el problema al sitio equivocado. Ver §9.1 del técnico.
+     */
+    public const CREDENTIAL_UNREADABLE = 'unreadable';
+
+    /**
+     * No se pudo llegar al negocio para comprobar nada. Tampoco es un estado de la contraseña, y
+     * sobre todo NO se borra la copia: dar por cambiada una contraseña porque la base estaba caída
+     * un segundo destruiría la única copia que existe. Se distingue de los demás para que la ficha
+     * pueda decir «no lo sé» en vez de afirmar algo que no comprobó.
+     */
+    public const CREDENTIAL_UNREACHABLE = 'unreachable';
 
     /**
      * @return string|null Error message, or null if the slug is valid and free.
@@ -180,6 +215,7 @@ class TenantProvisioner
         }
 
         $adminPassword = $admin['password'];
+        $adminHash     = $admin['hash'];
 
         // service('encrypter')->encrypt() with the configured rawData=false
         // already returns a printable, storable string (hex HMAC + base64
@@ -190,8 +226,7 @@ class TenantProvisioner
         // login flow: TenantResolver's decrypt() failed with "authentication
         // failed" because the stored ciphertext had been cut off).
         $encryptedDbPassword = service('encrypter')->encrypt($dbPassword);
-
-        $now = date('Y-m-d H:i:s');
+        $now                 = date('Y-m-d H:i:s');
 
         db_connect('platform')->table('tenants')->insert([
             'slug' => $slug,
@@ -205,6 +240,13 @@ class TenantProvisioner
             'status'       => 'active',
             'created_at'   => $now,
             'updated_at'   => $now,
+
+            // D5: la copia cifrada y el hash que acabamos de escribir en el negocio. La consola
+            // muestra la primera solo mientras `employees.password` siga siendo el segundo.
+            'admin_username'        => $admin['username'],
+            'admin_password_hash'   => $adminHash,
+            'admin_password_cipher' => service('encrypter')->encrypt($adminPassword),
+            'admin_password_set_at' => $now,
         ]);
 
         return [
@@ -223,10 +265,10 @@ class TenantProvisioner
      * ES PÚBLICO Y RECIBE LA CONEXIÓN PORQUE SI NO, NO SE PUEDE PROBAR
      *
      * Estaba todo dentro de create(), atado a crear un esquema y un usuario de MySQL nuevos. En el
-     * entorno de pruebas el usuario de la base NO puede crear bases de datos -- a propósito, es la
-     * misma restricción que impide que una prueba borre un esquema de verdad. Lo que sí se puede
-     * probar, y es donde estaban los defectos, es el bloque que escribe en el esquema ya migrado.
-     * Separado, se le pasa cualquier esquema OSPOS y se comprueba lo que dejó escrito.
+     * entorno de pruebas el usuario de la base NO puede crear bases de datos -- a propósito -- así
+     * que nada de esto tenía cobertura posible, y son justamente los dos ajustes que más caro han
+     * salido en este proyecto. Separado, se le pasa cualquier esquema OSPOS y se comprueba lo que
+     * dejó escrito.
      *
      * LAS TRES ESCRITURAS VAN JUNTAS Y EN ESTE ORDEN
      *
@@ -308,8 +350,8 @@ class TenantProvisioner
 
     /**
      * La contraseña que se le entrega al cliente. 16 caracteres hexadecimales, 64 bits de entropía,
-     * exactamente como estaba antes de que esto fuera un método: extraerlo es lo que permitirá
-     * restablecerla sin recrear el negocio.
+     * exactamente como estaba antes de que esto fuera un método: extraerlo es lo que permite
+     * restablecerla sin recrear el negocio, que es todo el punto de resetAdminPassword().
      */
     private function generateAdminPassword(): string
     {
@@ -460,8 +502,8 @@ class TenantProvisioner
         }
 
         // hostConfig() y no config(Database::class): ese arreglo lo reescribe TenantResolver en
-        // sitio, y aqui se usan el usuario y la contrasena compartidos, no solo el nombre del
-        // servidor. Ver el comentario del metodo.
+        // sitio, y aquí se usan el usuario y la contraseña compartidos, no solo el nombre del
+        // servidor. Ver el comentario del método.
         $hostConfig = $this->hostConfig();
         $prefix     = $hostConfig['DBPrefix'] ?? 'ospos_';
 
@@ -539,6 +581,140 @@ class TenantProvisioner
     }
 
     /**
+     * La contraseña del administrador de un negocio, si todavía se puede enseñar (D5).
+     *
+     * LA REGLA, EN UNA FRASE: se muestra mientras el hash que hay hoy en el negocio siga siendo el
+     * que escribimos nosotros. En cuanto difiere, el cliente la cambió y la copia deja de ser
+     * verdad -- y una copia que ya no es verdad es peor que ninguna, porque manda a alguien a
+     * intentar entrar con una contraseña que no funciona.
+     *
+     * Por eso este método BORRA la copia cuando detecta el cambio, en vez de limitarse a no
+     * mostrarla. Es la única forma de que la respuesta no dependa de cuándo se preguntó, y de que la
+     * contraseña vieja de un cliente no se quede cifrada en nuestra base para siempre.
+     *
+     * SE CONSULTA EL NEGOCIO DE VERDAD, NO UNA MARCA
+     *
+     * Sería más barato guardar una bandera «ya la cambió» y consultarla. Sería también mentira: el
+     * cliente cambia su contraseña desde su propio punto de venta, que no le avisa a esta consola de
+     * nada. La única fuente de verdad es la fila de `employees` de ese negocio, y hay que ir a
+     * leerla.
+     *
+     * @return array{state: string, username: string|null, password: string|null, set_at: string|null}
+     *
+     * @throws RuntimeException if the slug is unknown or the business cannot be reached.
+     */
+    public function adminCredential(string $slug): array
+    {
+        $tenant = $this->requireTenant($slug);
+
+        $username = trim((string) ($tenant->admin_username ?? ''));
+        $hash     = (string) ($tenant->admin_password_hash ?? '');
+        $cipher   = (string) ($tenant->admin_password_cipher ?? '');
+        $setAt    = $tenant->admin_password_set_at ?? null;
+
+        // Nunca hubo copia (Casaletto y Paraíso, dados de alta antes de que esto existiera), o ya
+        // se borró. No hay nada que comprobar y no hay por qué abrir una conexión al negocio.
+        if ($hash === '' || $cipher === '') {
+            return $this->credential(self::CREDENTIAL_NONE, $username === '' ? null : $username);
+        }
+
+        try {
+            $currentHash = $this->currentAdminHash($tenant, $username);
+        } catch (Throwable $e) {
+            // La ficha del negocio no puede caerse porque su base esté suspendida o inalcanzable, y
+            // sobre todo la copia NO se borra aquí: no comprobamos nada, así que no sabemos nada.
+            log_message('error', "No se pudo comprobar la contraseña del negocio '{$slug}': " . $e->getMessage());
+
+            return $this->credential(self::CREDENTIAL_UNREACHABLE, $username, null, $setAt);
+        }
+
+        if ($currentHash === null || ! hash_equals($hash, $currentHash)) {
+            $this->forgetAdminCredential($slug);
+
+            return $this->credential(self::CREDENTIAL_CHANGED, $username);
+        }
+
+        try {
+            $password = service('encrypter')->decrypt($cipher);
+        } catch (Throwable $e) {
+            // La copia NO se borra aquí. Si lo que falló es la clave de cifrado, borrarla
+            // convertiría un problema reparable -- restaurar la clave -- en una pérdida definitiva.
+            log_message('critical', "No se pudo descifrar la contraseña guardada del negocio '{$slug}': " . $e->getMessage());
+
+            return $this->credential(self::CREDENTIAL_UNREADABLE, $username, null, $setAt);
+        }
+
+        return $this->credential(self::CREDENTIAL_AVAILABLE, $username, $password, $setAt);
+    }
+
+    /**
+     * Genera una contraseña nueva para el administrador de un negocio y la deja guardada como si
+     * acabara de darse de alta: escrita en el negocio, cifrada aquí, y consultable otra vez.
+     *
+     * Es la mitad que faltaba de D5. La lógica ya existía dentro de create() -- generar, hacer el
+     * hash, escribirlo en `employees` -- y estaba atada a crear un esquema desde cero, así que la
+     * única forma de recuperar un negocio sin contraseña era rehacerlo entero.
+     *
+     * EL USUARIO SE PIDE, NO SE SUPONE
+     *
+     * Un negocio provisionado por nosotros tiene `admin`. Casaletto, que es adoptado, tiene
+     * `admin_casaletto`, y sus seis empleados son personas reales. Inventar el usuario aquí
+     * significaría, en el mejor caso, no encontrar a nadie y en el peor cambiarle la contraseña al
+     * empleado equivocado en el negocio que está vendiendo. Si el usuario no existe en ese negocio,
+     * esto se niega y lo dice.
+     *
+     * @param string|null $username a quién. Por defecto, el que la plataforma tenga guardado.
+     *
+     * @return array{slug: string, username: string, password: string}
+     *
+     * @throws RuntimeException if the slug is unknown, the user does not exist, or the write fails.
+     */
+    public function resetAdminPassword(string $slug, ?string $username = null): array
+    {
+        $tenant = $this->requireTenant($slug);
+
+        $username = trim((string) ($username ?? $tenant->admin_username ?? ''));
+
+        if ($username === '') {
+            $username = self::DEFAULT_ADMIN_USERNAME;
+        }
+
+        $tenantDb = $this->connectToTenant($tenant);
+
+        try {
+            $exists = $tenantDb->table('employees')->where('username', $username)->countAllResults() > 0;
+        } catch (Throwable $e) {
+            throw new RuntimeException("Could not read the employees of '{$slug}': " . $e->getMessage(), 0, $e);
+        }
+
+        if (! $exists) {
+            throw new RuntimeException(
+                "Business '{$slug}' has no employee with the username '{$username}', so there is nothing to reset. "
+                . 'Nothing was changed.',
+            );
+        }
+
+        $password = $this->generateAdminPassword();
+        $hash     = password_hash($password, PASSWORD_DEFAULT);
+
+        try {
+            $tenantDb->table('employees')->where('username', $username)->update([
+                'password'     => $hash,
+                'hash_version' => 2,
+            ]);
+        } catch (Throwable $e) {
+            throw new RuntimeException("Could not write the new password into '{$slug}': " . $e->getMessage(), 0, $e);
+        }
+
+        // Solo después de que el negocio la tenga. Al revés, un fallo al escribir en el negocio
+        // dejaría en la consola una contraseña que allí no abre nada, que es la única forma de que
+        // esta pantalla mienta.
+        $this->rememberAdminCredential($slug, $username, $password, $hash);
+
+        return ['slug' => $slug, 'username' => $username, 'password' => $password];
+    }
+
+    /**
      * Toggles a tenant between 'active' and 'suspended'. TenantResolver
      * (Fase 4) already refuses to resolve a non-active tenant, so this
      * is enough to cut off access without touching its schema or data.
@@ -552,6 +728,188 @@ class TenantProvisioner
         return db_connect('platform')->table('tenants')
             ->where('slug', $slug)
             ->update(['status' => $status, 'updated_at' => date('Y-m-d H:i:s')]);
+    }
+
+    /**
+     * Lo que el negocio tiene HOY en las claves que le interesan a la ficha, leído de su propia
+     * `app_config`.
+     *
+     * Se lee del negocio y no se repite lo que el perfil dice que debería haber. Un perfil que se
+     * aplicó mal, o un valor que el cliente cambió después, se ven aquí; una tabla que repitiera las
+     * constantes de TenantConfigProfile no enseñaría nada y afirmaría que todo está bien pase lo que
+     * pase, que es la peor clase de pantalla.
+     *
+     * Devuelve null en la clave que el negocio no tenga, para poder distinguir «vacía» de «no está».
+     *
+     * @param list<string> $keys
+     *
+     * @return array<string, string|null>
+     *
+     * @throws RuntimeException if the slug is unknown or the business cannot be reached.
+     */
+    public function currentSettings(string $slug, array $keys): array
+    {
+        $tenant = $this->requireTenant($slug);
+        $found  = array_fill_keys($keys, null);
+
+        if ($keys === []) {
+            return $found;
+        }
+
+        try {
+            $rows = $this->connectToTenant($tenant)
+                ->table('app_config')
+                ->select('key, value')
+                ->whereIn('key', $keys)
+                ->get()
+                ->getResult();
+        } catch (Throwable $e) {
+            throw new RuntimeException("Could not read the settings of '{$slug}': " . $e->getMessage(), 0, $e);
+        }
+
+        foreach ($rows as $row) {
+            $found[$row->key] = (string) $row->value;
+        }
+
+        return $found;
+    }
+
+    /**
+     * La fila del negocio, o un error que lo nombra. Un slug que nadie registró no puede acabar en
+     * un `null` que el resto del método interprete como «no tiene contraseña guardada».
+     *
+     * @throws RuntimeException when no business carries that slug.
+     */
+    private function requireTenant(string $slug): object
+    {
+        $tenant = db_connect('platform')->table('tenants')->where('slug', $slug)->get()->getRow();
+
+        if ($tenant === null) {
+            throw new RuntimeException("Tenant slug '{$slug}' not found.");
+        }
+
+        return $tenant;
+    }
+
+    /**
+     * El hash que el negocio tiene HOY para ese usuario, o null si ese usuario ya no está.
+     *
+     * Se busca por nombre de usuario y no por `person_id`, porque lo que la ficha promete es que
+     * ESA pareja usuario/contraseña sigue abriendo el negocio. Un `person_id` que cambió de nombre
+     * de usuario ya no cumple la promesa aunque su hash coincida.
+     *
+     * No se filtra por `deleted`: un administrador dado de baja tampoco entra, pero su fila sigue
+     * ahí, y devolver su hash haría que la consola siguiera ofreciendo una contraseña inútil.
+     * Devolver el hash y dejar que la comparación decida es lo correcto -- si el cliente lo dio de
+     * baja sin cambiar la contraseña, el hash coincide, y lo que sobra es un aviso que esta entrega
+     * no tiene dónde poner. Queda anotado.
+     */
+    private function currentAdminHash(object $tenant, string $username): ?string
+    {
+        if ($username === '') {
+            return null;
+        }
+
+        try {
+            $row = $this->connectToTenant($tenant)
+                ->table('employees')
+                ->select('password')
+                ->where('username', $username)
+                ->get()
+                ->getRow();
+        } catch (Throwable $e) {
+            throw new RuntimeException(
+                "Could not read the employees of '{$tenant->slug}': " . $e->getMessage(),
+                0,
+                $e,
+            );
+        }
+
+        return $row === null ? null : (string) $row->password;
+    }
+
+    /**
+     * Abre una conexión al esquema de un negocio, por los DOS caminos que existen.
+     *
+     * Un negocio provisionado por create() tiene su propio usuario de MySQL, cifrado en la fila. Un
+     * negocio ADOPTADO -- Casaletto, que es el que está vendiendo -- tiene `db_user` y `db_password`
+     * vacíos y cae a las credenciales compartidas, porque adopt() nunca le creó un usuario propio.
+     * Un método que asuma usuario dedicado falla justo ahí. Es la misma bifurcación que hace
+     * TenantResolver en cada petición, escrita aquí porque este código no corre dentro de una.
+     */
+    private function connectToTenant(object $tenant): BaseConnection
+    {
+        $hostConfig = $this->hostConfig();
+
+        $username = (string) $hostConfig['username'];
+        $password = (string) $hostConfig['password'];
+
+        if (! empty($tenant->db_user) && ! empty($tenant->db_password)) {
+            $username = (string) $tenant->db_user;
+            $password = service('encrypter')->decrypt($tenant->db_password);
+        }
+
+        return Database::connect([
+            'hostname' => $hostConfig['hostname'],
+            'username' => $username,
+            'password' => $password,
+            'DBDriver' => $hostConfig['DBDriver'],
+            'database' => $tenant->db_name,
+            'DBPrefix' => $hostConfig['DBPrefix'] ?? 'ospos_',
+            'charset'  => $hostConfig['charset'] ?? 'utf8mb4',
+            'DBCollat' => $hostConfig['DBCollat'] ?? 'utf8mb4_general_ci',
+        ], false);
+    }
+
+    /**
+     * Guarda la copia consultable. Cifrada, y SOLO en `platform_control`.
+     *
+     * Sin `base64_encode()` encima: `service('encrypter')->encrypt()` con `rawData=false` ya
+     * devuelve texto imprimible (HMAC en hexadecimal + base64 del resto), y la capa de más fue
+     * exactamente lo que desbordó `tenants.db_password` en VARCHAR(255), lo truncó en silencio y
+     * rompió el descifrado sin un solo error. `admin_password_cipher` es TEXT por la misma razón.
+     */
+    private function rememberAdminCredential(string $slug, string $username, string $password, string $hash): void
+    {
+        db_connect('platform')->table('tenants')->where('slug', $slug)->update([
+            'admin_username'        => $username,
+            'admin_password_hash'   => $hash,
+            'admin_password_cipher' => service('encrypter')->encrypt($password),
+            'admin_password_set_at' => date('Y-m-d H:i:s'),
+            'updated_at'            => date('Y-m-d H:i:s'),
+        ]);
+    }
+
+    /**
+     * Borra la copia en cuanto deja de ser verdad. El usuario se conserva: la ficha sigue pudiendo
+     * decir de quién era la contraseña que ya no se puede ver, y el restablecimiento sabe a quién
+     * apuntar sin que nadie lo teclee.
+     */
+    private function forgetAdminCredential(string $slug): void
+    {
+        db_connect('platform')->table('tenants')->where('slug', $slug)->update([
+            'admin_password_hash'   => null,
+            'admin_password_cipher' => null,
+            'admin_password_set_at' => null,
+            'updated_at'            => date('Y-m-d H:i:s'),
+        ]);
+    }
+
+    /**
+     * @return array{state: string, username: string|null, password: string|null, set_at: string|null}
+     */
+    private function credential(
+        string $state,
+        ?string $username = null,
+        ?string $password = null,
+        ?string $setAt = null,
+    ): array {
+        return [
+            'state'    => $state,
+            'username' => $username,
+            'password' => $password,
+            'set_at'   => $setAt,
+        ];
     }
 
     /**
