@@ -3,6 +3,8 @@
 namespace App\Controllers;
 
 use App\Models\PlatformAccount;
+use App\Models\PlatformActivity;
+use App\Models\PlatformLoginOutcome;
 use CodeIgniter\HTTP\RedirectResponse;
 use Config\App as AppConfig;
 
@@ -44,14 +46,41 @@ class PlatformLogin extends BaseController
         $email = (string) $this->request->getPost('email');
         $password = (string) $this->request->getPost('password');
 
-        if ($this->account->login($email, $password) === null) {
-            $data['has_errors'] = true;
-            $data['error'] = lang('Platform.invalid_credentials');
+        $result = $this->account->login($email, $password);
 
-            return view('platform/login', $data);
+        if ($result->outcome === PlatformLoginOutcome::Success) {
+            return $this->redirectAfterLogin();
         }
 
-        return $this->redirectAfterLogin();
+        if ($result->outcome === PlatformLoginOutcome::SecondFactorRequired) {
+            // Nothing is authenticated yet: the account is only PENDING, and the challenge screen
+            // is the only thing that can promote it. That screen belongs to Entrega 2; its route
+            // is already reserved in app/Config/Routes.php.
+            return redirect()->to('platform/login/totp');
+        }
+
+        // D6 records the moment the counter trips, because that is the modification: the account
+        // stays shut until somebody acts. Every later refusal inside the same two-hour window is
+        // not a new fact, which is exactly what $justLocked separates.
+        if ($result->outcome === PlatformLoginOutcome::Locked && $result->justLocked && $result->account !== null) {
+            model(PlatformActivity::class)->record(
+                PlatformActivity::ACCOUNT_LOCKED,
+                PlatformActivity::TARGET_ACCOUNT,
+                (string) $result->account->id,
+                ['email' => (string) $result->account->email],
+                $result->account,
+            );
+        }
+
+        // Locked and InvalidCredentials render the SAME message, deliberately. D8 requires that the
+        // error not reveal whether the email exists, and an address that answers "too many
+        // attempts" while an unknown one answers "wrong password" has just confirmed itself.
+        // Platform.invalid_credentials names the two-hour brake, so it is true in both cases and
+        // tells nobody which one they are in.
+        $data['has_errors'] = true;
+        $data['error'] = lang('Platform.invalid_credentials');
+
+        return view('platform/login', $data);
     }
 
     /**

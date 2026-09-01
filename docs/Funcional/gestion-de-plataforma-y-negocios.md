@@ -304,6 +304,16 @@ Ordenadas para que cada una deje el sistema mejor aunque la siguiente se demore.
   negocios adoptados. Es lo único de esta entrega que corrige un riesgo ya existente.
 
 ### Entrega 2 — Cerrar la llave suelta
+
+> **Estado a 2026-08-31: lo de debajo está empezado, y todavía no se ve nada en pantalla.** Se
+> escribió primero la parte que no se ve —dónde se guardan el último ingreso, quién creó cada
+> cuenta, el contador de intentos, el segundo factor, los códigos de rescate y el registro de
+> actividad—, más las salvaguardas de «ni a sí mismo, ni al último». Las pantallas vienen después.
+>
+> **Nada de esto se ha probado todavía**: la máquina donde se escribió no tenía la base de datos
+> de pruebas levantada, así que las pruebas están escritas pero no ejecutadas. **No está
+> desplegado y no está certificado.** La cuenta huérfana sigue existiendo.
+
 - Pantalla de **superadministradores**: ver, crear, eliminar, con último ingreso.
 - **Cambiar la propia contraseña** y **activar el segundo factor**, con códigos de rescate.
 - Salvaguardas: ni a sí mismo, ni al último, confirmación escribiendo el correo, desbloqueo por otro

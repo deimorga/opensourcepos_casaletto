@@ -95,7 +95,7 @@ class Load_config
      */
     private function loadPlatformConsoleConfig(): void
     {
-        Services::language()->setLocale('es-MX');
+        Services::language()->setLocale(PlatformContext::LOCALE);
 
         date_default_timezone_set(config(App::class)->appTimezone);
 

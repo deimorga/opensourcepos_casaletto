@@ -45,6 +45,20 @@ use Config\App;
 final class PlatformContext
 {
     /**
+     * The one locale the console speaks.
+     *
+     * Not negotiated, and not read from any business's app_config -- the console belongs to no
+     * business and has no configuration of its own to read. Fixed to es-MX because that is the
+     * single Spanish variant this project uses: a string written in es-ES is invisible to an es-MX
+     * request and the screen comes out in English without a single error anywhere.
+     *
+     * Two places need it and neither can be reached from the other: App\Events\Load_config, which
+     * runs on post_controller_constructor, and App\Controllers\Platform_Controller, whose
+     * constructor runs BEFORE that event and can already redirect with a translated message.
+     */
+    public const LOCALE = 'es-MX';
+
+    /**
      * Set by TenantResolver once it has taken the platform branch and repointed the active
      * connection group at the control schema. Distinct from isPlatform(): this one records that
      * something was DONE, not merely that the address says so.

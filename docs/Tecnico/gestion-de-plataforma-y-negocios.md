@@ -501,6 +501,39 @@ serie con `-g platform` queda desaconsejado: funciona, pero escribe el historial
 
 Pruebas: `tests/Commands/PlatformMigrationHistoryTest.php`.
 
+### 9.15 El paquete nuevo de Composer no viaja en el repositorio
+
+La Entrega 2 añade la primera dependencia de Composer desde que existe el despliegue actual:
+`spomky-labs/otphp` (fijada en `^11.3`, resuelta a 11.5.0), para verificar los códigos TOTP.
+
+Dos hechos que hay que leer juntos:
+
+- **`vendor/` sí entra en la imagen.** El `Dockerfile` es un `COPY . /app` y `vendor/` no está en
+  `.dockerignore`.
+- **`composer.json` y `composer.lock` NO entran.** Los dos están en `.dockerignore`. Dentro de la
+  imagen no hay forma de instalar nada: lo que haya en `vendor/` **en el servidor** en el momento
+  del build es lo único que existirá.
+
+`.github/workflows/deploy-staging.yml` y `deploy-production.yml` **ya lo hacen bien**: corren
+`composer install --no-dev --optimize-autoloader` dentro de un `php:8.4-cli` sobre el directorio del
+VPS **antes** del `docker compose up --build`. Por el despliegue automático no hay nada que cambiar.
+
+**Donde muerde es en un despliegue manual.** Un `docker compose up --build` a mano —el mismo caso
+que ya avisa `AGENTS.md` para los assets— construiría una imagen con el `vendor/` viejo, y la
+primera pantalla que instancie `OTPHP\TOTP` moriría con «Class not found» en un HTTP 500, sin que
+ningún smoke test que solo mire el código de estado de la portada lo note.
+
+**Regla:** cualquier despliegue manual de la Entrega 2 corre `composer install --no-dev
+--optimize-autoloader` en el VPS **antes** del build, igual que el `npm run build`.
+
+Y una nota sobre versiones de PHP, porque en esta máquina no es evidente: el repositorio declara
+`php: ^8.2`, CI corre 8.2, 8.3 y 8.4, y el VPS instala con `php:8.4-cli`. **El host de desarrollo
+tiene PHP 8.5**, y `sabberworm/php-css-parser` (una dependencia transitiva de `dompdf`) tiene tope
+`~8.4.0`, así que `composer install` falla en local si no se le pasa `--ignore-platform-req=php+`.
+No es un problema del paquete nuevo: `otphp` y sus tres dependencias (`paragonie/constant_time_encoding`,
+`psr/clock`, `symfony/deprecation-contracts`) no ponen tope superior de PHP, y se comprobó que el
+conjunto resuelve e instala limpio fijando `platform.php = 8.4.0`.
+
 ---
 
 ## 10. Orden de implementación
@@ -513,6 +546,38 @@ Coincide con las cinco entregas del funcional.
    único de esta entrega que corrige un riesgo ya existente.
 2. **Superadministradores + TOTP + registro de actividad** (§7.1), **eliminar la cuenta huérfana** y
    **crear una segunda cuenta real** — ver §9.12. No toca la provisión ni el arranque.
+
+   > **Estado a 2026-08-31: los cimientos escritos, sin pantallas y sin certificar.** Nada de esto
+   > se ha desplegado ni se ha probado contra una base de datos: en la máquina donde se escribió no
+   > había MariaDB levantada. Las pruebas están escritas y **no se han ejecutado**.
+   >
+   > Se cerraron primero los archivos que las dos mitades siguientes tendrían que editar a la vez
+   > —rutas, claves de idioma, migraciones, `composer.lock`—, para que ninguna de las dos tenga que
+   > tocarlos. Lo que queda de la Entrega son las pantallas y sus controladores.
+
+   | Dónde | Qué quedó escrito |
+   |---|---|
+   | `app/Platform/Database/Migrations/20260902000000_AddAccountLifecycleToPlatformAccounts.php` | `last_login_at`, `created_by_account_id` (NULL = creada desde la terminal, la señal que delata a la huérfana), `failed_login_count`, `failed_login_first_at` |
+   | `…20260902000001_AddTotpToPlatformAccounts.php` | `totp_secret VARCHAR(512)` y `totp_enabled_at`. 512 y no 255: lo que se guarda es el cifrado, y ahí es donde se truncó `tenants.db_password` |
+   | `…20260902000002_CreatePlatformAccountRecoveryCodes.php` | Tabla propia, no una columna JSON: el «un solo uso» tiene que ser un `UPDATE … WHERE used_at IS NULL` con `affectedRows() === 1` |
+   | `…20260902000003_CreatePlatformActivityLog.php` | El registro de §7.1, con `account_email` **denormalizado** para que la fila que dice quién eliminó la cuenta huérfana siga siendo legible |
+   | `app/Models/PlatformAccount.php` | `login()` devuelve `PlatformLoginResult` (cuatro desenlaces) en vez de `?object`; `countAdmins()`, `changePassword()`, `deleteAccount()`, `unlock()`, `touchLastLogin()`, códigos de rescate, y el freno de D8 |
+   | `app/Models/PlatformActivity.php` | `record()` y las doce acciones de D6 como constantes |
+   | `app/Controllers/Platform_Controller.php` | Base de la consola: guarda de administrador, guarda de «TOTP pendiente», `currentAccount()`, `logActivity()`, locale |
+   | `app/Config/Routes.php` | **Todas** las rutas de la Entrega, de una vez |
+   | `app/Language/{en,es-MX}/Platform.php` | **Todas** las claves, en los dos idiomas, con una prueba que compara los dos archivos |
+   | `composer.json` / `composer.lock` | `spomky-labs/otphp ^11.3` → 11.5.0. Leer **§9.15** antes de desplegar |
+
+   **Las migraciones se corren con `php spark platform:migrate`**, nunca con el `migrate` de serie
+   (§9.14). Son cuatro y no una para que el freno de intentos pueda desplegarse aunque el TOTP se
+   retrase, y para que cada `down()` revierta una sola preocupación.
+
+   **Una decisión que la pantalla de entrada tiene que respetar:** `login()` distingue «bloqueada»
+   de «credenciales inválidas» porque el controlador necesita esa diferencia —registra
+   `account.locked` justo cuando el contador salta—, pero **las dos se muestran con el mismo
+   mensaje**. Una dirección que conteste «demasiados intentos» mientras otra contesta «contraseña
+   incorrecta» acaba de confirmar que existe, y D8 lo prohíbe. `Platform.invalid_credentials`
+   nombra el freno de dos horas, así que es cierto en los dos casos.
 3. **Perfil de configuración, ficha del negocio, `company_name`, "John Doe", consultar/restablecer la
    clave.** Toca `TenantProvisioner`: releer §9.2 y §9.5 antes. El perfil escribe en **los dos sitios
    del idioma** (§2.4), y el **candado de §9.13 va del lado del POS**, no de la consola.
