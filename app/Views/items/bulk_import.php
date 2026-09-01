@@ -2,7 +2,12 @@
 /**
  * Carga masiva de artículos: descargar el catálogo, corregirlo, volver a subirlo.
  *
- * ESTA VISTA ES EL ESQUELETO DE LA FASE 0. El Carril B la completa con la vista previa.
+ * EL ORDEN DE LA PÁGINA CAMBIA SEGÚN EN QUÉ PASO SE ESTÉ, Y ES DELIBERADO
+ *
+ * Sin archivo subido, lo primero son las dos descargas: el viaje empieza bajando el catálogo. Con un
+ * archivo ya analizado, lo primero es la vista previa, porque a partir de ese momento la única
+ * pregunta es «¿aplico esto?» y hacérsela buscar debajo de dos paneles de descarga sería esconderla.
+ * Las descargas y el formulario siguen debajo, que es donde hacen falta si decide cancelar y corregir.
  *
  * Es una PÁGINA y no un modal, y eso es una decisión: el diálogo de BootstrapDialog fija sus botones
  * al abrirse y no los deja cambiar, así que no puede pasar de «Continuar» a «Aplicar / Cancelar»; una
@@ -14,7 +19,18 @@
  * @var array       $config
  * @var array|null  $preview  el plan calculado, cuando ya se subió un archivo
  * @var string|null $error
+ * @var array|null  $result              lo que de verdad ocurrió, cuando ya se aplicó
+ * @var bool|null   $previous_available  si la foto del «cómo estaba antes» se pudo guardar
  */
+
+// `$result` no lo pasa `getIndex()`, que es el camino de llegada normal a esta pantalla: solo aparece
+// al volver de aplicar. Se lee con `??` en vez de exigirlo para no obligar a tocar ese método.
+$result = $result ?? null;
+
+// Y el error puede venir por dos caminos. `getPrevious()` redirige con `with('error', ...)`, que es
+// flashdata, mientras que los dos POST lo pasan como variable de la vista. Sin esta línea, el aviso
+// de «el archivo ya no está» de la descarga del «cómo estaba antes» se perdería en silencio.
+$error = $error ?? session()->getFlashdata('error');
 ?>
 
 <?= view('partial/header') ?>
@@ -22,7 +38,35 @@
 <div id="page_title"><?= lang('Items.bulk_upload_title') ?></div>
 
 <?php if (!empty($error)) { ?>
-    <div class="alert alert-dismissible alert-danger"><?= esc($error) ?></div>
+    <div class="alert alert-dismissible alert-danger" role="alert"><?= esc($error) ?></div>
+<?php } ?>
+
+<?php if ($result !== null) { ?>
+    <?php
+    // EL RESULTADO VA ARRIBA DEL TODO, Y CON LA RED AL LADO
+    //
+    // Quien acaba de cambiar 1.184 precios de un golpe tiene una sola pregunta -- «¿cuántos?» -- y una
+    // sola necesidad si la respuesta no le cuadra: el archivo de cómo estaba antes. Las dos cosas
+    // juntas y antes que nada más, no al final de la página.
+    ?>
+    <div class="panel panel-success">
+        <div class="panel-body">
+            <p style="font-size:16px; margin-bottom:10px;">
+                <span class="glyphicon glyphicon-ok-circle">&nbsp;</span>
+                <strong><?= esc(lang('Items.bulk_applied_counts', [$result['created'], $result['updated']])) ?></strong>
+            </p>
+            <?php if (!empty($previous_available)) { ?>
+                <p class="text-muted"><?= lang('Items.bulk_download_previous_help') ?></p>
+                <a class="btn btn-default" href="<?= site_url('items/bulk/previous') ?>">
+                    <span class="glyphicon glyphicon-download-alt">&nbsp;</span><?= lang('Items.bulk_download_previous') ?>
+                </a>
+            <?php } ?>
+        </div>
+    </div>
+<?php } ?>
+
+<?php if (!empty($preview)) { ?>
+    <?= view('items/bulk_import_preview', ['preview' => $preview]) ?>
 <?php } ?>
 
 <div class="row">
@@ -74,9 +118,5 @@
         <?= form_close() ?>
     </div>
 </div>
-
-<?php if (!empty($preview)) { ?>
-    <?= view('items/bulk_import_preview', ['preview' => $preview]) ?>
-<?php } ?>
 
 <?= view('partial/footer') ?>
