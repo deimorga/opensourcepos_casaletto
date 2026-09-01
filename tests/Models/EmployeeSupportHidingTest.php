@@ -118,16 +118,41 @@ final class EmployeeSupportHidingTest extends CIUnitTestCase
         $this->assertNotContains($this->soportePersonId, $ids);
     }
 
+    /**
+     * Se compara sobre el texto entero y no dentro de un bucle: si las sugerencias vinieran vacías,
+     * un `foreach` no ejecutaría ni una comprobación y la prueba pasaría **sin haber probado nada**.
+     * PHPUnit la marcó como arriesgada, y tenía razón.
+     */
     public function testTheSupportEmployeeIsNotInTheSuggestions(): void
     {
-        $sugerencias = $this->employee->get_search_suggestions(Platform_support::FIRST_NAME, 25);
+        $texto = $this->comoTexto($this->employee->get_search_suggestions(Platform_support::FIRST_NAME, 25));
 
-        foreach ($sugerencias as $sugerencia) {
-            $this->assertStringNotContainsString(
-                Platform_support::USERNAME,
-                is_array($sugerencia) ? implode(' ', $sugerencia) : (string) $sugerencia,
-            );
+        $this->assertStringNotContainsString(Platform_support::USERNAME, $texto);
+        $this->assertStringNotContainsString(Platform_support::LAST_NAME, $texto);
+    }
+
+    /**
+     * Y el control: buscando a la empleada de verdad, ella SÍ sale. Sin esto, la de arriba pasaría
+     * igual si las sugerencias estuvieran rotas y no devolvieran nunca nada.
+     */
+    public function testARealEmployeeIsStillSuggested(): void
+    {
+        $texto = $this->comoTexto($this->employee->get_search_suggestions('DeVerdad', 25));
+
+        $this->assertStringContainsString('DeVerdad', $texto);
+    }
+
+    private function comoTexto(mixed $sugerencias): string
+    {
+        $plano = '';
+
+        foreach ((array) $sugerencias as $sugerencia) {
+            $plano .= is_array($sugerencia) || is_object($sugerencia)
+                ? json_encode($sugerencia, JSON_UNESCAPED_UNICODE)
+                : (string) $sugerencia;
         }
+
+        return $plano;
     }
 
     // ========== Que los de verdad SÍ se vean ==========

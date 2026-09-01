@@ -157,18 +157,43 @@ final class PlatformHostWiringTest extends CIUnitTestCase
      * Nothing outside `platform` is touched. The point of sale is every other URI in this
      * application, and it is what the business is selling through.
      */
-    public function testNoOtherUriGoesThroughThisFilter(): void
+    /**
+     * Que nada más encamine a este filtro, y que la lista de filtros acotados por URI siga siendo
+     * la que alguien decidió.
+     *
+     * Antes esto afirmaba que `platformhost` era el ÚNICO filtro acotado por URI del proyecto. Dejó
+     * de ser cierto en la Entrega 4, que añadió el registro de soporte -- y un conteo no dice cuál
+     * apareció ni si debía aparecer. La lista con nombres sí: sumar uno obliga a escribirlo aquí, y
+     * escribirlo obliga a pensarlo.
+     */
+    public function testNothingElseIsRoutedToThisFilter(): void
     {
         $filters = config(Filters::class);
 
-        foreach ($filters->filters as $alias => $rules) {
-            if ($alias === 'platformhost') {
-                continue;
-            }
+        $conEsteFiltro = array_keys(array_filter(
+            $filters->aliases,
+            static fn ($clase): bool => $clase === PlatformHost::class,
+        ));
 
-            $this->assertNotContains(PlatformHost::class, (array) $alias);
-        }
+        $this->assertSame(['platformhost'], $conEsteFiltro, 'Un segundo alias sería una segunda puerta.');
+    }
 
-        $this->assertCount(1, $filters->filters, 'This filter is the only URI-scoped one in the project.');
+    public function testTheUriScopedFiltersAreTheOnesSomebodyDecided(): void
+    {
+        $filters = config(Filters::class);
+
+        $esperados = [
+            // El que acota la consola a su propia dirección. Sobre TODAS las rutas desde el
+            // 2026-09-01: acotarlo a platform/* dejaba la raíz del apex sirviendo el punto de venta.
+            'platformhost',
+            // El registro de nivel 2, en `after`. Solo hace algo cuando la sesión es de soporte.
+            'platformsupportaudit',
+        ];
+
+        $reales = array_keys($filters->filters);
+        sort($esperados);
+        sort($reales);
+
+        $this->assertSame($esperados, $reales);
     }
 }
