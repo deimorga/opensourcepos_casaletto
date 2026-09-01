@@ -275,4 +275,5 @@ return [
     "reset_password_user_help" => "It must already exist in this business. A business we provisioned uses «{0}»; an adopted one uses whatever name it already had.",
     "reset_password_button"  => "Reset it now",
     "reset_password_done"    => "New password generated for {0}. It is shown below.",
+    "reset_password_uncopied"    => "WRITE IT DOWN NOW. The password of {0} has already been changed in the business, and it is: {1}. The platform could not save its copy, so this screen will not be able to show it again. Check that `php spark platform:migrate` has been run.",
 ];

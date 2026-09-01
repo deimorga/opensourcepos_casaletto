@@ -280,4 +280,5 @@ return [
     "reset_password_user_help" => "Tiene que existir ya en ese negocio. Un negocio aprovisionado por nosotros usa «{0}»; uno adoptado conserva el nombre que ya tenía.",
     "reset_password_button"  => "Restablecerla ahora",
     "reset_password_done"    => "Contraseña nueva generada para {0}. Se muestra abajo.",
+    "reset_password_uncopied" => "ANÓTELA AHORA. La contraseña de {0} ya quedó cambiada en el negocio, y es esta: {1}. La plataforma no pudo guardar su copia, así que esta pantalla no va a poder volver a mostrarla. Revise que se haya corrido «php spark platform:migrate».",
 ];

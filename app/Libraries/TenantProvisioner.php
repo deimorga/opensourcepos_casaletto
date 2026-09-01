@@ -253,11 +253,20 @@ class TenantProvisioner
         ]);
 
         if ($registered === false) {
+            // LA CONTRASEÑA NO VA EN ESTE MENSAJE, A PROPÓSITO
+            //
+            // El texto de una excepción termina en `writable/logs/`, en claro y para siempre. Y en
+            // producción la pantalla que ve el operador es la genérica, así que ponerla acá la
+            // escribiría en disco sin llegar a enseñársela a nadie: lo peor de las dos cosas.
+            //
+            // Tampoco hace falta. El negocio no quedó registrado, así que nadie puede entrar en él
+            // con ninguna contraseña: lo accionable es el nombre del esquema huérfano. Registrado a
+            // mano, «Restablecer la contraseña» genera una nueva y sí la enseña.
             throw new RuntimeException(
                 "The schema '{$dbIdentifier}' was created and migrated, but registering '{$slug}' in the "
-                . 'platform failed, so the business is unreachable and the database is orphaned. The admin '
-                . "password generated for it was: {$adminPassword}. Check that `php spark platform:migrate` "
-                . 'has been run, then register it by hand or drop the schema.',
+                . 'platform failed, so the business is unreachable and the database is orphaned. Check that '
+                . '`php spark platform:migrate` has been run, then register it by hand -- and reset its '
+                . 'admin password from the console afterwards -- or drop the schema.',
             );
         }
 
@@ -692,7 +701,7 @@ class TenantProvisioner
      *
      * @param string|null $username a quién. Por defecto, el que la plataforma tenga guardado.
      *
-     * @return array{slug: string, username: string, password: string}
+     * @return array{slug: string, username: string, password: string, copy_saved: bool}
      *
      * @throws RuntimeException if the slug is unknown, the user does not exist, or the write fails.
      */
@@ -763,17 +772,25 @@ class TenantProvisioner
         //
         // Y esta guardada TAMBIÉN se comprueba: si el esquema de plataforma va por detrás -- correr
         // `platform:migrate` es un paso manual del despliegue -- la contraseña del negocio ya habría
-        // cambiado y la copia no se guardaría. El cliente quedaría fuera con una contraseña que nadie
-        // ha visto nunca. Se avisa con la contraseña en el mensaje, que es lo único que la salva.
-        if (! $this->rememberAdminCredential($slug, $username, $password, $hash)) {
-            throw new RuntimeException(
-                "The password of '{$slug}' WAS changed to: {$password} -- write it down now. The platform "
-                . 'could not save its copy, so this screen will not be able to show it again. Check that '
-                . '`php spark platform:migrate` has been run.',
-            );
-        }
+        // cambiado y la copia no se guardaría, y la ficha no podría volver a enseñarla nunca.
+        //
+        // ESO NO SE LANZA COMO EXCEPCIÓN, Y LA RAZÓN IMPORTA
+        //
+        // La contraseña del negocio YA CAMBIÓ: el cliente está fuera desde este instante. Lanzar
+        // acá tiraría al suelo lo único que lo salva, que es enseñarla. Además el mensaje de una
+        // excepción se escribe en `writable/logs/` en claro, y en producción el operador vería la
+        // pantalla de error genérica, sin la contraseña.
+        //
+        // Así que se devuelve por el canal de siempre, con la marca de que no hay copia, y es la
+        // consola la que se encarga de enseñarla UNA vez y decir que hay que anotarla ya.
+        $saved = $this->rememberAdminCredential($slug, $username, $password, $hash);
 
-        return ['slug' => $slug, 'username' => $username, 'password' => $password];
+        return [
+            'slug'       => $slug,
+            'username'   => $username,
+            'password'   => $password,
+            'copy_saved' => $saved,
+        ];
     }
 
     /**

@@ -419,6 +419,49 @@ final class TenantProvisionerCredentialTest extends CIUnitTestCase
         $this->assertNull($credential['password'], 'Tampoco acá se enseña: no se comprobó que siga valiendo.');
     }
 
+    /**
+     * LO QUE PASA CUANDO LA COPIA NO SE PUEDE GUARDAR
+     *
+     * La contraseña del negocio YA cambió: el cliente está fuera desde ese instante. Si esto lanzara
+     * una excepción, se tiraría al suelo lo único que lo salva, que es enseñar la contraseña -- y en
+     * producción el operador vería la pantalla de error genérica, sin ella, mientras el texto de la
+     * excepción quedaría escrito en claro en `writable/logs/` para siempre.
+     *
+     * Así que devuelve normalmente, con `copy_saved` en falso, y es la consola la que la enseña una
+     * vez. Se simula tirando la tabla del registro entre medias.
+     */
+    public function testWhenTheCopyCannotBeSavedThePasswordStillComesBack(): void
+    {
+        db_connect('platform')->query('DROP TABLE IF EXISTS `tenants_respaldo`');
+        db_connect('platform')->query('CREATE TABLE `tenants_respaldo` AS SELECT * FROM `tenants`');
+
+        $tenant = $this->tenantRow();
+
+        // El registro desaparece DESPUÉS de que resetAdminPassword() lo haya leído, así que se
+        // simula al revés: se le quita la columna donde tiene que escribir la copia.
+        db_connect('platform')->query('ALTER TABLE `tenants` DROP COLUMN `admin_password_cipher`');
+        db_connect('platform')->resetDataCache();
+
+        $result = $this->provisioner->resetAdminPassword(self::SLUG);
+
+        $this->assertFalse($result['copy_saved'], 'La copia no se pudo guardar y hay que decirlo.');
+        $this->assertNotSame('', $result['password'], 'La contraseña tiene que volver: es la única vez que se ve.');
+        $this->assertTrue(
+            password_verify($result['password'], $this->employeeHash()),
+            'Y tiene que ser la que de verdad quedó escrita en el negocio.',
+        );
+
+        $this->createRegistry();
+        db_connect('platform')->table('tenants')->insert((array) $tenant);
+    }
+
+    public function testWhenTheCopyIsSavedItSaysSo(): void
+    {
+        $result = $this->provisioner->resetAdminPassword(self::SLUG);
+
+        $this->assertTrue($result['copy_saved']);
+    }
+
     public function testTheWholeFileRunsAgainstAnAdoptedBusiness(): void
     {
         $this->assertTrue(

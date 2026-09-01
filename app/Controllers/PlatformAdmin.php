@@ -205,6 +205,17 @@ class PlatformAdmin extends Platform_Controller
             ['username' => $result['username']],
         );
 
+        // La plataforma no pudo guardar su copia -- casi siempre, el esquema de control por detrás
+        // del código. La contraseña del negocio YA cambió, así que el cliente está fuera desde este
+        // instante y esta es la única vez que alguien la va a ver: la ficha no podrá enseñarla.
+        //
+        // Va por `flashdata`, que se consume al leerse, y NO por el registro de actividad ni por el
+        // log: los dos se guardan para siempre.
+        if ($result['copy_saved'] === false) {
+            return redirect()->to('platform/admin/' . rawurlencode($slug))
+                ->with('error', lang('Platform.reset_password_uncopied', [$result['username'], $result['password']]));
+        }
+
         return redirect()->to('platform/admin/' . rawurlencode($slug) . '?reveal=1')
             ->with('message', lang('Platform.reset_password_done', [$result['username']]));
     }
