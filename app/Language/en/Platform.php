@@ -299,4 +299,11 @@ return [
     "error_settings_unreadable"  => "Could not read the settings of “{0}”: {1}",
     "error_delete_adopted"       => "Business “{0}” was adopted, not provisioned by us: its schema “{1}” existed before the platform did and has no dedicated database user. It cannot be deleted from here. Unregister it by hand, with a backup taken first, if that is really what you want.",
     "error_teardown_failed"      => "Business teardown failed: {0}",
+
+    // ----- The support employee (Entrega 4, section 4.1) -----
+    "error_support_column_missing" => "Schema “{0}” does not have the employees.is_platform_support column yet, so the support employee cannot be created there. Migrate it first (“php spark tenant:migrate-one” pointed at that schema) and retry.",
+    "error_support_username_taken" => "Schema “{0}” already has an employee with the username “{1}” that is NOT the platform support account. It is left alone: marking it would hide a real employee of the business, and overwriting it would take away their password. Rename that person by hand and retry.",
+    "error_support_employee"       => "The support employee could not be created in “{0}”: {1}. Nothing was left half-written.",
+    "error_support_write_refused"  => "the database refused the write without giving a reason",
+    "error_support_on_create"      => "The business schema was created and migrated and its admin account was set up, but its support employee could not be created, so the business was NOT registered: {0}",
 ];

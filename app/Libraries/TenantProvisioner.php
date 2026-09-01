@@ -214,6 +214,22 @@ class TenantProvisioner
             throw new RuntimeException(lang('Platform.error_initial_admin', [$e->getMessage()]), 0, $e);
         }
 
+        // EL EMPLEADO DE SOPORTE NACE CON EL NEGOCIO, NO DESPUÉS (§4.1)
+        //
+        // Va aquí, y no en un paso posterior que alguien tenga que acordarse de dar, porque un
+        // negocio en el que no podemos entrar no está terminado: todo OSPOS cuelga de `person_id`,
+        // así que sin esta fila una sesión de soporte dejaría ventas, turnos y ajustes sin autor.
+        //
+        // Y va ANTES de registrar el negocio en `tenants`, a propósito. Si esto falla, el negocio no
+        // queda registrado y por lo tanto no es alcanzable por su dirección: un esquema huérfano que
+        // el operador tiene que atender es mucho mejor que un negocio vivo al que no podemos entrar
+        // y que nadie sabe que está así. Es el mismo trato que ya recibe el administrador inicial.
+        try {
+            $this->seedPlatformSupportEmployee($tenantDb);
+        } catch (Throwable $e) {
+            throw new RuntimeException(lang('Platform.error_support_on_create', [$e->getMessage()]), 0, $e);
+        }
+
         $adminPassword = $admin['password'];
         $adminHash     = $admin['hash'];
 
@@ -334,6 +350,239 @@ class TenantProvisioner
         (new TenantConfigProfile())->applyTo($tenantDb, $companyName, $personId);
 
         return ['username' => $username, 'password' => $password, 'hash' => $hash];
+    }
+
+    /**
+     * El empleado de soporte de la plataforma DENTRO de un negocio: quién somos nosotros ahí dentro.
+     *
+     * Quién es esa fila lo dice `App\Libraries\Platform_support` y solo él. Aquí no se decide ningún
+     * dato de identidad --ni el usuario, ni el nombre, ni la contraseña inutilizable--: este método
+     * se limita a escribirla donde va y a darle los permisos, que es lo único que depende del
+     * esquema que tenga delante.
+     *
+     * IDEMPOTENTE PORQUE VA A CORRERSE MÁS DE UNA VEZ
+     *
+     * Lo corre el alta de un negocio nuevo y lo corre `platform:support-employee` sobre los que ya
+     * existen --entre ellos el de Casaletto, que está vendiendo mientras esto pasa--. Así que el
+     * caso normal no es «crear»: es «comprobar que ya está y no tocar nada». Si la fila existe, no
+     * se reescribe ni se le cambia la contraseña; solo se le completan los permisos que le falten,
+     * que es lo que hace falta cuando una migración posterior añade uno nuevo (y lo que repara el
+     * hueco de `Stock_location::_insert_new_permission()`, que reparte los permisos de una ubicación
+     * nueva entre los empleados que el negocio lista, de los que este no es uno).
+     *
+     * LAS ESCRITURAS VAN EN UNA TRANSACCIÓN
+     *
+     * Son tres tablas encadenadas --`people`, `employees`, `grants`-- y un fallo a mitad dejaría una
+     * persona sin empleado, o un empleado sin permisos que la próxima corrida daría por bueno porque
+     * la fila «ya está». Con la transacción, o queda entero o no queda nada, y reintentar es seguro.
+     *
+     * @return array{created: bool, person_id: int, grants_added: int}
+     *
+     * @throws RuntimeException si el esquema no puede recibirlo o si alguna escritura se rechaza.
+     */
+    public function seedPlatformSupportEmployee(BaseConnection $tenantDb): array
+    {
+        // La lista de campos se cachea por conexión, y esta conexión puede venir de un esquema que
+        // se acaba de migrar en otro proceso. Contestar desde la lista vieja diría que la columna no
+        // está cuando sí está, y este método se negaría a hacer su trabajo sin motivo.
+        $tenantDb->resetDataCache();
+
+        $esquema = (string) $tenantDb->getDatabase();
+
+        if (! $tenantDb->fieldExists('is_platform_support', 'employees')) {
+            throw new RuntimeException(lang('Platform.error_support_column_missing', [$esquema]));
+        }
+
+        // Se busca por la columna que dice QUÉ es la fila, no por el nombre de usuario: una fila
+        // marcada que alguien hubiera renombrado seguiría siendo el empleado de soporte, y buscarla
+        // por el usuario crearía una segunda.
+        $existente = $tenantDb->table('employees')
+            ->where('is_platform_support', 1)
+            ->get()
+            ->getRow();
+
+        // Y solo si no hay ninguna se mira el nombre de usuario, que es único en la tabla. Que esté
+        // ocupado por una fila SIN la marca significa que hay un empleado de verdad llamándose así:
+        // marcarlo escondería a una persona real del negocio, y sobreescribirlo le quitaría su
+        // contraseña. Ninguna de las dos se hace en silencio.
+        if ($existente === null
+            && $tenantDb->table('employees')->where('username', Platform_support::USERNAME)->countAllResults() > 0) {
+            throw new RuntimeException(
+                lang('Platform.error_support_username_taken', [$esquema, Platform_support::USERNAME]),
+            );
+        }
+
+        $tenantDb->transBegin();
+
+        $fallo      = null;
+        $personId   = null;
+        $concedidos = null;
+
+        try {
+            $personId = $existente === null
+                ? $this->insertSupportEmployee($tenantDb)
+                : (int) $existente->person_id;
+
+            $concedidos = $personId === null ? null : $this->grantEveryPermission($tenantDb, $personId);
+
+            if ($personId === null || $concedidos === null) {
+                // Con `DBDebug` apagado --que es como corre producción-- una escritura rechazada
+                // DEVUELVE false en vez de lanzar, así que el motivo hay que ir a pedírselo al
+                // controlador. Sin esto, el operador leería «no se pudo» sin una sola pista.
+                $fallo = trim((string) ($tenantDb->error()['message'] ?? ''));
+            }
+        } catch (Throwable $e) {
+            $fallo = $e->getMessage();
+        }
+
+        if ($fallo !== null) {
+            $tenantDb->transRollback();
+
+            throw new RuntimeException(lang('Platform.error_support_employee', [
+                $esquema,
+                $fallo === '' ? lang('Platform.error_support_write_refused') : $fallo,
+            ]));
+        }
+
+        if (! $tenantDb->transCommit()) {
+            $tenantDb->transRollback();
+
+            throw new RuntimeException(lang('Platform.error_support_employee', [
+                $esquema,
+                lang('Platform.error_support_write_refused'),
+            ]));
+        }
+
+        return [
+            'created'      => $existente === null,
+            'person_id'    => (int) $personId,
+            'grants_added' => (int) $concedidos,
+        ];
+    }
+
+    /**
+     * Lo mismo, pero para un negocio del registro: resuelve el slug, abre su base y escribe ahí.
+     *
+     * Es lo que llama `platform:support-employee`. La conexión se abre igual que la de consultar o
+     * restablecer una contraseña --usuario propio si lo tiene, credenciales compartidas si es un
+     * negocio adoptado como Casaletto--, así que el camino de Casaletto es el mismo que ya se usa
+     * todos los días y no uno nuevo escrito suponiendo que todo negocio tiene usuario propio.
+     *
+     * @return array{created: bool, person_id: int, grants_added: int}
+     *
+     * @throws RuntimeException si el slug no existe, si no se puede llegar al negocio, o si la
+     *                          escritura falla.
+     */
+    public function ensurePlatformSupportEmployee(string $slug): array
+    {
+        $tenant = $this->requireTenant($slug);
+
+        try {
+            // Dentro del try: abrirla descifra la contraseña de base de datos del negocio, y una
+            // clave de cifrado que ya no es la que la guardó lanza una excepción de cifrado, no una
+            // RuntimeException. Fuera, saldría sin envolver y sin nombrar el negocio.
+            $tenantDb = $this->connectToTenant($tenant);
+        } catch (Throwable $e) {
+            throw new RuntimeException(lang('Platform.error_employees_unreadable', [$slug, $e->getMessage()]), 0, $e);
+        }
+
+        return $this->seedPlatformSupportEmployee($tenantDb);
+    }
+
+    /**
+     * Las dos filas de la persona: `people` primero, `employees` después, que es el orden que exige
+     * la clave foránea `ospos_employees_ibfk_1`.
+     *
+     * Devuelve null --y no lanza-- cuando una escritura se rechaza, para que quien llama pueda
+     * deshacer la transacción y contar el motivo con el error del controlador delante. El idioma se
+     * deja en NULL a propósito: sin idioma propio, la sesión de soporte habla el del negocio, que es
+     * exactamente lo que queremos ver cuando entramos a mirar un problema del cliente.
+     */
+    private function insertSupportEmployee(BaseConnection $tenantDb): ?int
+    {
+        if ($tenantDb->table('people')->insert(Platform_support::personData()) === false) {
+            return null;
+        }
+
+        $personId = (int) $tenantDb->insertID();
+
+        if ($personId === 0) {
+            return null;
+        }
+
+        $empleado              = Platform_support::employeeData();
+        $empleado['person_id'] = $personId;
+
+        if ($tenantDb->table('employees')->insert($empleado) === false) {
+            return null;
+        }
+
+        return $personId;
+    }
+
+    /**
+     * Una fila en `grants` por cada fila de `permissions`, saltándose las que ya estén.
+     *
+     * Se leen los permisos del negocio en vez de escribir una lista aquí: cada negocio tiene los
+     * suyos --las migraciones añaden permisos con el tiempo, y cada ubicación de existencias crea
+     * tres más con el nombre de la ubicación dentro--. Una lista escrita a mano nacería incompleta
+     * en el primer negocio que tuviera dos bodegas.
+     *
+     * SOBRE `menu_group`
+     *
+     * Es dónde aparece el módulo en el menú, no si se puede o no entrar. Los permisos que SON un
+     * módulo (`permission_id` = `module_id`) van a «both» para que no se nos esconda ninguna
+     * pantalla, y los subpermisos a «--», que es literalmente lo que manda el formulario de
+     * empleados para ellos (`app/Views/employees/form.php`).
+     *
+     * Una tabla `permissions` vacía se trata como fallo: significa que esto no está mirando un OSPOS
+     * migrado, y un empleado «con todos los permisos» que en realidad tiene cero es la clase de
+     * mentira que solo se descubre el día que hace falta entrar.
+     *
+     * @return int|null cuántos permisos se añadieron, o null si la escritura se rechazó.
+     */
+    private function grantEveryPermission(BaseConnection $tenantDb, int $personId): ?int
+    {
+        $permisos = $tenantDb->table('permissions')
+            ->select('permission_id, module_id')
+            ->get()
+            ->getResultArray();
+
+        if ($permisos === []) {
+            return null;
+        }
+
+        $yaTiene = [];
+
+        foreach (
+            $tenantDb->table('grants')
+                ->select('permission_id')
+                ->where('person_id', $personId)
+                ->get()
+                ->getResultArray() as $fila
+        ) {
+            $yaTiene[$fila['permission_id']] = true;
+        }
+
+        $nuevos = [];
+
+        foreach ($permisos as $permiso) {
+            if (isset($yaTiene[$permiso['permission_id']])) {
+                continue;
+            }
+
+            $nuevos[] = [
+                'permission_id' => $permiso['permission_id'],
+                'person_id'     => $personId,
+                'menu_group'    => $permiso['permission_id'] === $permiso['module_id'] ? 'both' : '--',
+            ];
+        }
+
+        if ($nuevos === []) {
+            return 0;
+        }
+
+        return $tenantDb->table('grants')->insertBatch($nuevos) === false ? null : count($nuevos);
     }
 
     /**

@@ -306,4 +306,11 @@ return [
     "error_settings_unreadable"  => "No se pudo leer la configuración de «{0}»: {1}",
     "error_delete_adopted"       => "El negocio «{0}» es adoptado, no lo creamos nosotros: su base «{1}» existía antes que la plataforma y no tiene un usuario de base de datos propio. No se puede eliminar desde aquí. Si de verdad es lo que quiere, hay que darlo de baja a mano y con un respaldo tomado antes.",
     "error_teardown_failed"      => "No se pudo desmontar el negocio: {0}",
+
+    // ----- El empleado de soporte (Entrega 4, §4.1) -----
+    "error_support_column_missing" => "La base «{0}» todavía no tiene la columna employees.is_platform_support, así que no se le puede crear el empleado de soporte. Hay que correrle las migraciones primero («php spark tenant:migrate-one» apuntando a esa base) y reintentar.",
+    "error_support_username_taken" => "La base «{0}» ya tiene un empleado con el usuario «{1}» que NO es el de soporte de la plataforma. No se toca: marcarlo escondería a un empleado real del negocio y sobreescribirlo le quitaría su contraseña. Hay que renombrar a esa persona a mano y reintentar.",
+    "error_support_employee"       => "No se pudo crear el empleado de soporte en «{0}»: {1}. No quedó nada a medias.",
+    "error_support_write_refused"  => "la base rechazó la escritura sin dar motivo",
+    "error_support_on_create"      => "La base del negocio se creó y migró y su administrador quedó puesto, pero no se pudo crear el empleado de soporte, así que el negocio NO se registró: {0}",
 ];
