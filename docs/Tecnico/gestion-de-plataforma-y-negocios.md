@@ -1,20 +1,9 @@
 # Diseño técnico — Gestión de la plataforma y de los negocios-cliente
 
-> **Estado a 2026-09-01: Entrega 1 EN PRODUCCIÓN; Entrega 2 certificada en staging y sin desplegar.**
-> Diseño cerrado. Las entregas 3, 4 y 5 no tienen código.
->
-> **Lo que la certificación en staging cubrió y lo que no.** Cubrió: entrar, el segundo factor con una
-> aplicación real, el código de rescate de un solo uso, los cuatro mensajes de rechazo idénticos
-> —comprobado que un correo inexistente y una contraseña mala responden lo mismo—, y el contador
-> llegando a tres. **No cubrió**, porque un navegador no puede: la ventana de dos horas, la regla del
-> último administrador, y que un código de hace noventa segundos se rechace. Esas viven en pruebas
-> que están escritas y **todavía no se han ejecutado**.
->
-> Alcance de negocio en `docs/Funcional/gestion-de-plataforma-y-negocios.md`. **Leerlo primero**: trae
-> las trece decisiones (§5) que fijan lo que se construye.
->
-> La línea del cliente supermercado —venta por peso y hardware— vive en
-> `docs/*/venta-por-peso-y-hardware-de-caja.md` y **no se toca desde aquí**.
+> **Estado a 2026-09-01: Entregas 1, 2 y 3 EN PRODUCCIÓN** (`c6775c55a`). Desplegadas por SSH,
+> con `php spark platform:migrate` a mano después del `up -d --build`, como manda §9.14. La suite
+> quedó verde en 8.2/8.3/8.4 tras arreglar siete fallos que arrastraba desde E1 -- cuatro de ellos
+> por contaminación de la base de pruebas compartida, ver §9.15.
 
 ---
 
@@ -79,7 +68,7 @@ administrador de otro cliente. Documentado en `docs/Tecnico/multi-tenant-arquite
 **Lo que NO reemplaza:** la fila de `people`. El administrador del negocio nuevo se llama
 **"John Doe"**.
 
-> **Corregido el 2026-09-01; sin desplegar y sin certificar.** Los tres pasos —credencial, nombre de
+> **Corregido el 2026-09-01; EN PRODUCCIÓN desde 2026-09-01, certificado en staging sobre la interfaz real.** Los tres pasos —credencial, nombre de
 > la persona y perfil de configuración— viven ahora juntos en
 > `TenantProvisioner::seedInitialAdmin()`, que recibe la conexión al negocio en vez de abrirla.
 >
@@ -122,7 +111,7 @@ Dos de las claves de la semilla son **los dos defectos de producción que más c
 proyecto: `quantity_decimals = 0` pierde el peso en silencio, y `barcode_content = id` hace que un
 código tecleado venda otro producto.
 
-> **Corregido el 2026-09-01; sin desplegar y sin certificar.** El `update` de una sola clave lo
+> **Corregido el 2026-09-01; EN PRODUCCIÓN desde 2026-09-01, certificado en staging sobre la interfaz real.** El `update` de una sola clave lo
 > sustituye `App\Libraries\TenantConfigProfile`, que es el perfil de D12 escrito una vez y en un solo
 > sitio: `WIRING` (las tres bloqueadas), `PREFERENCES` (las que el negocio puede cambiar) y el nombre
 > de la empresa. `applyTo()` escribe `app_config` **y** la fila del empleado, porque el idioma vive
@@ -282,7 +271,7 @@ recuperable. El mecanismo:
 **Hereda la dependencia de la clave de cifrado** — ver §9.1. Y no hay cambio obligatorio en el primer
 ingreso (D5), así que esta es la única vía de recuperación además del restablecimiento.
 
-### 5.1 Cómo quedó construido (escrito el 2026-09-01; sin desplegar y sin certificar)
+### 5.1 Cómo quedó construido (escrito el 2026-09-01; EN PRODUCCIÓN desde 2026-09-01, certificado en staging sobre la interfaz real)
 
 Cuatro columnas aditivas sobre `platform_control.tenants`, en la migración
 `20260903000001_AddAdminCredentialToTenants` (namespace `Platform`, `$DBGroup='platform'`, Forge,
@@ -404,7 +393,7 @@ lo que quiere decir «se cura sola», y la alternativa —reescribir el ancla en
 el freno en una cárcel: un atacante que golpee cada media hora deja al dueño legítimo fuera para
 siempre, y gratis.
 
-### 6.2 Cómo quedó construido (escrito el 2026-09-01; sin desplegar y sin certificar)
+### 6.2 Cómo quedó construido (escrito el 2026-09-01; EN PRODUCCIÓN desde 2026-09-01, certificado en staging sobre la interfaz real)
 
 Las piezas y las decisiones que no estaban en el diseño y hubo que tomar al implementarlo.
 
@@ -517,15 +506,15 @@ duplica el dato ni se cambia el modelo.
 | CRUD de superadministradores | Controlador nuevo, `PlatformAccounts`; el modelo ya tiene `createAccount()` |
 | Cambiar la propia contraseña y activar TOTP | Rutas nuevas + métodos en `PlatformAccount` |
 | Último ingreso, fecha de alta, quién creó la cuenta | Migración aditiva sobre `platform_accounts` |
-| ~~Perfil de configuración~~ | **Hecho el 2026-09-01, sin desplegar:** `App\Libraries\TenantConfigProfile`, aplicado desde `seedInitialAdmin()`. Escribe `app_config` y `employees` |
-| ~~Candado de las tres claves de cableado~~ | **Hecho el 2026-09-01, sin desplegar:** `Wiring_lock` + `Config::refuse_wired_changes()` + las dos vistas del POS (§9.13) |
+| ~~Perfil de configuración~~ | **Hecho y EN PRODUCCIÓN el 2026-09-01:** `App\Libraries\TenantConfigProfile`, aplicado desde `seedInitialAdmin()`. Escribe `app_config` y `employees` |
+| ~~Candado de las tres claves de cableado~~ | **Hecho y EN PRODUCCIÓN el 2026-09-01:** `Wiring_lock` + `Config::refuse_wired_changes()` + las dos vistas del POS (§9.13) |
 | Idioma heredado al crear un empleado | `Employees.php:183` y `:190`. **Sigue pendiente**, y hasta que exista el candado no está cerrado: un empleado puede ponerse otra variante en su perfil y el de `app_config` no lo alcanza |
-| ~~Restablecer y consultar la clave del admin de un negocio~~ | **Hecho el 2026-09-01, sin desplegar:** `TenantProvisioner::adminCredential()` y `::resetAdminPassword()`, más `admin/detail.php` (§5.1) |
-| ~~`company_name` en el listado~~ | **Hecho el 2026-09-01, sin desplegar:** migración `20260903000000` + `create()` + `admin/index.php` |
+| ~~Restablecer y consultar la clave del admin de un negocio~~ | **Hecho y EN PRODUCCIÓN el 2026-09-01:** `TenantProvisioner::adminCredential()` y `::resetAdminPassword()`, más `admin/detail.php` (§5.1) |
+| ~~`company_name` en el listado~~ | **Hecho y EN PRODUCCIÓN el 2026-09-01:** migración `20260903000000` + `create()` + `admin/index.php` |
 | Empleado de soporte | `TenantProvisioner::create()`, y un comando para los negocios existentes |
 | `is_platform_support` | Migración sobre `employees` de cada tenant, `DEFAULT 0` |
 | Vincular cuenta↔negocio | La tabla existe; falta pantalla y una columna de qué empleado es |
-| ~~Nombre real en vez de "John Doe"~~ | **Hecho el 2026-09-01, sin desplegar:** en `seedInitialAdmin()`, junto al `update` de `employees` |
+| ~~Nombre real en vez de "John Doe"~~ | **Hecho y EN PRODUCCIÓN el 2026-09-01:** en `seedInitialAdmin()`, junto al `update` de `employees` |
 | Registro de modificaciones | Tabla nueva en `platform_control`, más el filtro `after` de §7.2 |
 | Freno al eliminar un negocio | `PlatformAdmin::confirmDelete/delete` + `admin/confirm_delete.php` |
 
@@ -620,7 +609,8 @@ D3 exige que Casaletto siga apareciendo en el listado, así que la respuesta no 
 - **Los tenants adoptados no se eliminan** desde la consola.
 - Borrar el esquema exige una **confirmación aparte** y deja constancia en el registro.
 
-**Estado a 2026-08-31: escrito y con pruebas locales, sin desplegar ni certificar en staging.**
+**Estado: EN PRODUCCIÓN desde el 2026-09-01.** Certificado en el navegador sobre staging -- la
+ficha de Casaletto no ofrece eliminar y lo dice-- y comprobado igual en producción.
 
 | Dónde | Qué |
 |---|---|
@@ -674,7 +664,7 @@ deshabilitado con el motivo —esconderlo haría que el cliente crea que el ajus
 Esto arrastra dos cosas: se construye en **Bootstrap 3** (§9.11) y **toca el punto de venta**, así que
 necesita la misma compuerta de pruebas que cualquier cambio que afecte a Casaletto.
 
-#### Cómo quedó construido (escrito el 2026-09-01; sin desplegar y sin certificar)
+#### Cómo quedó construido (escrito el 2026-09-01; EN PRODUCCIÓN desde 2026-09-01, certificado en staging sobre la interfaz real)
 
 La regla vive en **`app/Libraries/Wiring_lock.php`**, una clase sin estado, sin base de datos y sin
 vista: solo la lista de claves con su valor obligatorio y la comparación. Se aplica desde dos sitios,
@@ -825,6 +815,46 @@ No es un problema del paquete nuevo: `otphp` y sus tres dependencias (`paragonie
 conjunto resuelve e instala limpio fijando `platform.php = 8.4.0`.
 
 ---
+
+### 9.16 Una prueba que escribe `app_config` rompe pruebas de otro archivo
+
+Encontrado el 2026-09-01, después de que la suite pasara una mañana entera en rojo con siete fallos.
+**Ninguno estaba donde parecía.**
+
+`ConfigWiringLockTest` hace POST de verdad contra `/config/saveLocale`, que escribe `app_config`. Toda
+la suite comparte una sola base y `$refresh` está en falso --como en el resto de la casa--, así que el
+idioma, los decimales y el país que dejaba puestos se los encontraban las pruebas que corrieran
+después. `CustomersCsvImportTest` empezó a recibir sus mensajes en español y `ExpensesCashSourceTest`
+a leer un origen de efectivo nulo: **dos archivos del punto de venta, rojos por un cambio que no los
+tocaba.** Un fallo así se busca durante horas en el sitio equivocado, porque el archivo culpable pasa.
+
+La regla, para cualquier prueba que llame a un endpoint que escriba configuración:
+
+```php
+protected function setUp(): void
+{
+    parent::setUp();
+    // La tabla entera, no las claves que uno cree que toca: enumerarlas vuelve a fallar
+    // en cuanto alguien añade una.
+    foreach ($this->db->table('app_config')->get()->getResultArray() as $fila) {
+        $this->configuracionOriginal[$fila['key']] = $fila['value'];
+    }
+}
+```
+
+y devolverla entera en `tearDown()`, borrando además las claves que no existían antes.
+
+**Y un hash sembrado nunca puede compararse con `hash_equals()` contra otro hash.**
+`TenantProvisionerCredentialTest` sembraba `admin_password_hash` con un segundo `password_hash()` de
+la misma contraseña. bcrypt sala cada llamada, así que las dos cadenas siempre difieren y el estado
+salía `changed` desde el primer instante: la prueba central del archivo --«deja de mostrarse en cuanto
+el cliente la cambia»-- pasaba en verde **sin ejercitar nada**. Se siembra el hash real de la fila de
+`employees`, no otro de la misma palabra.
+
+**Y el texto de una excepción termina en `writable/logs/`.** Poner ahí la contraseña generada la
+escribía en claro y para siempre; peor aún, en producción el operador ve la pantalla de error genérica
+y no la leería nunca. Lo que hay que enseñar una sola vez va por `flashdata`, que se consume al
+leerse, nunca por una excepción ni por el registro de actividad, que se guarda para siempre.
 
 ## 10. Orden de implementación
 

@@ -1,14 +1,10 @@
 # Alcance funcional — Gestión de la plataforma y de los negocios-cliente
 
-> **Estado a 2026-09-01: Entrega 1 EN PRODUCCIÓN. Entrega 2 certificada en staging, pendiente de
-> desplegar.** Las entregas 3, 4 y 5 siguen sin construir. Alcance cerrado con trece decisiones.
->
-> Nace de una pregunta al aprovisionar el segundo negocio real: *"¿cuál es el usuario del negocio que
-> creamos, cuál es su contraseña, quién la crea?"*. Buscando la respuesta quedó claro que el panel
-> cubre el ciclo de vida del **negocio** y casi nada del de las **personas** que lo administran — y,
-> al mirar más a fondo, que tampoco deja el negocio en condiciones de vender.
->
-> Diseño técnico en `docs/Tecnico/gestion-de-plataforma-y-negocios.md`.
+> **Estado a 2026-09-01: Entregas 1, 2 y 3 EN PRODUCCIÓN.** Desplegadas por SSH el 2026-09-01
+> por la tarde, con respaldo previo de las tres bases y conteos de los dos negocios idénticos
+> antes y después. La Entrega 3 se certificó en staging sobre la interfaz real, con el navegador,
+> antes de subirla. Queda pendiente que el dueño firme la consola de producción entrando con su
+> propia cuenta, y las Entregas 4 y 5 sin empezar.
 
 ---
 
@@ -108,7 +104,7 @@ saliera en inglés.
 Aprovisionar deja de ser "crear el esquema" y pasa a ser **"dejar el negocio en condiciones de
 vender"**.
 
-> **Estado a 2026-09-01: corregido, sin desplegar y sin certificar.** El alta aplica el perfil
+> **Estado a 2026-09-01: corregido y EN PRODUCCIÓN desde 2026-09-01, certificado en staging sobre la interfaz real.** El alta aplica el perfil
 > completo de §5, así que un negocio nuevo nace pudiendo vender al peso, leyendo bien los códigos
 > de barras y hablando español. `country_codes` pasa a `co`; `tax_included` se queda como está y
 > sigue siendo lo único pendiente del dueño. **Los dos negocios que ya existen no cambian.**
@@ -125,7 +121,7 @@ un directorio de enlaces.
 Se muestra una vez y nunca más. Si el cliente la pierde —y va a pasar— hoy toca entrar a la base de
 datos a mano. Eso no es algo que se pueda pedir en una llamada de soporte.
 
-> **Estado a 2026-09-01: resuelto, sin desplegar y sin certificar.** La ficha del negocio muestra la
+> **Estado a 2026-09-01: resuelto y EN PRODUCCIÓN desde 2026-09-01, certificado en staging sobre la interfaz real.** La ficha del negocio muestra la
 > contraseña mientras el cliente no la haya cambiado, y la restablece cuando sí. **Solo para los
 > negocios creados a partir de ahora:** de Casaletto y de Paraíso la plataforma no guarda ninguna
 > copia y no hay forma honesta de deducirla, así que en esos dos la única opción es restablecer.
@@ -135,7 +131,7 @@ datos a mano. Eso no es algo que se pueda pedir en una llamada de soporte.
 Muestra la dirección corta, el nombre técnico de la base y el estado. **No muestra el nombre del
 negocio** —ni se guarda— ni cuándo se creó, ni si alguien ha entrado alguna vez.
 
-> **Estado a 2026-09-01: corregido a medias, sin desplegar y sin certificar.** El nombre se guarda al
+> **Estado a 2026-09-01: corregido a medias; lo construido está EN PRODUCCIÓN desde 2026-09-01, certificado en staging sobre la interfaz real.** El nombre se guarda al
 > dar de alta, y el listado pasa a mostrarlo junto con la dirección como enlace y la fecha de alta.
 > Las dos filas que ya existen se quedan **sin nombre** —se les muestra el slug y se dice que no lo
 > tienen— hasta que alguien se lo ponga. **«Si alguien ha entrado alguna vez» sigue sin existir**:
@@ -145,7 +141,7 @@ negocio** —ni se guarda— ni cuándo se creó, ni si alguien ha entrado algun
 
 El sistema cambia el usuario y la contraseña, pero no la fila de la persona.
 
-> **Estado a 2026-09-01: corregido, sin desplegar y sin certificar.** El administrador de un negocio
+> **Estado a 2026-09-01: corregido y EN PRODUCCIÓN desde 2026-09-01, certificado en staging sobre la interfaz real.** El administrador de un negocio
 > nuevo se llama «Administrador» y el nombre del negocio como apellido. Lo que **sigue** con los
 > datos de relleno de la semilla es su correo (`changeme@example.com`) y su teléfono: no se tocan
 > porque nadie los ha decidido, y son datos del cliente, no de la plataforma.
@@ -192,7 +188,7 @@ falta correo, SMS ni WhatsApp.
 El factor va pegado **a la credencial, no a la pantalla**: se pide tanto en la consola raíz como al
 entrar a un negocio. Protegerla en un sitio y dejarla suelta en el otro no tendría sentido.
 
-#### Cómo se ve al darse de alta (escrito el 2026-09-01; sin desplegar y sin certificar)
+#### Cómo se ve al darse de alta (escrito el 2026-09-01; EN PRODUCCIÓN desde 2026-09-01, certificado en staging sobre la interfaz real)
 
 **No hay imagen que escanear.** La pantalla de alta muestra la clave escrita, en ocho grupos de
 cuatro, y además el enlace que la aplicación entiende. Hay dos maneras de darse de alta y las dos
@@ -248,7 +244,7 @@ en este proyecto.
 > de configuración**. Si solo se bloquean en la consola de plataforma, el candado es decorativo: hay
 > que impedirlo también del lado del punto de venta.
 
-#### Cómo lo ve el negocio en su pantalla (escrito el 2026-09-01; sin desplegar y sin certificar)
+#### Cómo lo ve el negocio en su pantalla (escrito el 2026-09-01; EN PRODUCCIÓN desde 2026-09-01, certificado en staging sobre la interfaz real)
 
 Las tres siguen **a la vista** en la configuración del negocio, en el mismo sitio de siempre: dos en
 la pestaña **Regional** (los decimales de cantidad y el idioma) y una en **Código de barras** (qué
@@ -297,7 +293,7 @@ recomendación que producción ya desmiente, y eso **no lo decide quien escribe 
 como pendiente del dueño: mientras no lo resuelva, cada negocio nuevo nace igual que los dos que ya
 funcionan, que es la opción que no sorprende a nadie.
 
-#### Estado a 2026-09-01: construido, **sin desplegar y sin certificar**
+#### Estado a 2026-09-01: **EN PRODUCCIÓN desde 2026-09-01, certificado en staging sobre la interfaz real**
 
 El perfil existe y se aplica solo al **dar de alta** un negocio. Escribe la configuración del
 negocio **y** la fila del empleado inicial, que es lo que exige el hallazgo de abajo.
@@ -350,7 +346,7 @@ Hoy muestra el nombre técnico de la base de datos. Con diez negocios es inservi
 - **Si alguien ha entrado alguna vez**: un negocio entregado y nunca usado es información que se quiere ver.
 - Suspender, reactivar, eliminar — **con las protecciones de 6.6**.
 
-> **Estado a 2026-09-01: rehecha, sin desplegar y sin certificar.** Nombre, dirección como enlace,
+> **Estado a 2026-09-01: rehecha y EN PRODUCCIÓN desde 2026-09-01, certificado en staging sobre la interfaz real.** Nombre, dirección como enlace,
 > base de datos, fecha de alta, estado y acciones. **Falta «si alguien ha entrado alguna vez»**, que
 > obliga a leer dentro de cada negocio: es la única línea de esta pantalla que queda pendiente.
 
@@ -361,7 +357,7 @@ Donde de verdad se gestiona un cliente. Es la pantalla que hoy no existe y que h
 - Sus dueños vinculados.
 - El botón de **Entrar a gestionar**.
 
-> **Estado a 2026-09-01: existe a medias, sin desplegar y sin certificar.** Tiene la identificación
+> **Estado a 2026-09-01: existe a medias; lo construido está EN PRODUCCIÓN desde 2026-09-01, certificado en staging sobre la interfaz real.** Tiene la identificación
 > del negocio, la contraseña consultable con su bloque de entrega, el restablecimiento, y la
 > configuración del perfil **en solo lectura** —leída del propio negocio, para poder comprobar que
 > el perfil de verdad se aplicó, y señalando en rojo cualquiera de las tres claves de cableado que
@@ -381,7 +377,7 @@ Un formulario que deja el negocio listo, no uno que deja un esquema vacío.
 - Cerrar exige un clic explícito («Ya los guardé»), no desaparecer al navegar. Y la pantalla dice que
   se puede volver a consultar, que es lo que quita el pánico de perderla.
 
-> **Estado a 2026-09-01: a medias, sin desplegar y sin certificar.** El formulario sigue pidiendo
+> **Estado a 2026-09-01: a medias; lo construido está EN PRODUCCIÓN desde 2026-09-01, certificado en staging sobre la interfaz real.** El formulario sigue pidiendo
 > solo nombre y dirección; el perfil no se elige porque **hay uno solo** (D12) y el **correo del
 > dueño no se pide todavía** —el vínculo cuenta↔negocio es de la Entrega 5—.
 >
@@ -433,7 +429,7 @@ Ordenadas para que cada una deje el sistema mejor aunque la siguiente se demore.
 
 ### Entrega 2 — Cerrar la llave suelta
 
-> **Estado a 2026-09-01: construido y CERTIFICADO EN STAGING, sin desplegar a producción.** El
+> **Estado a 2026-09-01: EN PRODUCCIÓN desde 2026-09-01, certificado en staging sobre la interfaz real.** El
 > segundo factor lo certificó el dueño con la aplicación de su teléfono, y el código de rescate de un
 > solo uso también. Se
 > escribió primero la parte que no se ve —dónde se guardan el último ingreso, quién creó cada
@@ -455,7 +451,7 @@ Ordenadas para que cada una deje el sistema mejor aunque la siguiente se demore.
 
 ### Entrega 3 — Que un negocio nazca funcionando
 
-> **Estado a 2026-09-01: construido a medias, sin desplegar y sin certificar.** Están el perfil de
+> **Estado a 2026-09-01: construido a medias; lo construido está EN PRODUCCIÓN desde 2026-09-01, certificado en staging sobre la interfaz real.** Están el perfil de
 > configuración, el fin del «John Doe», el nombre del negocio guardado, el listado legible, la
 > contraseña consultable y el restablecimiento, y una primera ficha del negocio. **Las pruebas están
 > escritas pero no se han ejecutado**: la máquina donde se escribió no tiene la base de datos de
@@ -472,7 +468,7 @@ Ordenadas para que cada una deje el sistema mejor aunque la siguiente se demore.
 - **Consultar** la contraseña inicial mientras no se haya cambiado, y **restablecerla** después.
 - Bloque de entrega copiable: dirección, usuario y contraseña, todo junto.
 - ~~**Bloquear las tres claves de cableado** también en la pantalla de configuración del negocio, no
-  solo en la consola.~~ — **escrito el 2026-09-01; sin desplegar y sin certificar.** Ver §5, «Cómo lo
+  solo en la consola.~~ — **escrito el 2026-09-01; EN PRODUCCIÓN desde 2026-09-01, certificado en staging sobre la interfaz real.** Ver §5, «Cómo lo
   ve el negocio en su pantalla».
 - El alta de empleados **hereda el idioma del perfil**.
 - ~~Aplicar el perfil a Paraíso~~ — **ya ejecutado el 2026-08-31**.
