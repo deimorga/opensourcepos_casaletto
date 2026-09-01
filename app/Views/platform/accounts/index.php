@@ -66,8 +66,13 @@ $when = static fn (?string $value): ?string => $value === null || $value === ''
                         </td>
                         <td><?= esc($when($account->created_at) ?? '—') ?></td>
                         <td>
-                            <?php if ($account->created_by_email !== null): ?>
-                                <?= esc($account->created_by_email) ?>
+                            <?php if ($account->created_by_account_id !== null): ?>
+                                <?php // El correo viene de un LEFT JOIN: es null si quien la creó ya
+                                      // no existe. Preguntar por él en vez de por el identificador
+                                      // etiquetaba «desde la terminal» a cuentas creadas desde la
+                                      // consola -- justo la marca que delata a la huérfana, puesta
+                                      // sobre una cuenta que no lo es. ?>
+                                <?= esc($account->created_by_email ?? '—') ?>
                             <?php else: ?>
                                 <span class="fw-bold" title="<?= esc(lang('Platform.account_created_from_cli_help')) ?>">
                                     <?= esc(lang('Platform.account_created_from_cli')) ?>

@@ -1,7 +1,7 @@
 # Alcance funcional — Gestión de la plataforma y de los negocios-cliente
 
-> **Estado a 2026-08-31: alcance CERRADO. Trece decisiones tomadas por el dueño de la plataforma.
-> Sin construir nada todavía.**
+> **Estado a 2026-09-01: Entrega 1 EN PRODUCCIÓN. Entrega 2 certificada en staging, pendiente de
+> desplegar.** Las entregas 3, 4 y 5 siguen sin construir. Alcance cerrado con trece decisiones.
 >
 > Nace de una pregunta al aprovisionar el segundo negocio real: *"¿cuál es el usuario del negocio que
 > creamos, cuál es su contraseña, quién la crea?"*. Buscando la respuesta quedó claro que el panel
@@ -309,7 +309,7 @@ negocio que está vendiendo.
 - Los negocios **adoptados** (Casaletto) no se pueden eliminar desde la consola.
 - Borrar la base de datos exige **una confirmación aparte** y deja constancia en el registro.
 
-> **Estado a 2026-08-31: las tres cosas están escritas y con pruebas locales, sin desplegar.** La
+> **Estado a 2026-09-01: EN PRODUCCIÓN**, certificado por el dueño sobre la interfaz real. La
 > pantalla pide escribir el slug; el borrado de la base es una confirmación aparte que exige además
 > escribir su nombre (para Casaletto sería `ospos`, que avisa mucho más que `casaletto`), y
 > cualquiera de las dos mal escrita rechaza la operación entera. Casaletto sigue en el listado, sin
@@ -339,7 +339,9 @@ Ordenadas para que cada una deje el sistema mejor aunque la siguiente se demore.
 
 ### Entrega 2 — Cerrar la llave suelta
 
-> **Estado a 2026-08-31: lo de debajo está empezado, y todavía no se ve nada en pantalla.** Se
+> **Estado a 2026-09-01: construido y CERTIFICADO EN STAGING, sin desplegar a producción.** El
+> segundo factor lo certificó el dueño con la aplicación de su teléfono, y el código de rescate de un
+> solo uso también. Se
 > escribió primero la parte que no se ve —dónde se guardan el último ingreso, quién creó cada
 > cuenta, el contador de intentos, el segundo factor, los códigos de rescate y el registro de
 > actividad—, más las salvaguardas de «ni a sí mismo, ni al último». Las pantallas vienen después.

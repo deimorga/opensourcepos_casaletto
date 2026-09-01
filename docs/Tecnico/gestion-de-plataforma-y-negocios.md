@@ -1,6 +1,14 @@
 # Diseño técnico — Gestión de la plataforma y de los negocios-cliente
 
-> **Estado a 2026-08-31: diseño CERRADO, sin escribir una línea de código.**
+> **Estado a 2026-09-01: Entrega 1 EN PRODUCCIÓN; Entrega 2 certificada en staging y sin desplegar.**
+> Diseño cerrado. Las entregas 3, 4 y 5 no tienen código.
+>
+> **Lo que la certificación en staging cubrió y lo que no.** Cubrió: entrar, el segundo factor con una
+> aplicación real, el código de rescate de un solo uso, los cuatro mensajes de rechazo idénticos
+> —comprobado que un correo inexistente y una contraseña mala responden lo mismo—, y el contador
+> llegando a tres. **No cubrió**, porque un navegador no puede: la ventana de dos horas, la regla del
+> último administrador, y que un código de hace noventa segundos se rechace. Esas viven en pruebas
+> que están escritas y **todavía no se han ejecutado**.
 >
 > Alcance de negocio en `docs/Funcional/gestion-de-plataforma-y-negocios.md`. **Leerlo primero**: trae
 > las trece decisiones (§5) que fijan lo que se construye.

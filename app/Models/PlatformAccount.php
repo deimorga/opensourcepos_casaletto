@@ -119,9 +119,16 @@ class PlatformAccount extends Model
                 : PlatformLoginResult::invalidCredentials();
         }
 
-        $this->clearFailures((int) $account->id);
-
         if ($account->totp_enabled_at !== null) {
+            // The counter is NOT cleared here, and that is the whole point.
+            //
+            // Clearing it on a correct password handed anyone who knew the password an unlimited
+            // supply of guesses at the six digits: fail twice, re-post the password to zero the
+            // counter, repeat. The brake would never trip -- against exactly the attack it exists
+            // to stop, since somebody guessing a second factor has the first one already.
+            //
+            // It is cleared in completeSecondFactor(), when authentication actually finishes.
+            //
             // Regenerated here as well as on completion: the privilege level changes at both steps,
             // and a session id fixed on the victim before the password must not survive either one.
             session()->regenerate(true);
@@ -130,6 +137,7 @@ class PlatformAccount extends Model
             return PlatformLoginResult::secondFactorRequired($account);
         }
 
+        $this->clearFailures((int) $account->id);
         $this->openSession((int) $account->id);
 
         return PlatformLoginResult::success($account);
@@ -162,6 +170,10 @@ class PlatformAccount extends Model
             return false;
         }
 
+        // Only now is the login complete, so only now does the failure counter go back to zero.
+        // See the note in login(): clearing it on the password alone made the second-factor brake
+        // unreachable.
+        $this->clearFailures($accountId);
         $this->openSession($accountId);
 
         return true;

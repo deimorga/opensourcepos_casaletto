@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use CodeIgniter\Model;
+use Throwable;
 
 /**
  * The console's record of what it changed -- level 1 of section 7 of the technical design.
@@ -110,16 +111,37 @@ class PlatformActivity extends Model
     ): int {
         $actor ??= model(PlatformAccount::class)->getLoggedInAccount();
 
-        $this->insert([
-            'account_id'    => $actor === null ? null : (int) $actor->id,
-            'account_email' => $actor === null ? null : (string) $actor->email,
-            'action'        => $action,
-            'target_type'   => $targetType,
-            'target_id'     => $targetId,
-            'detail'        => $detail === [] ? null : json_encode($detail, JSON_UNESCAPED_UNICODE),
-            'ip_address'    => service('request')->getIPAddress(),
-            'created_at'    => date('Y-m-d H:i:s'),
-        ]);
+        // Observar no puede tumbar lo observado.
+        //
+        // Este registro se escribe DESPUES de la operacion, asi que un fallo aqui daria un 500
+        // sobre algo que ya ocurrio: el caso feo es `PlatformAdmin::delete()` con destruccion de
+        // esquema -- la base del cliente ya no existe y la pantalla diria que la peticion fallo.
+        // Y las migraciones de plataforma son un paso manual (`php spark platform:migrate`), asi
+        // que la tabla puede no estar todavia en un despliegue recien hecho.
+        //
+        // Si no se puede escribir la fila, queda la linea critica en el log, que es el rastro que
+        // este registro vino a sustituir y sigue estando en el volumen del contenedor.
+        try {
+            $this->insert([
+                'account_id'    => $actor === null ? null : (int) $actor->id,
+                'account_email' => $actor === null ? null : (string) $actor->email,
+                'action'        => $action,
+                'target_type'   => $targetType,
+                'target_id'     => $targetId,
+                'detail'        => $detail === [] ? null : json_encode($detail, JSON_UNESCAPED_UNICODE),
+                'ip_address'    => service('request')->getIPAddress(),
+                'created_at'    => date('Y-m-d H:i:s'),
+            ]);
+        } catch (Throwable $e) {
+            log_message(
+                'critical',
+                'No se pudo registrar la actividad de plataforma "' . $action . '"'
+                . ($targetId === null ? '' : ' sobre ' . $targetType . ' ' . $targetId)
+                . ': ' . $e->getMessage()
+            );
+
+            return 0;
+        }
 
         return (int) $this->getInsertID();
     }
