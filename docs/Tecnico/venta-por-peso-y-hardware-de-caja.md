@@ -1136,6 +1136,34 @@ Verificado en los dos sentidos: con llave entra, con contraseña `Permission den
 Y una del canal: el shell por defecto es `cmd`, así que `comando1; comando2` no separa nada — se
 imprime literal. Para varias órdenes, `powershell -NoProfile -Command -` alimentado por stdin.
 
+### La política de Chrome, puesta (2026-08-31)
+
+Es la mitigación del §5.3.1 y **el riesgo principal del agente**: sin ella, tras una actualización
+de Chrome el agente «deja de funcionar solo» y el cajero se encuentra con un diálogo de permiso que
+no sabe atender.
+
+Quedó escrita en el registro, con la sesión SSH ya elevada:
+
+```
+HKLM\SOFTWARE\Policies\Google\Chrome\LoopbackNetworkAllowedForUrls\1
+HKLM\SOFTWARE\Policies\Google\Chrome\LocalNetworkAccessAllowedForUrls\1
+   = https://paraisodelacanasta.ospos-saas.micronuba.net
+```
+
+**Se pre-autoriza el origen que PIDE, no el destino local.** El valor es la dirección del negocio,
+no `127.0.0.1`.
+
+**Se escribieron las dos porque son dos políticas distintas** y la de loopback tiene precedencia
+sobre la general: la primera cubre las peticiones al propio equipo —que es exactamente nuestro
+caso— y la segunda, la red local en general. Ambas son de permitir, así que no se contradicen.
+
+**Falta confirmarlo en `chrome://policy`** desde la pantalla del equipo: ahí se ve si Chrome las
+reconoce o las marca como *Unknown policy*, que es lo que pasaría si alguno de los dos nombres
+cambiara en una versión futura. Son treinta segundos el día del montaje.
+
+Esto **sólo se puede hacer en un Windows Pro**. Con la edición Hogar no existen las directivas, y
+no habría salida.
+
 ### El reinicio que convirtió el arranque automático en un hecho (2026-08-31)
 
 Hasta este punto, «arranca solo» era una suposición: las dos tareas figuraban como *nunca
