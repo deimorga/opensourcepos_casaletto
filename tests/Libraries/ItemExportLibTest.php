@@ -151,9 +151,20 @@ final class ItemExportLibTest extends CIUnitTestCase
         $locations  = model(Stock_location::class)->get_allowed_locations();
         $attributes = model(Attribute::class)->get_definition_names();
 
-        $csv       = $this->export->toCsv();
-        $sinBom    = substr($csv, 3);
-        $cabecera  = substr($sinBom, 0, (int) strpos($sinBom, "\n"));
+        $csv    = $this->export->toCsv();
+        $sinBom = substr($csv, 3);
+
+        // Dos líneas, en este orden, y las dos importan. La primera es la pista de separador que
+        // Excel necesita para partir el archivo en columnas -- sin ella lo abre todo apelotonado en
+        // la columna A, porque usa el separador de lista del sistema operativo y no el del archivo.
+        // La segunda es la cabecera, que es el contrato con la importación.
+        [$pista, $cabecera] = explode("\n", $sinBom, 3);
+
+        $this->assertSame(
+            CSV_SEPARATOR_HINT,
+            $pista,
+            'Sin la pista de separador, Excel abre el archivo en una sola columna.',
+        );
 
         $this->assertSame(
             generate_csv_header_line($locations, $attributes),
