@@ -209,7 +209,14 @@ class Sales extends Secure_Controller
             // If a valid receipt or invoice was found the search term will be replaced with a receipt number (POS #)
             $suggestions[] = $receipt;
         }
-        $suggestions = array_merge($suggestions, $this->item->get_search_suggestions($search, ['search_custom' => false, 'is_deleted' => false], true));
+        // Item suggestions carry an `ID n` token, not a bare item_id. What comes back here goes
+        // straight into the box that also receives typed codes and scanner output, and as a bare
+        // number an id is indistinguishable from somebody else's printed code -- see the note on
+        // Item::ID_TOKEN_PREFIX for the wrong product that reached a till because of it. Kit
+        // suggestions already carry their own `KIT n` token and are merged untouched.
+        $suggestions = array_merge($suggestions, Item::as_id_token_suggestions(
+            $this->item->get_search_suggestions($search, ['search_custom' => false, 'is_deleted' => false], true)
+        ));
         $suggestions = array_merge($suggestions, $this->item_kit->get_search_suggestions($search));
 
         return $this->response->setJSON($suggestions);

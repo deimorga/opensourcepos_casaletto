@@ -1222,7 +1222,9 @@ helper('url');
                 } else {
                     var $stock_location = $("select[name='stock_location']").val();
                     $('#item_location').val($stock_location);
-                    $('#item').val(response.id);
+                    // The token, not the bare id: this value is about to be posted into the same
+                    // field a scanner writes to. See App\Models\Item::ID_TOKEN_PREFIX.
+                    $('#item').val('<?= esc(Item::ID_TOKEN_PREFIX, 'js') ?>' + response.id);
                     if (stay_open) {
                         $('#add_item_form').ajaxSubmit();
                     } else {

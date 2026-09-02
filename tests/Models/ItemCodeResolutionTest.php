@@ -135,6 +135,99 @@ class ItemCodeResolutionTest extends CIUnitTestCase
         );
     }
 
+    /**
+     * The other half of the same problem, and the one that reached a till.
+     *
+     * The rule above is right for a code a human typed or a scanner sent. It is wrong for a value
+     * the user picked from the autocomplete, which is an item_id -- and as a bare number the two are
+     * the same string. In Paraiso de la Canasta, CEBOLLA LARGA is item_id 41 and ZANAHORIA carries
+     * item_number 41: clicking CEBOLLA LARGA in the list rang up a ZANAHORIA.
+     */
+    public function testAnIdTokenBeatsAnotherItemsPrintedCode(): void
+    {
+        $item = model(Item::class);
+
+        $pickedId = $this->seed('LA-QUE-SE-ESCOGE', 'CODIGO-LARGO-7702354955250');
+        $this->seed('LA-QUE-ROBABA', (string) $pickedId);
+
+        $info = $item->get_info_by_id_or_number(Item::id_token($pickedId));
+
+        $this->assertNotSame('', $info, 'The token resolves to something.');
+        $this->assertSame(
+            self::PREFIX . 'LA-QUE-SE-ESCOGE',
+            $info->name,
+            'A value picked from the list is an id and nothing else.'
+        );
+    }
+
+    /**
+     * Without the token nothing changed: the printed code still wins. Stated as its own assertion so
+     * that a future simplification cannot quietly turn the token into the general rule.
+     */
+    public function testWithoutTheTokenThePrintedCodeStillWins(): void
+    {
+        $item = model(Item::class);
+
+        $pickedId = $this->seed('SIN-TOKEN-ESCOGIDA', 'CODIGO-LARGO-7702354955267');
+        $this->seed('SIN-TOKEN-LA-QUE-GANA', (string) $pickedId);
+
+        $this->assertSame(
+            self::PREFIX . 'SIN-TOKEN-LA-QUE-GANA',
+            $item->get_info_by_id_or_number((string) $pickedId)->name
+        );
+    }
+
+    public function testAnIdTokenForSomethingThatDoesNotExistResolvesToNothing(): void
+    {
+        $this->assertSame('', model(Item::class)->get_info_by_id_or_number(Item::id_token(99999999)));
+    }
+
+    /**
+     * The token has to be a token, not a prefix somebody's product name happens to start with.
+     */
+    public function testOnlyAWellFormedTokenIsReadAsOne(): void
+    {
+        $this->assertNull(Item::parse_id_token('ID '), 'Nothing after the prefix is not an id.');
+        $this->assertNull(Item::parse_id_token('ID abc'), 'A token payload has to be digits.');
+        $this->assertNull(Item::parse_id_token('ID 0012'), 'A leading zero is a barcode, never an id.');
+        $this->assertNull(Item::parse_id_token('IDENTIFICADOR'), 'The prefix ends at the space.');
+        $this->assertNull(Item::parse_id_token('7702354955236'), 'A plain code is not a token.');
+        $this->assertSame('41', Item::parse_id_token('ID 41'));
+    }
+
+    /**
+     * A code that merely LOOKS like a token still goes down the ordinary path, so a shop that prints
+     * "ID 41" on a label is not locked out of its own product.
+     */
+    public function testACodeThatLooksLikeATokenIsStillFoundByItsPrintedCode(): void
+    {
+        $item = model(Item::class);
+        $this->seed('CODIGO-RARO', 'ID abc');
+
+        $this->assertSame(
+            self::PREFIX . 'CODIGO-RARO',
+            $item->get_info_by_id_or_number('ID abc')->name
+        );
+    }
+
+    /**
+     * Only the suggestions that carry a value are rewritten. Category and supplier suggestions are
+     * label-only, and turning their absent value into "ID " would put a broken token in the list.
+     */
+    public function testOnlySuggestionsWithAValueBecomeTokens(): void
+    {
+        $this->assertSame(
+            [
+                ['value' => 'ID 41', 'label' => 'CEBOLLA LARGA'],
+                ['label' => 'Verduras']
+            ],
+            Item::as_id_token_suggestions([
+                ['value' => '41', 'label' => 'CEBOLLA LARGA'],
+                ['label' => 'Verduras']
+            ])
+        );
+    }
+
     public function testAnUnknownCodeResolvesToNothing(): void
     {
         $this->assertSame('', model(Item::class)->get_info_by_id_or_number('NO-EXISTE-ESTE-CODIGO'));

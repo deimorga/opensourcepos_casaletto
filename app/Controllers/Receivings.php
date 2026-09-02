@@ -63,7 +63,11 @@ class Receivings extends Secure_Controller
     public function getItemSearch(): ResponseInterface
     {
         $search = $this->request->getGet('term');
-        $suggestions = $this->item->get_search_suggestions($search, ['search_custom' => false, 'is_deleted' => false], true);
+        // `ID n` tokens rather than bare ids, for the same reason as the register: this answer is
+        // typed back into the box that also takes scanner output. See Item::ID_TOKEN_PREFIX.
+        $suggestions = Item::as_id_token_suggestions(
+            $this->item->get_search_suggestions($search, ['search_custom' => false, 'is_deleted' => false], true)
+        );
         $suggestions = array_merge($suggestions, $this->item_kit->get_search_suggestions($search));
 
         return $this->response->setJSON($suggestions);
@@ -78,7 +82,12 @@ class Receivings extends Secure_Controller
     public function getStockItemSearch(): ResponseInterface
     {
         $search = $this->request->getGet('term');
-        $suggestions = $this->item->get_stock_search_suggestions($search, ['search_custom' => false, 'is_deleted' => false], true);
+        // This is the endpoint the receiving screen actually calls -- getItemSearch() above is not
+        // wired to any view. Tokens for the same reason: the answer is typed straight back into the
+        // box that also takes scanner output. See Item::ID_TOKEN_PREFIX.
+        $suggestions = Item::as_id_token_suggestions(
+            $this->item->get_stock_search_suggestions($search, ['search_custom' => false, 'is_deleted' => false], true)
+        );
         $suggestions = array_merge($suggestions, $this->item_kit->get_search_suggestions($search));
 
         return $this->response->setJSON($suggestions);

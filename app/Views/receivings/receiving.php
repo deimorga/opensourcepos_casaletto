@@ -518,7 +518,9 @@ if (isset($success)) {
                     $("#supplier").val(response.id);
                     $("#select_supplier_form").submit();
                 } else {
-                    $("#item").val(response.id);
+                    // The token, not the bare id -- same field a scanner writes to.
+                    // See App\Models\Item::ID_TOKEN_PREFIX.
+                    $("#item").val('<?= esc(\App\Models\Item::ID_TOKEN_PREFIX, 'js') ?>' + response.id);
                     if (stay_open) {
                         $("#add_item_form").ajaxSubmit();
                     } else {

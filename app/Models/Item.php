@@ -571,8 +571,98 @@ class Item extends Model
     /**
      * Gets information about a particular item by item id or number
      */
+    /**
+     * The prefix that marks a value as an item_id and nothing else.
+     *
+     * WHY A CODE PICKED FROM A LIST CANNOT BE A BARE NUMBER
+     *
+     * The register has ONE input box and two kinds of value reach it: what a cashier types or a
+     * scanner sends -- where `item_number` has to win, see get_info_by_id_or_number() -- and what
+     * the autocomplete puts there when somebody clicks a suggestion, which is an `item_id`. As a
+     * bare number the two are indistinguishable, so one of them was always going to lose.
+     *
+     * It lost in production: in Paraiso de la Canasta, CEBOLLA LARGA is item_id 41 and ZANAHORIA
+     * carries item_number 41. Clicking CEBOLLA LARGA in the list posted "41", the resolver read it
+     * as a printed code, and the till asked the cashier to weigh a ZANAHORIA. 212 of that shop's
+     * 1.184 items collide the same way.
+     *
+     * The fact that a value came from the list is known at the moment of the click and was being
+     * thrown away. This prefix carries it. It mirrors the `KIT 3` token this codebase already uses
+     * for item kits, and a scanner cannot produce it: barcodes have no spaces.
+     */
+    public const ID_TOKEN_PREFIX = 'ID ';
+
+    /**
+     * Wraps an item_id so that whoever resolves it later knows it is an id.
+     */
+    public static function id_token(int|string $item_id): string
+    {
+        return self::ID_TOKEN_PREFIX . $item_id;
+    }
+
+    /**
+     * The item_id inside an `ID n` token, or null when the value is not one.
+     *
+     * Only a token whose payload is a plain positive integer counts. `ID 0012` is not an id -- the
+     * same leading-zero rule get_info_by_id_or_number() applies -- and neither is `ID abc`.
+     */
+    public static function parse_id_token(string $value): ?string
+    {
+        if (stripos($value, self::ID_TOKEN_PREFIX) !== 0) {
+            return null;
+        }
+
+        $payload = substr($value, strlen(self::ID_TOKEN_PREFIX));
+
+        if ($payload === '' || !ctype_digit($payload) || str_starts_with($payload, '0')) {
+            return null;
+        }
+
+        return $payload;
+    }
+
+    /**
+     * Rewrites the `value` of every item suggestion into an `ID n` token.
+     *
+     * For the screens that feed the answer straight back into an "add this to the cart" form, which
+     * are the ones where a bare id is ambiguous. Screens that look the value up by id themselves
+     * (write-offs) keep the plain id and must NOT call this.
+     *
+     * Entries with no `value` -- category and supplier suggestions are label-only -- and entries
+     * that are not arrays are left exactly as they are.
+     */
+    public static function as_id_token_suggestions(array $suggestions): array
+    {
+        foreach ($suggestions as &$suggestion) {
+            if (is_array($suggestion) && isset($suggestion['value'])) {
+                $suggestion['value'] = self::id_token($suggestion['value']);
+            }
+        }
+
+        unset($suggestion);
+
+        return $suggestions;
+    }
+
     public function get_info_by_id_or_number(string $item_id, bool $include_deleted = true): stdClass|string
     {
+        // A value that says it is an id is an id, and skips the item_number rule below entirely.
+        // That rule exists for codes a human typed or a scanner sent; this value came from a list
+        // the user clicked, where the id is not a guess.
+        $token = self::parse_id_token($item_id);
+
+        if ($token !== null) {
+            $byToken = $this->db->table('items')->where('items.item_id', $token);
+
+            if (!$include_deleted) {
+                $byToken->where('items.deleted', 0);
+            }
+
+            $query = $byToken->limit(1)->get();
+
+            return $query->getNumRows() === 1 ? $query->getRow() : '';
+        }
+
         // THE ITEM NUMBER WINS, ALWAYS. Two queries, not one with an OR.
         //
         // Upstream ran a single query with `item_number = X OR item_id = X` and a LIMIT 1, and its
