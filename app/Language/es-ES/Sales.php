@@ -233,6 +233,12 @@ return [
     // (App\Models\Item::ALLOWED_UNITS_OF_MEASURE explica por qué una segunda es un riesgo y no una
     // función). El sufijo se conserva porque aquí no se convierte nada: el precio es el precio de
     // UNA de la propia unidad del artículo.
+    "scale_agent_down"                   => "El programa de la caja no está funcionando: escriba el peso.",
+    "scale_none"                         => "Esta caja no tiene báscula: escriba el peso.",
+    "scale_no_reading"                   => "La báscula no está respondiendo: escriba el peso.",
+    "scale_taken"                        => "Peso tomado de la báscula. Revíselo y añádalo a la venta.",
+    "scale_unreadable"                   => "La báscula mandó algo que esta caja no supo leer: escriba el peso.",
+    "scale_waiting"                      => "Leyendo la báscula...",
     "weigh_item"                       => "Pesar",
     "weight_in_kg"                     => "Peso en kilogramos",
     "price_per_kg"                     => "Precio por kilogramo",

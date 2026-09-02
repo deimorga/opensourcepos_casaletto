@@ -728,6 +728,44 @@ class Sales extends Secure_Controller
     }
 
     /**
+     * Turns a raw scale frame into kilograms. Used in app/Views/sales/register.php
+     *
+     * THE PAGE NEVER INTERPRETS THE FRAME, AND THAT IS THE WHOLE POINT
+     *
+     * The local agent hands over the bytes exactly as the scale emitted them and refuses to read
+     * meaning into them; the meaning lives here, in `scale_format` and `scale_divisor`, which a
+     * technician fills in on a settings screen. A second shop with a different scale is then a
+     * screen to fill in, not another visit to a counter and another binary to install.
+     *
+     * What arrives has already survived the register's settling rule (see the scale block in
+     * register.php): three separate readings agreed. This method still answers null for anything it
+     * cannot read, because a weight is money and a wrong number here is a wrong price with no error
+     * anywhere.
+     *
+     * @return ResponseInterface
+     * @noinspection PhpUnused
+     */
+    public function postScaleWeight(): ResponseInterface
+    {
+        $raw = (string) $this->request->getPost('raw');
+
+        // Not the agent's job to know, and not this one's to guess: a till whose transport is the
+        // keyboard has no business parsing frames, and answering anything at all would invite a
+        // page to feed weights into a register that was never wired for them.
+        if (($this->config['scale_transport'] ?? 'keys') !== 'agent') {
+            return $this->response->setJSON(['ok' => false, 'code' => 'sin_transporte']);
+        }
+
+        $weight = $this->token_lib->parse_scale($raw);
+
+        if ($weight === null) {
+            return $this->response->setJSON(['ok' => false, 'code' => 'ilegible']);
+        }
+
+        return $this->response->setJSON(['ok' => true, 'weight' => $weight]);
+    }
+
+    /**
      * Give up on weighing the item that was scanned. Used in
      * app/Views/sales/register.php
      *

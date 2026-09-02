@@ -235,6 +235,12 @@ return [
     // función). El sufijo se conserva porque aquí no se convierte nada: el precio es el precio de
     // una unidad del propio artículo, así que rotular con la unidad equivocada sería un error de
     // precio y no de etiqueta.
+    "scale_agent_down"                   => "El programa de la caja no está funcionando: digite el peso.",
+    "scale_none"                         => "Esta caja no tiene báscula: digite el peso.",
+    "scale_no_reading"                   => "La báscula no está respondiendo: digite el peso.",
+    "scale_taken"                        => "Peso tomado de la báscula. Revíselo y agréguelo a la venta.",
+    "scale_unreadable"                   => "La báscula mandó algo que esta caja no supo leer: digite el peso.",
+    "scale_waiting"                      => "Leyendo la báscula...",
     "weigh_item"                       => "Pesar",
     "weight_in_kg"                     => "Peso en kilogramos",
     "price_per_kg"                     => "Precio por kilogramo",

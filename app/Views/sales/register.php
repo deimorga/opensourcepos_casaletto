@@ -1060,6 +1060,157 @@ helper('url');
             $weight_field.focus();
         });
 
+        // ============================================================
+        // LA BÁSCULA, POR EL PROGRAMA LOCAL
+        // ============================================================
+        //
+        // Solo se enciende cuando esta caja está configurada con transporte "agent" Y hay un
+        // artículo esperando su peso. En cualquier otro negocio -- Casaletto entre ellos, que
+        // trabaja en modo teclado -- este bloque no abre ninguna conexión ni existe para nada.
+        (function () {
+            var transporte = <?= json_encode($config['scale_transport'] ?? 'keys') ?>;
+
+            if (transporte !== 'agent' || $weight_field.length === 0) {
+                return;
+            }
+
+            // TRES LECTURAS QUE COINCIDAN, Y NO ES UN NÚMERO ELEGIDO A OJO
+            //
+            // Medido contra la báscula real de Paraíso (ROCHI RC-A01E, 2026-09-01): con el objeto
+            // completamente quieto, 8 de cada 266 tramas -- el 3 % -- se desviaban entre 5 y 25
+            // gramos, y la trama mala llega igual de bien formada que la buena. La racha máxima de
+            // un valor equivocado fue de DOS, así que con dos no basta. Con tres, ningún valor
+            // espurio pasó en ninguna de las dos capturas independientes.
+            //
+            // Cuesta ~1,7 s. Sin esto, una de cada 33 pesadas cobraría de más o de menos, en
+            // silencio y sin error en ninguna parte.
+            var LECTURAS_QUE_DEBEN_COINCIDIR = 3;
+
+            // Cada respuesta trae su marca de tiempo, y se exige que las tres sean DISTINTAS: la
+            // báscula manda ~1,8 tramas por segundo y aquí se pregunta más seguido, así que sin
+            // esta condición la misma trama contada tres veces parecería un peso estable.
+            var CADA_MS = 250;
+
+            var url = 'ws://127.0.0.1:7878/ws';
+            var socket = null;
+            var timer = null;
+            var vistas = [];
+            var tomado = false;
+            var manual = false;
+
+            var $estado = $('<p class="weight-entry-hint" id="weight_scale_status" aria-live="polite"></p>');
+            $('#weight_entry_hint').after($estado);
+
+            function decir(texto) {
+                $estado.text(texto);
+            }
+
+            function parar() {
+                if (timer) { clearInterval(timer); timer = null; }
+            }
+
+            // En cuanto el cajero escribe, la báscula deja de mandar. Pelear con la persona que
+            // tiene la mercancía en la mano es peor que no ayudarla: el teclado y el teclado en
+            // pantalla son la salida el día que la báscula falle.
+            $weight_field.on('input', function () {
+                if (!tomado) { manual = true; parar(); }
+                tomado = false;
+            });
+
+            function pedir() {
+                if (socket && socket.readyState === 1 && !manual) {
+                    socket.send(JSON.stringify({ id: String(Date.now()), op: 'scale.read' }));
+                }
+            }
+
+            function recibir(mensaje) {
+                var d;
+                try { d = JSON.parse(mensaje.data); } catch (e) { return; }
+
+                if (d.op === 'error') {
+                    parar();
+                    // Los dos códigos se tratan distinto a propósito: una caja sin báscula es
+                    // normal y el cajero solo tiene que digitar; una báscula que está y no
+                    // contesta es una avería que alguien tiene que atender.
+                    decir(d.code === 'sin_bascula'
+                        ? <?= json_encode(Sale_lib::translate_or('Sales.scale_none', 'This till has no scale: type the weight.')) ?>
+                        : <?= json_encode(Sale_lib::translate_or('Sales.scale_no_reading', 'The scale is not answering: type the weight.')) ?>);
+                    return;
+                }
+
+                if (d.op !== 'scale.weight' || manual) {
+                    return;
+                }
+
+                vistas.push({ raw: String(d.raw), at: String(d.at) });
+                if (vistas.length > LECTURAS_QUE_DEBEN_COINCIDIR) { vistas.shift(); }
+
+                if (vistas.length < LECTURAS_QUE_DEBEN_COINCIDIR) { return; }
+
+                var marcas = {};
+                var iguales = true;
+
+                for (var i = 0; i < vistas.length; i++) {
+                    if (vistas[i].raw !== vistas[0].raw) { iguales = false; }
+                    marcas[vistas[i].at] = true;
+                }
+
+                if (!iguales || Object.keys(marcas).length < LECTURAS_QUE_DEBEN_COINCIDIR) {
+                    return;
+                }
+
+                parar();
+                interpretar(vistas[0].raw);
+            }
+
+            // La trama la interpreta el SERVIDOR, no esta página: el formato vive en la
+            // configuración del negocio, así que otra báscula se resuelve llenando una pantalla y
+            // no reescribiendo este archivo.
+            function interpretar(raw) {
+                $.ajax({
+                    url: '<?= esc(site_url("$controller_name/scaleWeight")) ?>',
+                    type: 'POST',
+                    data: { raw: raw },
+                    dataType: 'json',
+                    success: function (r) {
+                        if (!r || !r.ok) {
+                            decir(<?= json_encode(Sale_lib::translate_or('Sales.scale_unreadable', 'The scale sent something this till could not read: type the weight.')) ?>);
+                            return;
+                        }
+
+                        // Se llena el campo y ahí se detiene. NO se envía la venta sola: quien
+                        // confirma que ese es el peso de lo que está sobre el plato es la persona,
+                        // y un botón de más cuesta menos que una línea cobrada por error.
+                        tomado = true;
+                        $weight_field.val(String(r.weight).replace('.', <?= json_encode($weight_decimal_separator ?? ',') ?>));
+                        $weight_field.focus();
+                        decir(<?= json_encode(Sale_lib::translate_or('Sales.scale_taken', 'Weight taken from the scale. Check it and add it to the sale.')) ?>);
+                    },
+                    error: function () {
+                        decir(<?= json_encode(Sale_lib::translate_or('Sales.scale_unreadable', 'The scale sent something this till could not read: type the weight.')) ?>);
+                    }
+                });
+            }
+
+            try {
+                socket = new WebSocket(url);
+            } catch (e) {
+                decir(<?= json_encode(Sale_lib::translate_or('Sales.scale_agent_down', 'The till program is not running: type the weight.')) ?>);
+                return;
+            }
+
+            decir(<?= json_encode(Sale_lib::translate_or('Sales.scale_waiting', 'Reading the scale...')) ?>);
+
+            socket.onopen = function () { timer = setInterval(pedir, CADA_MS); pedir(); };
+            socket.onmessage = recibir;
+            // Un agente caído es invisible para el cajero, que solo ve que no aparece el peso. Se
+            // dice, y se dice con lo que tiene que hacer: digitarlo.
+            socket.onerror = function () { parar(); decir(<?= json_encode(Sale_lib::translate_or('Sales.scale_agent_down', 'The till program is not running: type the weight.')) ?>); };
+            socket.onclose = function () { parar(); };
+
+            $(window).on('beforeunload', function () { parar(); if (socket) { socket.close(); } });
+        })();
+
         $('#item').blur(function() {
             $(this).val("<?= lang(ucfirst($controller_name) . '.start_typing_item_name') ?>");
         });

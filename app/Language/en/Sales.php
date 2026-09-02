@@ -234,6 +234,12 @@ return [
     // weighed unit is a liability, not a feature). The suffix stays because nothing here converts:
     // a price is the price of one of that item's own unit, so a label naming the wrong one would be
     // a pricing error rather than a cosmetic slip.
+    "scale_agent_down"                   => "The till program is not running: type the weight.",
+    "scale_none"                         => "This till has no scale: type the weight.",
+    "scale_no_reading"                   => "The scale is not answering: type the weight.",
+    "scale_taken"                        => "Weight taken from the scale. Check it and add it to the sale.",
+    "scale_unreadable"                   => "The scale sent something this till could not read: type the weight.",
+    "scale_waiting"                      => "Reading the scale...",
     "weigh_item"                       => "Weigh",
     "weight_in_kg"                     => "Weight in kilograms",
     "price_per_kg"                     => "Price per kilogram",

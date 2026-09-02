@@ -12,10 +12,11 @@ use PHPUnit\Framework\Attributes\DataProvider;
 /**
  * The scale interpreter is pure logic and is tested as such: no database, no HTTP, no scale.
  *
- * Frames come from docs/Tecnico/venta-por-peso-y-hardware-de-caja.md sections 4.3 and 5.10b. The
- * client's scale is multi-protocol and which format it is speaking is still unknown, so the point
- * of these tests is not "our scale works" -- it is that the four shapes the market emits are all
- * reachable from the configuration screen without touching PHP.
+ * Frames come from docs/Tecnico/venta-por-peso-y-hardware-de-caja.md sections 4.3 and 5.10b, and
+ * -- since 2026-09-01 -- from the client's own scale, captured off the port at the counter. The
+ * point is twofold: that the shapes the market emits are all reachable from the configuration
+ * screen without touching PHP, and that the frame Paraiso's ROCHI RC-A01E actually sends is read
+ * correctly, byte for byte as it arrived.
  */
 class ScaleParseTest extends CIUnitTestCase
 {
@@ -68,6 +69,55 @@ class ScaleParseTest extends CIUnitTestCase
         $raw = "N12.395  \n\r";
 
         $this->assertSame('12.395', $this->tokenLib->parse_scale($raw, 'N{W:6}', 1));
+    }
+
+    // ========== La báscula real del cliente, capturada el 2026-09-01 ==========
+
+    /**
+     * El formato REAL del ROCHI RC-A01E de Paraiso de la Canasta.
+     *
+     * Capturado en el mostrador: 4800 8-N-1 -- ni los 9600 del manual del fabricante ni los 19200
+     * que concluyo la propia herramienta de captura -- y trama `NNN.NNN` + CR, en kilogramos, sin
+     * signo y sin bandera de estado. La hipotesis que traiamos (la bandera `N` del modelo hermano
+     * Moresco) resulto FALSA; de haberla dado por buena, el interprete no habria leido nada.
+     *
+     * Los dos valores estan verificados contra el visor del propio equipo, con foto.
+     */
+    #[DataProvider('tramasRealesDeParaiso')]
+    public function testReadsTheFrameParaisoScaleActuallySends(string $frame, string $expected): void
+    {
+        $this->assertSame($expected, $this->tokenLib->parse_scale($frame, '{W:7}', 1));
+    }
+
+    public static function tramasRealesDeParaiso(): array
+    {
+        return [
+            'visor marcaba 0.410'       => ["000.410\r", '0.410'],
+            'visor marcaba 0.555'       => ["000.555\r", '0.555'],
+            'plato vacio'               => ["000.000\r", '0.000'],
+            'del barrido de scale-probe' => ["000.265\r", '0.265'],
+        ];
+    }
+
+    /**
+     * La trama deforme que llego justo al retirar el peso: nueve bytes de basura pegados delante de
+     * un peso valido, SIN retorno de carro que los separe. Fue 1 de 126 tramas.
+     *
+     * Se lee 0.000, y esta bien que asi sea: `parse_scale()` busca la trama DENTRO de lo que le
+     * llega, a proposito, porque el agente puede entregar dos lecturas pegadas -- ver
+     * testTakesTheFirstReadingOutOfABufferedPairOfFrames. Anclar el patron arreglaria este caso y
+     * romperia aquel.
+     *
+     * **La proteccion contra un peso equivocado no esta aqui, y esta prueba existe para dejarlo
+     * dicho.** Esta en la caja: el bloque de la bascula de register.php exige TRES lecturas
+     * seguidas, con marcas de tiempo distintas, que digan lo mismo. Una trama deforme no se repite
+     * tres veces; el ruido medido en el equipo real no paso nunca de dos.
+     */
+    public function testTheMalformedFrameSeenAtTheCounterFindsTheWeightInsideIt(): void
+    {
+        $deforme = "\x00\x40\x3f\x40\x3f\x3f\x00\x3f\x3f" . '000.000';
+
+        $this->assertSame('0.000', $this->tokenLib->parse_scale($deforme, '{W:7}', 1));
     }
 
     public function testReadsAPlainKilogramFrame(): void
