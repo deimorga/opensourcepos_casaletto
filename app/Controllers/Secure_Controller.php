@@ -64,7 +64,23 @@ class Secure_Controller extends BaseController
             ? $this->module->get_allowed_home_modules($logged_in_employee_info->person_id)
             : $this->module->get_allowed_office_modules($logged_in_employee_info->person_id);
 
-        $this->global_view_data = [];
+        // La clave se crea SIEMPRE, aunque no haya ni un módulo.
+        //
+        // Antes se inicializaba a `[]` y la clave nacía dentro del bucle, así que un empleado sin
+        // NINGÚN módulo permitido en este grupo dejaba `allowed_modules` sin existir -- y
+        // `partial/header.php` y `home/office.php` hacen `foreach` sobre ella sin preguntar. El
+        // resultado no era una página vacía: era un 500.
+        //
+        // Pasó en producción el 2026-09-01. Angela Rodríguez, cajera de Paraíso de la Canasta,
+        // tiene 19 módulos de inicio y CERO de oficina; el icono de Oficina se le muestra igual, y
+        // al tocarlo veía «Whoops!». El defecto llevaba ahí desde siempre y nadie lo había pisado
+        // porque hasta entonces todos los empleados de los dos negocios tenían algo en las dos
+        // pantallas.
+        //
+        // Una lista vacía es la respuesta correcta: la pantalla se dibuja sin iconos, que es la
+        // verdad -- ese empleado no tiene nada ahí.
+        $this->global_view_data = ['allowed_modules' => []];
+
         foreach ($allowed_modules->getResult() as $module) {
             $this->global_view_data['allowed_modules'][] = $module;
         }
