@@ -82,6 +82,29 @@ class OfficeWithoutModulesTest extends CIUnitTestCase
     }
 
     /**
+     * Y no se le ofrece el icono, porque detrás no hay nada.
+     *
+     * El grupo de menú vive en la CONCESIÓN, no en el módulo, así que un empleado puede tener el
+     * icono de Oficina en su pantalla de inicio y cero módulos concedidos con 'office' detrás. Una
+     * pantalla vacía es mejor que un 500, pero sigue siendo una puerta que no lleva a nada.
+     */
+    public function testTheOfficeIconIsNotOfferedWhenThereIsNothingBehindIt(): void
+    {
+        $this->quitarleLaOficinaAlEmpleado(1);
+
+        $_SESSION = ['person_id' => 1, 'menu_group' => 'home'];
+        $this->withSession($_SESSION);
+
+        $cuerpo = (string) $this->get('home')->getBody();
+
+        $this->assertStringNotContainsString(
+            base_url('office'),
+            $cuerpo,
+            'Sin módulos de oficina, el icono de Oficina no se muestra.'
+        );
+    }
+
+    /**
      * La otra mitad, para que el arreglo no se convierta en «siempre vacío».
      */
     public function testAnEmployeeWithOfficeModulesStillSeesThem(): void

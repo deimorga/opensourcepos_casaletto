@@ -85,12 +85,51 @@ class Secure_Controller extends BaseController
             $this->global_view_data['allowed_modules'][] = $module;
         }
 
+        // UNA PUERTA QUE NO LLEVA A NINGUNA PARTE NO SE OFRECE
+        //
+        // El grupo de menú vive en la CONCESIÓN, no en el módulo: el mismo módulo aparece en Inicio
+        // o en Oficina según cómo se le concedió a cada empleado. Así que un empleado puede tener el
+        // icono de Oficina en su pantalla de inicio --porque esa concesión dice 'home'-- y no tener
+        // ni un solo módulo concedido con 'office' detrás.
+        //
+        // Le pasó a Angela Rodríguez, cajera de Paraíso de la Canasta: 19 módulos en inicio, cero en
+        // oficina, y todas sus concesiones --incluida la del propio módulo `office`-- en el grupo
+        // 'home'. Al tocar Oficina veía una pantalla vacía, que es mejor que el 500 que veía antes
+        // pero sigue siendo una puerta que no lleva a ninguna parte.
+        //
+        // La consulta extra solo se hace cuando el icono está en la lista, que es el único caso en
+        // que la respuesta puede cambiar algo.
+        if ($menu_group == 'home' && $this->hayModulo('office')) {
+            $oficina = $this->module->get_allowed_office_modules($logged_in_employee_info->person_id);
+
+            if ($oficina->getNumRows() === 0) {
+                $this->global_view_data['allowed_modules'] = array_values(array_filter(
+                    $this->global_view_data['allowed_modules'],
+                    static fn ($module): bool => $module->module_id !== 'office'
+                ));
+            }
+        }
+
         $this->global_view_data += [
             'user_info'       => $logged_in_employee_info,
             'controller_name' => $module_id,
             'config'          => $config
         ];
         view('viewData', $this->global_view_data);
+    }
+
+    /**
+     * Si un modulo esta en la lista que se le va a mostrar a este empleado.
+     */
+    private function hayModulo(string $module_id): bool
+    {
+        foreach ($this->global_view_data['allowed_modules'] as $module) {
+            if ($module->module_id === $module_id) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function sanitizeSortColumn($headers, $field, $default): string
