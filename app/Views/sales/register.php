@@ -1195,6 +1195,26 @@ helper('url');
                             return;
                         }
 
+                        // UN CERO NO ES UN PESO QUE SE PUEDA VENDER, ASI QUE SE SIGUE MIRANDO
+                        //
+                        // En un mostrador el cajero busca primero el producto y DESPUES lo pone en
+                        // la báscula, así que la primera lectura estable es siempre el plato vacío.
+                        // La primera versión de esto se quedaba con ese cero y dejaba de mirar: el
+                        // cajero ponía la mercancía encima y el campo seguía en 0,000.
+                        //
+                        // Se vio en el mostrador con un melón, y antes con una impresora de 405 g.
+                        if (parseFloat(r.weight) === 0) {
+                            vistas = [];
+                            // El cero prueba que la cadena entera funciona, así que el vigilante ya
+                            // no tiene nada que vigilar: lo que falta es que alguien ponga algo.
+                            if (vigilante) { clearTimeout(vigilante); vigilante = null; }
+                            decir(<?= json_encode(Sale_lib::translate_or('Sales.scale_empty', 'The scale is at zero: place the product on it.')) ?>);
+
+                            if (!timer && !manual) { timer = setInterval(pedir, CADA_MS); }
+
+                            return;
+                        }
+
                         // Se llena el campo y ahí se detiene. NO se envía la venta sola: quien
                         // confirma que ese es el peso de lo que está sobre el plato es la persona,
                         // y un botón de más cuesta menos que una línea cobrada por error.

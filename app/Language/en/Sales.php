@@ -236,6 +236,7 @@ return [
     // a pricing error rather than a cosmetic slip.
     "scale_agent_down"                   => "The till program is not running: type the weight.",
     "scale_none"                         => "This till has no scale: type the weight.",
+    "scale_empty"                        => "The scale is at zero: place the product on it.",
     "scale_no_reading"                   => "The scale is not answering: type the weight.",
     "scale_taken"                        => "Weight taken from the scale. Check it and add it to the sale.",
     "scale_unreadable"                   => "The scale sent something this till could not read: type the weight.",
