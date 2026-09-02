@@ -64,6 +64,11 @@ type Bascula struct {
 	// ultima es la trama mas reciente; ultimaHora, cuando llego.
 	ultima     string
 	ultimaHora time.Time
+	// pendiente son los bytes leidos que todavia no completan una trama, y
+	// vioDelimitador recuerda si este puerto delimita. Ver guardar(): el sistema
+	// operativo entrega trozos arbitrarios del flujo, no tramas.
+	pendiente      string
+	vioDelimitador bool
 	// nuevas avisa a los lectores que espera() que acaba de llegar algo.
 	nuevas chan struct{}
 	cerrar chan struct{}
@@ -187,11 +192,102 @@ func (b *Bascula) dormir(d time.Duration) bool {
 	}
 }
 
+// maxPendiente acota el acumulador, para que una bascula que no delimita nunca
+// no haga crecer la memoria sin freno.
+const maxPendiente = 4096
+
+// delimitadores son los finales de trama que se reconocen.
+//
+// CR y LF, y nada mas. Reconocer un delimitador NO es interpretar la trama --que
+// significan los caracteres se sigue decidiendo en el servidor-- pero si es
+// saber donde empieza y donde termina, y eso no lo puede hacer nadie mas: para
+// cuando los bytes llegan al servidor, el corte ya se perdio.
+const delimitadores = "\r\n"
+
+// guardar ensambla los trozos que entrega el sistema operativo y publica la
+// ULTIMA TRAMA COMPLETA, con su terminador tal cual vino.
+//
+// ANTES PUBLICABA EL TROZO TAL CUAL, Y UN TROZO NO ES UNA TRAMA.
+//
+// `p.Read()` devuelve lo que haya en el bufer del puerto en ese instante y el
+// corte cae donde cae. Contra la bascula real de Paraiso, que emite
+// `000.560<CR>`, el sistema entregaba `0` en una lectura y `00.560<CR>` en la
+// siguiente: el agente publicaba `00.560`, con el primer digito perdido en el
+// trozo anterior.
+//
+// Costo real: la caja quedo configurada con `{W:7}` --siete caracteres, medidos
+// leyendo el puerto directamente-- y no leia nada, porque lo que le llegaba
+// tenia seis. Un `{W:6}` habria sido peor: funcionaria por casualidad hasta el
+// dia en que el corte cayera un byte mas alla.
+//
+// MIENTRAS NO SE HAYA VISTO NUNCA UN DELIMITADOR se publica el trozo, que es el
+// comportamiento anterior. Hay basculas que emiten ancho fijo sin terminador y
+// para esas no hay forma de saber donde corta una trama; romperlas para arreglar
+// esto seria cambiar un defecto por otro. En cuanto aparece el primer
+// delimitador, el flujo es de lineas y los pedazos se acumulan.
 func (b *Bascula) guardar(trozo string) {
 	b.mu.Lock()
-	b.ultima = trozo
+
+	acumulado := b.pendiente + trozo
+	corte := strings.LastIndexAny(acumulado, delimitadores)
+
+	if corte < 0 {
+		b.pendiente = acumulado
+		if len(b.pendiente) > maxPendiente {
+			b.pendiente = ""
+		}
+
+		if b.vioDelimitador {
+			// Trama a medias de una bascula que si delimita: se espera al resto.
+			b.mu.Unlock()
+
+			return
+		}
+
+		b.ultima = trozo
+		b.ultimaHora = time.Now()
+		b.mu.Unlock()
+		b.avisar()
+
+		return
+	}
+
+	b.vioDelimitador = true
+
+	completas := acumulado[:corte+1]
+	b.pendiente = acumulado[corte+1:]
+
+	// La ultima trama completa, no la primera: lo que interesa es el peso de
+	// ahora. `inicio` retrocede desde el final saltando primero los terminadores
+	// y despues el contenido, para devolver la trama CON su terminador y no una
+	// version recortada -- el agente no interpreta, y quitar bytes es
+	// interpretar.
+	fin := len(completas)
+	for fin > 0 && strings.ContainsRune(delimitadores, rune(completas[fin-1])) {
+		fin--
+	}
+
+	if fin == 0 {
+		// Solo terminadores: no hay trama nueva que publicar.
+		b.mu.Unlock()
+
+		return
+	}
+
+	inicio := fin
+	for inicio > 0 && !strings.ContainsRune(delimitadores, rune(completas[inicio-1])) {
+		inicio--
+	}
+
+	b.ultima = completas[inicio:]
 	b.ultimaHora = time.Now()
 	b.mu.Unlock()
+
+	b.avisar()
+}
+
+// avisar despierta a quien este esperando una trama nueva.
+func (b *Bascula) avisar() {
 
 	// Aviso no bloqueante: si nadie espera, no pasa nada.
 	select {

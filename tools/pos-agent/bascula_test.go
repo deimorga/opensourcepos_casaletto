@@ -150,3 +150,52 @@ func TestUnaTramaViejaNoSeDaPorBuena(t *testing.T) {
 		t.Fatalf("err = %v; una trama pasada de frescura no se puede reutilizar", err)
 	}
 }
+
+// TestEnsamblaLaTramaCortadaPorElSistemaOperativo reproduce, byte por byte, lo
+// que hace la bascula real de Paraiso de la Canasta.
+//
+// Emite `000.560<CR>` y Windows entregaba `0` en una lectura y `00.560<CR>` en la
+// siguiente. El agente publicaba `00.560`: seis caracteres, con el primer digito
+// perdido en el trozo anterior. La caja, configurada con `{W:7}`, no leia nada.
+func TestEnsamblaLaTramaCortadaPorElSistemaOperativo(t *testing.T) {
+	p := &puertoFalso{porLeer: [][]byte{
+		[]byte("0"),
+		[]byte("00.560\r"),
+		[]byte("0"),
+		[]byte("00.555\r"),
+	}}
+	b := NuevaBascula(cfgBascula(), func(ConfigBascula) (puertoSerie, error) { return p, nil }, nil)
+	defer b.Cerrar()
+
+	// Se espera a que el bucle consuma las cuatro lecturas.
+	var got string
+	for i := 0; i < 50; i++ {
+		time.Sleep(20 * time.Millisecond)
+		if trama, _, err := b.Leer(); err == nil && trama == "000.555\r" {
+			got = trama
+			break
+		}
+	}
+
+	if got != "000.555\r" {
+		trama, _, _ := b.Leer()
+		t.Errorf("trama = %q, se esperaba %q: los trozos tienen que ensamblarse en tramas", trama, "000.555\r")
+	}
+}
+
+// TestUnaBasculaSinDelimitadorSigueFuncionando: hay equipos que emiten ancho fijo
+// sin terminador, y para esos no hay forma de saber donde corta una trama.
+// Romperlos para arreglar el ensamblado seria cambiar un defecto por otro.
+func TestUnaBasculaSinDelimitadorSigueFuncionando(t *testing.T) {
+	p := &puertoFalso{porLeer: [][]byte{[]byte("0.100")}}
+	b := NuevaBascula(cfgBascula(), func(ConfigBascula) (puertoSerie, error) { return p, nil }, nil)
+	defer b.Cerrar()
+
+	got, _, err := b.Leer()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "0.100" {
+		t.Errorf("trama = %q, se esperaba %q", got, "0.100")
+	}
+}
