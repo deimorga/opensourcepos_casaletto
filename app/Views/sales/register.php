@@ -1104,6 +1104,9 @@ helper('url');
             var manual = false;
             var llegoAlgo = false;
             var vigilante = null;
+            // La última trama ya confirmada y enviada al servidor. Sirve para no repetir la
+            // interpretación de un peso que no ha cambiado.
+            var confirmada = null;
 
             var $estado = $('<p class="weight-entry-hint" id="weight_scale_status" aria-live="polite"></p>');
             $('#weight_entry_hint').after($estado);
@@ -1117,13 +1120,22 @@ helper('url');
                 if (vigilante) { clearTimeout(vigilante); vigilante = null; }
             }
 
-            // En cuanto el cajero escribe, la báscula deja de mandar. Pelear con la persona que
-            // tiene la mercancía en la mano es peor que no ayudarla: el teclado y el teclado en
-            // pantalla son la salida el día que la báscula falle.
-            $weight_field.on('input', function () {
-                if (!tomado) { manual = true; parar(); }
-                tomado = false;
-            });
+            // EN CUANTO EL CAJERO TOCA EL PESO, LA BÁSCULA SE CALLA PARA SIEMPRE
+            //
+            // Pelear con la persona que tiene la mercancía en la mano es peor que no ayudarla, y el
+            // teclado --el físico y el de la pantalla-- es la salida el día que la báscula falle.
+            //
+            // Se escuchan los dos: `.val()` no dispara `input`, así que las teclas de la pantalla,
+            // que escriben por ahí, no se notarían solas. Tampoco lo dispara el peso que pone esta
+            // misma página, que es justo lo que se quiere.
+            function mandaLaPersona() {
+                manual = true;
+                parar();
+                decir('');
+            }
+
+            $weight_field.on('input', mandaLaPersona);
+            $('#weight_entry_panel').on('click', '.weight-key', mandaLaPersona);
 
             function pedir() {
                 if (socket && socket.readyState === 1 && !manual) {
@@ -1176,7 +1188,17 @@ helper('url');
                     if (vistas[i].raw !== vistas[0].raw) { return; }
                 }
 
-                parar();
+                // NO SE DEJA DE MIRAR: EL PESO SIGUE AL PLATO
+                //
+                // En un mostrador se echa producto, se mira el peso, se echa un poco más, o se saca
+                // lo que sobra. Quedarse con la primera pesada obliga al cajero a borrar y digitar,
+                // que es exactamente lo que este trabajo viene a quitar.
+                //
+                // Solo se molesta al servidor cuando la trama confirmada CAMBIA: mientras la
+                // mercancía esté quieta, esto no hace nada.
+                if (vistas[0].raw === confirmada) { return; }
+
+                confirmada = vistas[0].raw;
                 interpretar(vistas[0].raw);
             }
 
@@ -1204,13 +1226,17 @@ helper('url');
                         //
                         // Se vio en el mostrador con un melón, y antes con una impresora de 405 g.
                         if (parseFloat(r.weight) === 0) {
-                            vistas = [];
                             // El cero prueba que la cadena entera funciona, así que el vigilante ya
                             // no tiene nada que vigilar: lo que falta es que alguien ponga algo.
                             if (vigilante) { clearTimeout(vigilante); vigilante = null; }
-                            decir(<?= json_encode(Sale_lib::translate_or('Sales.scale_empty', 'The scale is at zero: place the product on it.')) ?>);
 
-                            if (!timer && !manual) { timer = setInterval(pedir, CADA_MS); }
+                            // EL PLATO VACÍO NO BORRA UN PESO YA TOMADO, y esto es deliberado.
+                            // Se pesa, se retira la mercancía para empacarla, y solo entonces se
+                            // toca «Agregar a la venta». Si el cero borrara el campo, el peso se
+                            // perdería justo en ese gesto.
+                            decir(tomado
+                                ? <?= json_encode(Sale_lib::translate_or('Sales.scale_kept', 'The scale is empty: the last weight is kept.')) ?>
+                                : <?= json_encode(Sale_lib::translate_or('Sales.scale_empty', 'The scale is at zero: place the product on it.')) ?>);
 
                             return;
                         }
@@ -1219,6 +1245,7 @@ helper('url');
                         // confirma que ese es el peso de lo que está sobre el plato es la persona,
                         // y un botón de más cuesta menos que una línea cobrada por error.
                         tomado = true;
+                        if (vigilante) { clearTimeout(vigilante); vigilante = null; }
                         $weight_field.val(String(r.weight).replace('.', <?= json_encode($weight_decimal_separator ?? ',') ?>));
                         $weight_field.focus();
                         decir(<?= json_encode(Sale_lib::translate_or('Sales.scale_taken', 'Weight taken from the scale. Check it and add it to the sale.')) ?>);

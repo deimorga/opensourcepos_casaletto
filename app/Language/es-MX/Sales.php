@@ -238,6 +238,7 @@ return [
     "scale_agent_down"                   => "El programa de la caja no está funcionando: digite el peso.",
     "scale_none"                         => "Esta caja no tiene báscula: digite el peso.",
     "scale_empty"                        => "La báscula está en cero: ponga el producto encima.",
+    "scale_kept"                         => "La báscula quedó vacía: se conserva el último peso.",
     "scale_no_reading"                   => "La báscula no está respondiendo: digite el peso.",
     "scale_taken"                        => "Peso tomado de la báscula. Revíselo y agréguelo a la venta.",
     "scale_unreadable"                   => "La báscula mandó algo que esta caja no supo leer: digite el peso.",
