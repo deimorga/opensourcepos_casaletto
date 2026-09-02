@@ -293,3 +293,58 @@ Se conserva la regla del cero a la izquierda: `00012345` es un código de barras
 12345.
 
 **Pruebas:** `tests/Models/ItemCodeResolutionTest.php`, 5 casos.
+
+---
+
+## Entrar a Oficina sin permisos de oficina devolvía un 500 (corregido 2026-09-01)
+
+`Secure_Controller::__construct()` armaba la lista de módulos **desde dentro del bucle**:
+
+```php
+$this->global_view_data = [];
+foreach ($allowed_modules->getResult() as $module) {
+    $this->global_view_data['allowed_modules'][] = $module;
+}
+```
+
+Con cero módulos permitidos en ese grupo, la clave **nunca nacía** — y `partial/header.php` y
+`home/office.php` hacen `foreach` sobre ella sin preguntar. El resultado no era una pantalla vacía:
+era `ErrorException: Undefined variable $allowed_modules` y la página «Whoops!».
+
+**Lo encontró un usuario real**, no una prueba: Angela Rodríguez, cajera de Paraíso de la Canasta,
+con 19 módulos en inicio y **cero** en oficina. El defecto era anterior y nadie lo había pisado
+porque hasta entonces todos los empleados de los dos negocios tenían algo en las dos pantallas.
+
+Corregido inicializando la clave siempre. Y con eso apareció el problema de fondo: **el grupo de
+menú vive en la CONCESIÓN, no en el módulo**, así que un empleado puede tener el icono de Oficina en
+su pantalla de inicio —porque esa concesión dice `home`— y nada concedido con `office` detrás. Ahora
+el icono no se ofrece cuando no hay nada detrás. La consulta extra solo se hace cuando el icono está
+en la lista.
+
+Pruebas: `tests/Controllers/OfficeWithoutModulesTest.php`.
+
+---
+
+## El importador viejo convierte un `0` en `1` (mordió el 2026-09-02)
+
+`Items::postImportCsv()`, **al crear** un artículo:
+
+```php
+$itemData['allow_alt_description'] = $row['Allow Alt Description'] === '' ? '0' : '1';
+$itemData['is_serialized'] = $row['Item has Serial Number'] === '' ? '0' : '1';
+```
+
+Una celda con `0` **no está vacía**, así que se guarda como `1`. Estaba anotado como hallazgo **H5**
+en el plan de la carga masiva y aun así mordió, porque el catálogo de Paraíso se cargó por el camino
+viejo: **los 1.184 artículos quedaron con `is_serialized = 1`**.
+
+Consecuencia en la caja: un artículo serializado es una unidad con su número de serie, así que la
+cantidad se fijaba en 1 **sin dejar editarla** y se pedía la serie en cada línea. **El cajero no
+podía vender dos de nada.** Se replicaba con todos los usuarios del negocio, que es la señal de que
+no era de permisos ni de la pantalla.
+
+Reparado en producción el 2026-09-02 con respaldo en `zz_items_flags_20260902`. **El importador
+nuevo (`Item_import_lib`) no lo repite**: acepta solo `0` o `1`, la celda vacía no cambia nada, y
+cualquier otra cosa es error de fila.
+
+**Lección: un defecto anotado en un plan no está arreglado.**

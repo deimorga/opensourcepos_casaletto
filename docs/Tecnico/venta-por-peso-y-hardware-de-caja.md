@@ -1027,7 +1027,66 @@ con al menos 16 bytes —tres bytes que por casualidad caen en el rango imprimib
 prueban nada—. `masCreible()` en `tools/scale-probe/sweep.go`, con la prueba que reproduce estos
 números exactos.
 
-#### 5.12.4 Cómo leer la báscula sin la herramienta
+#### 5.12.4 Los tres defectos que solo aparecieron en el mostrador
+
+Ninguno lo vio una prueba. Los tres salieron probando con la báscula en la mano, y los tres eran
+nuestros.
+
+**1. El agente publicaba un TROZO del flujo, no una trama.** `p.Read()` devuelve lo que haya en el
+búfer del puerto en ese instante y el corte cae donde cae. La báscula emite `000.560<CR>` y Windows
+entregaba `0` en una lectura y `00.560<CR>` en la siguiente: el agente publicaba **`00.560`**, seis
+caracteres, con el primer dígito perdido en el trozo anterior. La caja, configurada con `{W:7}`, no
+leía nada. Un `{W:6}` habría funcionado por casualidad hasta el día en que el corte cayera un byte
+más allá.
+
+Corregido en `pos-agent` 1.0.1: se acumulan los trozos y se publica la última trama COMPLETA **con
+su terminador tal cual vino** --quitar bytes también es interpretar--. Mientras no se haya visto
+nunca un delimitador se publica el trozo, que es el comportamiento anterior: hay equipos que emiten
+ancho fijo sin terminador y romperlos sería cambiar un defecto por otro.
+
+**2. La regla de las tres lecturas era insatisfacible.** Exigía tres marcas de tiempo distintas
+entre las últimas TRES RESPUESTAS, pero `Leer()` devuelve la trama en caché mientras siga fresca
+(`frescura_ms`, 3 s), así que preguntando cada 250 ms la misma lectura llega una docena de veces con
+la misma marca. La caja se quedaba en «Leyendo la báscula…» **para siempre**. Ahora cada lectura se
+cuenta una sola vez por su marca de tiempo.
+
+**3. La caja se quedaba con el peso del plato vacío.** En un mostrador el cajero busca el producto y
+DESPUÉS lo pone en la báscula, así que la primera lectura estable es siempre el cero. Ahora un cero
+no se acepta y se sigue mirando.
+
+**Lección transversal:** el silencio es indistinguible de «funcionando». Por eso hay un vigilante a
+los 9 s que distingue «no llegó nada» --una avería-- de «llegaron lecturas y no se ponen de
+acuerdo» --una balanza que se mueve--, y por eso la línea de estado nunca se queda muda.
+
+#### 5.12.5 El peso sigue al plato
+
+Se echa producto, se mira el peso, se echa un poco más, o se saca lo que sobra. Quedarse con la
+primera pesada obliga a borrar y digitar, que es justo lo que este trabajo viene a quitar.
+
+- Se pregunta cada 250 ms, pero **solo se molesta al servidor cuando la trama confirmada CAMBIA**.
+  Con la mercancía quieta, esto no hace nada.
+- **El plato vacío NO borra un peso ya tomado.** Se pesa, se retira la mercancía para empacarla, y
+  solo entonces se toca «Agregar a la venta»; si el cero borrara el campo, el peso se perdería justo
+  en ese gesto.
+- **En cuanto el cajero toca el peso, la báscula se calla para siempre.** Se escuchan los dos
+  teclados: `.val()` no dispara `input`, así que las teclas de la pantalla no se notarían solas --y
+  tampoco lo dispara el peso que escribe la propia página, que es lo que se quiere.
+- Solo corre cuando hay un artículo esperando peso. Un artículo por unidad no abre ninguna conexión.
+
+#### 5.12.6 El número de puerto COM cambia si mueven la báscula de USB
+
+Estaba en COM6; se conectó a otro puerto USB y quedó en **COM7**. Windows asigna el número por
+puerto físico, así que **desenchufar y volver a enchufar en otro sitio deja al agente sin encontrar
+la báscula** hasta que alguien le edite el `config.json`.
+
+Vale la pena que el agente **busque el CH340 por su identificador** (VID=1A86 PID=7523) en vez de
+confiar en un número fijo. Se ahorra una llamada de soporte cada vez que muevan un cable.
+
+Y ojo: **el puerto está escrito en dos sitios** --el `config.json` del agente, que es el que manda, y
+el campo «Puerto» de la pantalla de configuración, que hoy no lo usa nadie--. Dos lugares que pueden
+discrepar y solo uno tiene efecto.
+
+#### 5.12.7 Cómo leer la báscula sin la herramienta
 
 Con el SSH encendido en el terminal (`2 - SSH ENCENDER` en el escritorio):
 

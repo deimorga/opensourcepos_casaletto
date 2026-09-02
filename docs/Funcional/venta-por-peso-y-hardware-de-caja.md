@@ -371,6 +371,27 @@ la báscula no responde, o el programa de la caja no está funcionando. **Son tr
 propósito**: una caja sin báscula es normal y solo hay que digitar; una báscula que está y no
 contesta es una avería que alguien tiene que atender.
 
+#### El peso sigue al plato (2026-09-02)
+
+**Funcionando en la caja del cliente desde el 2026-09-02.** No es una demostración: se probó con la
+báscula real, con mercancía encima y quitándola.
+
+El peso no se toma una vez y se queda quieto. **Sigue al plato mientras el cajero no lo toque**: se
+echa producto y sube, se saca y baja. Es como se trabaja de verdad --se sirve, se mira, se ajusta--
+y quedarse con la primera pesada obligaría a borrar y digitar, que es justo lo que veníamos a
+quitar.
+
+Tres reglas que parecen detalle y son las que hacen que se pueda usar:
+
+- **Retirar la mercancía no borra el peso.** Se pesa, se retira para empacar, y solo entonces se
+  toca «Agregar a la venta». Si el plato vacío borrara el campo, el peso se perdería justo en ese
+  gesto. La pantalla avisa: *«La báscula quedó vacía: se conserva el último peso»*.
+- **En cuanto el cajero digita, la báscula se calla.** Cuenta el teclado físico y el de la pantalla.
+  Nadie le pelea el número a quien tiene la mercancía en la mano.
+- **Un cero no se acepta.** El cajero busca el producto antes de ponerlo en la báscula, así que la
+  primera lectura siempre es el plato vacío; la caja lo dice --*«ponga el producto encima»*-- y
+  sigue esperando.
+
 #### Por qué el peso tarda un segundo y medio en aparecer
 
 Porque **la báscula se equivoca el 3 % de las veces**, y eso lo medimos.
