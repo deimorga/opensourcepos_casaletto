@@ -350,6 +350,45 @@ puesto y probado, pero conectarlo con la pantalla de la caja es el trabajo que s
 conectado, no daría un peso hasta los cinco minutos con la báscula, porque nadie conoce todavía el
 formato en que ese modelo dice el número.
 
+### 4.3e La báscula ya habla con la caja (2026-09-01)
+
+**Los cinco minutos con la báscula se hicieron, y salieron bien.** Ya no hace falta volver al local
+para nada de esto: el protocolo quedó capturado y verificado contra el visor del propio equipo.
+
+**Qué ve el cajero ahora.** Escanea o busca el producto que se vende al peso; la caja pide el peso
+como ya lo hacía, y **el número aparece solo**, tomado de la báscula, en menos de dos segundos.
+Debajo del campo hay una línea que dice qué está pasando: *«Leyendo la báscula…»*, y después *«Peso
+tomado de la báscula. Revíselo y agréguelo a la venta.»*
+
+**La caja NO cierra la venta sola.** Llena el peso y ahí se detiene: quien confirma que ese es el
+peso de lo que está sobre el plato es la persona. Un botón de más cuesta muchísimo menos que una
+línea cobrada por error.
+
+**Si el cajero empieza a digitar, la báscula deja de mandar.** No se pelea con quien tiene la
+mercancía en la mano. El teclado en pantalla y el teclado físico siguen siendo la salida el día que
+la báscula falle, y la línea de estado dice cuál de los tres casos es: esta caja no tiene báscula,
+la báscula no responde, o el programa de la caja no está funcionando. **Son tres avisos distintos a
+propósito**: una caja sin báscula es normal y solo hay que digitar; una báscula que está y no
+contesta es una avería que alguien tiene que atender.
+
+#### Por qué el peso tarda un segundo y medio en aparecer
+
+Porque **la báscula se equivoca el 3 % de las veces**, y eso lo medimos.
+
+Con un objeto completamente quieto sobre el plato durante dos minutos y medio, el equipo mandó 266
+lecturas. **Ocho de ellas estaban mal**, desviadas entre 5 y 25 gramos. Nada se movió. Y no hay
+forma de distinguir una lectura mala de una buena mirándolas de a una: llegan exactamente igual.
+
+Si la caja tomara la primera lectura que llega, **una de cada 33 pesadas cobraría hasta 25 gramos
+de más o de menos, sin que nadie se entere.** No daría ningún error: daría un precio equivocado.
+
+Por eso la caja **espera a que tres lecturas seguidas digan lo mismo**. Con dos no alcanza —el ruido
+llegó a repetirse dos veces—; con tres no se coló ninguno en ninguna de las dos pruebas que hicimos.
+Ese segundo y medio de espera es el precio de no cobrar mal, y en un mostrador no se siente.
+
+**Esto es una decisión de negocio disfrazada de detalle técnico**, y por eso está escrita aquí: la
+alternativa era un peso instantáneo y ocasionalmente falso.
+
 ### 4.3d Cómo damos soporte, y por qué no dejamos una puerta abierta
 
 Se evaluó dejar una conexión permanente desde el terminal hacia nuestro servidor, que habría

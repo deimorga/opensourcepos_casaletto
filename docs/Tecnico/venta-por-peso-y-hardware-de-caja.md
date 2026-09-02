@@ -35,12 +35,21 @@
 > 19045, **7 puertos USB** y **COM1/COM2 físicos**, así que ninguna de las tres limitaciones que
 > anticipaba el §7b existe. CH341SER instalado (`oem35.inf`), `scale-probe.exe` **ejecutado en esa
 > máquina**, Chrome en modo kiosco con arranque automático, y **el agente de la caja construido e
-> instalado** (`tools/pos-agent/`, versión 1.0.0, tarea `AgentePOS`, §5.10e) — falta conectarlo con
-> la página. El acceso remoto es **SSH a demanda con
+> instalado** (`tools/pos-agent/`, versión 1.0.0, tarea `AgentePOS`, §5.10e). **Ya está conectado
+> con la página desde el 2026-09-01** (§5.12). El acceso remoto es **SSH a demanda con
 > solo llave** — se descartó el túnel permanente hacia el VPS por decisión del dueño, y fue el
 > criterio correcto.
 >
-> **§7c es de lectura obligatoria antes de escribir código:** cómo no romper a Casaletto, que vende
+> **Actualización del 2026-09-01 — SE CAPTURÓ EL PROTOCOLO REAL, y no es el que decía el manual.**
+> Con la báscula conectada en el mostrador (§5.12): **4800 8-N-1**, no los 9600 que documenta ROCHI
+> ni los 19200 que concluyó la propia herramienta de captura. Trama **`NNN.NNN` + `CR`**, en
+> kilogramos, **continua** (~1,8/s, no hay que pedirle nada), **sin bandera de estado y sin signo**.
+> **La hipótesis del §5.10b —la bandera `N` del diseño hermano Moresco— resultó FALSA**; de haberla
+> dado por buena, el intérprete no habría leído nada. `scale_format` = `{W:7}`, `scale_divisor` = 1.
+> El hallazgo que decide el diseño: **el 3 % de las tramas miente** con el plato quieto, sin ninguna
+> marca que las distinga, y de ahí sale la regla de las tres lecturas del §5.5.
+>
+> > **§7c es de lectura obligatoria antes de escribir código:** cómo no romper a Casaletto, que vende
 > todos los días con este mismo programa.
 >
 > Alcance funcional en `docs/Funcional/venta-por-peso-y-hardware-de-caja.md`.
@@ -928,6 +937,113 @@ trama `parse_scale()` devuelve `null` a propósito. Eso son los cinco minutos co
 
 Los dos PDF son escaneos sin capa de texto: hubo que renderizarlos a imagen para leerlos. Si alguien
 los vuelve a necesitar, ese es el motivo por el que buscar texto dentro no devuelve nada.
+
+### 5.12 EL PROTOCOLO REAL, capturado en el mostrador (2026-09-01)
+
+**Esta sección manda sobre §5.8 y §5.10b.** Todo lo anterior era hipótesis documental; esto es la
+báscula del cliente hablando, con la trama contrastada contra su propio visor.
+
+| | |
+|---|---|
+| Puerto | `USB-SERIAL CH340 (COM6)`, VID=1A86 PID=7523 |
+| **Velocidad** | **4800 8-N-1** |
+| **Trama** | **`NNN.NNN` + `CR`**, ocho bytes |
+| Unidad | kilogramos, tres decimales, con ceros a la izquierda |
+| Modo | **continua, ~1,77 tramas/s.** No responde distinto a ningún comando |
+| Bandera de estado | **no tiene**. Tampoco signo |
+| `scale_format` | `{W:7}` |
+| `scale_divisor` | `1` |
+
+Verificado contra el visor del equipo **dos veces, con foto**: trama `000.410` ↔ visor `0.410`, y
+trama `000.555` ↔ visor `0.555`. Plato vacío: `000.000`, con 24 tramas seguidas.
+
+**Tres cosas que el manual decía y resultaron falsas:**
+
+1. **No son 9600 baudios**, que es lo único que el fabricante documenta. Son **4800**.
+2. **No hay bandera `N`** al principio, como predecía el diseño hermano Moresco del §5.10b. Un
+   intérprete configurado con `N{W:6}` no habría leído absolutamente nada.
+3. **No hay formato por comando.** Los ocho estímulos probados (`W`, `W`+CRLF, `$`, `ENQ`, `CR`,
+   `P`, `S`, `SI`+CRLF) no produjeron nada distinto del flujo continuo.
+
+#### 5.12.1 El 3 % de las tramas miente, y es el dato que decide el diseño
+
+Con el objeto **completamente quieto** durante 150 s: **266 tramas, de las cuales 8 —el 3 %, una de
+cada 33— se desviaron entre 5 y 25 gramos.** Nada se movió sobre el plato. Es ruido del equipo, y
+**la trama mala llega igual de bien formada que la buena**: `000.435` es indistinguible de
+`000.410` mirándolas de a una.
+
+Sin protección, **una de cada 33 pesadas cobraría hasta 25 gramos de más o de menos, en silencio**.
+
+**La regla: tres lecturas seguidas que coincidan, con marcas de tiempo distintas.** La racha máxima
+de un valor equivocado fue de **dos**, así que con dos no basta. Validado contra **dos capturas
+independientes** —una con peso quieto y otra con transiciones reales—: con tres pasan exactamente
+los cuatro pesos verdaderos y no se cuela ni un valor de paso.
+
+Cuesta **~1,7 s**. Vive en el bloque de báscula de `app/Views/sales/register.php`, no en el agente
+ni en el servidor: es la capa que ve la serie de lecturas.
+
+Las marcas de tiempo tienen que ser **distintas** porque la página pregunta más seguido (250 ms) de
+lo que la báscula transmite (~565 ms). Sin esa condición, la misma trama contada tres veces
+parecería un peso estable.
+
+#### 5.12.2 La trama deforme, y por qué NO se ancla el patrón
+
+Justo al retirar el peso llegó **1 trama de 126** con esta forma:
+
+```
+00 40 3f 40 3f 3f 00 3f 3f  30 30 30 2e 30 30 30
+└──── nueve bytes basura ───┘  └──── 000.000 ────┘
+```
+
+Basura pegada delante de un peso válido, **sin `CR` que los separe**.
+
+`parse_scale()` la lee como `0.000`, porque busca la trama **dentro** de lo que le llega. **Eso es
+deliberado y no se cambia**: el agente puede entregar dos lecturas pegadas, y hay una prueba
+—`testTakesTheFirstReadingOutOfABufferedPairOfFrames`— que fija ese comportamiento. Anclar el patrón
+arreglaría el caso deforme y rompería aquel.
+
+**La protección contra un peso equivocado no está en el intérprete, está en la regla de las tres
+lecturas.** Una trama deforme no se repite tres veces.
+
+#### 5.12.3 Defecto de `scale-probe` que este día destapó, y su corrección
+
+**La herramienta concluyó la velocidad equivocada.** Ordenaba las configuraciones por **cantidad de
+bytes recibidos**, y escuchar un puerto a una velocidad *más alta* que la real no produce silencio:
+produce **más** bytes, todos basura, porque cada bit real se muestrea varias veces.
+
+```
+4800 8-N-1    200 bytes   100% legibles   <- la buena
+2400 7-N-1    126 bytes    79%
+9600 8-N-1    839 bytes    60%
+19200 8-N-1  1016 bytes    15%            <- la que eligió el criterio viejo
+```
+
+**Y el daño no fue solo el veredicto impreso**: la fase de captura guiada usa ese mismo orden, así
+que los dos minutos con pesos conocidos se hicieron en las dos configuraciones equivocadas y **se
+perdieron**. Se salvó porque la escucha pasiva del barrido sí pasó por 4800.
+
+Corregido: el criterio es el **porcentaje de bytes legibles**, y solo se juzga entre configuraciones
+con al menos 16 bytes —tres bytes que por casualidad caen en el rango imprimible dan 100 % y no
+prueban nada—. `masCreible()` en `tools/scale-probe/sweep.go`, con la prueba que reproduce estos
+números exactos.
+
+#### 5.12.4 Cómo leer la báscula sin la herramienta
+
+Con el SSH encendido en el terminal (`2 - SSH ENCENDER` en el escritorio):
+
+```powershell
+$p = New-Object System.IO.Ports.SerialPort COM6,4800,None,8,one
+$p.Open(); Start-Sleep -Seconds 6; $d = $p.ReadExisting(); $p.Close()
+[System.BitConverter]::ToString([System.Text.Encoding]::ASCII.GetBytes($d))
+```
+
+Por SSH va en **una sola línea** con `powershell -NoProfile -Command`, y **sin `|` ni `&` dentro**:
+los interpreta `cmd` y rompen la orden sin dar un error claro. Devolver la salida con
+`BitConverter::ToString` evita necesitar tuberías.
+
+Capturas archivadas en `~/Downloads/bascula-paraiso/`.
+
+---
 
 ## 6. Inventario
 
