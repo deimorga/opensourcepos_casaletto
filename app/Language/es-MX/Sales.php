@@ -240,6 +240,7 @@ return [
     "scale_no_reading"                   => "La báscula no está respondiendo: digite el peso.",
     "scale_taken"                        => "Peso tomado de la báscula. Revíselo y agréguelo a la venta.",
     "scale_unreadable"                   => "La báscula mandó algo que esta caja no supo leer: digite el peso.",
+    "scale_unstable"                     => "El peso no se estabiliza: acomode el producto o digite el peso.",
     "scale_waiting"                      => "Leyendo la báscula...",
     "weigh_item"                       => "Pesar",
     "weight_in_kg"                     => "Peso en kilogramos",

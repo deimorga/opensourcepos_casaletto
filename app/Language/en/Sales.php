@@ -239,6 +239,7 @@ return [
     "scale_no_reading"                   => "The scale is not answering: type the weight.",
     "scale_taken"                        => "Weight taken from the scale. Check it and add it to the sale.",
     "scale_unreadable"                   => "The scale sent something this till could not read: type the weight.",
+    "scale_unstable"                     => "The weight is not settling: steady the item or type the weight.",
     "scale_waiting"                      => "Reading the scale...",
     "weigh_item"                       => "Weigh",
     "weight_in_kg"                     => "Weight in kilograms",

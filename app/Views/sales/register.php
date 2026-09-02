@@ -1086,10 +1086,15 @@ helper('url');
             // silencio y sin error en ninguna parte.
             var LECTURAS_QUE_DEBEN_COINCIDIR = 3;
 
-            // Cada respuesta trae su marca de tiempo, y se exige que las tres sean DISTINTAS: la
-            // báscula manda ~1,8 tramas por segundo y aquí se pregunta más seguido, así que sin
-            // esta condición la misma trama contada tres veces parecería un peso estable.
+            // Se pregunta más seguido de lo que la báscula transmite (~565 ms) para que el peso
+            // aparezca en cuanto se estabilice y no un tick tarde. Las respuestas repetidas no
+            // cuentan: se descartan por su marca de tiempo, más abajo.
             var CADA_MS = 250;
+
+            // Cuánto se espera antes de decir algo. El silencio es indistinguible de «funcionando»,
+            // y en el mostrador eso es lo peor que puede pasar: el cajero no sabe si esperar o
+            // digitar. Da para unas quince tramas, muy por encima de las tres que hacen falta.
+            var PACIENCIA_MS = 9000;
 
             var url = 'ws://127.0.0.1:7878/ws';
             var socket = null;
@@ -1097,6 +1102,8 @@ helper('url');
             var vistas = [];
             var tomado = false;
             var manual = false;
+            var llegoAlgo = false;
+            var vigilante = null;
 
             var $estado = $('<p class="weight-entry-hint" id="weight_scale_status" aria-live="polite"></p>');
             $('#weight_entry_hint').after($estado);
@@ -1107,6 +1114,7 @@ helper('url');
 
             function parar() {
                 if (timer) { clearInterval(timer); timer = null; }
+                if (vigilante) { clearTimeout(vigilante); vigilante = null; }
             }
 
             // En cuanto el cajero escribe, la báscula deja de mandar. Pelear con la persona que
@@ -1142,21 +1150,30 @@ helper('url');
                     return;
                 }
 
-                vistas.push({ raw: String(d.raw), at: String(d.at) });
-                if (vistas.length > LECTURAS_QUE_DEBEN_COINCIDIR) { vistas.shift(); }
+                // UNA LECTURA SE CUENTA UNA SOLA VEZ, POR SU MARCA DE TIEMPO
+                //
+                // El agente guarda la última trama y la vuelve a entregar mientras siga fresca
+                // (`frescura_ms`, 3 s por omisión), así que preguntando cada 250 ms la MISMA lectura
+                // llega una docena de veces con la misma marca. Lo que hay que confirmar son tres
+                // tramas que la báscula emitió POR SEPARADO, no tres respuestas a tres preguntas.
+                //
+                // La primera versión de esto exigía tres marcas distintas entre las últimas tres
+                // respuestas, y con esa caché eso casi nunca ocurre: la caja se quedaba en «Leyendo
+                // la báscula…» para siempre. Se vio en el mostrador, no en ninguna prueba.
+                var at = String(d.at);
 
-                if (vistas.length < LECTURAS_QUE_DEBEN_COINCIDIR) { return; }
-
-                var marcas = {};
-                var iguales = true;
-
-                for (var i = 0; i < vistas.length; i++) {
-                    if (vistas[i].raw !== vistas[0].raw) { iguales = false; }
-                    marcas[vistas[i].at] = true;
+                if (vistas.length > 0 && vistas[vistas.length - 1].at === at) {
+                    return;
                 }
 
-                if (!iguales || Object.keys(marcas).length < LECTURAS_QUE_DEBEN_COINCIDIR) {
-                    return;
+                llegoAlgo = true;
+                vistas.push({ raw: String(d.raw), at: at });
+
+                if (vistas.length > LECTURAS_QUE_DEBEN_COINCIDIR) { vistas.shift(); }
+                if (vistas.length < LECTURAS_QUE_DEBEN_COINCIDIR) { return; }
+
+                for (var i = 1; i < vistas.length; i++) {
+                    if (vistas[i].raw !== vistas[0].raw) { return; }
                 }
 
                 parar();
@@ -1201,7 +1218,21 @@ helper('url');
 
             decir(<?= json_encode(Sale_lib::translate_or('Sales.scale_waiting', 'Reading the scale...')) ?>);
 
-            socket.onopen = function () { timer = setInterval(pedir, CADA_MS); pedir(); };
+            socket.onopen = function () {
+                timer = setInterval(pedir, CADA_MS);
+                pedir();
+
+                vigilante = setTimeout(function () {
+                    if (tomado || manual) { return; }
+                    parar();
+                    // Se distingue «no llegó nada» de «llegaron lecturas y no se ponen de acuerdo»:
+                    // la primera es una avería que alguien tiene que atender, la segunda es una
+                    // balanza que se mueve, y el cajero hace cosas distintas en cada caso.
+                    decir(llegoAlgo
+                        ? <?= json_encode(Sale_lib::translate_or('Sales.scale_unstable', 'The weight is not settling: steady the item or type the weight.')) ?>
+                        : <?= json_encode(Sale_lib::translate_or('Sales.scale_no_reading', 'The scale is not answering: type the weight.')) ?>);
+                }, PACIENCIA_MS);
+            };
             socket.onmessage = recibir;
             // Un agente caído es invisible para el cajero, que solo ve que no aparece el peso. Se
             // dice, y se dice con lo que tiene que hacer: digitarlo.
