@@ -300,6 +300,61 @@ type ConfigResult struct {
 // Responded indica si la configuracion produjo algun byte.
 func (r ConfigResult) Responded() bool { return r.Bytes > 0 }
 
+// MinBytesParaJuzgarLimpieza es cuantos bytes hacen falta antes de creerle al
+// porcentaje de legibles. Tres bytes que por casualidad caen en el rango
+// imprimible dan 100% y no prueban nada.
+const MinBytesParaJuzgarLimpieza = 16
+
+// PrintableRatio es la fraccion de bytes que son texto legible.
+//
+// ES EL CRITERIO QUE DISTINGUE LA VELOCIDAD BUENA, y no la cantidad de bytes.
+//
+// Leer un puerto a una velocidad MAS ALTA que la real no produce silencio: produce
+// mas bytes, todos basura, porque cada bit real se muestrea varias veces. Ordenar
+// por cantidad elige entonces sistematicamente la configuracion equivocada.
+//
+// Pasó de verdad, contra la bascula de Paraiso de la Canasta el 2026-09-01: la
+// herramienta concluyo "19200 8-N-1" con 1016 bytes (15% legibles) cuando el equipo
+// hablaba a 4800 con 200 bytes (100% legibles). Y como la fase guiada usa este mismo
+// orden, los dos minutos de captura con pesos conocidos se hicieron en las dos
+// configuraciones equivocadas y se perdieron. La bascula estaba prestada.
+//
+//	4800 8-N-1    200 bytes   100%   <- la buena
+//	2400 7-N-1    126 bytes    79%
+//	9600 8-N-1    839 bytes    60%
+//	19200 8-N-1  1016 bytes    15%   <- la que elegia el criterio viejo
+func (r ConfigResult) PrintableRatio() float64 {
+	if len(r.Raw) == 0 {
+		return 0
+	}
+	limpios := 0
+	for _, b := range r.Raw {
+		if (b >= 0x20 && b < 0x7f) || b == '\r' || b == '\n' || b == '\t' {
+			limpios++
+		}
+	}
+	return float64(limpios) / float64(len(r.Raw))
+}
+
+// masCreible dice si a es una candidata mejor que b.
+//
+// Manda el porcentaje de legibles, pero solo entre configuraciones con bytes
+// suficientes para que ese porcentaje signifique algo. Cuando ninguna llega a ese
+// minimo se vuelve al criterio viejo -- mas bytes primero -- que sin datos para
+// juzgar limpieza sigue siendo lo unico que hay.
+func masCreible(a, b ConfigResult) bool {
+	ja, jb := a.Bytes >= MinBytesParaJuzgarLimpieza, b.Bytes >= MinBytesParaJuzgarLimpieza
+
+	if ja != jb {
+		return ja
+	}
+	if ja && a.PrintableRatio() != b.PrintableRatio() {
+		return a.PrintableRatio() > b.PrintableRatio()
+	}
+
+	return a.Bytes > b.Bytes
+}
+
 // GuidedTargets elige en que configuraciones se hace la captura guiada.
 //
 // Si el barrido encontro configuraciones que responden, se usan esas: son las
@@ -317,9 +372,9 @@ func GuidedTargets(results []ConfigResult, fallback []PortConfig, max int) []Por
 		}
 	}
 	if len(live) > 0 {
-		// Estable: mas bytes primero; a igualdad de bytes, el orden de barrido,
-		// que ya es el orden de prioridad.
-		sort.SliceStable(live, func(i, j int) bool { return live[i].Bytes > live[j].Bytes })
+		// Estable: la mas creible primero (ver masCreible); a igualdad, el orden
+		// de barrido, que ya es el orden de prioridad.
+		sort.SliceStable(live, func(i, j int) bool { return masCreible(live[i], live[j]) })
 		var out []PortConfig
 		for i := 0; i < len(live) && i < max; i++ {
 			out = append(out, live[i].Config)

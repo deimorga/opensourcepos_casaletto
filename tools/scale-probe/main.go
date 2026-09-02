@@ -684,7 +684,7 @@ func (r RunSummary) Responsive() []ConfigResult {
 			live = append(live, c)
 		}
 	}
-	sort.SliceStable(live, func(i, j int) bool { return live[i].Bytes > live[j].Bytes })
+	sort.SliceStable(live, func(i, j int) bool { return masCreible(live[i], live[j]) })
 	return live
 }
 

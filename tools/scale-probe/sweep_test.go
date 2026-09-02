@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"testing"
 	"time"
 )
@@ -292,5 +293,43 @@ func TestShort(t *testing.T) {
 		if got := short(c.d); got != c.want {
 			t.Errorf("short(%v) = %q, want %q", c.d, got, c.want)
 		}
+	}
+}
+
+// TestElVeredictoEligePorLegiblesYNoPorCantidad reproduce, con los numeros reales
+// del 2026-09-01, el fallo que hizo perder la captura guiada contra la bascula de
+// Paraiso de la Canasta: escuchar a 19200 una bascula que habla a 4800 produce
+// CINCO VECES mas bytes, y todos son basura.
+func TestElVeredictoEligePorLegiblesYNoPorCantidad(t *testing.T) {
+	limpia := ConfigResult{
+		Config: PortConfig{Baud: 4800, DataBits: 8, Parity: ParityNone, StopBits: 1},
+		Bytes:  200,
+		Raw:    bytes.Repeat([]byte("000.410\r"), 25),
+	}
+	ruidosa := ConfigResult{
+		Config: PortConfig{Baud: 19200, DataBits: 8, Parity: ParityNone, StopBits: 1},
+		Bytes:  1016,
+		Raw:    bytes.Repeat([]byte{0x00, 0x78, 0x78, 0x78, 0x86, 0x18, 0x60, 0x1e}, 127),
+	}
+
+	if !masCreible(limpia, ruidosa) {
+		t.Errorf("la configuracion legible (%.0f%%, %d bytes) tiene que ganarle a la ruidosa (%.0f%%, %d bytes)",
+			limpia.PrintableRatio()*100, limpia.Bytes, ruidosa.PrintableRatio()*100, ruidosa.Bytes)
+	}
+
+	got := GuidedTargets([]ConfigResult{ruidosa, limpia}, nil, 1)
+	if len(got) != 1 || got[0].Baud != 4800 {
+		t.Errorf("la fase guiada tiene que correr en la configuracion buena, salio %+v", got)
+	}
+}
+
+// TestConPocosBytesNoSeJuzgaLaLimpieza: tres bytes que por casualidad caen en el
+// rango imprimible dan 100% y no prueban nada. Ahi manda la cantidad, como antes.
+func TestConPocosBytesNoSeJuzgaLaLimpieza(t *testing.T) {
+	casual := ConfigResult{Config: PortConfig{Baud: 2400}, Bytes: 3, Raw: []byte("abc")}
+	seria := ConfigResult{Config: PortConfig{Baud: 4800}, Bytes: 400, Raw: bytes.Repeat([]byte("000.410\rx\x00"), 40)}
+
+	if masCreible(casual, seria) {
+		t.Error("tres bytes imprimibles por casualidad no pueden ganarle a una captura de verdad")
 	}
 }
