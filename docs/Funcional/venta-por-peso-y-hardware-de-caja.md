@@ -410,6 +410,31 @@ Ese segundo y medio de espera es el precio de no cobrar mal, y en un mostrador n
 **Esto es una decisión de negocio disfrazada de detalle técnico**, y por eso está escrita aquí: la
 alternativa era un peso instantáneo y ocasionalmente falso.
 
+### 4.3f El recibo ya sale solo (2026-09-02)
+
+**La impresora quedó funcionando, y el recibo sale sin que el cajero haga nada**: ni elegir
+impresora, ni confirmar un cuadro de diálogo. Probado con una venta completa desde el terminal, y
+con constancia del propio Windows.
+
+Lo importante no es que imprima, sino **cómo**: el recibo usa la impresora que el negocio tenga
+configurada como predeterminada, **sea la que sea**. No está atado a este modelo. El día que un
+cliente llegue con otra impresora —o incluso con una láser— funciona igual, sin tocar nada nuestro
+y sin instalarle nada distinto.
+
+Se evaluó una vía más «a medida», que habría dado control milimétrico del papel, y **se descartó
+justamente por eso**: amarraba el recibo a un tipo concreto de impresora, y eso se paga con cada
+cliente nuevo.
+
+**El aspecto del recibo se cambia editando la plantilla**, como siempre. No hace falta actualizar
+nada en la caja para mover un logo o agregar una línea.
+
+Lo único que sí depende de la impresora es **abrir el cajón**, porque el cajón cuelga de ella y
+abrirlo es literalmente una orden de impresora. Eso ya está resuelto y es configurable.
+
+**Pendiente de ver:** cómo queda el recibo en papel de 58 mm. La plantilla no se diseñó para ese
+ancho, así que es probable que necesite un ajuste de presentación. Que salga bien es cuestión de
+maquetación, no de si la impresión funciona.
+
 ### 4.3d Cómo damos soporte, y por qué no dejamos una puerta abierta
 
 Se evaluó dejar una conexión permanente desde el terminal hacia nuestro servidor, que habría
