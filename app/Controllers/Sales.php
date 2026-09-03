@@ -870,6 +870,29 @@ class Sales extends Secure_Controller
     {
         $data = [];
 
+        // EL PRECIO SE VUELVE A AUTORIZAR AQUÍ, Y NO ES REDUNDANTE
+        //
+        // La vista solo pinta la casilla de precio cuando el empleado tiene los dos permisos
+        // (`$items_module_allowed && $change_price`, ver _reload()), pero cuando NO los tiene manda
+        // igual el precio en un campo oculto --`register.php` lo necesita para que la regla
+        // `required` de más abajo no falle--. Este método aceptaba lo que llegara.
+        //
+        // O sea que hasta hoy cualquiera con sesión podía cambiar el precio de una línea desde las
+        // herramientas del navegador. Eso costaba una venta. Cuando el precio empiece a escribirse
+        // en el catálogo al finalizar, costaría el catálogo entero.
+        $employee_info = $this->employee->get_logged_in_employee_info();
+
+        // Devuelve false sin sesión, y ->person_id sobre false es un error fatal. Una sesión que
+        // caduca a mitad de una venta no puede tumbar la caja.
+        if ($employee_info === false) {
+            return $this->_reload(['error' => lang('Sales.unable_to_add_item')]);
+        }
+
+        $employee_id = (int) $employee_info->person_id;
+
+        $may_change_price = $this->employee->has_grant('sales_change_price', $employee_id)
+            && $this->employee->has_grant('items', $employee_id);
+
         $rules = [
             'price'    => 'trim|required|decimal_locale|nonNegativeDecimal',
             'quantity' => 'trim|required|decimal_locale',
@@ -888,9 +911,16 @@ class Sales extends Secure_Controller
         if ($this->validate($rules, $messages)) {
             $description = $this->request->getPost('description');
             $serialnumber = $this->request->getPost('serialnumber');
-            $price = parse_decimals($this->request->getPost('price'));
 
             $cart = $this->sale_lib->get_cart();
+
+            // Se IGNORA el precio posteado en vez de rechazar la petición entera. El mismo formulario
+            // trae cantidad, descuento, descripción y serie, todas legítimas para un empleado sin el
+            // permiso de precio; un 403 le rompería la caja por un campo que ni siquiera ve. El
+            // servidor hace lo que esa persona sí puede hacer y descarta lo demás.
+            $price = $may_change_price
+                ? parse_decimals($this->request->getPost('price'))
+                : (string) ($cart[$line]['price'] ?? '0.00');
 
             if (isset($cart[$line]) && Sale_lib::line_sells_by_weight($cart[$line])) {
                 // A weighed line is read the same way the weight field reads
