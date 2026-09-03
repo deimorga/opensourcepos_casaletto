@@ -1358,6 +1358,61 @@ estaba físicamente desconectada esa noche, pero pudo haberlo.
 **`config.json` es estado de producción, no plantilla.** Se edita el campo que se va a cambiar; no
 se reemplaza el archivo. Y antes de tocarlo, se lee.
 
+### El recibo NO pasa por el agente, y esa es la decisión (2026-09-02)
+
+Se evaluó mandar el recibo por `printer.raw` del agente y **se descartó**. Habría añadido
+acoplamiento en vez de quitarlo: nos ataba a ESC/POS, al ancho de 58 mm y a la tabla de caracteres
+de cada modelo. Un cliente con una láser, o con una térmica de otro dialecto, quedaba fuera.
+
+**El camino menos acoplado ya lo tenía OSPOS**: `window.print()`. Lo único que sobraba era el
+diálogo, y eso se quita con **un flag de Chrome**, no con código.
+
+```
+--kiosk-printing
+```
+
+Con él, `window.print()` imprime **directo a la impresora predeterminada de Windows**, sin diálogo.
+Va en `C:\POS\abrir-caja.cmd`.
+
+#### Comprobado con una venta real en staging
+
+| | |
+|---|---|
+| Prueba | Venta completa en `casaletto.staging`, desde el terminal |
+| Constancia | Suceso **307** de Windows: *«se imprimió en POS-58-Series mediante el puerto USB002. Páginas imprimidas: 1. **No se requiere ninguna acción por parte del usuario**»* |
+
+Esa última frase es el diálogo que no apareció.
+
+#### El reparto de responsabilidades que queda
+
+| Qué | Por dónde | Acoplamiento |
+|---|---|---|
+| **El recibo** | `window.print()` + `--kiosk-printing` | **Ninguno.** La predeterminada del sistema, sea cual sea |
+| **El cajón** | Agente, `drawer.open` | Inevitable: abrir un cajón *es* un comando de impresora |
+| **`printer.raw`** | Salida de emergencia | Para un driver que renderice mal; no es el camino normal |
+
+El recibo sigue siendo la plantilla HTML de OSPOS, editable por tenant. Cambiar su aspecto es CSS,
+no una versión del agente que haya que distribuir a doce cajas.
+
+#### Cuatro cosas que hay que saber, y ninguna es evidente
+
+- **El flag solo aplica al proceso que ARRANCA Chrome.** Si ya hay una instancia viva con ese
+  perfil, Chrome le pasa la URL y descarta los flags. Para probarlo hace falta **otro
+  `--user-data-dir`**, o cerrar Chrome del todo.
+- **Imprime en la PREDETERMINADA.** Por eso se fijó `POS-58-Series` como tal y se apagó
+  `LegacyDefaultPrinterMode` — la «gestión automática» de Windows la reasigna sola a la última
+  usada, y habría roto la impresión semanas después sin que nadie tocara nada.
+- **`print_silently` de la configuración de OSPOS no hace nada en Chrome.** Alimenta `jsPrintSetup`,
+  una extensión de Firefox retirada en 2017 (`print_receipt.php`). Que nadie pierda una tarde ahí.
+- **El registro de impresión de Windows quedó activado**
+  (`Microsoft-Windows-PrintService/Operational`). Es lo que convierte «creo que imprimió» en un
+  suceso con impresora, puerto y número de páginas.
+
+#### Nada de esto se despliega
+
+No cambió una línea de `app/` ni de `public/`. Vive en el terminal, así que **es idéntico en
+producción y en staging** y funciona apuntando a cualquier negocio. No hay versión que sincronizar.
+
 ### La política de Chrome, puesta (2026-08-31)
 
 Es la mitigación del §5.3.1 y **el riesgo principal del agente**: sin ella, tras una actualización
