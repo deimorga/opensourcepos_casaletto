@@ -175,7 +175,11 @@ class Config extends Secure_Controller
             $file = file_get_contents('license/npm-prod.LICENSES');
             $array = json_decode($file, true);
 
-            foreach ($array as $dependency) {
+            // A truncated or unreadable file decodes to null, and iterating null used to take the
+            // WHOLE configuration screen down with a fatal error. A panel of legal text is the
+            // least important thing on that page: it must never be able to hide the settings.
+            // (The Composer branch above already guards; these two did not.)
+            foreach (is_array($array) ? $array : [] as $dependency) {
                 $license[$i]['text'] .= "library: {$dependency['name']}\n";
                 $license[$i]['text'] .= "authors: {$dependency['author']}\n";
                 $license[$i]['text'] .= "website: {$dependency['homepage']}\n";
@@ -195,7 +199,7 @@ class Config extends Secure_Controller
             $file = file_get_contents('license/npm-dev.LICENSES');
             $array = json_decode($file, true);
 
-            foreach ($array as $dependency) {
+            foreach (is_array($array) ? $array : [] as $dependency) {
                 $license[$i]['text'] .= "library: {$dependency['name']}\n";
                 $license[$i]['text'] .= "authors: {$dependency['author']}\n";
                 $license[$i]['text'] .= "website: {$dependency['homepage']}\n";

@@ -58,4 +58,18 @@ fi
 
 grep -A3 'inject:prod:css' app/Views/partial/header.php | grep '<link' | sed 's/^/    /'
 grep -A3 'inject:prod:js'  app/Views/partial/header.php | grep '<script' | sed 's/^/    /'
+
+# La tarea `clean` de gulp vacia public/license, y `update-licenses` --que los
+# vuelve a llenar-- necesita composer. Un archivo de licencias en cero tumbaba
+# la pantalla de Configuracion entera. Aqui solo se avisa: no son assets, y
+# regenerarlos exige composer, pero nadie deberia enterarse por un cliente.
+echo "==> Comprobando los archivos de licencia"
+for lic in composer npm-prod npm-dev; do
+    ruta="public/license/${lic}.LICENSES"
+    if [ ! -s "$ruta" ]; then
+        echo "    AVISO: $ruta esta vacio. Regenerelo con 'gulp update-licenses'" >&2
+        echo "           (necesita composer con ext-intl) o copielo de otro ambiente." >&2
+    fi
+done
+
 echo "==> Assets listos."
