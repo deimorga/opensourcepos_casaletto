@@ -4,6 +4,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -31,7 +32,34 @@ var (
 	procStartPagePrinter = winspool.NewProc("StartPagePrinter")
 	procEndPagePrinter   = winspool.NewProc("EndPagePrinter")
 	procWritePrinter     = winspool.NewProc("WritePrinter")
+	procGetPrinterW      = winspool.NewProc("GetPrinterW")
 )
+
+// Bits de estado de la impresora que importan en un mostrador.
+// https://learn.microsoft.com/windows/win32/printdocs/printer-info-6
+const (
+	estadoError            = 0x00000002
+	estadoSinPapel         = 0x00000010
+	estadoAtascoDePapel    = 0x00000008
+	estadoDesconectada     = 0x00000080
+	estadoNoDisponible     = 0x00001000
+	estadoPuertaAbierta    = 0x00400000
+	estadoNecesitaAtencion = 0x00100000
+)
+
+// nombresDeEstado traduce los bits a algo que se pueda leer por telefono.
+var nombresDeEstado = []struct {
+	bit   uint32
+	texto string
+}{
+	{estadoError, "error"},
+	{estadoSinPapel, "sin papel"},
+	{estadoAtascoDePapel, "papel atascado"},
+	{estadoDesconectada, "desconectada"},
+	{estadoNoDisponible, "no disponible"},
+	{estadoPuertaAbierta, "tapa abierta"},
+	{estadoNecesitaAtencion, "necesita atención"},
+}
 
 // docInfo1 es DOC_INFO_1W. Tres punteros, sin relleno en 32 ni en 64 bits.
 type docInfo1 struct {
@@ -54,17 +82,52 @@ func abrirImpresora(nombre string) (windows.Handle, error) {
 	return h, nil
 }
 
-// ComprobarImpresora abre y cierra, para que el estado pueda decir si el nombre
-// configurado corresponde a una impresora que Windows conoce. Es la diferencia
-// entre descubrir el error al montar y descubrirlo con el cliente esperando su
-// recibo.
+// ComprobarImpresora dice si la impresora esta lista para recibir un recibo.
+//
+// Abrirla NO basta, y esa fue una leccion cara: la cola se abre igual de bien
+// cuando apunta a un puerto donde ya no hay nada --y eso pasa solo, porque el
+// numero de puerto depende del conector USB en el que la enchufen--. El estado
+// decia "configurada" mientras Windows mostraba "Error".
 func ComprobarImpresora(nombre string) error {
 	h, err := abrirImpresora(nombre)
 	if err != nil {
 		return err
 	}
-	procClosePrinter.Call(uintptr(h))
-	return nil
+	defer procClosePrinter.Call(uintptr(h))
+
+	estado, err := estadoImpresora(h)
+	if err != nil {
+		// No poder leer el estado no es lo mismo que estar mal: se informa y
+		// no se convierte en un fallo que asuste sin motivo.
+		return nil
+	}
+
+	var motivos []string
+	for _, n := range nombresDeEstado {
+		if estado&n.bit != 0 {
+			motivos = append(motivos, n.texto)
+		}
+	}
+	if len(motivos) == 0 {
+		return nil
+	}
+	return fmt.Errorf("Windows la reporta así: %s", strings.Join(motivos, ", "))
+}
+
+// estadoImpresora lee PRINTER_INFO_6, que es un solo DWORD con los bits de
+// estado. Se pide el tamano primero, como manda la API.
+func estadoImpresora(h windows.Handle) (uint32, error) {
+	var necesario uint32
+	procGetPrinterW.Call(uintptr(h), 6, 0, 0, uintptr(unsafe.Pointer(&necesario)))
+	if necesario == 0 {
+		return 0, fmt.Errorf("GetPrinter no dijo cuánto espacio necesita")
+	}
+	buf := make([]byte, necesario)
+	r, _, e := procGetPrinterW.Call(uintptr(h), 6, uintptr(unsafe.Pointer(&buf[0])), uintptr(necesario), uintptr(unsafe.Pointer(&necesario)))
+	if r == 0 {
+		return 0, fmt.Errorf("GetPrinter falló: %w", e)
+	}
+	return *(*uint32)(unsafe.Pointer(&buf[0])), nil
 }
 
 func enviarAlSpooler(nombre string, datos []byte) error {
