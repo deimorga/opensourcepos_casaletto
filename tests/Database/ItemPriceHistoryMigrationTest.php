@@ -4,7 +4,6 @@ namespace Tests\Database;
 
 use App\Database\Migrations\Migration_AddItemPriceHistory;
 use App\Database\Migrations\Migration_SeedItemPriceHistory;
-use CodeIgniter\Database\Database;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use Config\Database as ConfigDatabase;
@@ -125,7 +124,7 @@ class ItemPriceHistoryMigrationTest extends CIUnitTestCase
     {
         $indices = [];
 
-        foreach (Database::connect()->getIndexData('item_price_history') as $indice) {
+        foreach ($this->db->getIndexData('item_price_history') as $indice) {
             $indices[$indice->name] = $indice->fields;
         }
 
