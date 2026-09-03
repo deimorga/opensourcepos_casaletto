@@ -7,6 +7,7 @@ use CodeIgniter\Model;
 use Config\OSPOS;
 use ReflectionException;
 use stdClass;
+use Throwable;
 
 /**
  * Item class
@@ -783,6 +784,10 @@ class Item extends Model
                     $builder->update(['low_sell_item_id' => $item_data['item_id']]);
                 }
 
+                // Un artículo nuevo estrena historial sin precio anterior. Eso es literalmente
+                // «el primero», y es lo que distingue esa fila de una observación posterior.
+                $this->record_price_change((int) $item_data['item_id'], null, $item_data);
+
                 return true;
             }
 
@@ -791,10 +796,115 @@ class Item extends Model
             $item_data['item_id'] = $item_id;
         }
 
+        // El precio de ANTES, leído antes de pisarlo. Solo se consulta cuando el guardado trae un
+        // precio, así que quien no lo toca --change_cost_price(), update_pic_filename()-- no paga
+        // esta consulta.
+        $previous_price = array_key_exists('unit_price', $item_data)
+            ? $this->current_unit_price($item_id)
+            : null;
+
         $builder = $this->db->table('items');
         $builder->where('item_id', $item_id);
 
-        return $builder->update($item_data);
+        $saved = $builder->update($item_data);
+
+        if ($saved) {
+            $this->record_price_change($item_id, $previous_price, $item_data);
+        }
+
+        return $saved;
+    }
+
+    /**
+     * De dónde viene el cambio de precio que se está a punto de escribir.
+     *
+     * POR QUÉ ESTADO ESTÁTICO Y NO UN PARÁMETRO
+     *
+     * `save_value()` se llama desde ocho sitios, uno de ellos dentro del bucle de la importación
+     * CSV. Añadir un parámetro obliga a acertar en los ocho, y **el sitio que se olvide produce una
+     * fila anónima que parece perfectamente legítima** -- que es la peor forma de fallar para un
+     * registro cuyo valor entero es que se pueda confiar en él.
+     *
+     * El estado estático suele ser un olor. Aquí es lo correcto precisamente porque la alternativa
+     * es la que se rompe en silencio. PHP-FPM da un proceso por petición y el caso CLI es de un solo
+     * hilo, así que no hay carrera posible. Las pruebas lo limpian en tearDown().
+     */
+    private static ?array $price_change_context = null;
+
+    public static function with_price_change_context(string $source, ?int $employee_id = null, ?int $sale_id = null): void
+    {
+        self::$price_change_context = [
+            'source'      => $source,
+            'employee_id' => $employee_id,
+            'sale_id'     => $sale_id,
+        ];
+    }
+
+    public static function clear_price_change_context(): void
+    {
+        self::$price_change_context = null;
+    }
+
+    /**
+     * El precio que el artículo tiene ahora mismo, o null si no se puede leer.
+     */
+    private function current_unit_price(int $item_id): ?string
+    {
+        return $this->get_unit_prices([$item_id])[$item_id] ?? null;
+    }
+
+    /**
+     * Deja constancia de un precio nuevo. Nunca lanza y nunca impide guardar el artículo.
+     *
+     * Se registra desde aquí, y no desde cada pantalla, porque este método es el único sitio por el
+     * que pasa toda escritura a `items`: la ficha, la edición masiva, el guardado en línea, la
+     * importación CSV y el costo promedio de recepciones. Un historial que solo conociera una de
+     * esas puertas respondería «¿cuánto costaba en marzo?» con seguridad y mal.
+     */
+    private function record_price_change(int $item_id, ?string $previous_price, array $item_data): void
+    {
+        // Un guardado que no trae precio no es un cambio de precio. `Items::postSave()` reescribe la
+        // fila entera en cada guardado, así que sin esta comprobación corregir una descripción
+        // dejaría una fila de precio.
+        if (!array_key_exists('unit_price', $item_data)) {
+            return;
+        }
+
+        try {
+            $new_price = (string) $item_data['unit_price'];
+
+            if ($previous_price !== null && bccomp($previous_price, $new_price, 2) === 0) {
+                return;
+            }
+
+            $context = self::$price_change_context;
+
+            model(Item_price_history::class)->record(
+                $item_id,
+                $previous_price,
+                $new_price,
+                $context['source'] ?? Item_price_history::SOURCE_UNKNOWN,
+                // Sin contexto se cae a la sesión, igual que PlatformActivity::record() resuelve el
+                // actor. Bajo `php spark` no hay sesión y la fila es genuinamente anónima, que es
+                // honesto: mejor un NULL que un autor inventado.
+                $context['employee_id'] ?? self::person_in_session(),
+                $context['sale_id'] ?? null,
+            );
+        } catch (Throwable $e) {
+            // Observar no puede tumbar lo observado. Esto corre en el camino de guardado de todo
+            // artículo, incluido el que ocurre justo después de cobrar una venta.
+            log_message('critical', 'No se pudo registrar el cambio de precio del articulo ' . $item_id . ': ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * El empleado de la sesión, o null cuando no hay ninguna (CLI, migraciones, pruebas).
+     */
+    private static function person_in_session(): ?int
+    {
+        $person_id = session()->get('person_id');
+
+        return $person_id === null ? null : (int) $person_id;
     }
 
     /**
@@ -802,10 +912,56 @@ class Item extends Model
      */
     public function update_multiple(array $item_data, string $item_ids): bool
     {
-        $builder = $this->db->table('items');
-        $builder->whereIn('item_id', explode(':', $item_ids));
+        $ids = array_values(array_filter(array_map('intval', explode(':', $item_ids))));
 
-        return $builder->update($item_data);
+        // ESTA ES LA SEGUNDA PUERTA DE ESCRITURA, Y CASI SE NOS PASA.
+        //
+        // La edición masiva no llama a save_value(): escribe con un solo UPDATE sobre muchas filas.
+        // Así que el historial también se captura aquí, o cambiar 40 precios de un clic --que es
+        // justo lo que un negocio hace cuando le suben los costos-- no dejaría rastro de ninguno.
+        //
+        // Se leen los precios ANTES, y solo cuando el guardado trae precio: una edición masiva de
+        // categoría o de proveedor no paga esta consulta.
+        $previous_prices = array_key_exists('unit_price', $item_data) && $ids !== []
+            ? $this->get_unit_prices($ids)
+            : [];
+
+        $builder = $this->db->table('items');
+        $builder->whereIn('item_id', $ids);
+
+        $saved = $builder->update($item_data);
+
+        if ($saved) {
+            foreach ($previous_prices as $item_id => $previous_price) {
+                $this->record_price_change($item_id, $previous_price, $item_data);
+            }
+        }
+
+        return $saved;
+    }
+
+    /**
+     * El precio de venta de varios artículos de una vez: `[item_id => '4500.00']`.
+     *
+     * Deliberadamente NO es get_multiple_info(): esa exige un `location_id` y hace cuatro joins
+     * --proveedores, existencias, atributos-- para algo que necesita una sola columna. La pantalla
+     * de venta va a pedir esto en cada recarga del carrito.
+     */
+    public function get_unit_prices(array $item_ids): array
+    {
+        $ids = array_values(array_filter(array_map('intval', $item_ids)));
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $prices = [];
+
+        foreach ($this->db->table('items')->select('item_id, unit_price')->whereIn('item_id', $ids)->get()->getResult() as $row) {
+            $prices[(int) $row->item_id] = (string) $row->unit_price;
+        }
+
+        return $prices;
     }
 
     /**

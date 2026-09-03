@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Libraries;
 
 use App\Models\Item;
+use App\Models\Item_price_history;
+use App\Models\Employee;
 use App\Models\Item_quantity;
 use App\Models\Item_taxes;
 use App\Models\Stock_location;
@@ -271,6 +273,15 @@ final class Item_import_lib
         if ($toCreate === [] && $toUpdate === []) {
             return ['created' => 0, 'updated' => 0, 'failed' => []];
         }
+
+        // El origen del cambio de precio, para el historial. Se declara una vez para todo el
+        // archivo y no fila por fila: son 1.184 llamadas a save_value() y el sitio que se olvidara
+        // dejaría filas anónimas indistinguibles de las buenas.
+        $employee = model(Employee::class)->get_logged_in_employee_info();
+        Item::with_price_change_context(
+            Item_price_history::SOURCE_CSV_IMPORT,
+            $employee === false ? null : (int) $employee->person_id
+        );
 
         // Se leen una vez y no por fila: son las mismas para las 1.184.
         $locations = $this->stockLocation->get_allowed_locations();

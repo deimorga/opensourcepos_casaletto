@@ -7,6 +7,7 @@ use App\Libraries\Item_lib;
 use App\Models\Attribute;
 use App\Models\Inventory;
 use App\Models\Item;
+use App\Models\Item_price_history;
 use App\Models\Item_kit;
 use App\Models\Item_quantity;
 use App\Models\Item_taxes;
@@ -708,6 +709,10 @@ class Items extends Secure_Controller
 
         $employee_id = $this->employee->get_logged_in_employee_info()->person_id;
 
+        // De dónde viene este cambio de precio, para que el historial no tenga que adivinarlo.
+        // Se declara aquí y no dentro del modelo porque este es el único sitio que lo sabe.
+        Item::with_price_change_context(Item_price_history::SOURCE_ITEM_FORM, (int) $employee_id);
+
         if ($this->item->save_value($item_data, $item_id)) {
             $success = true;
             $new_item = false;
@@ -943,6 +948,12 @@ class Items extends Secure_Controller
         if (isset($item_data['unit_of_measure'])) {
             $item_data['unit_of_measure'] = Item::normalize_unit_of_measure($item_data['unit_of_measure']);
         }
+
+        $employee_info = $this->employee->get_logged_in_employee_info();
+        Item::with_price_change_context(
+            Item_price_history::SOURCE_BULK_EDIT,
+            $employee_info === false ? null : (int) $employee_info->person_id
+        );
 
         // Item data could be empty if tax information is being updated
         if (empty($item_data) || $this->item->update_multiple($item_data, $items_to_update)) {
