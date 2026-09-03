@@ -37,6 +37,8 @@ func main() {
 		crearConfig = flag.Bool("crear-config", false, "escribe un config.json de ejemplo y termina")
 		verVersion  = flag.Bool("version", false, "muestra la versión y termina")
 		simular     = flag.Bool("simular", false, "usa una báscula simulada, sin hardware ni driver")
+		probarImpr  = flag.Bool("probar-impresora", false, "imprime un recibo de prueba y termina")
+		abrirCajon  = flag.Bool("abrir-cajon", false, "manda la secuencia de apertura del cajón y termina")
 	)
 	flag.Parse()
 
@@ -57,6 +59,24 @@ func main() {
 		}
 		fmt.Printf("escrito %s\n", ruta)
 		return
+	}
+
+	if *probarImpr || *abrirCajon {
+		// Las pruebas de mostrador no escriben en la bitacora ni levantan el
+		// servidor: se ejecutan con el agente de verdad ya corriendo, y dos
+		// procesos peleando por el puerto solo confundirian el diagnostico.
+		cfg, err := CargarConfig(ruta)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+		}
+		codigo := 0
+		if *probarImpr {
+			codigo = probarImpresion(cfg)
+		}
+		if *abrirCajon && codigo == 0 {
+			codigo = probarCajon(cfg)
+		}
+		os.Exit(codigo)
 	}
 
 	registro, cerrarRegistro := abrirRegistro()

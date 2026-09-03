@@ -73,6 +73,11 @@ type Bascula struct {
 	nuevas chan struct{}
 	cerrar chan struct{}
 	unaVez sync.Once
+
+	// fallosSeguidos y ultimoAviso silencian el bucle de reconexion. Ver
+	// avisarFallo.
+	fallosSeguidos int
+	ultimoAviso    time.Time
 }
 
 func NuevaBascula(cfg ConfigBascula, abrir abridor, logf func(string, ...any)) *Bascula {
@@ -140,12 +145,13 @@ func (b *Bascula) bucle() {
 
 		p, err := b.abrir(b.cfg)
 		if err != nil {
-			b.logf("bascula: no se pudo abrir %s: %v", b.cfg.Puerto, err)
+			b.avisarFallo(err)
 			if !b.dormir(esperaReconexion) {
 				return
 			}
 			continue
 		}
+		b.fallosSeguidos = 0
 
 		b.mu.Lock()
 		b.puerto = p
@@ -180,6 +186,32 @@ func (b *Bascula) bucle() {
 		if !b.dormir(esperaReconexion) {
 			return
 		}
+	}
+}
+
+// intervaloAviso es cada cuanto se repite el aviso de un fallo que persiste.
+//
+// El bucle reintenta cada pocos segundos --y debe seguir haciendolo, para que
+// volver a enchufar la bascula se sienta inmediato-- pero registrar cada
+// intento llena la bitacora con la misma linea: una bascula desconectada de
+// noche escribe miles de lineas y, como el archivo se trunca al pasar de 2 MB,
+// SE LLEVA POR DELANTE el historial que sirve para diagnosticar. El bucle de
+// reconexion no puede destruir la unica herramienta de diagnostico que hay.
+const intervaloAviso = 5 * time.Minute
+
+// avisarFallo registra el primer fallo y despues solo de vez en cuando.
+func (b *Bascula) avisarFallo(err error) {
+	b.fallosSeguidos++
+	ahora := time.Now()
+
+	if b.fallosSeguidos == 1 {
+		b.logf("bascula: no se pudo abrir %s: %v (se reintenta en silencio cada %s)", b.cfg.Puerto, err, esperaReconexion)
+		b.ultimoAviso = ahora
+		return
+	}
+	if ahora.Sub(b.ultimoAviso) >= intervaloAviso {
+		b.logf("bascula: %s sigue sin responder tras %d intentos: %v", b.cfg.Puerto, b.fallosSeguidos, err)
+		b.ultimoAviso = ahora
 	}
 }
 

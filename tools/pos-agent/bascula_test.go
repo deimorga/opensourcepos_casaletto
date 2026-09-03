@@ -199,3 +199,30 @@ func TestUnaBasculaSinDelimitadorSigueFuncionando(t *testing.T) {
 		t.Errorf("trama = %q, se esperaba %q", got, "0.100")
 	}
 }
+
+func TestUnaBasculaDesconectadaNoInundaLaBitacora(t *testing.T) {
+	// El archivo se trunca al pasar de 2 MB. Un error por reintento, cada
+	// pocos segundos, se lleva por delante el historial en una noche -- y con
+	// el, lo unico que sirve para diagnosticar por telefono.
+	cfg := cfgBascula()
+	var lineas int
+	b := NuevaBascula(cfg,
+		func(ConfigBascula) (puertoSerie, error) { return nil, errors.New("Serial port not found") },
+		func(string, ...any) { lineas++ })
+
+	for i := 0; i < 200; i++ {
+		b.avisarFallo(errors.New("Serial port not found"))
+	}
+
+	if lineas != 1 {
+		t.Errorf("se escribieron %d líneas para 200 intentos seguidos; se esperaba 1 hasta que venza el intervalo", lineas)
+	}
+
+	// Cuando vence el intervalo vuelve a avisar: un fallo que persiste no puede
+	// desaparecer del registro para siempre.
+	b.ultimoAviso = time.Now().Add(-2 * intervaloAviso)
+	b.avisarFallo(errors.New("Serial port not found"))
+	if lineas != 2 {
+		t.Errorf("tras vencer el intervalo se esperaban 2 líneas y hay %d", lineas)
+	}
+}
