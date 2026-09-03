@@ -233,6 +233,10 @@ return [
     // (App\Models\Item::ALLOWED_UNITS_OF_MEASURE explica por qué una segunda es un riesgo y no una
     // función). El sufijo se conserva porque aquí no se convierte nada: el precio es el precio de
     // UNA de la propia unidad del artículo.
+    "reprice_applied_to_lines"           => "El precio se aplicó a las {0} líneas de este artículo.",
+    "reprice_confirm"                    => "Va a cambiar el precio de {0} para todas las ventas siguientes. ¿Seguro?",
+    "reprice_confirm_by_unit"            => "Va a cambiar el precio de {0} para todas las ventas siguientes, por {1}. ¿Seguro?",
+    "reprice_unlock_title"               => "Cambiar el precio de este artículo",
     "scale_agent_down"                   => "El programa de la caja no está funcionando: escriba el peso.",
     "scale_none"                         => "Esta caja no tiene báscula: escriba el peso.",
     "scale_empty"                        => "La báscula está en cero: coloque el producto encima.",

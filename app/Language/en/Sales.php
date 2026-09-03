@@ -234,6 +234,10 @@ return [
     // weighed unit is a liability, not a feature). The suffix stays because nothing here converts:
     // a price is the price of one of that item's own unit, so a label naming the wrong one would be
     // a pricing error rather than a cosmetic slip.
+    "reprice_applied_to_lines"           => "The price was applied to the {0} lines of this item.",
+    "reprice_confirm"                    => "You are about to change the price of {0} for every future sale. Are you sure?",
+    "reprice_confirm_by_unit"            => "You are about to change the price of {0} for every future sale, per {1}. Are you sure?",
+    "reprice_unlock_title"               => "Change this item price",
     "scale_agent_down"                   => "The till program is not running: type the weight.",
     "scale_none"                         => "This till has no scale: type the weight.",
     "scale_empty"                        => "The scale is at zero: place the product on it.",

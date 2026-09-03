@@ -14,6 +14,8 @@ use App\Models\Employee;
 use App\Models\Giftcard;
 use App\Models\Inventory;
 use App\Models\Item;
+use Throwable;
+use App\Models\Item_price_history;
 use App\Models\Item_kit;
 use App\Models\Item_quantity;
 use App\Models\Sale;
@@ -792,6 +794,157 @@ class Sales extends Secure_Controller
      * one code: this used to test for 'kg' alone and so walked straight past
      * every pound-priced product, adding it silently at quantity 1.
      */
+    /**
+     * Fija en el catálogo los precios que esta venta acaba de establecer.
+     *
+     * SE LLAMA DESPUÉS DE QUE LA VENTA ESTÁ CONFIRMADA, Y ESO ES TODO EL DISEÑO.
+     *
+     * `Sale::save_value()` parecía el sitio natural y es el equivocado por tres razones: se llama
+     * también al suspender y en CADA tecleo del carrito de una mesa abierta --así que repreciaría
+     * mientras el cajero escribe, violando «al finalizar, nunca antes»--; no ramifica jamás por
+     * `sale_type`, así que una devolución repreciaría; y corre dentro de la transacción de la venta,
+     * donde un fallo de esto tumbaría un cobro.
+     *
+     * Aquí el dinero ya está en el cajón y la venta ya está escrita. Por eso esta función **no puede
+     * lanzar** y **no envuelve el lote en una transacción**: si falla el tercero de cinco, los otros
+     * cuatro quedan preciados. Un repreciado parcial es estrictamente mejor que ninguno; envolverlo
+     * convertiría una fila mala en «no quedó nada y mañana los teclean todos otra vez».
+     *
+     * @return array los artículos que quedaron con precio nuevo
+     */
+    private function _apply_pending_reprices(int $sale_id, int $employee_id, int $sale_type): array
+    {
+        // Decisión del dueño: una devolución no reprecia.
+        if ($sale_type === SALE_TYPE_RETURN) {
+            return [];
+        }
+
+        $aplicados = [];
+
+        // El carrito se lee AQUÍ y no de $data['cart']: ese ya pasó por sort_and_filter_cart(), que
+        // descarta las líneas con print_option != PRINT_YES. No es fuente de verdad.
+        foreach ($this->sale_lib->get_cart() as $line) {
+            $reprice = Sale_lib::line_pending_reprice($line);
+
+            if ($reprice === null || !Sale_lib::line_can_be_repriced($line)) {
+                continue;
+            }
+
+            $item_id = (int) $line['item_id'];
+
+            // El mismo artículo puede venir en varias líneas con la misma intención; se escribe una
+            // sola vez.
+            if (isset($aplicados[$item_id])) {
+                continue;
+            }
+
+            try {
+                $price = (string) $reprice['price'];
+
+                if (bccomp($price, '0', 2) <= 0) {
+                    continue;
+                }
+
+                // Se relee el catálogo: otra caja pudo fijar este mismo precio en el minuto que el
+                // cajero tardó en cobrar. Si ya dice lo mismo, no hay nada que escribir.
+                $catalog_price = $this->item->get_unit_prices([$item_id])[$item_id] ?? null;
+
+                if ($catalog_price === null || bccomp($catalog_price, $price, 2) === 0) {
+                    continue;
+                }
+
+                Item::with_price_change_context(
+                    Item_price_history::SOURCE_SALE,
+                    $employee_id,
+                    $sale_id
+                );
+
+                $item_data = ['unit_price' => $price];
+
+                if ($this->item->save_value($item_data, $item_id)) {
+                    $aplicados[$item_id] = ['name' => $line['name'] ?? '', 'price' => $price];
+                }
+            } catch (Throwable $e) {
+                // Observar no puede tumbar lo observado, y aquí lo observado ya se cobró.
+                log_message(
+                    'critical',
+                    'No se pudo fijar el precio del articulo ' . $item_id . ' desde la venta ' . $sale_id . ': ' . $e->getMessage()
+                );
+            } finally {
+                Item::clear_price_change_context();
+            }
+        }
+
+        return $aplicados;
+    }
+
+    /**
+     * En qué estado sale la casilla de precio de una línea: `open`, `locked` o `blocked`.
+     *
+     * **Se decide por el precio del CATÁLOGO, jamás por el de la línea.** El precio de línea de un
+     * ingrediente de kit es un '0.00' forzado, y mirarlo abriría un campo que no debe abrirse nunca.
+     *
+     * @param array $catalog_prices [item_id => precio], leído fresco
+     */
+    private function _reprice_state(array $line, array $catalog_prices, bool $may_change_price): string
+    {
+        // Una devolución no reprecia: decisión del dueño. Devolver mercancía no dice nada sobre lo
+        // que ese artículo debe costar mañana.
+        if (!$may_change_price || $this->sale_lib->is_return_mode() || !Sale_lib::line_can_be_repriced($line)) {
+            return 'blocked';
+        }
+
+        $catalog_price = $catalog_prices[(int) $line['item_id']] ?? null;
+
+        if ($catalog_price === null) {
+            return 'blocked';
+        }
+
+        // Cero significa «todavía sin precio», nunca «gratis». Por eso el campo sale abierto y sin
+        // pedir confirmación: no hay ningún precio que se esté cambiando.
+        return bccomp($catalog_price, '0', 2) === 0 ? 'open' : 'locked';
+    }
+
+    /**
+     * El repreciado que esta edición está pidiendo, o null si no pide ninguno.
+     */
+    private function _intended_reprice(string $line, string $price, int $employee_id): ?array
+    {
+        $cart = $this->sale_lib->get_cart();
+
+        if (!isset($cart[$line])) {
+            return null;
+        }
+
+        // Un precio de cero no fija nada: es la ausencia de precio, no un precio.
+        if (bccomp($price, '0', 2) <= 0) {
+            return null;
+        }
+
+        $item_id        = (int) ($cart[$line]['item_id'] ?? 0);
+        $catalog_prices = $this->item->get_unit_prices([$item_id]);
+        $state          = $this->_reprice_state($cart[$line], $catalog_prices, true);
+
+        $unlocked = $this->request->getPost('reprice_unlock') !== null;
+
+        if ($state !== 'open' && !($state === 'locked' && $unlocked)) {
+            return null;
+        }
+
+        $catalog_price = $catalog_prices[$item_id] ?? null;
+
+        // Si el catálogo ya dice eso, no hay nada que fijar.
+        if ($catalog_price !== null && bccomp($catalog_price, $price, 2) === 0) {
+            return null;
+        }
+
+        return [
+            'price'          => $price,
+            'previous_price' => $catalog_price,
+            'employee_id'    => $employee_id,
+        ];
+    }
+
     private function _item_sold_by_weight(?string $item_id_or_number): ?stdClass
     {
         if ($item_id_or_number === null || $item_id_or_number === '') {
@@ -974,7 +1127,24 @@ class Sales extends Secure_Controller
                 ? parse_decimals($this->request->getPost('discounted_total') ?? '')
                 : null;
 
+            // LA INTENCIÓN DE REPRECIAR SE DECIDE AQUÍ, EN EL SERVIDOR.
+            //
+            // El `reprice_unlock` que manda el navegador es solo permiso para USAR un precio que el
+            // servidor ya decidió que era cambiable; nunca es la decisión. Un token forjado sobre un
+            // ingrediente de kit no hace absolutamente nada.
+            $reprice = $may_change_price ? $this->_intended_reprice($line, (string) $price, $employee_id) : null;
+
             $this->sale_lib->edit_item($line, $description, $serialnumber, $quantity, $discount, $discount_type, $price, $discounted_total);
+
+            if ($reprice !== null) {
+                // El precio se aplica a TODAS las líneas del mismo artículo, para que la venta sea
+                // coherente consigo misma y el cajero cobre lo que la pantalla dice.
+                $lineas = $this->sale_lib->apply_reprice($line, (string) $price, $reprice);
+
+                if ($lineas > 1) {
+                    $data['success'] = lang('Sales.reprice_applied_to_lines', [$lineas]);
+                }
+            }
 
             $this->sale_lib->empty_payments();
 
@@ -1168,6 +1338,8 @@ class Sales extends Secure_Controller
                     $data['error_message'] = lang('Sales.transaction_failed');
                     return $this->_reload($data);
                 } else {
+                    $this->_apply_pending_reprices((int) $data['sale_id_num'], $employee_id, $sale_type);
+
                     $data['barcode'] = $this->barcode_lib->generate_receipt_barcode($data['sale_id']);
                     $this->sale_lib->clear_all();
                     return view('sales/' . $invoice_view, $data);
@@ -1261,6 +1433,9 @@ class Sales extends Secure_Controller
                 if ($this->config['dinner_table_enable'] && (int) $data['dinner_table'] > 2) {
                     $this->dinner_table->delete((int) $data['dinner_table']);
                 }
+
+                // Aquí, y no una línea antes: la venta ya está confirmada en la base.
+                $this->_apply_pending_reprices((int) $data['sale_id_num'], $employee_id, $sale_type);
 
                 $data['barcode'] = $this->barcode_lib->generate_receipt_barcode($data['sale_id']);
 
@@ -1675,6 +1850,36 @@ class Sales extends Secure_Controller
 
         $data['items_module_allowed'] = $this->employee->has_grant('items', $this->employee->get_logged_in_employee_info()->person_id);
         $data['change_price'] = $this->employee->has_grant('sales_change_price', $this->employee->get_logged_in_employee_info()->person_id);
+
+        // EL SERVIDOR DECIDE EL ESTADO DE CADA CASILLA DE PRECIO; el navegador solo lo pinta y
+        // pregunta. Los precios del catálogo se releen frescos en cada recarga: así el candado
+        // refleja lo que otra caja acaba de fijar, y no hace falta meter una clave nueva en el
+        // carrito de sesión --que los carritos abiertos no tendrían--.
+        $data['reprice_lines'] = [];
+
+        $carrito = $data['cart'] ?? [];
+
+        if ($carrito !== []) {
+            $ids = [];
+
+            foreach ($carrito as $linea) {
+                $item_id = (int) ($linea['item_id'] ?? 0);
+
+                if ($item_id > 0) {
+                    $ids[$item_id] = true;
+                }
+            }
+
+            $catalog_prices  = $this->item->get_unit_prices(array_keys($ids));
+            $puede_repreciar = $data['items_module_allowed'] && $data['change_price'];
+
+            foreach ($carrito as $key => $linea) {
+                $data['reprice_lines'][$key] = [
+                    'mode'          => $this->_reprice_state($linea, $catalog_prices, $puede_repreciar),
+                    'catalog_price' => $catalog_prices[(int) ($linea['item_id'] ?? 0)] ?? null,
+                ];
+            }
+        }
 
         $temp_invoice_number = $this->sale_lib->get_invoice_number();
         $invoice_format = $this->config['sales_invoice_format'];

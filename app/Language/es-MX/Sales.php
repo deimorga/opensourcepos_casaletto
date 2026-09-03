@@ -235,6 +235,10 @@ return [
     // función). El sufijo se conserva porque aquí no se convierte nada: el precio es el precio de
     // una unidad del propio artículo, así que rotular con la unidad equivocada sería un error de
     // precio y no de etiqueta.
+    "reprice_applied_to_lines"           => "El precio se aplicó a las {0} líneas de este artículo.",
+    "reprice_confirm"                    => "Va a cambiar el precio de {0} para todas las ventas siguientes. ¿Seguro?",
+    "reprice_confirm_by_unit"            => "Va a cambiar el precio de {0} para todas las ventas siguientes, por {1}. ¿Seguro?",
+    "reprice_unlock_title"               => "Cambiar el precio de este artículo",
     "scale_agent_down"                   => "El programa de la caja no está funcionando: digite el peso.",
     "scale_none"                         => "Esta caja no tiene báscula: digite el peso.",
     "scale_empty"                        => "La báscula está en cero: ponga el producto encima.",

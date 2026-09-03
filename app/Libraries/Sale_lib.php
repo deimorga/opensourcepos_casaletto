@@ -224,6 +224,49 @@ class Sale_lib
     }
 
     /**
+     * El repreciado que esta línea está pidiendo, o null si no pide ninguno.
+     *
+     * Se lee SIEMPRE por aquí y nunca con `$line['reprice']` pelado. Hay carritos abiertos en
+     * producción creados antes de que esta clave existiera --el carrito vive en sesión y
+     * `edit_item()` muta la línea en sitio sin añadirle claves nuevas--, así que un acceso directo
+     * reventaría la caja de quien tuviera una mesa abierta durante el despliegue. Mismo motivo y
+     * mismo patrón que line_unit_of_measure().
+     */
+    public static function line_pending_reprice(array $line): ?array
+    {
+        $reprice = $line['reprice'] ?? null;
+
+        return is_array($reprice) ? $reprice : null;
+    }
+
+    /**
+     * Si esta línea puede fijar el precio del catálogo.
+     *
+     * NO se pregunta por `$line['price']`, sino por lo que la línea ES. Un ingrediente de kit puede
+     * llevar un precio de '0.00' forzado por la opción de precio del kit (ver add_item_kit), y
+     * mirar el precio abriría un campo que no debe abrirse nunca.
+     */
+    public static function line_can_be_repriced(array $line): bool
+    {
+        // Los ingredientes de un kit no se distinguen por item_type sino por print_option: su
+        // precio es un artefacto de cómo se compone el kit, no el precio del artículo.
+        if (($line['print_option'] ?? PRINT_YES) == PRINT_NO) {
+            return false;
+        }
+
+        $item_type = (int) ($line['item_type'] ?? ITEM);
+
+        // ITEM_KIT: su precio se compone de sus partes.
+        // ITEM_AMOUNT_ENTRY: el "precio" es el importe que se teclea, distinto en cada venta.
+        // ITEM_TEMP: la fila del artículo se tira al terminar.
+        if (in_array($item_type, [ITEM_KIT, ITEM_AMOUNT_ENTRY, ITEM_TEMP], true)) {
+            return false;
+        }
+
+        return (int) ($line['item_id'] ?? 0) > 0;
+    }
+
+    /**
      * True when this cart line is priced by what it weighs rather than by the unit.
      *
      * Asks Item which codes are weights rather than comparing against 'kg' here. Today that set
@@ -1485,6 +1528,70 @@ class Sale_lib
         }
 
         return false;    // TODO: This function will always return false.
+    }
+
+    /**
+     * Pone el precio en la línea editada y en TODAS las demás líneas del mismo artículo.
+     *
+     * POR QUÉ AL EDITAR Y NO AL FINALIZAR
+     *
+     * El cajero cobra lo que dice la pantalla. Si el mismo tomate está en la línea 1 y en la 7 y la
+     * pantalla muestra una en 0 y la otra en 4.500, el subtotal, los impuestos, el pago ya tecleado
+     * y el recibo impreso salen todos de esa pantalla. Propagar al finalizar haría crecer el total
+     * en silencio entre «el cliente me dio 20.000» y la impresión del recibo. Eso no es una
+     * sorpresa: es una discusión en el mostrador.
+     *
+     * POR QUÉ NO SE REUSA edit_item() EN UN BUCLE
+     *
+     * Porque `edit_item()` deriva la CANTIDAD del `discounted_total` cuando este cambió. Un bucle
+     * escrito de la forma obvia recalcularía la cantidad de cada línea hermana desde su
+     * `discounted_total` viejo y cambiaría cuánto se está vendiendo -- un error de inventario y de
+     * plata que no se ve en ninguna prueba manual. Aquí solo se toca el precio; la cantidad y el
+     * descuento de cada línea son suyos y no se rozan.
+     *
+     * @return int cuántas líneas quedaron con el precio nuevo, la editada incluida
+     */
+    public function apply_reprice(string $line, string $price, array $reprice): int
+    {
+        $items = $this->get_cart();
+
+        if (!isset($items[$line]) || !self::line_can_be_repriced($items[$line])) {
+            return 0;
+        }
+
+        $item_id = (int) $items[$line]['item_id'];
+        $tocadas = 0;
+
+        foreach ($items as $key => $otra) {
+            if ((int) ($otra['item_id'] ?? 0) !== $item_id || !self::line_can_be_repriced($otra)) {
+                continue;
+            }
+
+            $items[$key]['price']   = $price;
+            $items[$key]['reprice'] = $reprice;
+
+            // Con SU propia cantidad y SU propio descuento. Es la línea entre repreciar y cambiar
+            // lo que se está vendiendo.
+            $items[$key]['total'] = $this->get_item_total(
+                $otra['quantity'],
+                $price,
+                $otra['discount'],
+                $otra['discount_type']
+            );
+            $items[$key]['discounted_total'] = $this->get_item_total(
+                $otra['quantity'],
+                $price,
+                $otra['discount'],
+                $otra['discount_type'],
+                true
+            );
+
+            $tocadas++;
+        }
+
+        $this->set_cart($items);
+
+        return $tocadas;
     }
 
     /**

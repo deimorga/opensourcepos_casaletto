@@ -170,6 +170,7 @@ helper('url');
     // isolation mechanism: a shop whose items are all sold by the unit never
     // has an item waiting, so it never sees any of this -- and unlike a
     // setting, there is nothing here anybody can get wrong.
+    $reprice_lines = $reprice_lines ?? [];
     $weight_entry = $weight_entry ?? [];
 
     if (!empty($weight_entry)) {
@@ -383,8 +384,50 @@ helper('url');
 
                             <td>
                                 <?php
+                                // TRES ESTADOS, Y LOS DECIDE EL SERVIDOR (Sales::_reprice_state()).
+                                //
+                                // 'blocked' se pinta EXACTAMENTE como se pintaba antes de que esto
+                                // existiera: es el camino de los kits, los ingredientes, las entradas
+                                // por monto y las devoluciones, y no debe notar ningún cambio.
+                                //
+                                // 'open'   -- el catálogo está en cero, o sea que no hay precio que
+                                //             cambiar sino uno que poner. Sin candado.
+                                // 'locked' -- ya tiene precio. Hay que abrir el candado a propósito,
+                                //             y abrirlo pregunta.
+                                $reprice_mode = $reprice_lines[$line]['mode'] ?? 'blocked';
+
                                 if ($items_module_allowed && $change_price) {
-                                    echo form_input(['name' => 'price', 'class' => 'form-control input-sm', 'value' => to_currency_no_money($item['price']), 'tabindex' => ++$tabindex, 'onClick' => 'this.select();']);
+                                    $price_attrs = [
+                                        'name'      => 'price',
+                                        'class'     => 'form-control input-sm',
+                                        'value'     => to_currency_no_money($item['price']),
+                                        'tabindex'  => ++$tabindex,
+                                        'onClick'   => 'this.select();',
+                                        'data-line' => $line,
+                                    ];
+
+                                    if ($reprice_mode === 'locked') {
+                                        $price_attrs['readonly'] = 'readonly';
+                                        $price_attrs['class'] .= ' price-locked';
+                                    }
+
+                                    echo form_input($price_attrs);
+
+                                    if ($reprice_mode === 'locked') {
+                                        // El candado va DENTRO de la celda de precio de la fila
+                                        // principal, que es la que tiene el formulario delante. Ver
+                                        // el bloque de JS: alcanza su form con prevAll, jamás con
+                                        // closest.
+                                        ?>
+                                        <button type="button" class="btn btn-link btn-xs reprice-unlock"
+                                                data-line="<?= esc($line) ?>"
+                                                data-name="<?= esc($item['name']) ?>"
+                                                data-unit="<?= esc(Sale_lib::line_unit_of_measure_symbol($item)) ?>"
+                                                title="<?= esc(Sale_lib::translate_or('Sales.reprice_unlock_title', 'Change this item\'s price')) ?>">
+                                            <span class="glyphicon glyphicon-lock" aria-hidden="true"></span>
+                                        </button>
+                                        <?php
+                                    }
                                 } else {
                                     echo to_currency($item['price']);
                                     echo form_hidden('price', to_currency_no_money($item['price']));
@@ -1471,6 +1514,46 @@ helper('url');
             var input = $('<input>').attr('type', 'hidden').attr('name', 'discount_type').val(($(this).prop('checked')) ? 1 : 0);
             $('#cart_' + $(this).attr('data-line')).append($(input));
             $('#cart_' + $(this).attr('data-line')).submit();
+        });
+
+        // EL CANDADO DEL PRECIO
+        //
+        // Abrirlo cambia el precio del artículo para TODAS las ventas futuras, no solo para esta
+        // línea, así que se pregunta antes. La confirmación nombra la unidad cuando el artículo se
+        // vende al peso: el campo pide el precio POR KILO, y hay evidencia en los datos de Casaletto
+        // de que a veces se teclea el total -- el mismo pavo aparece a 18.700 y a 39.000. Esa
+        // palabra es lo que separa un precio bueno de uno del doble.
+        $('.reprice-unlock').on('click', function() {
+            var boton = $(this);
+            var linea = boton.attr('data-line');
+            var unidad = boton.attr('data-unit');
+            var nombre = boton.attr('data-name');
+
+            var pregunta = unidad
+                ? <?= json_encode(Sale_lib::translate_or('Sales.reprice_confirm_by_unit', 'You are about to change the price of {0} for every future sale, per {1}. Are you sure?')) ?>
+                    .replace('{0}', nombre).replace('{1}', unidad)
+                : <?= json_encode(Sale_lib::translate_or('Sales.reprice_confirm', 'You are about to change the price of {0} for every future sale. Are you sure?')) ?>
+                    .replace('{0}', nombre);
+
+            if (!confirm(pregunta)) {
+                return;
+            }
+
+            // El token se añade al FORMULARIO POR SU ID, no con closest(). form_open() emite el
+            // <form> entre <tbody> y <tr>, así que el analizador de HTML lo saca del árbol y lo deja
+            // como hermano vacío anterior a las filas: los campos quedan asociados por form owner,
+            // no por anidamiento, y closest('form') no encuentra absolutamente nada. Este es el
+            // mismo camino que usa discount_toggle, que ya está probado contra esta rareza.
+            var formulario = $('#cart_' + linea);
+
+            if (formulario.find('[name="reprice_unlock"]').length === 0) {
+                formulario.append($('<input>').attr('type', 'hidden').attr('name', 'reprice_unlock').val('1'));
+            }
+
+            var campo = $('[name="price"][data-line="' + linea + '"]');
+            campo.prop('readonly', false).removeClass('price-locked').focus().select();
+
+            boton.find('span').removeClass('glyphicon-lock').addClass('glyphicon-pencil');
         });
     });
 
