@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -121,7 +122,7 @@ func CargarConfig(ruta string) (Config, error) {
 	// Se decodifica SOBRE los valores por omision, no sobre una estructura
 	// vacia: asi un archivo que solo trae el puerto de la bascula conserva el
 	// resto de los ajustes en vez de dejarlos en cero.
-	if err := json.Unmarshal(datos, &c); err != nil {
+	if err := json.Unmarshal(sinBOM(datos), &c); err != nil {
 		return configPorOmision(), fmt.Errorf("%s no es un JSON valido: %w", ruta, err)
 	}
 	c.ruta = ruta
@@ -197,6 +198,22 @@ func (c Config) Guardar(ruta string) error {
 		return err
 	}
 	return os.WriteFile(ruta, append(datos, '\n'), 0o644)
+}
+
+// bomUTF8 es la marca de orden de bytes que Windows antepone al guardar.
+var bomUTF8 = []byte{0xEF, 0xBB, 0xBF}
+
+// sinBOM quita esa marca antes de interpretar el JSON.
+//
+// No es purismo: el analizador de JSON de Go la rechaza, y en esta caja ya
+// tumbo la configuracion entera. Basta con que alguien edite el archivo con el
+// Bloc de notas o con `Set-Content -Encoding UTF8` --lo normal en Windows--
+// para que el agente arranque sin origenes, sin impresora y sin bascula.
+//
+// El sintoma es de los peores: nadie cambio nada visible, el archivo se ve
+// idéntico en pantalla, y la caja deja de funcionar.
+func sinBOM(datos []byte) []byte {
+	return bytes.TrimPrefix(datos, bomUTF8)
 }
 
 // rutaJuntoAlEjecutable resuelve un nombre relativo a la carpeta del binario y

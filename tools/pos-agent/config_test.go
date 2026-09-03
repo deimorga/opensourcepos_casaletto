@@ -81,3 +81,25 @@ func TestConfigJSONRotoNoImpideArrancar(t *testing.T) {
 		t.Errorf("aun con el archivo roto hay que quedar con valores usables, y quedó %d", c.PuertoHTTP)
 	}
 }
+
+func TestUnBOMDeWindowsNoTumbaLaConfiguracion(t *testing.T) {
+	// Basta con que alguien guarde el archivo con el Bloc de notas o con
+	// Set-Content -Encoding UTF8 --lo normal en Windows-- para que Go rechace
+	// el JSON. Ya pasó en la caja de Paraíso: el agente arrancó sin orígenes,
+	// sin impresora y sin báscula, con el archivo idéntico en pantalla.
+	ruta := filepath.Join(t.TempDir(), "config.json")
+	contenido := append([]byte{0xEF, 0xBB, 0xBF},
+		[]byte(`{"bascula":{"puerto":"COM7","baudios":4800},"impresora":{"nombre":"POS-58-Series"}}`)...)
+	os.WriteFile(ruta, contenido, 0o644)
+
+	c, err := CargarConfig(ruta)
+	if err != nil {
+		t.Fatalf("un BOM no puede impedir leer la configuración: %v", err)
+	}
+	if c.Bascula.Puerto != "COM7" || c.Bascula.Baudios != 4800 {
+		t.Errorf("báscula = %+v", c.Bascula)
+	}
+	if c.Impresora.Nombre != "POS-58-Series" {
+		t.Errorf("impresora = %q", c.Impresora.Nombre)
+	}
+}

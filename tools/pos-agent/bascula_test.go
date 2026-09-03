@@ -226,3 +226,38 @@ func TestUnaBasculaDesconectadaNoInundaLaBitacora(t *testing.T) {
 		t.Errorf("tras vencer el intervalo se esperaban 2 líneas y hay %d", lineas)
 	}
 }
+
+func TestElPuertoFijoSeRespetaTalCual(t *testing.T) {
+	// Quien escribe COM7 a mano manda: la busqueda automatica no puede
+	// llevarse por delante una decision explicita del operario.
+	cfg := cfgBascula()
+	cfg.Puerto = "COM7"
+	b := NuevaBascula(cfg, nil, nil)
+
+	got, err := b.resuelta()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Puerto != "COM7" {
+		t.Errorf("puerto = %q, se esperaba el configurado", got.Puerto)
+	}
+}
+
+func TestConAutoSeBuscaLaBasculaEnCadaVuelta(t *testing.T) {
+	// Con "auto" la resolucion ocurre dentro del bucle, no una vez al
+	// arrancar: la bascula puede estar apagada al encender la caja, o alguien
+	// puede moverla de enchufe a media mañana.
+	cfg := cfgBascula()
+	cfg.Puerto = "auto"
+	b := NuevaBascula(cfg, nil, nil)
+
+	got, err := b.resuelta()
+	// En este equipo de desarrollo no hay enumeración, así que lo que se
+	// comprueba es que "auto" NO se toma como si fuera el nombre de un puerto.
+	if err == nil {
+		t.Skip("hay enumeración de puertos en esta plataforma")
+	}
+	if got.Puerto == puertoAutomatico {
+		t.Error("\"auto\" no puede llegar al sistema como si fuera un nombre de puerto")
+	}
+}

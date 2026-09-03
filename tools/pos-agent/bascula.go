@@ -143,7 +143,16 @@ func (b *Bascula) bucle() {
 		default:
 		}
 
-		p, err := b.abrir(b.cfg)
+		cfg, err := b.resuelta()
+		if err != nil {
+			b.avisarFallo(err)
+			if !b.dormir(esperaReconexion) {
+				return
+			}
+			continue
+		}
+
+		p, err := b.abrir(cfg)
 		if err != nil {
 			b.avisarFallo(err)
 			if !b.dormir(esperaReconexion) {
@@ -156,7 +165,7 @@ func (b *Bascula) bucle() {
 		b.mu.Lock()
 		b.puerto = p
 		b.mu.Unlock()
-		b.logf("bascula: puerto %s abierto a %d %d-%s-%d", b.cfg.Puerto, b.cfg.Baudios, b.cfg.BitsDatos, b.cfg.Paridad, b.cfg.BitsParada)
+		b.logf("bascula: puerto %s abierto a %d %d-%s-%d", cfg.Puerto, cfg.Baudios, cfg.BitsDatos, cfg.Paridad, cfg.BitsParada)
 
 		_ = p.SetReadTimeout(rodajaLectura)
 		for {
@@ -205,12 +214,20 @@ func (b *Bascula) avisarFallo(err error) {
 	ahora := time.Now()
 
 	if b.fallosSeguidos == 1 {
-		b.logf("bascula: no se pudo abrir %s: %v (se reintenta en silencio cada %s)", b.cfg.Puerto, err, esperaReconexion)
+		// Se lista lo que SI hay conectado. Es la diferencia entre "no se pudo
+		// abrir COM7", que no dice nada, y una linea que se diagnostica sola.
+		// En automatico el propio error ya trae esa lista, y repetirla sobra.
+		contexto := ""
+		if !b.enAutomatico() {
+			contexto = " -- " + ResumenPuertos()
+		}
+		b.logf("bascula: no se pudo abrir %s: %v%s (se reintenta en silencio cada %s)",
+			b.comoSeLlamaElPuerto(), err, contexto, esperaReconexion)
 		b.ultimoAviso = ahora
 		return
 	}
 	if ahora.Sub(b.ultimoAviso) >= intervaloAviso {
-		b.logf("bascula: %s sigue sin responder tras %d intentos: %v", b.cfg.Puerto, b.fallosSeguidos, err)
+		b.logf("bascula: %s sigue sin responder tras %d intentos: %v", b.comoSeLlamaElPuerto(), b.fallosSeguidos, err)
 		b.ultimoAviso = ahora
 	}
 }
@@ -383,6 +400,46 @@ func (b *Bascula) Leer() (string, time.Time, error) {
 			return "", time.Time{}, ErrSinLectura
 		}
 	}
+}
+
+// puertoAutomatico es el valor de configuracion que pide buscar la bascula por
+// su identidad en vez de por un numero fijo.
+const puertoAutomatico = "auto"
+
+// resuelta devuelve la configuracion con el puerto ya decidido.
+//
+// Con "auto" se busca el CH340 en cada vuelta del bucle, no una sola vez al
+// arrancar: la bascula puede estar apagada cuando enciende la caja, o alguien
+// puede moverla de enchufe a media manana, y en los dos casos tiene que
+// engancharse sola sin que nadie reinicie nada.
+func (b *Bascula) resuelta() (ConfigBascula, error) {
+	cfg := b.cfg
+	if !strings.EqualFold(strings.TrimSpace(cfg.Puerto), puertoAutomatico) {
+		return cfg, nil
+	}
+	nombre, err := BuscarBascula()
+	if err != nil {
+		// Se devuelve la configuracion SIN puerto, no con "auto" dentro: una
+		// palabra clave que se cuela hasta el sistema operativo como si fuera
+		// el nombre de un dispositivo es un error que aparece lejos de aqui.
+		cfg.Puerto = ""
+		return cfg, err
+	}
+	cfg.Puerto = nombre
+	return cfg, nil
+}
+
+// enAutomatico dice si el puerto se busca en vez de venir fijado.
+func (b *Bascula) enAutomatico() bool {
+	return strings.EqualFold(strings.TrimSpace(b.cfg.Puerto), puertoAutomatico)
+}
+
+// comoSeLlamaElPuerto describe el puerto para la bitacora.
+func (b *Bascula) comoSeLlamaElPuerto() string {
+	if b.enAutomatico() {
+		return "la báscula (búsqueda automática)"
+	}
+	return b.cfg.Puerto
 }
 
 // esperarPuerto devuelve el puerto abierto, aguardando hasta d a que el bucle
