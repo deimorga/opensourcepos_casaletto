@@ -1311,6 +1311,53 @@ Verificado en los dos sentidos: con llave entra, con contraseña `Permission den
 Y una del canal: el shell por defecto es `cmd`, así que `comando1; comando2` no separa nada — se
 imprime literal. Para varias órdenes, `powershell -NoProfile -Command -` alimentado por stdin.
 
+### La impresora, conectada y configurada (2026-09-02)
+
+**Xprinter XP-58IIT**, 58 mm, USB, **ESC/POS confirmado en la etiqueta** y con salida de cajón de
+**12 V 1 A** — o sea que el cajón sí cuelga de ella por RJ11, como estaba previsto.
+
+#### El defecto: la cola apuntaba al puerto equivocado
+
+El instalador del driver crea su propio monitor de puerto, `POS Printer PORT:`, y deja la cola
+apuntando ahí. Windows tenía la impresora bien enumerada todo el tiempo —`USB Printing Support`,
+`VID_0483`, en `USB001`— pero la cola hablaba con un puerto virtual que no lleva a ninguna parte.
+
+Síntoma: cola en **Error**, y una página de prueba atascada en `Error, Printing, Retained`.
+
+```powershell
+Set-Printer -Name 'POS-58-Series' -PortName 'USB001'
+```
+
+Con eso, `PrinterStatus: Normal` y `DetectedErrorState: 0`. **Vale la pena mirarlo primero en
+cualquier impresora POS**: el driver «funciona» y la cola existe, así que se parece a un problema
+de cable.
+
+#### Cómo se prueba, y por qué hizo falta inventarlo
+
+`pos-agent.exe -probar-impresora` imprime un recibo por el **mismo camino que la caja** —bytes
+crudos al spooler— y `-abrir-cajon` manda la secuencia del cajón. Sin eso, la primera impresión de
+verdad habría sido con un cliente delante: ni el navegador ni `curl` pueden ejercer ese camino.
+
+El recibo **lleva impreso el nombre de la impresora**. Con dos colas instaladas, saber cuál salió en
+el papel es la diferencia entre diagnosticar y adivinar.
+
+#### Un defecto propio que destapó la visita
+
+Con la báscula desconectada, el bucle de reconexión escribía un error **cada tres segundos**. La
+bitácora se trunca al pasar de 2 MB, así que una noche con el cable suelto **se llevaba por delante
+el historial entero**: el bucle de reconexión estaba destruyendo la única herramienta de diagnóstico
+que tiene la caja. Corregido en **1.1.1** — avisa la primera vez y luego cada cinco minutos, y
+reintenta igual de rápido.
+
+#### Y un accidente que conviene no repetir
+
+Al configurar la impresora se **sobrescribió `config.json` entero**, y con él el puerto y los
+baudios de la báscula, que llevaban vendiendo desde el día anterior. No hubo daño porque la báscula
+estaba físicamente desconectada esa noche, pero pudo haberlo.
+
+**`config.json` es estado de producción, no plantilla.** Se edita el campo que se va a cambiar; no
+se reemplaza el archivo. Y antes de tocarlo, se lee.
+
 ### La política de Chrome, puesta (2026-08-31)
 
 Es la mitigación del §5.3.1 y **el riesgo principal del agente**: sin ella, tras una actualización
