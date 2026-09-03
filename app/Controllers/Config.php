@@ -1149,6 +1149,12 @@ class Config extends Secure_Controller
                 ? $this->request->getPost('receipt_template')
                 : 'receipt_default',
             'receipt_font_size'             => $this->request->getPost('receipt_font_size', FILTER_SANITIZE_NUMBER_INT),
+            // A closed list behind a dropdown: fall back to the system default rather than refuse,
+            // since the only way to get here with something else is a hand-made request. Falling
+            // back to '' is falling back to "print exactly as before", which is never destructive.
+            'receipt_paper'                 => Sale_lib::isValidReceiptPaper((string)$this->request->getPost('receipt_paper'))
+                ? (string)$this->request->getPost('receipt_paper')
+                : '',
             'print_delay_autoreturn'        => $this->request->getPost('print_delay_autoreturn', FILTER_SANITIZE_NUMBER_INT),
             'email_receipt_check_behaviour' => $this->request->getPost('email_receipt_check_behaviour'),
             'print_receipt_check_behaviour' => $this->request->getPost('print_receipt_check_behaviour'),

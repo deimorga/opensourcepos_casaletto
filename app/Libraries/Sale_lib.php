@@ -189,6 +189,56 @@ class Sale_lib
         return in_array($invoice_type, self::ALLOWED_INVOICE_TYPES, true);
     }
 
+    /**
+     * The papers a receipt can be printed on.
+     *
+     * The empty string is the shipped value and means "whatever the printer driver says", which is
+     * how every till behaved before this existed. It stays first because it is the safe default.
+     */
+    public const RECEIPT_PAPERS = ['', '58mm', '80mm'];
+
+    /**
+     * Millimetres a roll can actually print on, which is NOT the millimetres it is sold as.
+     *
+     * A 58 mm roll prints on 48 mm and an 80 mm roll on 72 mm: the rest is the margin the mechanism
+     * cannot reach. Laying the receipt out at the roll's nominal width is the classic way to lose
+     * the right-hand column -- the totals -- off the edge of the paper. The driver of the client's
+     * printer confirms it: it reports a printable width of 480 tenths of a millimetre for a paper
+     * it calls "58".
+     */
+    private const PRINTABLE_WIDTH_MM = [
+        '58mm' => 48,
+        '80mm' => 72
+    ];
+
+    /**
+     * Answers the printable width for a configured paper, or null when the business has not said.
+     *
+     * Null is not a failure: it means "leave printing exactly as it was", which is what protects a
+     * shop that already prints correctly from a change it never asked for.
+     */
+    public static function receipt_printable_width_mm(string $receipt_paper): ?int
+    {
+        return self::PRINTABLE_WIDTH_MM[$receipt_paper] ?? null;
+    }
+
+    /**
+     * The options for the paper dropdown, labelled for a shopkeeper rather than for a technician.
+     */
+    public static function get_receipt_paper_options(): array
+    {
+        return [
+            ''     => self::translate_or('Config.receipt_paper_system', 'System default'),
+            '58mm' => self::translate_or('Config.receipt_paper_58mm', '58 mm roll'),
+            '80mm' => self::translate_or('Config.receipt_paper_80mm', '80 mm roll')
+        ];
+    }
+
+    public static function isValidReceiptPaper(string $receipt_paper): bool
+    {
+        return in_array($receipt_paper, self::RECEIPT_PAPERS, true);
+    }
+
     public static function isValidReceiptTemplate(string $receipt_template): bool
     {
         return in_array($receipt_template, self::ALLOWED_RECEIPT_TEMPLATES, true);

@@ -45,6 +45,21 @@
             </div>
 
             <div class="form-group form-group-sm">
+                <?= form_label(lang('Config.receipt_paper'), 'receipt_paper', ['class' => 'control-label col-xs-2']) ?>
+                <div class="col-xs-3">
+                    <?= form_dropdown(
+                        'receipt_paper',
+                        App\Libraries\Sale_lib::get_receipt_paper_options(),
+                        $config['receipt_paper'] ?? '',
+                        ['class' => 'form-control input-sm', 'id' => 'receipt_paper']
+                    ) ?>
+                </div>
+                <div class="col-xs-6">
+                    <span class="help-block"><?= lang('Config.receipt_paper_help') ?></span>
+                </div>
+            </div>
+
+            <div class="form-group form-group-sm">
                 <?= form_label(lang('Config.print_delay_autoreturn'), 'print_delay_autoreturn', ['class' => 'control-label col-xs-2 required']) ?>
                 <div class="col-xs-2">
                     <div class="input-group">

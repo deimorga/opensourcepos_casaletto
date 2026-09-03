@@ -13,6 +13,7 @@ $template = $receipt_template_view ?? 'receipt_default';
 ?>
 
 <?= view('partial/header') ?>
+<?= view('partial/receipt_paper', ['config' => $config]) ?>
 
 <?php
 if (isset($error_message)) {
