@@ -261,3 +261,20 @@ func TestConAutoSeBuscaLaBasculaEnCadaVuelta(t *testing.T) {
 		t.Error("\"auto\" no puede llegar al sistema como si fuera un nombre de puerto")
 	}
 }
+
+func TestLosMensajesDeBitacoraNoLlevanTildes(t *testing.T) {
+	// La bitácora se lee en la consola de Windows, que decodifica con la página
+	// de códigos del sistema: una tilde sale como un símbolo raro justo en el
+	// archivo que alguien abre cuando algo no funciona. Ya se coló una vez.
+	cfg := cfgBascula()
+	cfg.Puerto = puertoAutomatico
+	b := NuevaBascula(cfg, nil, nil)
+
+	for _, texto := range []string{b.comoSeLlamaElPuerto()} {
+		for i, r := range texto {
+			if r > 127 {
+				t.Errorf("carácter no ASCII %q en la posición %d de %q", r, i, texto)
+			}
+		}
+	}
+}

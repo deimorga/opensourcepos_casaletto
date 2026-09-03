@@ -437,7 +437,9 @@ func (b *Bascula) enAutomatico() bool {
 // comoSeLlamaElPuerto describe el puerto para la bitacora.
 func (b *Bascula) comoSeLlamaElPuerto() string {
 	if b.enAutomatico() {
-		return "la báscula (búsqueda automática)"
+		// Sin tildes: la consola de Windows lee en la pagina de codigos del
+		// sistema y "busqueda automatica" salia "bA-squeda automA!tica".
+		return "la bascula (busqueda automatica)"
 	}
 	return b.cfg.Puerto
 }
