@@ -28,8 +28,21 @@ class ScaleConfigViewTest extends CIUnitTestCase
         $this->assertStringContainsString('scale_config_form', $html);
         $this->assertStringContainsString('name="scale_format"', $html);
         $this->assertStringContainsString('name="scale_divisor"', $html);
-        $this->assertStringContainsString('name="scale_port"', $html);
         $this->assertStringContainsString('name="scale_transport"', $html);
+    }
+
+    /**
+     * The COM port is a fact about one till, not about the business: two tills of the same shop
+     * can have the scale on different ports, so one per-business field could never describe both.
+     * The screen used to ask for it and nothing ever read it, which sent people chasing a number
+     * that had stopped mattering the day the local program started finding the scale by itself.
+     */
+    public function testDoesNotAskForTheComPort(): void
+    {
+        $html = view('configs/scale_config', ['config' => ['scale_port' => 'COM3']]);
+
+        $this->assertStringNotContainsString('name="scale_port"', $html);
+        $this->assertStringNotContainsString('COM3', $html);
     }
 
     public function testDefaultsToNoScaleWhenNothingIsConfigured(): void
@@ -46,13 +59,11 @@ class ScaleConfigViewTest extends CIUnitTestCase
             'config' => [
                 'scale_format'    => 'N{W:6}',
                 'scale_divisor'   => '1',
-                'scale_port'      => 'COM3',
                 'scale_transport' => 'agent'
             ]
         ]);
 
         $this->assertStringContainsString('value="N{W:6}"', $html);
-        $this->assertStringContainsString('value="COM3"', $html);
         $this->assertMatchesRegularExpression('/<option value="agent" selected/', $html);
     }
 

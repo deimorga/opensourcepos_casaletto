@@ -1030,7 +1030,6 @@ class Config extends Secure_Controller
         // Trimming is a fix, not a loss: parse_scale() trims the frame before matching, so a
         // pattern with a stray leading or trailing blank could never have matched anything.
         $format = trim((string)$this->request->getPost('scale_format'));
-        $port = trim((string)$this->request->getPost('scale_port'));
         $divisor = (int)$this->request->getPost('scale_divisor', FILTER_SANITIZE_NUMBER_INT);
 
         // An empty pattern is the shipped state and means "no scale on this till".
@@ -1042,16 +1041,20 @@ class Config extends Secure_Controller
             return $this->response->setJSON(['success' => false, 'message' => lang('Config.scale_divisor_invalid')]);
         }
 
-        if (mb_strlen($port) > self::SCALE_FIELD_MAX_LENGTH) {
-            return $this->response->setJSON(['success' => false, 'message' => lang('Config.scale_port_invalid')]);
-        }
-
         $transport = $this->request->getPost('scale_transport');
 
+        // The COM port is deliberately absent. It is a fact about one till, not about the
+        // business: two tills of the same shop can have the scale on different ports, so a
+        // per-business setting could never describe both. It lives in the local program's own
+        // config.json, where it defaults to searching the scale by manufacturer rather than by
+        // number -- which is what makes moving a cable a non-event.
+        //
+        // The screen used to ask for it and nothing ever read it. A field that does nothing is
+        // worse than no field: it invites someone to "fix" it the day the port changes, and sends
+        // them chasing a number that stopped mattering.
         $batch_save_data = [
             'scale_format'    => $format,
             'scale_divisor'   => $divisor,
-            'scale_port'      => $port,
             // A closed list behind a dropdown: fall back rather than refuse, since the only way to
             // get here with something else is a hand-made request.
             'scale_transport' => in_array($transport, self::SCALE_TRANSPORTS, true) ? $transport : self::SCALE_TRANSPORTS[0]

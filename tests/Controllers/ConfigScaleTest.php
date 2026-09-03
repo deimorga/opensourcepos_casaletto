@@ -61,20 +61,36 @@ class ConfigScaleTest extends CIUnitTestCase
 
     // ========== Saving ==========
 
-    public function testSavesTheFourSettings(): void
+    public function testSavesTheThreeSettings(): void
     {
         $result = $this->save([
             'scale_format'    => 'N{W:6}',
             'scale_divisor'   => '1',
-            'scale_port'      => 'COM3',
             'scale_transport' => 'agent'
         ]);
 
         $this->assertTrue($result['success']);
         $this->seeInDatabase('app_config', ['key' => 'scale_format', 'value' => 'N{W:6}']);
         $this->seeInDatabase('app_config', ['key' => 'scale_divisor', 'value' => '1']);
-        $this->seeInDatabase('app_config', ['key' => 'scale_port', 'value' => 'COM3']);
         $this->seeInDatabase('app_config', ['key' => 'scale_transport', 'value' => 'agent']);
+    }
+
+    /**
+     * The screen no longer offers the port, but a hand-made request still can. Ignoring it is the
+     * point: the port belongs to the till, not to the business, and the local program finds the
+     * scale by manufacturer rather than by number. Writing it here would resurrect the false clue
+     * that this value does something.
+     */
+    public function testIgnoresAComPortEvenIfSomethingPostsOne(): void
+    {
+        $this->save([
+            'scale_format'    => 'N{W:6}',
+            'scale_divisor'   => '1',
+            'scale_transport' => 'agent',
+            'scale_port'      => 'COM9'
+        ]);
+
+        $this->dontSeeInDatabase('app_config', ['key' => 'scale_port', 'value' => 'COM9']);
     }
 
     public function testStoresThePatternExactlyAsTyped(): void
@@ -87,7 +103,6 @@ class ConfigScaleTest extends CIUnitTestCase
         $this->assertTrue($this->save([
             'scale_format'    => $pattern,
             'scale_divisor'   => '1',
-            'scale_port'      => '',
             'scale_transport' => 'agent'
         ])['success']);
 
@@ -99,7 +114,6 @@ class ConfigScaleTest extends CIUnitTestCase
         $result = $this->save([
             'scale_format'    => '',
             'scale_divisor'   => '1',
-            'scale_port'      => '',
             'scale_transport' => 'keys'
         ]);
 
@@ -112,14 +126,12 @@ class ConfigScaleTest extends CIUnitTestCase
         $this->save([
             'scale_format'    => 'N{W:6}',
             'scale_divisor'   => '1',
-            'scale_port'      => '',
             'scale_transport' => 'agent'
         ]);
 
         $result = $this->save([
             'scale_format'    => 'N({W:6}',
             'scale_divisor'   => '1',
-            'scale_port'      => '',
             'scale_transport' => 'agent'
         ]);
 
@@ -135,7 +147,6 @@ class ConfigScaleTest extends CIUnitTestCase
         $result = $this->save([
             'scale_format'    => 'N12.395',
             'scale_divisor'   => '1',
-            'scale_port'      => '',
             'scale_transport' => 'agent'
         ]);
 
@@ -147,7 +158,6 @@ class ConfigScaleTest extends CIUnitTestCase
         $result = $this->save([
             'scale_format'    => 'N{W:6}',
             'scale_divisor'   => '0',
-            'scale_port'      => '',
             'scale_transport' => 'agent'
         ]);
 
@@ -160,7 +170,6 @@ class ConfigScaleTest extends CIUnitTestCase
         $result = $this->save([
             'scale_format'    => 'N{W:6}',
             'scale_divisor'   => '1',
-            'scale_port'      => '',
             'scale_transport' => 'carrier_pigeon'
         ]);
 
@@ -189,7 +198,6 @@ class ConfigScaleTest extends CIUnitTestCase
         $this->save([
             'scale_format'    => 'N{W:6}',
             'scale_divisor'   => '1',
-            'scale_port'      => '',
             'scale_transport' => 'agent'
         ]);
 

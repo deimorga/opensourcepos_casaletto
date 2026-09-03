@@ -42,23 +42,6 @@
             </div>
 
             <div class="form-group form-group-sm">
-                <?= form_label(lang('Config.scale_port'), 'scale_port', ['class' => 'control-label col-xs-2']) ?>
-                <div class="col-xs-3">
-                    <?= form_input([
-                        'type'      => 'text',
-                        'name'      => 'scale_port',
-                        'id'        => 'scale_port',
-                        'class'     => 'form-control input-sm',
-                        'maxlength' => '255',
-                        'value'     => $config['scale_port'] ?? ''
-                    ]) ?>
-                </div>
-                <div class="col-xs-6">
-                    <span class="help-block"><?= lang('Config.scale_port_help') ?></span>
-                </div>
-            </div>
-
-            <div class="form-group form-group-sm">
                 <?= form_label(lang('Config.scale_format'), 'scale_format', ['class' => 'control-label col-xs-2']) ?>
                 <div class="col-xs-3">
                     <?= form_input([
