@@ -189,17 +189,30 @@ class Item extends Model
      */
     public function exists(string $item_id, bool $ignore_deleted = false, bool $deleted = false): bool
     {
+        // Solo por item_id, y es un arreglo, no una simplificacion.
+        //
+        // Esto preguntaba `item_id = X OR item_number = X` y despues exigia que hubiera
+        // EXACTAMENTE una fila. Con codigos de articulo cortos --56, 214, 800-- el id de un
+        // articulo acaba coincidiendo con el codigo de OTRO, aparecen dos filas, y la funcion
+        // respondia "no existe" sobre un articulo que existe.
+        //
+        // Lo que eso provocaba es peor que un mensaje raro: save_value() interpreta ese "no existe"
+        // como "hay que crearlo", asi que **editar el articulo creaba un duplicado en vez de
+        // guardarlo**. En Paraiso de la Canasta eran 212 de 1.184 articulos, y el duplicado ni
+        // siquiera se ve en la grilla porque nace sin filas de existencia.
+        //
+        // Los dos unicos sitios que llaman aqui preguntan por un id --save_value() y la validacion
+        // de la importacion--, asi que la comparacion contra el codigo nunca aporto nada. Resolver
+        // un codigo es otra cosa y vive en get_info_by_id_or_number(), que ya se corrigio por este
+        // mismo motivo.
         $builder = $this->db->table('items');
-        $builder->groupStart();
         $builder->where('item_id', $item_id);
-        $builder->orWhere('item_number', $item_id);
-        $builder->groupEnd();
 
         if (!$ignore_deleted) {
             $builder->where('deleted', $deleted);
         }
 
-        return ($builder->get()->getNumRows() === 1);
+        return ($builder->countAllResults() >= 1);
     }
 
     /**
