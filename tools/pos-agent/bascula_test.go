@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -276,5 +277,58 @@ func TestLosMensajesDeBitacoraNoLlevanTildes(t *testing.T) {
 				t.Errorf("carácter no ASCII %q en la posición %d de %q", r, i, texto)
 			}
 		}
+	}
+}
+
+func TestSeDaCuentaDeQueLeQuitaronElPuerto(t *testing.T) {
+	// En Windows un puerto desenchufado NO da error: Read sigue devolviendo
+	// (0, nil), igual que una báscula callada. Sin esta comprobación el agente
+	// se queda pegado a un puerto que ya no existe, informando que la báscula
+	// está "abierta" mientras el aparato vive en otro número. Pasó en la caja
+	// del cliente y costó media hora de diagnóstico.
+	cfg := cfgBascula()
+	cfg.EsperaMs = 300
+
+	var aperturas int32
+	p := &puertoFalso{}
+	b := NuevaBascula(cfg, func(ConfigBascula) (puertoSerie, error) {
+		atomic.AddInt32(&aperturas, 1)
+		return p, nil
+	}, nil)
+	// El puerto desaparece del sistema en cuanto se abre.
+	b.presente = func(string) bool { return false }
+	defer b.Cerrar()
+
+	b.Arrancar()
+
+	// silencioSospechoso + el margen de la reconexión.
+	limite := time.Now().Add(silencioSospechoso + esperaReconexion + 3*time.Second)
+	for time.Now().Before(limite) {
+		if atomic.LoadInt32(&aperturas) >= 2 {
+			return // volvió a buscar: es lo que se quería
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatalf("tras perder el puerto solo hubo %d apertura(s): el agente se quedó pegado al puerto muerto", atomic.LoadInt32(&aperturas))
+}
+
+func TestConDatosFluyendoNoSeReconectaPorNada(t *testing.T) {
+	// La comprobación no puede convertirse en una reconexión periódica: mientras
+	// llegan tramas, el puerto no se toca.
+	cfg := cfgBascula()
+	var aperturas int32
+	p := &puertoFalso{porLeer: [][]byte{[]byte("000.410\r")}}
+	b := NuevaBascula(cfg, func(ConfigBascula) (puertoSerie, error) {
+		atomic.AddInt32(&aperturas, 1)
+		return p, nil
+	}, nil)
+	b.presente = func(string) bool { return true }
+	defer b.Cerrar()
+
+	b.Arrancar()
+	time.Sleep(1500 * time.Millisecond)
+
+	if n := atomic.LoadInt32(&aperturas); n != 1 {
+		t.Errorf("se abrió el puerto %d veces con el puerto sano; se esperaba 1", n)
 	}
 }

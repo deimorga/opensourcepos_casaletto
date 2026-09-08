@@ -13,3 +13,7 @@ func BuscarBascula() (string, error) {
 }
 
 func ResumenPuertos() string { return "(enumeración de puertos solo disponible en Windows)" }
+
+// PuertoPresente no puede responder fuera de Windows, y decir "si" es lo
+// prudente: la alternativa seria cerrar un puerto que funciona.
+func PuertoPresente(string) bool { return true }

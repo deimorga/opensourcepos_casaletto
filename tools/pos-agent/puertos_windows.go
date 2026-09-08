@@ -103,3 +103,19 @@ func ResumenPuertos() string {
 	}
 	return "presentes: " + strings.Join(partes, "; ")
 }
+
+// PuertoPresente dice si un puerto sigue existiendo en el sistema.
+//
+// Hace falta porque en Windows un puerto que se desenchufa NO da error al
+// leerlo: el identificador sigue siendo valido y Read devuelve (0, nil) para
+// siempre, que es indistinguible de una bascula callada. Sin esta comprobacion
+// el agente se queda pegado a un puerto que ya no existe, informando que la
+// bascula esta "abierta", mientras el aparato vive en otro numero.
+func PuertoPresente(nombre string) bool {
+	for _, p := range listarPuertos() {
+		if strings.EqualFold(p.Nombre, nombre) {
+			return true
+		}
+	}
+	return false
+}

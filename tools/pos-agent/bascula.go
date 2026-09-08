@@ -78,6 +78,10 @@ type Bascula struct {
 	// avisarFallo.
 	fallosSeguidos int
 	ultimoAviso    time.Time
+
+	// presente comprueba que el puerto abierto siga existiendo. Es un campo
+	// para poder simular en las pruebas que alguien desenchufa el cable.
+	presente func(string) bool
 }
 
 func NuevaBascula(cfg ConfigBascula, abrir abridor, logf func(string, ...any)) *Bascula {
@@ -88,11 +92,12 @@ func NuevaBascula(cfg ConfigBascula, abrir abridor, logf func(string, ...any)) *
 		logf = func(string, ...any) {}
 	}
 	return &Bascula{
-		cfg:    cfg,
-		abrir:  abrir,
-		logf:   logf,
-		nuevas: make(chan struct{}, 1),
-		cerrar: make(chan struct{}),
+		cfg:      cfg,
+		abrir:    abrir,
+		logf:     logf,
+		presente: PuertoPresente,
+		nuevas:   make(chan struct{}, 1),
+		cerrar:   make(chan struct{}),
 	}
 }
 
@@ -128,6 +133,12 @@ const esperaReconexion = 3 * time.Second
 
 // rodajaLectura es el tiempo de espera de cada Read individual.
 const rodajaLectura = 200 * time.Millisecond
+
+// silencioSospechoso es cuanto se tolera sin datos antes de dudar de que el
+// puerto siga ahi. Esta bascula transmite unas dos veces por segundo, asi que
+// cinco segundos de silencio ya son raros; y comprobar cuesta una enumeracion,
+// no una reconexion.
+const silencioSospechoso = 5 * time.Second
 
 // bucle abre el puerto y lee para siempre, reconectando ante cualquier fallo.
 //
@@ -168,15 +179,28 @@ func (b *Bascula) bucle() {
 		b.logf("bascula: puerto %s abierto a %d %d-%s-%d", cfg.Puerto, cfg.Baudios, cfg.BitsDatos, cfg.Paridad, cfg.BitsParada)
 
 		_ = p.SetReadTimeout(rodajaLectura)
+		ultimoDato := time.Now()
 		for {
 			n, err := p.Read(buf)
 			if n > 0 {
 				b.guardar(string(buf[:n]))
+				ultimoDato = time.Now()
 			}
 			if err != nil {
 				b.logf("bascula: lectura interrumpida: %v", err)
 				break
 			}
+
+			// Un puerto desenchufado NO da error en Windows: Read sigue
+			// devolviendo (0, nil) igual que una bascula callada. Solo cuando
+			// lleva un rato en silencio se comprueba que el puerto siga
+			// existiendo -- asi no cuesta nada mientras hay datos, y un cambio
+			// de cable en caliente se detecta sin que nadie reinicie nada.
+			if time.Since(ultimoDato) > silencioSospechoso && !b.presente(cfg.Puerto) {
+				b.logf("bascula: %s dejo de existir (cable movido?); se vuelve a buscar", cfg.Puerto)
+				break
+			}
+
 			select {
 			case <-b.cerrar:
 				_ = p.Close()
