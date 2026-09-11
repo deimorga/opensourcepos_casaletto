@@ -34,12 +34,14 @@ git-svn-diff.py
 !LICENSE
 branding/
 
-# Build configs (not needed at runtime)
+# Build configs.
+#
+# package.json, package-lock.json y gulpfile.js NO se excluyen: la etapa de
+# construccion de assets los necesita dentro del contexto. Excluirlos es lo que
+# impedia compilar dentro de la imagen y obligaba a hacerlo a mano en el
+# servidor antes de cada despliegue.
 composer.json
 composer.lock
-package.json
-package-lock.json
-gulpfile.js
 .env.example
 .dockerignore
 
