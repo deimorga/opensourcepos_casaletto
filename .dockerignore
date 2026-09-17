@@ -40,10 +40,20 @@ branding/
 # construccion de assets los necesita dentro del contexto. Excluirlos es lo que
 # impedia compilar dentro de la imagen y obligaba a hacerlo a mano en el
 # servidor antes de cada despliegue.
-composer.json
-composer.lock
+#
+# composer.json y composer.lock tampoco se excluyen, desde el 2026-09-16 y por
+# la misma razon: mientras estuvieron aqui la imagen NO PODIA instalar sus
+# dependencias, asi que `vendor/` solo podia llegar por el `COPY . /app` desde
+# el directorio del servidor. Un clon limpio construia una imagen sin framework
+# y la aplicacion no arrancaba.
 .env.example
 .dockerignore
+
+# `vendor/` SI se excluye, y es el otro lado de lo mismo: lo construye la etapa
+# `vendor` dentro de la imagen. Dejarlo entrar por el contexto sobreescribiria
+# con lo que hubiera en el servidor --que es justo la dependencia que se acaba
+# de quitar-- y ademas manda al build 21 MB que no hacen falta.
+vendor/
 
 # Temporary and backup files
 *.rej

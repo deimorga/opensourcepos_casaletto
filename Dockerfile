@@ -1,3 +1,42 @@
+# Etapa 0: instalar las dependencias de PHP DENTRO de la imagen.
+#
+# Hasta el 2026-09-16 esto no ocurria: composer.json y composer.lock estaban en
+# .dockerignore, de modo que la imagen no podia instalar nada y `vendor/` solo
+# llegaba por el `COPY . /app`, es decir desde el directorio de trabajo del
+# servidor, donde lo habia dejado un build manual antiguo. Consecuencia: un clon
+# limpio --servidor nuevo, `git clean -fdx`, una recuperacion ante desastre--
+# construia una imagen SIN framework, y la aplicacion no arrancaba siquiera.
+#
+# php:8.4-cli a proposito: la MISMA version que sirve la aplicacion abajo.
+# Composer resuelve los requisitos de plataforma (`ext-intl`, `php ^8.2`) contra
+# el PHP con el que corre, asi que instalar con otra version puede elegir
+# paquetes que luego no encajen.
+FROM php:8.4-cli AS vendor
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libicu-dev unzip \
+    && docker-php-ext-install intl \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=composer:2 /usr/bin/composer /usr/local/bin/composer
+
+WORKDIR /src
+
+# El codigo de la aplicacion entra ANTES de instalar, y no es opcional:
+# --optimize-autoloader construye el classmap recorriendo las rutas psr-4
+# declaradas en composer.json (`App\` -> `app/`). Si `app/` no esta presente en
+# ese momento, el classmap sale sin una sola clase de la aplicacion.
+#
+# Las rutas que composer escribe son relativas a la ubicacion de `vendor/` en
+# tiempo de ejecucion (`__DIR__ . '/../..'`), no a donde se construyo, asi que
+# construir en /src y copiar a /app/vendor es correcto.
+COPY composer.json composer.lock ./
+COPY app ./app
+
+RUN composer install --no-dev --optimize-autoloader --no-interaction --no-progress \
+    && composer clear-cache
+
 # Etapa 1: compilar los assets DENTRO de la imagen.
 #
 # Sin esto, `public/resources` --el CSS y el JavaScript minificados-- no existia
@@ -79,6 +118,25 @@ COPY --from=assets --chown=www-data:www-data /src/public/resources /app/public/r
 COPY --from=assets --chown=www-data:www-data /src/app/Views/partial/header.php /app/app/Views/partial/header.php
 COPY --from=assets --chown=www-data:www-data /src/app/Views/login.php /app/app/Views/login.php
 COPY --from=assets --chown=www-data:www-data /src/public/images/menubar /app/public/images/menubar
+
+# Las dependencias de PHP, de la etapa `vendor`. `vendor/` esta excluido en
+# .dockerignore, asi que el `COPY . /app` de arriba no trae nada aqui y esta es
+# la unica fuente.
+COPY --from=vendor --chown=www-data:www-data /src/vendor /app/vendor
+
+# La comprobacion que convierte un fallo silencioso en un build roto, igual que
+# la de los bloques inject en la etapa de assets.
+#
+# No basta con que exista `vendor/`: lo que importa es que el autoload resuelva
+# de verdad las clases de la aplicacion con las rutas que tiene DENTRO de la
+# imagen. Un classmap construido sin las fuentes presentes deja `App\` vacio, y
+# eso no se nota hasta que alguien abre una pantalla.
+RUN test -f /app/vendor/autoload.php \
+    && test -f /app/vendor/codeigniter4/framework/system/CodeIgniter.php \
+    && php -r 'require "/app/vendor/autoload.php"; \
+               exit(class_exists("App\\Controllers\\Home") \
+                 && class_exists("App\\Libraries\\MY_Migration") ? 0 : 1);' \
+    || ( echo "FALLO: vendor incompleto, o el autoload no resuelve App\\" && exit 1 )
 
 RUN chmod 750 /app/writable/logs /app/writable/uploads /app/writable/cache /app/public/uploads /app/public/uploads/item_pics \
     && chmod 640 /app/writable/uploads/importCustomers.csv \
