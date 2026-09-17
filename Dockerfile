@@ -63,12 +63,22 @@ RUN echo "date.timezone = \"\${PHP_TIMEZONE}\"" > /usr/local/etc/php/conf.d/time
 WORKDIR /app
 COPY --chown=www-data:www-data . /app
 
-# De la etapa de compilacion salen TRES cosas: los assets y las dos vistas que
-# gulp reescribe con las etiquetas inyectadas. Copiar solo los assets dejaria
-# las paginas sin cargarlos.
+# De la etapa de compilacion salen CUATRO cosas: los assets, las dos vistas que
+# gulp reescribe con las etiquetas inyectadas, y los iconos del menu. Copiar
+# solo los assets dejaria las paginas sin cargarlos.
+#
+# Los iconos son el caso menos evidente, y faltaban hasta el 2026-09-16.
+# `copy-menubar` los genera en public/images/menubar, que esta gitignoreado: no
+# viajan en el repositorio. Sin esta ultima linea llegaban solo por el
+# `COPY . /app` de arriba -- o sea, desde el directorio del servidor, donde
+# sobreviven a `git reset --hard` precisamente por estar ignorados. Funcionaba
+# por inercia: un clon limpio (servidor nuevo, `git clean -fdx`, o una
+# recuperacion ante desastre) construia la imagen sin un solo icono, y la
+# servia respondiendo 200.
 COPY --from=assets --chown=www-data:www-data /src/public/resources /app/public/resources
 COPY --from=assets --chown=www-data:www-data /src/app/Views/partial/header.php /app/app/Views/partial/header.php
 COPY --from=assets --chown=www-data:www-data /src/app/Views/login.php /app/app/Views/login.php
+COPY --from=assets --chown=www-data:www-data /src/public/images/menubar /app/public/images/menubar
 
 RUN chmod 750 /app/writable/logs /app/writable/uploads /app/writable/cache /app/public/uploads /app/public/uploads/item_pics \
     && chmod 640 /app/writable/uploads/importCustomers.csv \
