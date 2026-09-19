@@ -242,7 +242,7 @@ return [
     "print_left_margin_number"                  => "Margin Left must be a number.",
     "print_left_margin_required"                => "Margin Left is a required field.",
     "open_cash_drawer_on_sale"                  => "Abrir el cajón al finalizar la venta",
-    "open_cash_drawer_on_sale_help"             => "Abre el cajón al completar una venta. El cajón cuelga de la impresora de recibos, así que se le envía una orden de control: no se imprime nada. Déjelo apagado si esta caja no tiene cajón.",
+    "open_cash_drawer_on_sale_help"             => "Abre el cajón al completar una venta. El cajón cuelga de la impresora de recibos, así que se le envía una orden de control: no se imprime nada. Funciona tal cual con cualquier impresora ESC/POS, sin configurar nada. Déjelo apagado si esta caja no tiene cajón.",
     "print_receipt_check_behaviour"             => "Casilla «Imprimir recibo»",
     "print_receipt_check_behaviour_always"      => "Siempre marcada",
     "print_receipt_check_behaviour_last"        => "Recordar la última selección",
