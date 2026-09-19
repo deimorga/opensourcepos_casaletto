@@ -1,13 +1,16 @@
 <?php
 /**
- * Abre el cajon monetero al terminar una venta.
+ * Abre el cajon monedero al terminar una venta.
+ *
+ * Quien decide SI abrirlo es Sale_lib::should_open_cash_drawer(): mira el ajuste del negocio y,
+ * cuando dice «solo efectivo», tambien con que se pago. Aqui ya solo llega el si o el no.
  *
  * @var bool $open_cash_drawer
  */
 
-// Sin el ajuste encendido no se emite nada, y la pagina se comporta EXACTAMENTE como antes. Es lo
-// que protege a los negocios que no tienen cajon -- o que venden a domicilio, donde abrirlo no
-// significa nada.
+// Sin permiso no se emite nada, y la pagina se comporta EXACTAMENTE como antes. Es lo que protege
+// a los negocios que no tienen cajon, a los que venden a domicilio -- donde abrirlo no significa
+// nada -- y a la venta que se acaba de cobrar con tarjeta.
 if (empty($open_cash_drawer)) {
     return;
 }
@@ -22,9 +25,11 @@ if (empty($open_cash_drawer)) {
      * papel. Por eso esto es independiente de si el recibo se imprime o no, que era justamente
      * lo que el negocio pedia: llegar al efectivo sin gastar una tirilla por venta.
      *
-     * Los bytes exactos NO se deciden aqui. Los decide el programa de la caja desde su propia
-     * configuracion, porque cada cajon tiene su gusto y cambiarlos no puede exigir tocar el
-     * servidor. Aqui solo se pide la accion.
+     * Los bytes exactos NO se deciden aqui: los manda el programa de la caja. La secuencia por
+     * omision --ESC p 0 25 250, el ejemplo de la especificacion de Epson-- funciona tal cual en
+     * practicamente cualquier termica, asi que no hay nada que configurar por cliente; queda del
+     * lado del programa por si alguna vez hay que tocarla, y para no exigir un despliegue del
+     * servidor para hacerlo. Aqui solo se pide la accion.
      */
     var url = 'ws://127.0.0.1:7878/ws';
 

@@ -21,8 +21,8 @@ final class OpenCashDrawerViewTest extends CIUnitTestCase
     }
 
     /**
-     * Silence is the safety property. A counter with no drawer -- or a business that sells by
-     * delivery -- must get exactly the page it had before.
+     * Silence is the safety property. A counter with no drawer, a business that sells by delivery,
+     * and a sale just paid by card must all get exactly the page they had before.
      */
     public function testEmitsNothingWhenTheSettingIsOff(): void
     {
@@ -39,8 +39,9 @@ final class OpenCashDrawerViewTest extends CIUnitTestCase
     }
 
     /**
-     * The bytes are NOT decided here. They live in the local program's own configuration because
-     * every drawer has its own taste, and changing them must never require touching the server.
+     * The bytes are NOT decided here: the local program sends them. Its default sequence works as
+     * shipped on practically any thermal printer, so there is nothing to configure per shop -- it
+     * lives there so that changing it never requires a server deploy.
      */
     public function testDoesNotHardcodeTheEscposSequence(): void
     {

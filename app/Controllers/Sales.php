@@ -1242,8 +1242,6 @@ class Sales extends Secure_Controller
         // alguien la marco. Lo que se ve y lo que hace se separaban -- peor que no tener el ajuste.
         $data['print_after_sale'] = $this->sale_lib->is_print_after_sale();
 
-        // El cajon es independiente de la impresion: son dos ordenes distintas a la impresora.
-        $data['open_cash_drawer'] = $this->sale_lib->should_open_cash_drawer();
         $data['price_work_orders'] = $this->sale_lib->is_price_work_orders();
         $data['email_receipt'] = $this->sale_lib->is_email_receipt();
         $customer_id = $this->sale_lib->get_customer();
@@ -1309,6 +1307,16 @@ class Sales extends Secure_Controller
                 $data['payments'] += $payment;
             }
         }
+
+        /*
+         * El cajon es independiente de la impresion: son dos ordenes distintas a la impresora, y
+         * por eso se puede abrir sin gastar una tirilla.
+         *
+         * Se decide AQUI y no arriba porque depende de con que se pago, y los pagos acaban de
+         * quedar completos: el bloque anterior agrega la linea de efectivo cuando la venta da
+         * cambio. Ese cambio sale del cajon, asi que cuenta.
+         */
+        $data['open_cash_drawer'] = $this->sale_lib->should_open_cash_drawer($data['payments']);
 
         $data['print_price_info'] = true;
 

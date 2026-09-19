@@ -4,6 +4,7 @@ namespace App\Database\Migrations;
 
 use CodeIgniter\CLI\CLI;
 use CodeIgniter\Database\Migration;
+use App\Libraries\Sale_lib;
 use Config\OSPOS;
 use Throwable;
 
@@ -15,13 +16,16 @@ use Throwable;
  * only way to open it was to print something, which is why the shop was burning a receipt per sale
  * just to reach the cash.
  *
- * Shipped OFF. A business without a drawer must not notice this exists, and one that sells mostly
- * by delivery has no reason to pop a drawer at all.
+ * Three states -- 'never', 'cash', 'always' -- and it is seeded at 'never'. A business without a
+ * drawer must not notice this exists, and one that sells mostly by delivery has no reason to pop a
+ * drawer at all. The one a counter normally wants is 'cash': money only has to be reached when
+ * money physically moves.
  */
 class Migration_AddOpenCashDrawerSetting extends Migration
 {
     private const TABLE = 'app_config';
-    private const KEY = 'open_cash_drawer_on_sale';
+    private const KEY = 'open_cash_drawer_behaviour';
+    private const DEFAULT = Sale_lib::CASH_DRAWER_NEVER;
 
     public function up(): void
     {
@@ -31,8 +35,8 @@ class Migration_AddOpenCashDrawerSetting extends Migration
             return;
         }
 
-        $this->db->table(self::TABLE)->insert(['key' => self::KEY, 'value' => '0']);
-        CLI::write('AddOpenCashDrawerSetting: seeded OFF (no change in behaviour).');
+        $this->db->table(self::TABLE)->insert(['key' => self::KEY, 'value' => self::DEFAULT]);
+        CLI::write('AddOpenCashDrawerSetting: seeded «' . self::DEFAULT . '» (no change in behaviour).');
 
         $this->refreshSettingsCache();
     }
@@ -43,7 +47,7 @@ class Migration_AddOpenCashDrawerSetting extends Migration
      */
     public function down(): void
     {
-        $this->db->table(self::TABLE)->where('key', self::KEY)->where('value', '0')->delete();
+        $this->db->table(self::TABLE)->where('key', self::KEY)->where('value', self::DEFAULT)->delete();
         $this->refreshSettingsCache();
     }
 
