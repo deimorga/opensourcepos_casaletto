@@ -254,6 +254,46 @@ class SalesControllerTest extends CIUnitTestCase
     }
 
     /**
+     * A sale paid entirely by card that still owes change used to die with a 500.
+     *
+     * When change is due and no cash line exists, postComplete() synthesises one to carry the
+     * refund -- and that literal was missing 'cash_adjustment', which Sale::save_value() reads
+     * without a null coalesce. The cashier lost the sale and had to ring it up again.
+     *
+     * Found certifying the cash drawer in staging on 2026-09-18, on develop as well: it is
+     * upstream's, not ours. It matters doubly now, because "open the drawer only on cash" counts
+     * that refund as cash -- the money comes out of the drawer -- and this path never got there.
+     */
+    public function testASaleWithChangeAndNoCashPaymentCompletes(): void
+    {
+        $this->openTableWithItem($this->tableA, $this->itemNumberA);
+        $saleId = model(Sale::class)->get_open_sale_by_table($this->tableA);
+        $this->assertNotNull($saleId);
+
+        // 15 tendered against a 10 item: the change is 5, and not one cent of it was paid in cash.
+        $this->postReq('sales/addPayment', ['payment_type' => 'Debit Card', 'amount_tendered' => '15.00']);
+        $respuesta = $this->postReq('sales/complete', []);
+
+        $respuesta->assertStatus(200);
+
+        $this->assertNull(
+            model(Sale::class)->get_open_sale_by_table($this->tableA),
+            'The sale has to close: a 500 here leaves the table occupied and the sale unrecorded.'
+        );
+
+        $pagos = db_connect()->table('sales_payments')
+            ->where('sale_id', $saleId)
+            ->get()
+            ->getResultArray();
+
+        $this->assertNotEmpty($pagos, 'The payments have to reach the database, not roll back.');
+
+        $efectivo = array_values(array_filter($pagos, fn ($p) => $p['payment_type'] === 'Cash'));
+        $this->assertCount(1, $efectivo, 'The change is carried by a cash line, added by the controller.');
+        $this->assertEquals('5.00', $efectivo[0]['cash_refund']);
+    }
+
+    /**
      * Regression test for the phantom "Delivery" tabs found in production
      * 2026-08-10 (docs/Tecnico/ventas-en-paralelo-pestanas.md section 13):
      * Delivery (1) and Take Away (2) are pseudo-tables, never occupied, never

@@ -1300,7 +1300,12 @@ class Sales extends Secure_Controller
                     lang('Sales.cash') => [
                         'payment_type'   => lang('Sales.cash'),
                         'payment_amount' => 0,
-                        'cash_refund'    => $data['amount_change']
+                        'cash_refund'    => $data['amount_change'],
+                        // Sale::save_value() lee esta clave sin ?? al guardar cada pago, asi que
+                        // sin ella la venta muere con un 500 justo aqui: una venta cobrada por
+                        // completo con tarjeta a la que hay que devolver vueltas. No es un ajuste
+                        // de redondeo -- es la linea de efectivo que sostiene el cambio.
+                        'cash_adjustment' => CASH_ADJUSTMENT_FALSE
                     ]
                 ];
 
