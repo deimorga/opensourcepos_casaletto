@@ -1505,6 +1505,66 @@ encendido —cuyo síntoma es que hace clic y no suelta—.
 Hay una prueba que afirma que el JavaScript **no** lleva los bytes, porque es justo la clase de cosa
 que alguien «optimiza» metiéndolos en la vista.
 
+#### Certificado en staging, sobre la interfaz (2026-09-18)
+
+Rama desplegada en `staging` y migrada: los cuatro esquemas quedaron sembrados en `never`, sin que
+ninguno cambiara de comportamiento. Las pruebas se hicieron **vendiendo de verdad** en
+`panaderia.staging.ospos-saas.micronuba.net`, con el teclado en pantalla y la báscula digitada,
+igual que en el mostrador.
+
+| # | Ajuste | Cómo se pagó | Resultado |
+|---|---|---|---|
+| POS 13 | `never` | Efectivo | La página **no emite una sola línea**: ni la orden del cajón ni la dirección del programa local |
+| POS 8 | `cash` | Efectivo $5.000 sobre $3.014 (panela, 0,735 kg) | Pide el cajón. **No imprime solo** |
+| POS 9 | `cash` | Tarjeta, monto exacto | **No** pide el cajón |
+| POS 11 | `cash` | Tarjeta, con vueltas de $800 | **Sí** pide el cajón: las vueltas salen de ahí |
+| POS 12 | `always` | Transferencia | Pide el cajón, y con «siempre marcada» **sí** emite el disparador de impresión |
+| POS 14 | `cash` + «nunca imprimir» | Efectivo $10.000 sobre $5.125 (panela, 1,250 kg) | El perfil que va a usar el negocio: pide el cajón, no imprime, y el recibo sale con `@page { size: 48mm auto; margin: 0 }` |
+
+POS 12 importa tanto como los demás: prueba que el disparador de impresión **se sabe emitir**, así
+que el silencio de POS 8 y POS 14 es el ajuste obedeciendo y no un JavaScript roto.
+
+**El lado del agente, aparte.** Chrome 153 en el equipo de desarrollo bloquea el acceso a la red
+local y deja la petición colgada --es exactamente el §5.3.1, y ahí no hay la directiva que sí tiene
+el terminal--. Así que ese tramo se ejerció con un cliente WebSocket propio que manda **el mismo
+origen** que mandaría la página:
+
+```
+HANDSHAKE: HTTP/1.1 101 Switching Protocols
+SALUDO:    {"op":"hello","version":"dev","scale":false,"printer":true}
+RESPUESTA: {"op":"error","id":"certificacion","code":"fallo",
+            "message":"la impresión cruda solo está implementada en Windows"}
+```
+
+Ese mensaje **solo lo puede producir `Impresora.AbrirCajon()`**, así que el agente recibió la orden
+y ejecutó el camino del cajón; en macOS no hay spooler al que hablarle y no puede terminar. De paso
+quedó comprobada la lista de orígenes, que es el control de seguridad: un origen ajeno y el mismo
+host en `http://` en vez de `https://` reciben **403 antes del handshake**.
+
+**Lo que este tramo NO deja pendiente en el terminal:** la báscula de Paraíso habla con el agente
+por ese mismo `ws://127.0.0.1:7878` desde ese mismo origen todos los días desde el 2026-09-02. El
+permiso de red local y la lista de orígenes ya están resueltos allí. Lo único que falta es el
+último centímetro: que la impresora ejecute `ESC p` con el cajón conectado.
+
+#### Un defecto de upstream que esta certificación destapó
+
+Probando «tarjeta con vueltas» la venta murió con un 500:
+
+```
+ErrorException: Undefined array key "cash_adjustment"
+en APPPATH/Models/Sale.php:695  [POST sales/complete]
+```
+
+Cuando hay cambio por devolver y **no existe una línea de efectivo**, `postComplete()` se inventa
+una para cargar las vueltas, y ese literal no traía `cash_adjustment` --que `Sale::save_value()` lee
+sin `??`--. Viene de upstream (`e83c23cf0`, 2025-05-02), está idéntico en `develop` y por lo tanto
+**también en producción**.
+
+No corrompe datos: la venta entera hace rollback --comprobado en la base, la última venta seguía
+siendo la anterior--. Es una venta perdida que el cajero tiene que volver a digitar delante del
+cliente. Corregido en esta rama con su prueba de regresión, y POS 11 es la comprobación sobre la
+interfaz ya desplegada.
+
 #### Qué se despliega y qué no
 
 Migración `20260919000000_AddOpenCashDrawerSetting`, que siembra `never` y **no toca a un tenant que

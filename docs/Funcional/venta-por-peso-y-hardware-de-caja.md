@@ -465,6 +465,11 @@ habían separado, que es peor que no tener el ajuste.
 imprime hasta que se lo pidan, y esa fue la razón por la que quedó claro que el cajón tenía que
 dejar de depender de la impresión.
 
+**Certificado el 2026-09-18** sobre ventas reales en el ambiente de pruebas: con «siempre
+desmarcada» el recibo no sale hasta oprimir «Imprimir», y con «siempre marcada» sí sale solo —lo
+segundo importa tanto como lo primero, porque demuestra que el silencio es el ajuste obedeciendo y
+no algo que se rompió.
+
 De paso se tradujo esa pantalla de configuración, que seguía en inglés.
 
 ### 4.3d Cómo damos soporte, y por qué no dejamos una puerta abierta
@@ -541,6 +546,18 @@ sí se abre: ese cambio sale de ahí.
 es un solenoide que recibe un pulso, y la orden que lo dispara es la misma en prácticamente toda
 impresora térmica del mercado. Un cliente nuevo con un cajón distinto solo elige una de las tres
 opciones de arriba.
+
+**Probado vendiendo de verdad (2026-09-18).** Se certificó en el ambiente de pruebas con seis
+ventas reales: pesando en la balanza, cobrando y dando vueltas. El cajón se pidió cuando entró
+efectivo —incluido el caso de cobrar con tarjeta y devolver cambio— y **no** se pidió cuando el pago
+fue solo con tarjeta. Con el ajuste apagado la página no manda absolutamente nada.
+
+**Un error que encontramos ahí, y que le estaba pasando al negocio sin que lo supiéramos.** Al
+probar «cobrar con tarjeta y devolver vueltas» la venta se caía: el sistema mostraba una pantalla de
+error y **la venta no quedaba registrada**. El cajero la pierde y tiene que volver a digitarla
+delante del cliente. Es un error que viene del sistema original, lleva año y medio ahí y **está en
+producción hoy**. No daña datos —la venta no queda a medias, simplemente no queda—, y ya está
+corregido en esta misma entrega.
 
 **Pendiente:** conectarlo físicamente y confirmarlo con `pos-agent.exe -abrir-cajon`. Es el último
 paso y ya no depende de desarrollo.
