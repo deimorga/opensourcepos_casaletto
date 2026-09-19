@@ -234,6 +234,21 @@ class Sale_lib
         ];
     }
 
+    /**
+     * Whether the cash drawer should pop when a sale is completed.
+     *
+     * The drawer hangs off the receipt printer by RJ11, so opening it is a control sequence sent to
+     * the printer -- NOT a print. That distinction is the whole point: the shop was printing a
+     * receipt it did not want, on every sale, purely to reach the cash.
+     *
+     * Off unless the business says otherwise. A counter with no drawer, or one that sells by
+     * delivery, must not have anything change under it.
+     */
+    public function should_open_cash_drawer(): bool
+    {
+        return ($this->config['open_cash_drawer_on_sale'] ?? '0') == '1';
+    }
+
     public static function isValidReceiptPaper(string $receipt_paper): bool
     {
         return in_array($receipt_paper, self::RECEIPT_PAPERS, true);

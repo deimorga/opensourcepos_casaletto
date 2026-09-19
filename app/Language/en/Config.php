@@ -241,6 +241,8 @@ return [
     "print_left_margin"                         => "Margin Left",
     "print_left_margin_number"                  => "Margin Left must be a number.",
     "print_left_margin_required"                => "Margin Left is a required field.",
+    "open_cash_drawer_on_sale"                  => "Open cash drawer after a sale",
+    "open_cash_drawer_on_sale_help"             => "Pops the drawer when a sale is completed. The drawer hangs off the receipt printer, so this sends it a control sequence -- nothing is printed. Leave it off if this counter has no drawer.",
     "print_receipt_check_behaviour"             => "Print Receipt checkbox",
     "print_receipt_check_behaviour_always"      => "Always checked",
     "print_receipt_check_behaviour_last"        => "Remember last selection",

@@ -1165,6 +1165,7 @@ class Config extends Secure_Controller
             'receipt_show_description'      => $this->request->getPost('receipt_show_description') != null,
             'receipt_show_serialnumber'     => $this->request->getPost('receipt_show_serialnumber') != null,
             'print_silently'                => $this->request->getPost('print_silently') != null,
+            'open_cash_drawer_on_sale'      => $this->request->getPost('open_cash_drawer_on_sale') != null,
             'print_header'                  => $this->request->getPost('print_header') != null,
             'print_footer'                  => $this->request->getPost('print_footer') != null,
             'print_top_margin'              => $this->request->getPost('print_top_margin', FILTER_SANITIZE_NUMBER_INT),

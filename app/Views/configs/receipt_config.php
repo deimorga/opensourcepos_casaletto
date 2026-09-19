@@ -210,6 +210,21 @@
             </div>
 
             <div class="form-group form-group-sm">
+                <?= form_label(lang('Config.open_cash_drawer_on_sale'), 'open_cash_drawer_on_sale', ['class' => 'control-label col-xs-2']) ?>
+                <div class="col-xs-3">
+                    <?= form_checkbox([
+                        'name'    => 'open_cash_drawer_on_sale',
+                        'id'      => 'open_cash_drawer_on_sale',
+                        'value'   => 'open_cash_drawer_on_sale',
+                        'checked' => ($config['open_cash_drawer_on_sale'] ?? '0') == '1'
+                    ]) ?>
+                </div>
+                <div class="col-xs-6">
+                    <span class="help-block"><?= lang('Config.open_cash_drawer_on_sale_help') ?></span>
+                </div>
+            </div>
+
+            <div class="form-group form-group-sm">
                 <?= form_label(lang('Config.print_silently'), 'print_silently', ['class' => 'control-label col-xs-2']) ?>
                 <div class="col-xs-1">
                     <?= form_checkbox([
