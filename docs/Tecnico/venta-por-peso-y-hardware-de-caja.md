@@ -1170,6 +1170,13 @@ los siguientes.
 | `dinner_table_enable` | `0` | Es de restaurante; no aplica |
 | `receiving_calculate_average_price` | `1` | Costo promedio ponderado |
 | `timezone` | `America/Bogota` | El seed ya lo trae correcto |
+| `receipt_paper` | `58mm` | La plantilla se maqueta al ancho **imprimible** (48 mm), no al nominal. Vacío = imprimir como siempre |
+| `print_receipt_check_behaviour` | según decisión | `never` = el recibo solo sale cuando el cajero oprime «Imprimir» |
+| `open_cash_drawer_behaviour` | `cash` | El cajón se abre al terminar la venta, solo si entró efectivo |
+
+Las tres últimas se siembran neutras por migración (`''`, lo que ya hubiera, `never`) y **solo
+cambian algo si el negocio las toca**: un tenant sin cajón o sin impresora térmica no se entera de
+que existen.
 
 **Verificado y descartado como problema:** el redondeo del dinero está bien.
 `Load_config.php:57` fija `bcscale(max(2, currency_decimals + tax_decimals))`, así que con
@@ -1340,6 +1347,28 @@ verdad habría sido con un cliente delante: ni el navegador ni `curl` pueden eje
 
 El recibo **lleva impreso el nombre de la impresora**. Con dos colas instaladas, saber cuál salió en
 el papel es la diferencia entre diagnosticar y adivinar.
+
+#### El recibo no sabía en qué papel se imprime (2026-09-03)
+
+No había **ni una regla `@page`** en todo el proyecto. El tamaño de la hoja lo decidía entero el
+driver y el navegador le sumaba **sus** márgenes por omisión —unos 10 mm por lado—. Sobre los 48 mm
+que una tirilla de 58 mm imprime de verdad, eso se come más de la mitad del ancho útil y el recibo
+sale estrujado en una columna.
+
+Ahora el negocio declara su papel (`receipt_paper`) y la vista emite la geometría: `size` con altura
+`auto` —la tirilla mide lo que mida la venta, en vez de reservar una hoja entera— y `margin: 0`, que
+es el arreglo de fondo. Tres cosas que valen más que el CSS:
+
+- **Sin papel declarado no se emite nada.** Un negocio que hoy imprime bien no puede cambiar de
+  comportamiento el día que esto migre; por eso el valor sembrado es la cadena vacía.
+- **48 mm, no 58.** Un rollo se vende por un ancho en el que no imprime. Maquetar al nominal es la
+  forma clásica de perder la columna de la derecha —los totales— por el borde del papel. El driver
+  del cliente lo confirma: reporta 480 décimas de milímetro para un papel que llama «58».
+- **Es una lista cerrada detrás de un desplegable**, y lo que no esté en ella cae en «como siempre».
+
+**Pendiente:** imprimir uno de verdad en el local y dejar `receipt_paper = 58mm` en el tenant.
+Verificado el 2026-09-18: está **vacío en los dos negocios de producción**, así que hoy ninguno de
+los dos ha cambiado su forma de imprimir.
 
 #### Un defecto propio que destapó la visita
 
@@ -1648,6 +1677,10 @@ de despliegue, no un commit más.
 | Columna nueva en la importación CSV | Sí | **Al final y opcional.** Nunca reordenar columnas: rompería las plantillas que ya usen |
 | Sufijo de unidad en el recibo | Sí | Solo cuando la unidad no es `unit` |
 | `quantity_decimals = 3` | **No** | Es configuración por tenant. Casaletto conserva su `0` — y hay que **verificarlo explícitamente** después de desplegar |
+| `receipt_paper` / `@page` del recibo | Vista compartida | La regla CSS solo se emite si el tenant configuró un rollo. Vacío en Casaletto = se imprime igual que siempre |
+| **`postComplete()` deja de leer la sesión en crudo** | **Sí, código compartido** | Es la corrección de un defecto. Casaletto está en `last` —recordar la última selección—, que es exactamente lo que el método devuelve: mismo resultado, ahora por el camino correcto |
+| `open_cash_drawer_behaviour` + parcial del cajón | Vista compartida | Sembrado en `never`: el parcial **no emite una sola línea** y la página del recibo es byte por byte la de antes |
+| Parcial del cajón en `invoice` y `tax_invoice` | Vistas compartidas | Mismo caso: sin el ajuste encendido no emite nada |
 
 ### 7c.3 La caché de configuración, que muerde callado
 
@@ -1768,7 +1801,9 @@ bloquea la salida a producción, pero conviene que estén escritos y no en la ca
 | `app/Controllers/Items.php` | `unit_of_measure` en guardado, CSV y edición masiva |
 | `app/Views/sales/register.php` | Campo de peso, manejo de foco, enchufe de transporte |
 | `app/Views/items/form.php` | Selector de unidad de medida e interruptor de lotes |
-| `app/Views/configs/` | Pantalla de configuración de báscula |
+| `app/Views/configs/` | Pantalla de configuración de báscula; y en `receipt_config.php`, el rollo y el cajón |
+| `app/Views/partial/open_cash_drawer.php` | Pide `drawer.open` al agente al terminar la venta |
+| `app/Views/partial/receipt_paper.php` | `@page` con el ancho imprimible del rollo |
 | *(repositorio nuevo)* | El agente local en Go |
 
 ## 10. Pruebas
@@ -1786,6 +1821,16 @@ bloquea la salida a producción, pero conviene que estén escritos y no en la ca
 - **Venta con lotes**: consumo del que vence primero.
 - **Migración inocua**: que `unit_of_measure` y `tracks_lots` no cambien el comportamiento de los
   artículos existentes de Casaletto.
+- **«Nunca imprimir» significa nunca**: con `print_receipt_check_behaviour = never` y la sesión
+  trayendo un `true` viejo, que la página del recibo **no** emita el disparador de impresión.
+- **El cajón, en sus tres estados**: que `never` no abra nunca; que `cash` abra con efectivo, con el
+  ajuste de redondeo y con un pago mixto, y **no** con tarjeta sola; que `always` abra siempre.
+- **El cambio cuenta como efectivo**: una venta cobrada con tarjeta que devuelve vueltas abre el
+  cajón, porque esas vueltas salen de ahí. En la librería se reduce al caso anterior —`Sales.php`
+  agrega la línea de efectivo antes de decidir—, así que **esta se certifica en staging**, sobre una
+  venta real.
+- **Los bytes del cajón no están en la vista**: que el JavaScript no lleve la secuencia `ESC p`. Es
+  justo lo que alguien «optimizaría» metiéndolo ahí.
 
 ## 11. Lo que se descartó, y por qué
 
@@ -1802,7 +1847,7 @@ bloquea la salida a producción, pero conviene que estén escritos y no en la ca
 
 ## 12. Orden de implementación
 
-**Estado a 2026-08-28.** El trabajo se organizó en vías disjuntas en archivos, ejecutadas en
+**Estado a 2026-09-18.** El trabajo se organizó en vías disjuntas en archivos, ejecutadas en
 paralelo y mergeadas en orden fijo. Detalle del análisis de paralelización y del mapa de colisiones
 en el plan (`~/.claude/plans/prancy-puzzling-umbrella.md`).
 
@@ -1811,20 +1856,21 @@ en el plan (`~/.claude/plans/prancy-puzzling-umbrella.md`).
 | **V1 · Despliegue** | Entrypoint que migra antes de servir (§7c.1) | **Hecha** — `8f92b4901` |
 | **V3 · Precisión** | §2.2 y §2.4, escala explícita de bcmath | **Hecha** — `ba43e270c` |
 | **V2 · Unidad de medida** | §3, §3.1 | **Hecha** — `524da70b2` |
-| **V5a · Intérprete de báscula** | Token `[\d.]`, claves `scale_*`, pantalla de configuración | En curso |
-| **V5b · `parse_barcode()`** | `break`, divisor configurable, patrón anclado (§4.4) | **Bloqueada** — requiere la consulta de §7c.4 contra Casaletto |
-| **V6 · Caja** | Unidad en la línea del carrito, campo de peso, foco, teclado en pantalla | En curso |
-| **V4 · Operación** | Provisionar el tenant (§7), inspección del instalador | Pendiente — depende del cliente |
+| **V5a · Intérprete de báscula** | Token `[\d.]`, claves `scale_*`, pantalla de configuración | **Hecha** — `2723a9899` |
+| **V5b · `parse_barcode()`** | `break`, divisor configurable, patrón anclado (§4.4) | **Hecha** — `dc67abaa8`, con la consulta de §7c.4 hecha primero |
+| **V6 · Caja** | Unidad en la línea del carrito, campo de peso, foco, teclado en pantalla | **Hecha** — `00fcb600e` y siguientes |
+| **V4 · Operación** | Provisionar el tenant (§7), inspección del instalador | **Hecha** — el negocio factura desde 2026-09-02 |
+| **Agente local** | §5 — báscula, impresión, cajón | **En producción** desde 2026-09-02. Ver §7b-bis |
+| **Papel del recibo** | `receipt_paper` y la regla `@page` con el ancho imprimible | **Hecha** — `695ead599`. Falta declararlo en el negocio |
+| **Impresión y cajón** | «Nunca imprimir» significa nunca; cajón solo con efectivo | **En rama `feat/cajon-y-impresion`**, sin desplegar |
 | **Inventario** | §6.1, §6.2, §6.3 | Después del corte, por decisión del 2026-08-28 |
-| **Agente local** | §5 | Después del corte |
 
-**Con V6 terminada el cliente puede salir a producción** con el peso digitado a mano. El agente
-local no está en el camino crítico.
+**El cliente ya salió a producción** y el agente local, que no estaba en el camino crítico, terminó
+llegando antes que la salida: la báscula vende desde el 2026-09-02.
 
-**V5b es el único bloqueo real**, y no es técnico: hace falta leer `barcode_formats` del esquema de
-Casaletto (§7c.4) antes de anclar el patrón, porque podría romperle un formato que hoy engancha por
-coincidencia parcial. V5a se separó de V5b precisamente para no quedar bloqueada: la báscula usa
-claves nuevas y `Token_lib::parse()`, sin tocar el camino de códigos de barras.
+**Lo que queda abierto de esta lista** es el módulo de inventario y, en la rama de recibo y cajón,
+tres cosas: certificarla en staging, elegir con el cliente el valor de `open_cash_drawer_behaviour`
+—que el negocio ya pidió en `cash`— y conectar el cajón, que es hardware y va último.
 
 **Orden de merge respetado:** V1 → V3 → V2. V3 fue primero entre las de código porque **no trae
 migración**, lo que la hacía la candidata segura para estrenar el pipeline nuevo del entrypoint.

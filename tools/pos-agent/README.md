@@ -13,7 +13,7 @@ Diseño completo: `docs/Tecnico/venta-por-peso-y-hardware-de-caja.md`, §5.
 |---|---|
 | Leer la báscula | Que el cajero digite el peso a mano |
 | Imprimir el recibo en ESC/POS crudo | La impresión del navegador y su diálogo |
-| Abrir el cajón (`ESC p`) | Nada. Hoy no existe de ninguna forma |
+| Abrir el cajón (`ESC p`) | Imprimir una tirilla que nadie quería, solo para llegar al efectivo |
 
 Construirlo solo para la báscula sería desperdiciar el 80 % del trabajo, que es
 la instalación y la distribución, no leer un puerto.
@@ -98,7 +98,18 @@ cliente. Se genera con `pos-agent.exe -crear-config`.
 - **`frescura_ms`**: edad máxima de una trama para darla por buena. Con una
   báscula que transmite sola, el peso aparece instantáneo.
 - **`abrir_cajon`**: el cajón **no cuelga del PC**, va a la impresora por RJ11.
-  Abrirlo es imprimir una secuencia de control.
+  Abrirlo es mandarle una secuencia de control, y **no sale papel**.
+  **El valor por omisión funciona tal cual y no hay que tocarlo por cliente:**
+  `27,112,0,25,250` es `ESC p 0 25 250`, el ejemplo canónico de la
+  especificación ESC/POS de Epson, que implementan prácticamente todas las
+  térmicas del mercado. El cajón no entiende comandos: es un solenoide que
+  recibe un pulso. El campo existe para dos casos de instalación —una impresora
+  que dispare por el **pin 5**, o un solenoide duro que necesite más tiempo
+  encendido, cuyo síntoma es que hace clic y no suelta—.
+
+  **Quién decide si se abre es el POS, no el agente**: la página pide
+  `drawer.open` al terminar la venta según el ajuste del negocio (nunca, solo
+  con efectivo, o toda venta).
 
 Un archivo ausente **no impide arrancar**, y uno roto tampoco: se sigue con los
 valores por omisión y queda en la bitácora. Un agente muerto es invisible para

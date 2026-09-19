@@ -74,6 +74,8 @@ diferencia importa y se explica en el punto 4.
 | Paso a producción | **Corte en seco.** El día de salida se apaga el POS anterior. | 2026-08-28 |
 | Formato de la báscula | Se averigua **revisando el instalador del POS actual**, y si no, en el montaje. | 2026-08-28 |
 | Unidad de peso | **Solo kilogramos.** La libra se probó y se quitó: media libra se registra como 0,227 kg. Ver 3.1b. | 2026-08-30 |
+| Cuándo se imprime el recibo | **Configurable.** El negocio pidió que solo salga al oprimir «Imprimir». Ver 4.3g. | 2026-09-18 |
+| Cuándo se abre el cajón | **Solo en pagos en efectivo**, y también configurable. Ver 4.5. | 2026-09-18 |
 
 Las dos últimas nacieron corrigiendo un planteamiento inicial más pesado, y conviene dejar por
 escrito **por qué**, porque las razones van a seguir siendo válidas con los próximos clientes.
@@ -429,11 +431,23 @@ cliente nuevo.
 nada en la caja para mover un logo o agregar una línea.
 
 Lo único que sí depende de la impresora es **abrir el cajón**, porque el cajón cuelga de ella y
-abrirlo es literalmente una orden de impresora. Eso ya está resuelto y es configurable.
+abrirlo es literalmente una orden de impresora. Eso ya está resuelto y es configurable (4.5).
 
-**Pendiente de ver:** cómo queda el recibo en papel de 58 mm. La plantilla no se diseñó para ese
-ancho, así que es probable que necesite un ajuste de presentación. Que salga bien es cuestión de
-maquetación, no de si la impresión funciona.
+**Que salga solo es ahora una decisión del negocio, no del sistema.** Ver 4.3g: se puede dejar tal
+cual —imprime al terminar cada venta— o que solo salga cuando el cajero oprima «Imprimir».
+
+**El papel del recibo ya se declara (2026-09-03).** El sistema no sabía en qué rollo estaba
+imprimiendo: el navegador le sumaba sus propios márgenes —unos 10 mm por lado— y sobre los 48 mm que
+una tirilla de 58 mm imprime de verdad, eso se come más de la mitad del ancho y el recibo sale
+estrujado en una columna. Ahora el negocio elige su rollo en Configuración → Recibo y la impresión
+se maqueta al ancho **imprimible** real, no al que dice la caja del rollo.
+
+**Un rollo se vende por un ancho en el que no imprime.** Los 10 mm que faltan son el margen que el
+mecanismo no alcanza; maquetar al ancho nominal es la forma clásica de perder la columna de la
+derecha —los totales— por el borde del papel.
+
+**Pendiente:** imprimir uno de verdad en el local y dejar el rollo configurado. Hoy está sin
+declarar, que significa «imprimir como siempre».
 
 ### 4.3g Quién decide si el recibo se imprime solo (2026-09-18)
 
@@ -603,7 +617,9 @@ con un eufemismo**: sin internet la caja no vende despacio, no vende. El día qu
 en la puerta. Un canal 4G de respaldo cuesta poco y resuelve casi todos los casos: vale la pena
 ofrecerlo una vez más antes de cerrar.
 
-**Abrir el cajón sin venta.** Queda para la entrega del programa local, no para el arranque.
+**Abrir el cajón sin venta** —para dar un cambio suelto o cuadrar el turno—. El programa de la caja
+**ya sabe hacerlo**; lo que no existe es la forma de pedírselo desde la pantalla. Mientras tanto eso
+se hace con la llave. Al terminar una venta sí se abre solo (4.5).
 
 **Categorías con lista y jerarquía.** Las categorías siguen siendo texto libre. Con un catálogo de
 hortalizas — decenas de productos, no miles — el daño es manejable. Volvería a ser prioridad si el
@@ -674,20 +690,22 @@ Y antes de producción, todo pasa por el ambiente de pruebas con los dos negocio
 
 ## 8. Orden de entrega
 
-| Fase | Qué se entrega | Depende de |
-|---|---|---|
-| 0 | Blindaje del despliegue multi-tenant, para no tocar a Casaletto (§6b) | — |
-| 1 | Arreglo de los defectos que rompen el peso, y la unidad de medida en los artículos | Fase 0 |
-| 2 | El negocio provisionado y configurado | Fase 1 |
-| 3 | Merma, toma de inventario y lotes opcionales | Fase 1 |
-| 4 | El campo de peso en la caja, con digitación manual | Fase 1 |
-| 5 | Catálogo cargado y hardware montado en el local | Fases 2 y 4 |
-| 6 | El programa local: báscula, impresión directa y apertura de cajón | Fase 5 |
-| 7 | Acompañamiento de la primera semana | Fase 5 |
+**Estado al 2026-09-18.**
 
-**El programa local está deliberadamente después de la salida a producción.** El cliente arranca
-vendiendo con el peso digitado o con la báscula en modo teclado, y el programa llega sin presión de
-cronograma. Así, un problema de instalación no retrasa la apertura.
+| Fase | Qué se entrega | Estado |
+|---|---|---|
+| 0 | Blindaje del despliegue multi-tenant, para no tocar a Casaletto (§6b) | **Entregada** |
+| 1 | Arreglo de los defectos que rompen el peso, y la unidad de medida en los artículos | **Entregada** |
+| 2 | El negocio provisionado y configurado | **Entregada** |
+| 3 | Merma, toma de inventario y lotes opcionales | Pendiente, después del corte |
+| 4 | El campo de peso en la caja, con digitación manual | **Entregada** |
+| 5 | Catálogo cargado y hardware montado en el local | **Entregada.** Faltan precios en parte del catálogo |
+| 6 | El programa local: báscula, impresión directa y apertura de cajón | **Báscula e impresión funcionando en el local.** El cajón: desarrollado, **sin desplegar**, y pendiente de conectarlo |
+| 7 | Acompañamiento de la primera semana | En curso |
+
+**El negocio factura desde el 2026-09-02.** El programa local se había planeado deliberadamente
+*después* de la salida a producción, para que un problema de instalación no retrasara la apertura;
+terminó llegando antes, así que el cliente arrancó pesando con la báscula y no con el peso digitado.
 
 ## 9. Preguntas abiertas
 
