@@ -435,6 +435,24 @@ abrirlo es literalmente una orden de impresora. Eso ya está resuelto y es confi
 ancho, así que es probable que necesite un ajuste de presentación. Que salga bien es cuestión de
 maquetación, no de si la impresión funciona.
 
+### 4.3g Quién decide si el recibo se imprime solo (2026-09-18)
+
+El negocio pidió poder **dejar de imprimir automáticamente** y que el recibo salga solo cuando el
+cajero oprima «Imprimir». La opción ya existía en Configuración → Recibo —«Casilla Imprimir
+recibo»: siempre marcada, siempre desmarcada, o recordar la última—, pero **no se respetaba**: al
+poner «siempre desmarcada» la casilla efectivamente salía desmarcada en la pantalla de venta, y el
+recibo se imprimía igual.
+
+El sistema recordaba el «sí» de la última vez que alguien marcó la casilla y lo usaba al terminar la
+venta, sin volver a mirar la configuración. Lo que el cajero veía y lo que hacía la impresora se
+habían separado, que es peor que no tener el ajuste.
+
+**Corregido y reproducido antes de corregirlo.** Ahora «siempre desmarcada» significa que no
+imprime hasta que se lo pidan, y esa fue la razón por la que quedó claro que el cajón tenía que
+dejar de depender de la impresión.
+
+De paso se tradujo esa pantalla de configuración, que seguía en inglés.
+
 ### 4.3d Cómo damos soporte, y por qué no dejamos una puerta abierta
 
 Se evaluó dejar una conexión permanente desde el terminal hacia nuestro servidor, que habría
@@ -485,13 +503,37 @@ Qué significa esto en la práctica:
 Vale aclarar que el cliente **ya viene operando con esta báscula** en su POS actual. Nosotros no
 creamos la situación; solo la encontramos al leer el manual y la reportamos.
 
-### 4.5 El cajón, en dos etapas
+### 4.5 El cajón se abre solo, y solo cuando entra efectivo (2026-09-18)
 
-Desde el primer día el cajón **abre solo en cada recibo**, con la casilla del driver de la
-impresora. Eso cubre la operación normal.
+Al finalizar una venta, el sistema le pide a la impresora que abra el cajón. **No se imprime nada
+para lograrlo**: abrir el cajón es una orden de control, no un documento. Hasta ahora la única forma
+de llegar al dinero era mandar algo a imprimir, y el negocio estaba gastando una tirilla por venta
+únicamente para eso.
 
-Lo que queda para cuando esté el programa local es **abrirlo sin vender**. Hasta entonces, para dar
-un cambio hay que abrirlo con la llave. Es una molestia conocida y aceptada, no un olvido.
+Se configura en **Configuración → Recibo**, con tres opciones:
+
+| Opción | Cuándo se abre el cajón |
+|---|---|
+| **No abrirlo** | Nunca. Es como sale de fábrica, y es lo que protege a una caja sin cajón |
+| **Solo en pagos en efectivo** | Cuando la venta movió efectivo, incluido el cambio —aunque el cobro haya sido con tarjeta |
+| **En toda venta** | Siempre que se cierre una venta, con lo que sea |
+
+**«Solo en pagos en efectivo» es lo que pidió el negocio y lo que tiene sentido en un mostrador:**
+un cajón que salta en un pago con tarjeta se nota enseguida, y nadie necesita llegar al dinero para
+aceptar una transferencia. Si la venta se cobró con tarjeta pero hay que devolver cambio, el cajón
+sí se abre: ese cambio sale de ahí.
+
+**No hay nada que configurar por cliente ni por modelo de cajón.** El cajón no entiende comandos:
+es un solenoide que recibe un pulso, y la orden que lo dispara es la misma en prácticamente toda
+impresora térmica del mercado. Un cliente nuevo con un cajón distinto solo elige una de las tres
+opciones de arriba.
+
+**Pendiente:** conectarlo físicamente y confirmarlo con `pos-agent.exe -abrir-cajon`. Es el último
+paso y ya no depende de desarrollo.
+
+Lo que sigue quedando para más adelante es **abrirlo sin vender** —para dar un cambio suelto o
+cuadrar el turno—. Hasta entonces eso se hace con la llave. Es una molestia conocida y aceptada, no
+un olvido.
 
 ## 5. El módulo de inventario
 

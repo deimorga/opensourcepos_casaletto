@@ -1413,6 +1413,75 @@ no una versión del agente que haya que distribuir a doce cajas.
 No cambió una línea de `app/` ni de `public/`. Vive en el terminal, así que **es idéntico en
 producción y en staging** y funciona apuntando a cualquier negocio. No hay versión que sincronizar.
 
+### El cajón al finalizar la venta, y el ajuste de impresión que lo destapó (2026-09-18)
+
+Rama `feat/cajon-y-impresion`. Dos cosas que resultaron ser la misma historia: **la impresora
+recibía órdenes que nadie podía gobernar desde la configuración.**
+
+#### El defecto de `postComplete()`
+
+`Sales::postComplete()` leía `sales_print_after_sale` de la sesión en crudo en vez de llamar a
+`Sale_lib::is_print_after_sale()`, que es el método que **sí** consulta
+`print_receipt_check_behaviour`. Resultado con el ajuste en «nunca»: la casilla de la pantalla de
+venta salía desmarcada —esa vista sí llamaba al método— y al completar se imprimía igual, porque la
+sesión conservaba el `true` de la última vez que alguien la marcó.
+
+Lo que el cajero ve y lo que hace la impresora se separaban, que es peor que no tener el ajuste.
+**Reproducido en staging antes de corregirlo:** casilla visiblemente desmarcada, configuración en
+«nunca», y la página del recibo emitiendo igual el disparador de impresión automática.
+
+#### El cajón: `open_cash_drawer_behaviour`, tres estados
+
+El cajón cuelga de la impresora por RJ11, así que abrirlo es mandarle `ESC p` —cinco bytes— y **eso
+no es imprimir**: la impresora ejecuta la orden y no saca papel. El agente sabía hacerlo desde el
+primer día (`drawer.open`); lo que faltaba era que la página lo pidiera.
+
+| Valor | Cuándo abre |
+|---|---|
+| `never` | Nunca. Es el valor sembrado por la migración |
+| `cash` | Cuando la venta tiene una línea de pago en efectivo, o el ajuste de redondeo |
+| `always` | Toda venta completada |
+
+Puntos que no son evidentes:
+
+- **La decisión se toma después de armar `$data['payments']`, no antes.** El bloque que calcula el
+  cambio **agrega una línea de efectivo** cuando la venta devuelve dinero, aunque se haya cobrado
+  con tarjeta. Ese cambio sale del cajón, así que tiene que contar. Decidirlo arriba —donde estaba
+  la primera versión— habría dejado ese caso fuera.
+- **Los tipos de pago se comparan contra `lang('Sales.cash')`**, porque así es como esta librería
+  los ha guardado siempre: la clave del arreglo *es* el nombre traducido, y las filas ya escritas
+  llevan esas cadenas. Ver `Sale_lib::get_payments_total()`, que usa exactamente la misma
+  comparación. No hay un identificador estable que usar en su lugar.
+- **El ajuste de redondeo cuenta como efectivo**: solo existe junto a un pago en efectivo y es
+  literalmente la moneda que hace que el total caiga en una cifra redonda.
+- **Consultar una factura vieja no abre el cajón.** `_load_sale_data()` fija el dato en `false`: no
+  hay dinero entrando.
+- **Las devoluciones sí lo abren** cuando se pagan en efectivo, y debe ser así: el dinero sale de
+  ahí.
+- El parcial se emite en `receipt`, `invoice` y `tax_invoice` —las tres vistas de una venta
+  cerrada—, nunca en cotización ni en orden de trabajo, que quedan suspendidas y no cobran.
+
+#### Los bytes no están en el servidor, y no se configuran por cliente
+
+La página solo pide la acción (`{op:'drawer.open'}`); la secuencia la manda el agente desde su
+propia configuración. **El valor por omisión funciona tal cual**: `27,112,0,25,250` es
+`ESC p 0 25 250`, el ejemplo canónico de la especificación ESC/POS de Epson —pin 2, 50 ms
+encendido, 500 ms apagado— que implementan prácticamente todas las térmicas del mercado. El cajón
+no entiende comandos: es un solenoide que recibe un pulso.
+
+El campo queda como salida de emergencia para dos casos de instalación, no como configuración de
+cliente: una impresora que dispare por el **pin 5**, o un solenoide duro que necesite más tiempo
+encendido —cuyo síntoma es que hace clic y no suelta—.
+
+Hay una prueba que afirma que el JavaScript **no** lleva los bytes, porque es justo la clase de cosa
+que alguien «optimiza» metiéndolos en la vista.
+
+#### Qué se despliega y qué no
+
+Migración `20260919000000_AddOpenCashDrawerSetting`, que siembra `never` y **no toca a un tenant que
+ya tenga el ajuste**. Ambos comportamientos salen apagados: un mostrador sin cajón, o uno que vende
+a domicilio, no puede notar que esto existe. Casaletto no cambia.
+
 ### La política de Chrome, puesta (2026-08-31)
 
 Es la mitigación del §5.3.1 y **el riesgo principal del agente**: sin ella, tras una actualización
