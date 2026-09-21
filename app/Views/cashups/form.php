@@ -411,6 +411,21 @@ $close_field_attrs = $is_closed ? ['disabled' => 'disabled'] : [];
                                 </tr>
                             <?php endforeach; ?>
                         <?php endif; ?>
+                        <?php if ($reconciliation['voided'] !== []): ?>
+                            <tr>
+                                <td><?= lang('Cashups.reconciliation_voided') ?></td>
+                                <td style="text-align: right;"><?= to_currency($reconciliation['voided_total']) ?></td>
+                            </tr>
+                            <?php foreach ($reconciliation['voided'] as $row): ?>
+                                <tr>
+                                    <td style="padding-left: 2em;"><?= esc($row['payment_type']) ?></td>
+                                    <td style="text-align: right;"><?= to_currency($row['trans_amount']) ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                            <tr>
+                                <td colspan="2"><em class="small"><?= lang('Cashups.reconciliation_voided_hint') ?></em></td>
+                            </tr>
+                        <?php endif; ?>
                         <tr>
                             <td><?= lang('Cashups.reconciliation_open') ?></td>
                             <td style="text-align: right;"><?= to_currency($reconciliation['open_amount_cash']) ?></td>

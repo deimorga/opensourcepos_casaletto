@@ -70,6 +70,8 @@ return [
     "reconciliation_income"      => "Taken in this shift",
     "reconciliation_open"        => "Opening float",
     "reconciliation_unsealed"    => "This shift has no sales linked to it, so what it took in cannot be shown.",
+    "reconciliation_voided"      => "Taken on cancelled sales (not counted)",
+    "reconciliation_voided_hint" => "This money was collected and the sale was cancelled afterwards, so it is not shift income. If the cash is still in the drawer it will show up as a surplus.",
     "reopen"                     => "Reopen",
     "reopen_admin_only"          => "You do not have permission to reopen cashups",
     "status"                     => "Status",

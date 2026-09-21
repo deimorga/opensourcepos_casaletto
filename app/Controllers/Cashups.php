@@ -248,6 +248,18 @@ class Cashups extends Secure_Controller
             }
         }
 
+        // Money the shift collected on sales that were cancelled afterwards. It is deliberately not
+        // part of income -- that is the whole point of the split -- but it is shown, because a
+        // cashier staring at a difference needs to know this amount exists before going to look for
+        // it. The per-payment-type rows are what say how much of it was cash, which is the part
+        // that can still be sitting in the drawer.
+        $voided = $this->sale->get_voided_payments_by_cashup((int)$cash_ups_info->cashup_id);
+        $voided_total = 0.0;
+
+        foreach ($voided as $row) {
+            $voided_total += (float)$row['trans_amount'];
+        }
+
         $register_expenses = $this->expense->get_register_total_between(
             $cash_ups_info->open_date,
             $cash_ups_info->close_date
@@ -275,7 +287,11 @@ class Cashups extends Secure_Controller
             'expected'          => $expected,
             'counted'           => $counted,
             'discrepancy'       => $counted - $expected,
-            'sealed_sales'      => $income !== []
+            // A shift whose only sealed sales were cancelled still has sales attached to it, so it
+            // is not the "nothing is linked here" case the unsealed notice describes.
+            'sealed_sales'      => $income !== [] || $voided !== [],
+            'voided'            => $voided,
+            'voided_total'      => $voided_total
         ];
     }
 

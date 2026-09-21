@@ -70,6 +70,8 @@ return [
     "reconciliation_income"      => "Ingresos del turno",
     "reconciliation_open"        => "Apertura",
     "reconciliation_unsealed"    => "Este turno no tiene ventas asociadas, así que no puede mostrarse lo que ingresó.",
+    "reconciliation_voided"      => "Cobrado en ventas anuladas (no cuenta)",
+    "reconciliation_voided_hint" => "Este dinero se cobró y después se anuló la venta, así que no es ingreso del turno. Si el efectivo sigue en el cajón, va a aparecer como sobrante.",
     "reopen"                     => "Reabrir",
     "reopen_admin_only"          => "No tiene permiso para reabrir turnos",
     "status"                     => "Estado",
