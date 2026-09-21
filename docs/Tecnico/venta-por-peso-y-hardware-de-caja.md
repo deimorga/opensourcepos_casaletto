@@ -1444,7 +1444,8 @@ producción y en staging** y funciona apuntando a cualquier negocio. No hay vers
 
 ### El cajón al finalizar la venta, y el ajuste de impresión que lo destapó (2026-09-18)
 
-Rama `feat/cajon-y-impresion`. Dos cosas que resultaron ser la misma historia: **la impresora
+Rama `feat/cajon-y-impresion`, en producción desde el 2026-09-20. Dos cosas que resultaron ser la
+misma historia: **la impresora
 recibía órdenes que nadie podía gobernar desde la configuración.**
 
 #### El defecto de `postComplete()`
@@ -1570,6 +1571,42 @@ interfaz ya desplegada.
 Migración `20260919000000_AddOpenCashDrawerSetting`, que siembra `never` y **no toca a un tenant que
 ya tenga el ajuste**. Ambos comportamientos salen apagados: un mostrador sin cajón, o uno que vende
 a domicilio, no puede notar que esto existe. Casaletto no cambia.
+
+#### En producción desde el 2026-09-20 (`e8e1ad857`)
+
+La ventana medida, de punta a punta:
+
+```
+02:28:28 UTC  inicio
+02:28:31      contenedor nuevo arriba
+02:28:31      ospos migrado                → «never»
+02:28:31      tenant_paraisodelacanasta    → «never»
+02:28:31      los dos esquemas al día, Apache atendiendo
+```
+
+**Tres segundos**, y las migraciones corrieron antes de aceptar la primera petición, que es lo que
+impide que alguien entre a un esquema a medio migrar (§7c.1).
+
+Lo que se hizo antes de tocar nada, y que conviene repetir en el próximo despliegue:
+
+1. **Respaldo fresco de las tres bases**, comprobando la marca de cierre de `mariadb-dump` en cada
+   una. Que el `.gz` esté íntegro no dice que el volcado esté completo.
+2. **Etiquetar la imagen que está sirviendo** (`casaletto-ospos:prod-20260920-antes-cajon`). Sin
+   eso, reconstruir sobrescribe la única etiqueta `prod` y la vuelta atrás queda dependiendo de
+   encontrar una imagen sin nombre que cualquier limpieza de Docker borra.
+3. **Construir sin levantar** (`docker compose build`). La construcción no toca el contenedor que
+   está sirviendo, así que se puede hacer con el negocio abierto y deja el único paso que
+   interrumpe --`up -d`-- reducido a segundos.
+4. **Inspeccionar la imagen antes de levantarla**, con un contenedor desechable: que traiga el
+   arreglo, la migración, el parcial, los assets compilados y los bloques `inject` rellenos.
+
+Verificación posterior, **solo lectura**: los dos negocios responden 200 con sus assets, ambos
+quedaron en `never`, `print_receipt_check_behaviour` intacto en `last` en los dos, y ningún error
+nuevo en la bitácora. Después se puso `open_cash_drawer_behaviour = cash` **solo en Paraíso**.
+
+**La caché de configuración muerde aquí.** Escribir el ajuste en la base no basta: `Config\OSPOS`
+lo cachea bajo `settings_<slug>` con 300 s de vida, así que el cambio tarda hasta cinco minutos en
+verse. Se comprobó leyendo el propio archivo de caché hasta que dijo `cash`, en vez de suponerlo.
 
 ### La política de Chrome, puesta (2026-08-31)
 
@@ -1922,7 +1959,7 @@ en el plan (`~/.claude/plans/prancy-puzzling-umbrella.md`).
 | **V4 · Operación** | Provisionar el tenant (§7), inspección del instalador | **Hecha** — el negocio factura desde 2026-09-02 |
 | **Agente local** | §5 — báscula, impresión, cajón | **En producción** desde 2026-09-02. Ver §7b-bis |
 | **Papel del recibo** | `receipt_paper` y la regla `@page` con el ancho imprimible | **Hecha** — `695ead599`. Falta declararlo en el negocio |
-| **Impresión y cajón** | «Nunca imprimir» significa nunca; cajón solo con efectivo | **En rama `feat/cajon-y-impresion`**, sin desplegar |
+| **Impresión y cajón** | «Nunca imprimir» significa nunca; cajón solo con efectivo | **En producción** desde 2026-09-20 (`e8e1ad857`). Paraíso en `cash`, Casaletto en `never` |
 | **Inventario** | §6.1, §6.2, §6.3 | Después del corte, por decisión del 2026-08-28 |
 
 **El cliente ya salió a producción** y el agente local, que no estaba en el camino crítico, terminó

@@ -559,8 +559,11 @@ delante del cliente. Es un error que viene del sistema original, lleva año y me
 producción hoy**. No daña datos —la venta no queda a medias, simplemente no queda—, y ya está
 corregido en esta misma entrega.
 
+**En funcionamiento desde el 2026-09-20**, y ya encendido en «solo en pagos en efectivo» para este
+negocio. Casaletto quedó en «no abrirlo», como corresponde a un mostrador que no tiene cajón.
+
 **Pendiente:** conectarlo físicamente y confirmarlo con `pos-agent.exe -abrir-cajon`. Es el último
-paso y ya no depende de desarrollo.
+paso y ya no depende de desarrollo: el día que se conecte, funciona sin tocar nada más.
 
 Lo que sigue quedando para más adelante es **abrirlo sin vender** —para dar un cambio suelto o
 cuadrar el turno—. Hasta entonces eso se hace con la llave. Es una molestia conocida y aceptada, no
@@ -717,7 +720,7 @@ Y antes de producción, todo pasa por el ambiente de pruebas con los dos negocio
 | 3 | Merma, toma de inventario y lotes opcionales | Pendiente, después del corte |
 | 4 | El campo de peso en la caja, con digitación manual | **Entregada** |
 | 5 | Catálogo cargado y hardware montado en el local | **Entregada.** Faltan precios en parte del catálogo |
-| 6 | El programa local: báscula, impresión directa y apertura de cajón | **Báscula e impresión funcionando en el local.** El cajón: desarrollado, **sin desplegar**, y pendiente de conectarlo |
+| 6 | El programa local: báscula, impresión directa y apertura de cajón | **Báscula e impresión funcionando en el local.** El cajón: **en producción desde el 2026-09-20** y encendido en «solo efectivo»; falta conectarlo físicamente |
 | 7 | Acompañamiento de la primera semana | En curso |
 
 **El negocio factura desde el 2026-09-02.** El programa local se había planeado deliberadamente
