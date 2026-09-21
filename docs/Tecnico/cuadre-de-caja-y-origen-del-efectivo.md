@@ -481,3 +481,47 @@ La ruta A acota por rango de fechas y la B por `cashup_id`. Con un turno por dí
 
 La venta 48 (16 jul) pagó $74.800 contra un bruto de $46.900 y sin movimientos de devolución de
 inventario. Caso suelto de la primera semana, sin explicar, sin efecto sobre este arreglo.
+
+### 11.9 Certificación en staging por navegador *(2026-09-20, 22:30-22:40)*
+
+Las pruebas unitarias cubren el modelo, no la pantalla. Para cerrar esa brecha se certificó sobre
+staging desplegado, con Chrome, reproduciendo la condición **por la vía real** en vez de sembrarla
+con SQL:
+
+1. Turno 5 abierto desde la interfaz con apertura de $100.000.
+2. Venta de $34.000 en efectivo, cobrada y completada en la caja.
+3. Segunda venta de $18.000 en efectivo, cobrada y completada.
+4. Cuadre leído **antes** de anular: ingresos $52.000, esperado $152.000, descuadre $0. **Sin línea
+   de anuladas** — el bloque no se dibuja cuando no hay ninguna.
+5. La venta de $18.000 anulada desde su pantalla de edición (`/sales/edit/<id>`, botón «Eliminar»),
+   que es el camino que usa el negocio.
+6. Verificado en la base que quedó exactamente la condición de producción: `sale_status = 2`, con
+   su pago de $18.000 y su `cashup_id` intactos.
+
+Resultado del panel:
+
+```
+Ingresos del turno                        $34.000
+  Efectivo                                $34.000
+Cobrado en ventas anuladas (no cuenta)    $18.000
+  Efectivo                                $18.000
+  «Este dinero se cobró y después se anuló la venta...»
+Apertura                                 $100.000
+Esperado en el cajón                     $134.000
+Contado (declarado)                      $134.000
+Descuadre                                      $0
+```
+
+Antes del arreglo ese mismo turno habría dicho esperado $152.000 y, con $134.000 en el cajón, un
+faltante fantasma de $18.000. La pestaña «Cuadre del cajón» se abrió con un clic real, no forzada
+por script, y la consola no reportó ni un error (solo un aviso de accesibilidad de Bootstrap que ya
+existía).
+
+**Acceso usado**: la cuenta `soporte_micronuba`, cuya contraseña almacenada es el texto fijo
+`*sin-contrasena-usa-la-plataforma*` y por tanto no puede iniciar sesión. Se le puso una contraseña
+temporal solo para esto y se restauró el texto original al terminar, verificando después que el
+login vuelve a ser rechazado. **No se tocó la credencial de ninguna persona.**
+
+**Lo que quedó en staging**: el turno 5 borrado (`deleted = 1`, cero turnos abiertos) y dos ventas
+de prueba, la 990002 completada de $34.000 y la 990003 anulada de $18.000. Se dejan a propósito:
+son el escenario de regresión para la próxima vez que haya que mirar esta pantalla.
