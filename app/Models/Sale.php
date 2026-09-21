@@ -525,6 +525,13 @@ class Sale extends Model
     /**
      * What a shift took in, broken down by payment method, for the sales sealed with it.
      *
+     * Completed sales only, the same rule every sales report already applies (Summary_payments,
+     * Detailed_sales, Income_expenses). A cancelled sale keeps its payment row and its seal, so
+     * without this the shift counted money it had given back or never kept -- see
+     * get_voided_payments_by_cashup(), which is where that amount goes instead of being dropped.
+     * Returns stay in: they are completed sales with a negative payment, and that cash really does
+     * leave the drawer.
+     *
      * Net of change given back: cash_refund is the change handed to the customer, not a refunded
      * sale (Sales.php sets it from $data['amount_change']), so the drawer only ever held the
      * difference. This is the same formula Summary_payments uses for its trans_amount.
@@ -539,6 +546,32 @@ class Sale extends Model
      */
     public function get_payments_by_cashup(int $cashup_id): array
     {
+        return $this->payments_by_cashup($cashup_id, COMPLETED);
+    }
+
+    /**
+     * The same figures for the sales this shift sealed and someone then cancelled.
+     *
+     * A cancellation changes the sale's status and hands the stock back, but it leaves the payment
+     * row and the shift seal alone on purpose -- money that was taken and then voided is something
+     * a till needs a record of. What it must not be is income: counting it made the drawer look
+     * short by exactly the voided amount, which is how a shift that balanced to the peso was
+     * reported missing $75,200 on 2026-09-20.
+     *
+     * Kept separate rather than filtered away in silence so the screen can still name it. If that
+     * cash is physically in the drawer it now surfaces as a surplus, which is a question someone
+     * can answer, instead of being quietly absorbed into what the shift was supposed to hold.
+     */
+    public function get_voided_payments_by_cashup(int $cashup_id): array
+    {
+        return $this->payments_by_cashup($cashup_id, CANCELED);
+    }
+
+    /**
+     * Payments a shift sealed, narrowed to one sale status and grouped by payment type.
+     */
+    private function payments_by_cashup(int $cashup_id, int $sale_status): array
+    {
         // The aggregate is written with the prefixed table name and its escaping turned off. The
         // query builder prefixes identifiers it recognises but leaves the inside of a function
         // call alone, so an unprefixed sales_payments.payment_amount in here reaches the database
@@ -551,6 +584,7 @@ class Sale extends Model
         $builder->select("SUM($payments.payment_amount - $payments.cash_refund) AS trans_amount", false);
         $builder->join('sales', 'sales.sale_id = sales_payments.sale_id');
         $builder->where('sales.cashup_id', $cashup_id);
+        $builder->where('sales.sale_status', $sale_status);
         $builder->groupBy('sales_payments.payment_type_code, sales_payments.payment_type');
         $builder->orderBy('sales_payments.payment_type_code', 'asc');
 
@@ -560,7 +594,7 @@ class Sale extends Model
         // only sign of it. Saying so in the log beats letting the caller fatal on ->getResultArray()
         // with nothing written down anywhere -- which is exactly how this method shipped broken.
         if ($result === false) {
-            log_message('error', 'Sale::get_payments_by_cashup() query failed for cash-up ' . $cashup_id . ': ' . json_encode($this->db->error()));
+            log_message('error', 'Sale::payments_by_cashup() query failed for cash-up ' . $cashup_id . ' status ' . $sale_status . ': ' . json_encode($this->db->error()));
 
             return [];
         }

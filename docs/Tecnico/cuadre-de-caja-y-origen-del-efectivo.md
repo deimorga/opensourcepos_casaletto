@@ -197,7 +197,8 @@ con el histórico. Se agregan las piezas que faltan, no se altera lo que ya exis
 
 | Cifra | Fuente |
 |---|---|
-| Ingresos por medio de pago | `sales_payments` de las ventas con ese `cashup_id`, neto de vueltas (`payment_amount − cash_refund`) |
+| Ingresos por medio de pago | `sales_payments` de las ventas **completadas** con ese `cashup_id`, neto de vueltas (`payment_amount − cash_refund`) |
+| Cobrado en anuladas | lo mismo, pero de las ventas con `sale_status = CANCELED`. Se muestra, **no** se suma al esperado (§11) |
 | Gastos de caja | `expenses` con `cash_source = 'register'` cuya fecha cae en el turno |
 | Recogidas | `cash_collections` cuyo `collected_at` cae en el turno |
 | Esperado | apertura + efectivo − gastos de caja − recogidas |
@@ -380,3 +381,103 @@ operación**, con respaldo previo de `ospos_expenses`, `ospos_sales` y `ospos_ca
 
 **Verificación con datos reales:** el reporte de turnos no puede contradecir al de Transacciones para
 el mismo rango, y los turnos que hoy cuadran no pueden dejar de cuadrar.
+
+---
+
+## 11. El cuadre contaba los pagos de las ventas anuladas *(2026-09-20)*
+
+### 11.1 El síntoma
+
+El turno 70 cerró el 2026-09-20 mostrando un faltante de **$75.200**. El cajón estaba
+**exacto**: apertura 1.887.750 + efectivo real 299.386 − gastos 84.500 = 2.102.636, que es
+justo lo que se contó. Los $75.200 eran una venta cobrada y anulada a las 17:16.
+
+### 11.2 Dos rutas, una sola filtra
+
+En la misma pantalla conviven dos cálculos con fuentes distintas:
+
+| | Ruta | Filtra por estado | Acota por |
+|---|---|---|---|
+| Lo que se **guarda** al cerrar | `Cashups::getView()` → `Summary_payments::getData()` | Sí, `COMPLETED` | rango de fechas |
+| Lo que se **muestra** en el panel | `Cashups::_build_reconciliation()` → `Sale::get_payments_by_cashup()` | **No** | `cashup_id` |
+
+Por eso `closed_amount_check` quedó en $317.600 (correcto) mientras el panel mostraba $417.700
+en la misma pantalla: la prueba visual de que eran dos consultas distintas.
+
+Nada de la ruta B se persiste — el panel es de solo lectura. **No hubo datos corrompidos y no
+hubo filas que reparar.**
+
+### 11.3 Por qué el pago sobrevive a la anulación
+
+`Sale::delete()` devuelve el inventario si la venta estaba `COMPLETED`, marca `CANCELED` y
+termina: **no toca `sales_payments` ni `cashup_id`**, que se asignó al completarse (§5.2). Es
+deliberado — una caja necesita el registro de que ese dinero se movió.
+
+Existe otra vía, `Sale::clear_suspended_sale_detail()`, que **sí** borra los pagos. De ahí que no
+toda anulación haga daño: de 53 anuladas con `cashup_id` en producción, 42 no tenían pagos
+(inofensivas) y 11 sí (las que distorsionaban).
+
+### 11.4 El arreglo, y por qué no se borra nada
+
+`get_payments_by_cashup()` pasa a filtrar `sale_status = COMPLETED`, la misma regla que ya
+aplican `Summary_payments`, `Detailed_sales` e `Income_expenses`.
+
+**Lo anulado no se descarta en silencio**: `Sale::get_voided_payments_by_cashup()` lo devuelve
+aparte y el panel lo nombra en su propia línea, con la advertencia de que no cuenta como ingreso.
+Si ese efectivo sigue físicamente en el cajón, ahora aparece como **sobrante** — una pregunta que
+alguien puede responder — en vez de quedar absorbido en el esperado.
+
+Ambos métodos comparten `payments_by_cashup(int $cashup_id, int $sale_status)`, privado.
+
+`sealed_sales` pasa a ser `$income !== [] || $voided !== []`: un turno cuyas únicas ventas selladas
+se anularon sí tiene ventas asociadas, y no debe caer en el aviso de "turno sin ventas".
+
+### 11.5 Radio de impacto verificado
+
+- **Nada guardado cambia.** El panel no escribe.
+- **Los informes no se tocan.** Ya filtraban por `COMPLETED`.
+- **La lista de Turnos no se toca.** Usa `closed_amount_total`.
+- **Las devoluciones siguen contando.** Son `COMPLETED` con pago negativo; ese efectivo sí sale
+  del cajón. Cubierto por prueba.
+- **Las vueltas siguen netas.** `payment_amount − cash_refund` no cambió. Cubierto por prueba.
+- **Ningún estado distinto de `COMPLETED`/`CANCELED` tiene `cashup_id`** — verificado en los dos
+  esquemas de producción (`ospos` y `tenant_paraisodelacanasta`) antes de escribir el filtro.
+- **Paraíso no tiene ni una anulada con turno**: para ese negocio el cambio es un no-op.
+
+### 11.6 Alcance histórico
+
+11 ventas en 8 turnos desde el 2026-07-16, $598.500 en total, de los cuales **$352.300 en
+efectivo** (lo único que mueve el esperado del cajón; datáfono y transferencia solo inflaban el
+"Ingresos del turno").
+
+De los 7 turnos cerrados afectados, **5 cambian de signo** al corregirse:
+
+| Turno | Día | Mostraba | Era en realidad |
+|---|---|---|---|
+| 2 | 16 jul | Faltante $51.060 | Sobrante $23.740 |
+| 29 | 11 ago | Faltante $28.900 | Cuadre exacto, $0 |
+| 56 | 6 sep | Faltante $1.755 | Sobrante $11.245 |
+| 61 | 11 sep | Faltante $151.850 | Sobrante $3.850 |
+| 63 | 13 sep | Sobrante $56.250 | Sobrante $69.250 |
+| 65 | 15 sep | Faltante $34.530 | Faltante $30 |
+| 69 | 19 sep | Faltante $22.493 | Sobrante $9.907 |
+| 70 | 20 sep | Faltante $75.200 | Cuadre exacto, $0 |
+
+### 11.7 Pruebas
+
+`tests/Models/SalePaymentsByCashupTest.php`. La prueba que importa no es que deje de sumar
+anuladas, sino que **un turno sin anuladas no se mueva ni un peso** y que devoluciones y vueltas
+sigan restando. Limpia solo sus propias filas (`cashup_id = 910001`), nunca con `truncate`: las
+tablas de ventas se comparten con el resto de la suite.
+
+`cashup_id` no tiene clave foránea, así que la prueba puede sellar contra un turno ficticio sin
+crear la fila en `cash_up`.
+
+### 11.8 Deuda que este arreglo NO toca
+
+La ruta A acota por rango de fechas y la B por `cashup_id`. Con un turno por día coinciden, pero el
+2026-07-31 hubo dos turnos y cada uno contaría las ventas del otro (§6.3 ya lo anticipaba).
+`cashup_id` es la fuente más correcta de las dos.
+
+La venta 48 (16 jul) pagó $74.800 contra un bruto de $46.900 y sin movimientos de devolución de
+inventario. Caso suelto de la primera semana, sin explicar, sin efecto sobre este arreglo.

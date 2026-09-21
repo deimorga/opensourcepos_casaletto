@@ -313,3 +313,59 @@ partir de él.** El valor real está en cargarlo como movimiento.
 ## 8. Referencia técnica
 
 `docs/Tecnico/cuadre-de-caja-y-origen-del-efectivo.md`
+
+---
+
+## 9. El cuadre mostraba faltantes que no existían *(corregido el 2026-09-20)*
+
+### 9.1 Qué pasaba
+
+Cuando una venta se cobraba y **después** se anulaba, el cuadre del cajón seguía contando esa
+plata como si hubiera entrado. El resultado es que al cerrar aparecía un faltante exactamente igual
+a lo anulado, y alguien se ponía a buscar un dinero que nunca se perdió.
+
+El caso más claro es el cierre del **20 de septiembre de 2026**:
+
+| | Lo que mostraba la pantalla | Lo que era en realidad |
+|---|---|---|
+| Efectivo del turno | $374.586 | $299.386 |
+| Esperado en el cajón | $2.177.836 | $2.102.636 |
+| Contado | $2.102.636 | $2.102.636 |
+| **Descuadre** | **Faltante de $75.200** | **$0, exacto** |
+
+La caja estaba perfecta. Los $75.200 eran una venta anulada a las 5:16 de la tarde.
+
+### 9.2 Desde cuándo y cuánto
+
+Venía pasando **desde el 16 de julio de 2026**: 11 ventas anuladas en 8 turnos. De los siete turnos
+ya cerrados, **cinco cambian de signo** al corregirse — donde el sistema decía faltante, la caja
+estaba sobrando o cuadrada. Dos ejemplos:
+
+- **11 de agosto**: se reportó un faltante de $28.900. La caja cuadraba **exacta**.
+- **11 de septiembre**: se reportó un faltante de $151.850. En realidad **sobraban $3.850**.
+
+**Esto no afectó ningún dato de ventas.** Los informes de ventas, los ingresos y la facturación
+siempre estuvieron bien: el error estaba solo en la pantalla del cuadre. Tampoco se perdió ni se
+alteró ningún registro — no hubo nada que reparar.
+
+### 9.3 Qué cambia en la pantalla
+
+El cuadre ya no suma la plata de las ventas anuladas al esperado del cajón. Pero **tampoco la
+esconde**: aparece en su propia línea, **"Cobrado en ventas anuladas (no cuenta)"**, con el detalle
+por medio de pago.
+
+Eso es a propósito. Si el efectivo de una venta anulada quedó físicamente en el cajón, ahora va a
+salir como **sobrante** — que es una pregunta que alguien puede responder — en vez de desaparecer
+dentro del monto esperado.
+
+### 9.4 Qué hacer cuando aparezca un descuadre
+
+1. Mirar la línea de **"Cobrado en ventas anuladas"** en el detalle del cuadre.
+2. Si hay efectivo ahí, revisar si esa plata se devolvió al cliente, se volvió a cobrar en otra
+   venta, o sigue en el cajón.
+3. Solo después de eso, buscar un descuadre real.
+
+### 9.5 Conversación pendiente con el equipo
+
+Varios de esos turnos cerraron con un faltante aparente. **Vale la pena confirmar si alguien
+repuso ese dinero de su bolsillo**, porque en al menos cinco de los siete casos no faltaba nada.
