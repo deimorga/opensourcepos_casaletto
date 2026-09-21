@@ -379,3 +379,13 @@ el conteo físico que hizo una persona.
 
 Resultado: de los ocho turnos afectados, **ninguno queda en faltante salvo uno, y por $30**. Dos
 cuadran exactos ($0), incluido el cierre de esa misma noche.
+
+### 9.7 Cada turno revisado quedó marcado
+
+Los ocho turnos llevan ahora una nota dentro del sistema. En la lista de Turnos aparecen con el
+chulo en la columna **«Notas»**, y al abrirlos se lee qué mostraba, cuánto de eso era efectivo de
+ventas anuladas, cuál era el cuadre real y la constancia de que **no se repuso dinero**.
+
+El turno del 16 de julio conserva además la nota que ya tenía de antes; la nueva va a continuación.
+
+Ningún importe fue modificado: solo se agregó el texto y la marca.

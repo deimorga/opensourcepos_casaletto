@@ -564,3 +564,32 @@ protegidas dan 302 y ninguna 500; el log de la aplicación no registra nada nuev
 
 **Queda pendiente, y es de negocio, no de código**: confirmar con quien cerró esos turnos si alguien
 repuso de su bolsillo un faltante que no existía.
+
+### 11.11 Nota de revisión escrita en los ocho turnos *(2026-09-20)*
+
+A petición del negocio se dejó rastro **dentro de OSPOS**, no solo en el informe. Es la única
+escritura sobre datos históricos de todo este trabajo.
+
+Se tocaron exactamente dos columnas de `ospos_cash_up`, y solo en los 8 turnos afectados:
+
+- `description`: una línea con lo que mostraba, cuánto de eso era efectivo anulado, el cuadre real y
+  la constancia de que no se repuso dinero.
+- `note` a `1`, que es el indicador (✓/✗) de la columna «Notas» de la lista de Turnos
+  (`tabular_helper.php:955`).
+
+Precauciones tomadas, por si hay que repetir el patrón:
+
+- **El turno 2 ya tenía texto** (`20.000 mas de ingreso de moneda`). Se conservó al frente y la nota
+  nueva va detrás de un ` | `. No se sobrescribió nada de nadie.
+- Cada `UPDATE` lleva una **guarda en el `WHERE`** con la descripción que se había leído, así que si
+  alguien la hubiera cambiado entre la lectura y la escritura, la fila no se toca.
+- `description` es `varchar(255)`: se verificó el largo en bytes de las ocho antes de escribir
+  (máxima, la del turno 2, 215 bytes).
+- **Sin tildes**, igual que el texto que ya existía — evita cualquier repetición de
+  `docs/Tecnico/correccion-codificacion-tildes.md`. Verificado después: cero entidades.
+- Reversión exacta generada **antes** de escribir, con `QUOTE()` sobre los valores originales:
+  `~/Downloads/respaldo-pos-20260920/rollback_notas_turnos.sql`.
+
+Verificado después: 8 turnos con `note = 1` y ningún otro; los 69 turnos cerrados conservan
+`closed_amount_cash` sumando $103.641.156, las aperturas $99.315.700 y los totales $30.178.290,78 —
+idénticos a antes de escribir.
