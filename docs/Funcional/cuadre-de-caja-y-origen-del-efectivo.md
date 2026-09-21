@@ -369,3 +369,13 @@ dentro del monto esperado.
 
 Varios de esos turnos cerraron con un faltante aparente. **Vale la pena confirmar si alguien
 repuso ese dinero de su bolsillo**, porque en al menos cinco de los siete casos no faltaba nada.
+
+### 9.6 Corregido en producción el 2026-09-20
+
+El arreglo quedó en producción esa misma noche, con el negocio ya cerrado. **No se modificó ningún
+dato**: el descuadre no se guardaba, se calculaba al abrir la pantalla, así que los ocho turnos
+pasaron a mostrar la cifra correcta solos. Los importes contados quedan intactos a propósito — son
+el conteo físico que hizo una persona.
+
+Resultado: de los ocho turnos afectados, **ninguno queda en faltante salvo uno, y por $30**. Dos
+cuadran exactos ($0), incluido el cierre de esa misma noche.

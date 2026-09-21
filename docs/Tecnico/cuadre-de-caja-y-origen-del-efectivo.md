@@ -525,3 +525,42 @@ login vuelve a ser rechazado. **No se tocó la credencial de ninguna persona.**
 **Lo que quedó en staging**: el turno 5 borrado (`deleted = 1`, cero turnos abiertos) y dos ventas
 de prueba, la 990002 completada de $34.000 y la 990003 anulada de $18.000. Se dejan a propósito:
 son el escenario de regresión para la próxima vez que haya que mirar esta pantalla.
+
+### 11.10 Despliegue a producción y regularización *(2026-09-20, 22:40-22:45)*
+
+Desplegado a producción con el negocio ya cerrado (el turno 70 cerró a las 21:19). Sin migraciones,
+porque el arreglo no toca el esquema.
+
+Antes de tocar nada: imagen de retorno `casaletto-ospos:rollback-20260920-cuadre` (`68589c6de0c5`) y
+volcado de las tres bases (`ospos`, `tenant_paraisodelacanasta`, `platform_control`), verificado con
+`Dump completed` y copiado fuera del VPS.
+
+`master` adelantado a `develop` por fast-forward (`f8445cb1d`); las dos ramas y el directorio de
+producción quedan en el mismo commit.
+
+**Regularización: no se modificó ni una fila.** El descuadre nunca se guardó — se calcula al mostrar
+la pantalla. Así que desplegar el arreglo ES la regularización: los ocho turnos pasan a mostrar la
+verdad solos. Los importes contados **no se tocan por principio**: son el conteo físico que hizo una
+persona, el único dato de esa pantalla que el sistema no puede recalcular.
+
+Cifras producidas por el código ya desplegado (comando de solo lectura, retirado después):
+
+| Turno | Efectivo anulado | Esperado real | Contado | Descuadre real |
+|---|---|---|---|---|
+| 2 | $74.800 | $854.860 | $878.600 | Sobrante $23.740 |
+| 29 | $28.900 | $375.500 | $375.500 | **Exacto, $0** |
+| 56 | $13.000 | $1.744.355 | $1.755.600 | Sobrante $11.245 |
+| 61 | $155.700 | $2.684.150 | $2.688.000 | Sobrante $3.850 |
+| 63 | $13.000 | $3.152.600 | $3.221.850 | Sobrante $69.250 |
+| 65 | $34.500 | $1.276.930 | $1.276.900 | Faltante $30 |
+| 69 | $32.400 | $1.877.843 | $1.887.750 | Sobrante $9.907 |
+| 70 | $75.200 | $2.102.636 | $2.102.636 | **Exacto, $0** |
+
+Ningún turno cerrado queda en faltante salvo el 65, y por $30.
+
+**Verificación posterior**: los tres hosts (`pos-casaletto`, `casaletto.ospos-saas`,
+`paraisodelacanasta.ospos-saas`) responden 200 en la raíz con los mismos assets que antes; las rutas
+protegidas dan 302 y ninguna 500; el log de la aplicación no registra nada nuevo.
+
+**Queda pendiente, y es de negocio, no de código**: confirmar con quien cerró esos turnos si alguien
+repuso de su bolsillo un faltante que no existía.
