@@ -234,6 +234,113 @@ class Sale_lib
         ];
     }
 
+    /**
+     * What the drawer does when a sale is completed.
+     *
+     * Three states and not a switch, because "abrirlo siempre" y "abrirlo cuando entra efectivo"
+     * son dos negocios distintos. Un cajon que salta en un pago con tarjeta se nota enseguida, y
+     * en un mostrador que cobra por transferencia no hay ningun billete que guardar.
+     *
+     * The drawer hangs off the receipt printer by RJ11, so opening it is a control sequence sent to
+     * the printer -- NOT a print. That distinction is the whole point: the shop was printing a
+     * receipt it did not want, on every sale, purely to reach the cash.
+     */
+    public const CASH_DRAWER_NEVER = 'never';
+    public const CASH_DRAWER_CASH = 'cash';
+    public const CASH_DRAWER_ALWAYS = 'always';
+
+    private const CASH_DRAWER_BEHAVIOURS = [
+        self::CASH_DRAWER_NEVER,
+        self::CASH_DRAWER_CASH,
+        self::CASH_DRAWER_ALWAYS
+    ];
+
+    /**
+     * The configured behaviour, already validated.
+     *
+     * Anything unknown reads as 'never': a settings map cached from before the migration, or a
+     * hand-made request that went around the dropdown. The fallback has to be the state where
+     * nothing moves -- a counter with no drawer, or one that sells by delivery, must not have
+     * anything change under it.
+     */
+    public function cash_drawer_behaviour(): string
+    {
+        return self::sanitizeCashDrawerBehaviour($this->config['open_cash_drawer_behaviour'] ?? null);
+    }
+
+    /**
+     * Takes anything on purpose: what arrives from the form is whatever the request carried, and a
+     * type error here would be a 500 on the settings screen instead of a value falling back.
+     */
+    public static function sanitizeCashDrawerBehaviour(mixed $behaviour): string
+    {
+        return in_array($behaviour, self::CASH_DRAWER_BEHAVIOURS, true)
+            ? (string)$behaviour
+            : self::CASH_DRAWER_NEVER;
+    }
+
+    /**
+     * The options for the drawer dropdown, labelled for a shopkeeper rather than for a technician.
+     */
+    public static function get_cash_drawer_options(): array
+    {
+        return [
+            self::CASH_DRAWER_NEVER  => self::translate_or('Config.open_cash_drawer_never', 'Do not open it'),
+            self::CASH_DRAWER_CASH   => self::translate_or('Config.open_cash_drawer_cash', 'Only on cash payments'),
+            self::CASH_DRAWER_ALWAYS => self::translate_or('Config.open_cash_drawer_always', 'On every sale')
+        ];
+    }
+
+    /**
+     * Whether THIS sale should pop the drawer.
+     *
+     * It takes the sale's payments rather than reading the session, because the decision belongs to
+     * the sale that was just completed and because the caller has already adjusted them: when a
+     * sale gives change, a cash line is added even if the customer paid by card -- and that change
+     * comes out of the drawer, so it counts.
+     *
+     * @param array $payments the sale's payment lines, as they were saved
+     */
+    public function should_open_cash_drawer(array $payments): bool
+    {
+        $behaviour = $this->cash_drawer_behaviour();
+
+        if ($behaviour === self::CASH_DRAWER_NEVER) {
+            return false;
+        }
+
+        if ($behaviour === self::CASH_DRAWER_ALWAYS) {
+            return true;
+        }
+
+        // La clave del arreglo TAMBIEN es el tipo de pago -- asi lo arma add_payment() -- y sirve
+        // de respaldo para una linea a la que le falte el campo.
+        foreach ($payments as $tipo => $payment) {
+            $nombre = is_array($payment) ? (string)($payment['payment_type'] ?? $tipo) : (string)$tipo;
+
+            if (self::is_cash_payment($nombre)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Whether a payment line moved physical cash.
+     *
+     * Payments are keyed and stored by their translated name -- that is how this library has always
+     * kept them, and the rows already written carry those strings -- so the comparison is against
+     * the same lang() values the rest of the file uses. See get_payments_total().
+     *
+     * The rounding adjustment counts as cash: it only ever exists alongside a cash payment, and it
+     * is literally the coins that make the total land on a round figure.
+     */
+    public static function is_cash_payment(string $payment_type): bool
+    {
+        return $payment_type === lang('Sales.cash') || $payment_type === lang('Sales.cash_adjustment');
+    }
+
     public static function isValidReceiptPaper(string $receipt_paper): bool
     {
         return in_array($receipt_paper, self::RECEIPT_PAPERS, true);

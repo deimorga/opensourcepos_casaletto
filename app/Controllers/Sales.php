@@ -1234,7 +1234,14 @@ class Sales extends Secure_Controller
         $data['invoice_number_enabled'] = $this->sale_lib->is_invoice_mode();
         $data['cur_giftcard_value'] = $this->sale_lib->get_giftcard_remainder();
         $data['cur_rewards_value'] = $this->sale_lib->get_rewards_remainder();
-        $data['print_after_sale'] = $this->session->get('sales_print_after_sale');
+        // La MISMA regla que dibuja la casilla en la pantalla de venta.
+        //
+        // Antes esto leia la sesion en crudo, y la configuracion quedaba a medias: la casilla salia
+        // desmarcada porque la pantalla si consultaba is_print_after_sale(), pero al completar
+        // mandaba a la impresora igual, porque la sesion conservaba el "si" de la ultima vez que
+        // alguien la marco. Lo que se ve y lo que hace se separaban -- peor que no tener el ajuste.
+        $data['print_after_sale'] = $this->sale_lib->is_print_after_sale();
+
         $data['price_work_orders'] = $this->sale_lib->is_price_work_orders();
         $data['email_receipt'] = $this->sale_lib->is_email_receipt();
         $customer_id = $this->sale_lib->get_customer();
@@ -1293,13 +1300,28 @@ class Sales extends Secure_Controller
                     lang('Sales.cash') => [
                         'payment_type'   => lang('Sales.cash'),
                         'payment_amount' => 0,
-                        'cash_refund'    => $data['amount_change']
+                        'cash_refund'    => $data['amount_change'],
+                        // Sale::save_value() lee esta clave sin ?? al guardar cada pago, asi que
+                        // sin ella la venta muere con un 500 justo aqui: una venta cobrada por
+                        // completo con tarjeta a la que hay que devolver vueltas. No es un ajuste
+                        // de redondeo -- es la linea de efectivo que sostiene el cambio.
+                        'cash_adjustment' => CASH_ADJUSTMENT_FALSE
                     ]
                 ];
 
                 $data['payments'] += $payment;
             }
         }
+
+        /*
+         * El cajon es independiente de la impresion: son dos ordenes distintas a la impresora, y
+         * por eso se puede abrir sin gastar una tirilla.
+         *
+         * Se decide AQUI y no arriba porque depende de con que se pago, y los pagos acaban de
+         * quedar completos: el bloque anterior agrega la linea de efectivo cuando la venta da
+         * cambio. Ese cambio sale del cajon, asi que cuenta.
+         */
+        $data['open_cash_drawer'] = $this->sale_lib->should_open_cash_drawer($data['payments']);
 
         $data['print_price_info'] = true;
 
@@ -1676,6 +1698,9 @@ class Sales extends Secure_Controller
 
         $data['barcode'] = $this->barcode_lib->generate_receipt_barcode($data['sale_id']);
         $data['print_after_sale'] = false;
+
+        // Consultar una factura vieja no puede abrir el cajon: no hay dinero entrando.
+        $data['open_cash_drawer'] = false;
         $data['price_work_orders'] = false;
 
         if ($this->sale_lib->get_mode() == 'sale_invoice') {    // TODO: Duplicated code.

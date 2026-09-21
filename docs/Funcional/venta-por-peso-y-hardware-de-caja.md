@@ -74,6 +74,8 @@ diferencia importa y se explica en el punto 4.
 | Paso a producción | **Corte en seco.** El día de salida se apaga el POS anterior. | 2026-08-28 |
 | Formato de la báscula | Se averigua **revisando el instalador del POS actual**, y si no, en el montaje. | 2026-08-28 |
 | Unidad de peso | **Solo kilogramos.** La libra se probó y se quitó: media libra se registra como 0,227 kg. Ver 3.1b. | 2026-08-30 |
+| Cuándo se imprime el recibo | **Configurable.** El negocio pidió que solo salga al oprimir «Imprimir». Ver 4.3g. | 2026-09-18 |
+| Cuándo se abre el cajón | **Solo en pagos en efectivo**, y también configurable. Ver 4.5. | 2026-09-18 |
 
 Las dos últimas nacieron corrigiendo un planteamiento inicial más pesado, y conviene dejar por
 escrito **por qué**, porque las razones van a seguir siendo válidas con los próximos clientes.
@@ -429,11 +431,46 @@ cliente nuevo.
 nada en la caja para mover un logo o agregar una línea.
 
 Lo único que sí depende de la impresora es **abrir el cajón**, porque el cajón cuelga de ella y
-abrirlo es literalmente una orden de impresora. Eso ya está resuelto y es configurable.
+abrirlo es literalmente una orden de impresora. Eso ya está resuelto y es configurable (4.5).
 
-**Pendiente de ver:** cómo queda el recibo en papel de 58 mm. La plantilla no se diseñó para ese
-ancho, así que es probable que necesite un ajuste de presentación. Que salga bien es cuestión de
-maquetación, no de si la impresión funciona.
+**Que salga solo es ahora una decisión del negocio, no del sistema.** Ver 4.3g: se puede dejar tal
+cual —imprime al terminar cada venta— o que solo salga cuando el cajero oprima «Imprimir».
+
+**El papel del recibo ya se declara (2026-09-03).** El sistema no sabía en qué rollo estaba
+imprimiendo: el navegador le sumaba sus propios márgenes —unos 10 mm por lado— y sobre los 48 mm que
+una tirilla de 58 mm imprime de verdad, eso se come más de la mitad del ancho y el recibo sale
+estrujado en una columna. Ahora el negocio elige su rollo en Configuración → Recibo y la impresión
+se maqueta al ancho **imprimible** real, no al que dice la caja del rollo.
+
+**Un rollo se vende por un ancho en el que no imprime.** Los 10 mm que faltan son el margen que el
+mecanismo no alcanza; maquetar al ancho nominal es la forma clásica de perder la columna de la
+derecha —los totales— por el borde del papel.
+
+**Pendiente:** imprimir uno de verdad en el local y dejar el rollo configurado. Hoy está sin
+declarar, que significa «imprimir como siempre».
+
+### 4.3g Quién decide si el recibo se imprime solo (2026-09-18)
+
+El negocio pidió poder **dejar de imprimir automáticamente** y que el recibo salga solo cuando el
+cajero oprima «Imprimir». La opción ya existía en Configuración → Recibo —«Casilla Imprimir
+recibo»: siempre marcada, siempre desmarcada, o recordar la última—, pero **no se respetaba**: al
+poner «siempre desmarcada» la casilla efectivamente salía desmarcada en la pantalla de venta, y el
+recibo se imprimía igual.
+
+El sistema recordaba el «sí» de la última vez que alguien marcó la casilla y lo usaba al terminar la
+venta, sin volver a mirar la configuración. Lo que el cajero veía y lo que hacía la impresora se
+habían separado, que es peor que no tener el ajuste.
+
+**Corregido y reproducido antes de corregirlo.** Ahora «siempre desmarcada» significa que no
+imprime hasta que se lo pidan, y esa fue la razón por la que quedó claro que el cajón tenía que
+dejar de depender de la impresión.
+
+**Certificado el 2026-09-18** sobre ventas reales en el ambiente de pruebas: con «siempre
+desmarcada» el recibo no sale hasta oprimir «Imprimir», y con «siempre marcada» sí sale solo —lo
+segundo importa tanto como lo primero, porque demuestra que el silencio es el ajuste obedeciendo y
+no algo que se rompió.
+
+De paso se tradujo esa pantalla de configuración, que seguía en inglés.
 
 ### 4.3d Cómo damos soporte, y por qué no dejamos una puerta abierta
 
@@ -485,13 +522,49 @@ Qué significa esto en la práctica:
 Vale aclarar que el cliente **ya viene operando con esta báscula** en su POS actual. Nosotros no
 creamos la situación; solo la encontramos al leer el manual y la reportamos.
 
-### 4.5 El cajón, en dos etapas
+### 4.5 El cajón se abre solo, y solo cuando entra efectivo (2026-09-18)
 
-Desde el primer día el cajón **abre solo en cada recibo**, con la casilla del driver de la
-impresora. Eso cubre la operación normal.
+Al finalizar una venta, el sistema le pide a la impresora que abra el cajón. **No se imprime nada
+para lograrlo**: abrir el cajón es una orden de control, no un documento. Hasta ahora la única forma
+de llegar al dinero era mandar algo a imprimir, y el negocio estaba gastando una tirilla por venta
+únicamente para eso.
 
-Lo que queda para cuando esté el programa local es **abrirlo sin vender**. Hasta entonces, para dar
-un cambio hay que abrirlo con la llave. Es una molestia conocida y aceptada, no un olvido.
+Se configura en **Configuración → Recibo**, con tres opciones:
+
+| Opción | Cuándo se abre el cajón |
+|---|---|
+| **No abrirlo** | Nunca. Es como sale de fábrica, y es lo que protege a una caja sin cajón |
+| **Solo en pagos en efectivo** | Cuando la venta movió efectivo, incluido el cambio —aunque el cobro haya sido con tarjeta |
+| **En toda venta** | Siempre que se cierre una venta, con lo que sea |
+
+**«Solo en pagos en efectivo» es lo que pidió el negocio y lo que tiene sentido en un mostrador:**
+un cajón que salta en un pago con tarjeta se nota enseguida, y nadie necesita llegar al dinero para
+aceptar una transferencia. Si la venta se cobró con tarjeta pero hay que devolver cambio, el cajón
+sí se abre: ese cambio sale de ahí.
+
+**No hay nada que configurar por cliente ni por modelo de cajón.** El cajón no entiende comandos:
+es un solenoide que recibe un pulso, y la orden que lo dispara es la misma en prácticamente toda
+impresora térmica del mercado. Un cliente nuevo con un cajón distinto solo elige una de las tres
+opciones de arriba.
+
+**Probado vendiendo de verdad (2026-09-18).** Se certificó en el ambiente de pruebas con seis
+ventas reales: pesando en la balanza, cobrando y dando vueltas. El cajón se pidió cuando entró
+efectivo —incluido el caso de cobrar con tarjeta y devolver cambio— y **no** se pidió cuando el pago
+fue solo con tarjeta. Con el ajuste apagado la página no manda absolutamente nada.
+
+**Un error que encontramos ahí, y que le estaba pasando al negocio sin que lo supiéramos.** Al
+probar «cobrar con tarjeta y devolver vueltas» la venta se caía: el sistema mostraba una pantalla de
+error y **la venta no quedaba registrada**. El cajero la pierde y tiene que volver a digitarla
+delante del cliente. Es un error que viene del sistema original, lleva año y medio ahí y **está en
+producción hoy**. No daña datos —la venta no queda a medias, simplemente no queda—, y ya está
+corregido en esta misma entrega.
+
+**Pendiente:** conectarlo físicamente y confirmarlo con `pos-agent.exe -abrir-cajon`. Es el último
+paso y ya no depende de desarrollo.
+
+Lo que sigue quedando para más adelante es **abrirlo sin vender** —para dar un cambio suelto o
+cuadrar el turno—. Hasta entonces eso se hace con la llave. Es una molestia conocida y aceptada, no
+un olvido.
 
 ## 5. El módulo de inventario
 
@@ -561,7 +634,9 @@ con un eufemismo**: sin internet la caja no vende despacio, no vende. El día qu
 en la puerta. Un canal 4G de respaldo cuesta poco y resuelve casi todos los casos: vale la pena
 ofrecerlo una vez más antes de cerrar.
 
-**Abrir el cajón sin venta.** Queda para la entrega del programa local, no para el arranque.
+**Abrir el cajón sin venta** —para dar un cambio suelto o cuadrar el turno—. El programa de la caja
+**ya sabe hacerlo**; lo que no existe es la forma de pedírselo desde la pantalla. Mientras tanto eso
+se hace con la llave. Al terminar una venta sí se abre solo (4.5).
 
 **Categorías con lista y jerarquía.** Las categorías siguen siendo texto libre. Con un catálogo de
 hortalizas — decenas de productos, no miles — el daño es manejable. Volvería a ser prioridad si el
@@ -632,20 +707,22 @@ Y antes de producción, todo pasa por el ambiente de pruebas con los dos negocio
 
 ## 8. Orden de entrega
 
-| Fase | Qué se entrega | Depende de |
-|---|---|---|
-| 0 | Blindaje del despliegue multi-tenant, para no tocar a Casaletto (§6b) | — |
-| 1 | Arreglo de los defectos que rompen el peso, y la unidad de medida en los artículos | Fase 0 |
-| 2 | El negocio provisionado y configurado | Fase 1 |
-| 3 | Merma, toma de inventario y lotes opcionales | Fase 1 |
-| 4 | El campo de peso en la caja, con digitación manual | Fase 1 |
-| 5 | Catálogo cargado y hardware montado en el local | Fases 2 y 4 |
-| 6 | El programa local: báscula, impresión directa y apertura de cajón | Fase 5 |
-| 7 | Acompañamiento de la primera semana | Fase 5 |
+**Estado al 2026-09-18.**
 
-**El programa local está deliberadamente después de la salida a producción.** El cliente arranca
-vendiendo con el peso digitado o con la báscula en modo teclado, y el programa llega sin presión de
-cronograma. Así, un problema de instalación no retrasa la apertura.
+| Fase | Qué se entrega | Estado |
+|---|---|---|
+| 0 | Blindaje del despliegue multi-tenant, para no tocar a Casaletto (§6b) | **Entregada** |
+| 1 | Arreglo de los defectos que rompen el peso, y la unidad de medida en los artículos | **Entregada** |
+| 2 | El negocio provisionado y configurado | **Entregada** |
+| 3 | Merma, toma de inventario y lotes opcionales | Pendiente, después del corte |
+| 4 | El campo de peso en la caja, con digitación manual | **Entregada** |
+| 5 | Catálogo cargado y hardware montado en el local | **Entregada.** Faltan precios en parte del catálogo |
+| 6 | El programa local: báscula, impresión directa y apertura de cajón | **Báscula e impresión funcionando en el local.** El cajón: desarrollado, **sin desplegar**, y pendiente de conectarlo |
+| 7 | Acompañamiento de la primera semana | En curso |
+
+**El negocio factura desde el 2026-09-02.** El programa local se había planeado deliberadamente
+*después* de la salida a producción, para que un problema de instalación no retrasara la apertura;
+terminó llegando antes, así que el cliente arrancó pesando con la báscula y no con el peso digitado.
 
 ## 9. Preguntas abiertas
 

@@ -210,6 +210,21 @@
             </div>
 
             <div class="form-group form-group-sm">
+                <?= form_label(lang('Config.open_cash_drawer_behaviour'), 'open_cash_drawer_behaviour', ['class' => 'control-label col-xs-2']) ?>
+                <div class="col-xs-3">
+                    <?= form_dropdown(
+                        'open_cash_drawer_behaviour',
+                        App\Libraries\Sale_lib::get_cash_drawer_options(),
+                        App\Libraries\Sale_lib::sanitizeCashDrawerBehaviour($config['open_cash_drawer_behaviour'] ?? null),
+                        ['class' => 'form-control input-sm', 'id' => 'open_cash_drawer_behaviour']
+                    ) ?>
+                </div>
+                <div class="col-xs-6">
+                    <span class="help-block"><?= lang('Config.open_cash_drawer_behaviour_help') ?></span>
+                </div>
+            </div>
+
+            <div class="form-group form-group-sm">
                 <?= form_label(lang('Config.print_silently'), 'print_silently', ['class' => 'control-label col-xs-2']) ?>
                 <div class="col-xs-1">
                     <?= form_checkbox([

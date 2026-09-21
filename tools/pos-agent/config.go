@@ -71,10 +71,18 @@ type ConfigImpr struct {
 	// explicito en vez de fallar en silencio.
 	Nombre string `json:"nombre"`
 
-	// AbrirCajon son los bytes que abren el cajon monetero, en decimal. El
-	// cajon cuelga de la impresora por RJ11, asi que abrirlo es imprimir una
-	// secuencia de control. 27,112,0,25,250 es ESC p 0 con los tiempos
-	// habituales; se deja configurable porque cada impresora tiene su gusto.
+	// AbrirCajon son los bytes que abren el cajon monetero, en decimal.
+	//
+	// El valor por omision FUNCIONA TAL CUAL y no hay que tocarlo por cliente:
+	// 27,112,0,25,250 es `ESC p 0 25 250`, el ejemplo canonico de la
+	// especificacion ESC/POS de Epson --pin 2, 50 ms encendido, 500 ms
+	// apagado-- que implementan practicamente todas las termicas del mercado.
+	// El cajon no entiende comandos: es un solenoide que recibe un pulso.
+	//
+	// Es configurable como salida de emergencia, no como tarea de instalacion.
+	// Solo se mira en dos casos raros: una impresora que dispare por el pin 5
+	// (seria 1 en vez de 0), o un solenoide duro que necesite mas tiempo
+	// encendido. El sintoma de lo segundo es que hace clic y no suelta.
 	AbrirCajon []int `json:"abrir_cajon"`
 }
 

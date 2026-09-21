@@ -2,6 +2,7 @@
 /**
  * @var string $sale_id_num
  * @var bool $print_after_sale
+ * @var bool $open_cash_drawer
  * @var string $customer_info
  * @var string $company_info
  * @var string $invoice_number
@@ -54,6 +55,7 @@ if (isset($error_message)) {
 <?php endif; ?>
 
 <?= view('partial/print_receipt', ['print_after_sale' => $print_after_sale, 'selected_printer' => 'invoice_printer']) ?>
+<?= view('partial/open_cash_drawer', ['open_cash_drawer' => $open_cash_drawer ?? false]) ?>
 
 <div class="print_hide" id="control_buttons" style="text-align: right;">
     <a href="javascript:printdoc();">
