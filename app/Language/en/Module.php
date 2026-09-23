@@ -32,6 +32,8 @@ return [
     "migrate_desc"               => "Update the OSPOS Database.",
     "office"                     => "Office",
     "office_desc"                => "List office menu modules.",
+    "order_tickets"              => "Order Tickets",
+    "order_tickets_desc"         => "Take an order at the table and send it to the kitchen.",
     "receivings"                 => "Receivings",
     "receivings_desc"            => "Process Purchase Orders.",
     "reports"                    => "Reports",

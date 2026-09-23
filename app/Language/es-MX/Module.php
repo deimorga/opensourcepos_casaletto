@@ -32,6 +32,8 @@ return [
     "migrate_desc"               => "Actualizar la Base de Datos de OSPOS.",
     "office"                     => "Oficina",
     "office_desc"                => "Listar los módulos del menú de la oficina.",
+    "order_tickets"              => "Comandas",
+    "order_tickets_desc"         => "Tomar el pedido en la mesa y mandarlo a la cocina.",
     "receivings"                 => "Recepciones",
     "receivings_desc"            => "Procesar Órdenes de Compra.",
     "reports"                    => "Reportes",
