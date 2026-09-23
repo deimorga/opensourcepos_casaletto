@@ -344,3 +344,57 @@
         scroll-behavior: auto !important;
     }
 }
+
+/* ------------------------------------------------------------------------------------------------
+   Contrast. Flatly's solid colours put white text on light fills: the success alert measures 2.41:1,
+   the grey badge 2.56:1, the outline success button 2.28:1, and the WARNING alert -- "this dish was
+   already in the kitchen", the one message a waiter must not miss -- 2.19:1. WCAG AA asks for 4.5:1.
+   Measured with Lighthouse on staging (2026-09-23) and fixed here with darker shades of the SAME
+   hues, each checked against both the white and the #f8f9fa backgrounds:
+     success #0f7a65 5.26 / 4.99   grey #5f6d6e 5.39 / 5.11   danger #c0392b 5.44 / 5.16
+     warning keeps its fill and switches to dark text: #212529 on #f39c12 is 7.03.
+   Scoped to .ot-body: the register's Bootstrap 3 pages are not touched.
+   ------------------------------------------------------------------------------------------------ */
+.ot-body .alert-success,
+.ot-body .text-bg-success {
+    background-color: #0f7a65 !important;
+    border-color: #0f7a65;
+    color: #fff !important;
+}
+
+.ot-body .alert-danger {
+    background-color: #c0392b;
+    border-color: #c0392b;
+    color: #fff;
+}
+
+.ot-body .alert-warning {
+    color: #212529;
+}
+
+.ot-body .text-bg-secondary {
+    background-color: #5f6d6e !important;
+    color: #fff !important;
+}
+
+.ot-body .btn-outline-success {
+    --bs-btn-color: #0f7a65;
+    --bs-btn-border-color: #0f7a65;
+    --bs-btn-hover-bg: #0f7a65;
+    --bs-btn-hover-border-color: #0f7a65;
+    --bs-btn-active-bg: #0f7a65;
+    --bs-btn-active-border-color: #0f7a65;
+}
+
+.ot-body .btn-outline-danger {
+    --bs-btn-color: #c0392b;
+    --bs-btn-border-color: #c0392b;
+    --bs-btn-hover-bg: #c0392b;
+    --bs-btn-hover-border-color: #c0392b;
+    --bs-btn-active-bg: #c0392b;
+    --bs-btn-active-border-color: #c0392b;
+}
+
+.ot-body .text-danger {
+    color: #c0392b !important;
+}
