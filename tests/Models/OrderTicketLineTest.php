@@ -463,6 +463,169 @@ class OrderTicketLineTest extends CIUnitTestCase
         $this->assertFalse($this->lines->edit_line(999999, ['quantity' => '2']));
     }
 
+    // ---------------------------------------------------------------------------------------------
+    // edit_line_seen: two waiters on the same ticket (Entrega 2)
+    // ---------------------------------------------------------------------------------------------
+
+    public function testEditingWithWhatWasSeenSucceeds(): void
+    {
+        $id = $this->addLine(self::TICKET, '1', '1000', 'sin cebolla');
+
+        $result = $this->lines->edit_line_seen(
+            $id,
+            ['quantity' => '2', 'kitchen_note' => 'bien asado'],
+            ['quantity' => '1', 'kitchen_note' => 'sin cebolla'],
+        );
+
+        $this->assertSame(Order_ticket_line::EDIT_OK, $result);
+
+        $line = $this->lines->get_info($id);
+        $this->assertSame('2.000', (string) $line['quantity']);
+        $this->assertSame('bien asado', $line['kitchen_note']);
+    }
+
+    /**
+     * THE case of this section. Waiter A and waiter B both opened the ticket while the dish said 1.
+     * A saves 3. B, still looking at 1, saves 2. Before the check, B silently erased A's change and A
+     * never knew. Now B is told, and A's value is what the kitchen gets.
+     */
+    public function testEditingAfterSomeoneElseChangedTheLineIsAConflictAndWritesNothing(): void
+    {
+        $id = $this->addLine(self::TICKET, '1', '1000', 'sin cebolla');
+        $this->lines->assign_to_round(self::TICKET, 1);
+        $seenByBoth = ['quantity' => '1', 'kitchen_note' => 'sin cebolla'];
+
+        $this->assertSame(
+            Order_ticket_line::EDIT_OK,
+            $this->lines->edit_line_seen($id, ['quantity' => '3'], $seenByBoth),
+            'Waiter A saves first.',
+        );
+        $this->db->table('order_ticket_lines')->where('order_ticket_line_id', $id)->update(['changed_after_send' => 0]);
+
+        $this->assertSame(
+            Order_ticket_line::EDIT_CONFLICT,
+            $this->lines->edit_line_seen($id, ['quantity' => '2', 'kitchen_note' => 'doble'], $seenByBoth),
+            'Waiter B saw 1, the line says 3: B must be told, not obeyed.',
+        );
+
+        $line = $this->lines->get_info($id);
+        $this->assertSame('3.000', (string) $line['quantity'], "A's change survives.");
+        $this->assertSame('sin cebolla', $line['kitchen_note'], 'Nothing of the refused edit was written.');
+        $this->assertSame(0, (int) $line['changed_after_send'], 'A refused edit does not tell the kitchen anything changed.');
+    }
+
+    /**
+     * The screen shows "2"; the column holds 2.000. Comparing them as text would turn every edit into
+     * a conflict.
+     */
+    public function testSeenQuantityComparesAsANumber(): void
+    {
+        $id = $this->addLine(self::TICKET, '2', '1000');
+
+        $this->assertSame(
+            Order_ticket_line::EDIT_OK,
+            $this->lines->edit_line_seen($id, ['quantity' => '5'], ['quantity' => '2', 'kitchen_note' => '']),
+        );
+        $this->assertSame('5.000', (string) $this->lines->get_info($id)['quantity']);
+    }
+
+    /**
+     * The note column's collation ignores case, so without BINARY a waiter who saw "sin cebolla"
+     * would pass the check against "SIN CEBOLLA" that someone else wrote -- and erase it.
+     */
+    public function testSeenNoteComparesExactly(): void
+    {
+        $id = $this->addLine(self::TICKET, '1', '1000', 'SIN CEBOLLA');
+
+        $this->assertSame(
+            Order_ticket_line::EDIT_CONFLICT,
+            $this->lines->edit_line_seen($id, ['quantity' => '2'], ['quantity' => '1', 'kitchen_note' => 'sin cebolla']),
+        );
+        $this->assertSame('1.000', (string) $this->lines->get_info($id)['quantity']);
+    }
+
+    /**
+     * A double tap or a reload sends the same form twice, and the second one carries the "seen" of
+     * before the first. The line already says what was asked: that is done, not a conflict, and the
+     * waiter must not be told somebody else changed their own dish.
+     */
+    public function testResubmittingTheSameEditIsOkNotAConflict(): void
+    {
+        $id      = $this->addLine(self::TICKET, '1', '1000', 'sin cebolla');
+        $changes = ['quantity' => '2', 'kitchen_note' => 'sin cebolla ni tomate'];
+        $seen    = ['quantity' => '1', 'kitchen_note' => 'sin cebolla'];
+
+        $this->assertSame(Order_ticket_line::EDIT_OK, $this->lines->edit_line_seen($id, $changes, $seen));
+        $this->assertSame(Order_ticket_line::EDIT_OK, $this->lines->edit_line_seen($id, $changes, $seen));
+
+        $line = $this->lines->get_info($id);
+        $this->assertSame('2.000', (string) $line['quantity']);
+        $this->assertSame('sin cebolla ni tomate', $line['kitchen_note']);
+    }
+
+    public function testEditingAVoidedLineIsRefused(): void
+    {
+        $id = $this->addLine(self::TICKET, '1', '1000');
+        $this->lines->void_line($id);
+
+        $this->assertSame(
+            Order_ticket_line::EDIT_REFUSED,
+            $this->lines->edit_line_seen($id, ['quantity' => '2'], ['quantity' => '1', 'kitchen_note' => '']),
+            'Voided is not a conflict: there is nothing left to edit.',
+        );
+        $this->assertSame(
+            Order_ticket_line::EDIT_REFUSED,
+            $this->lines->edit_line_seen(999999, ['quantity' => '2'], ['quantity' => '1', 'kitchen_note' => '']),
+        );
+        $this->assertSame('1.000', (string) $this->lines->get_info($id)['quantity']);
+    }
+
+    /**
+     * Invalid input is refused before anything is compared, and a malformed "seen" is invalid input:
+     * treating it as "no check" would quietly turn a guarded edit into an unguarded one.
+     */
+    public function testInvalidInputOrAnIncompleteSeenIsRefused(): void
+    {
+        $id = $this->addLine(self::TICKET, '1', '1000');
+
+        $this->assertSame(Order_ticket_line::EDIT_REFUSED, $this->lines->edit_line_seen($id, ['quantity' => '0'], ['quantity' => '1', 'kitchen_note' => '']));
+        $this->assertSame(Order_ticket_line::EDIT_REFUSED, $this->lines->edit_line_seen($id, [], ['quantity' => '1', 'kitchen_note' => '']));
+        $this->assertSame(Order_ticket_line::EDIT_REFUSED, $this->lines->edit_line_seen($id, ['quantity' => '2'], ['quantity' => '1']));
+        $this->assertSame(Order_ticket_line::EDIT_REFUSED, $this->lines->edit_line_seen($id, ['quantity' => '2'], ['quantity' => 'uno', 'kitchen_note' => '']));
+
+        $this->assertSame('1.000', (string) $this->lines->get_info($id)['quantity']);
+    }
+
+    /**
+     * Without a "seen", edit_line_seen() is edit_line(): the last write wins, as before.
+     */
+    public function testEditingWithoutSeenIsUnchecked(): void
+    {
+        $id = $this->addLine(self::TICKET, '1', '1000');
+        $this->lines->edit_line($id, ['quantity' => '3']);
+
+        $this->assertSame(Order_ticket_line::EDIT_OK, $this->lines->edit_line_seen($id, ['quantity' => '2'], null));
+        $this->assertSame('2.000', (string) $this->lines->get_info($id)['quantity']);
+    }
+
+    /**
+     * Adding is the half of the two-waiter problem that needs no check: every dish is its own row,
+     * an INSERT each, so two waiters adding at once can never overwrite one another.
+     */
+    public function testTwoWaitersAddingDifferentDishesNeverCollide(): void
+    {
+        $fromA = $this->lines->add_line(self::TICKET, 7, 'Empanada', '1', '3500', '', 1);
+        $fromB = $this->lines->add_line(self::TICKET, 8, 'Jugo de mora', '2', '6000', 'sin hielo', 2);
+
+        $this->assertGreaterThan(0, $fromA);
+        $this->assertGreaterThan(0, $fromB);
+        $this->assertNotSame($fromA, $fromB);
+
+        $lines = $this->lines->get_lines(self::TICKET);
+        $this->assertSame([$fromA, $fromB], $this->idsOf($lines));
+        $this->assertSame(['Empanada', 'Jugo de mora'], array_column($lines, 'item_name'));
+    }
+
     /**
      * The list screen's numbers, for every ticket in one query. A voided line is not a dish, and
      * "pending" must be exactly what the next send would carry.

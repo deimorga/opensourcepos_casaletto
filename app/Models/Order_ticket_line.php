@@ -70,6 +70,22 @@ class Order_ticket_line extends Model
      */
     private const EDITABLE_KEYS = ['quantity', 'kitchen_note'];
 
+    /**
+     * What edit_line_seen() answers. Stable codes, never labels, for the same reason as the statuses:
+     * the controller maps them to a message, and the wording can change without the meaning moving.
+     */
+    public const EDIT_OK = 'ok';
+
+    /**
+     * Someone changed the line since this screen read it. Nothing was written.
+     */
+    public const EDIT_CONFLICT = 'conflict';
+
+    /**
+     * The line is missing or voided, or the input was invalid. Nothing was written.
+     */
+    public const EDIT_REFUSED = 'refused';
+
     protected $table            = 'order_ticket_lines';
     protected $primaryKey       = 'order_ticket_line_id';
     protected $useAutoIncrement = true;
@@ -208,11 +224,59 @@ class Order_ticket_line extends Model
      * The flag rises only when a value actually CHANGES. A phone resubmitting the same form -- a
      * double tap, a reload -- must not tell the kitchen that a dish was altered when nothing was.
      *
+     * This is the unchecked edit: whoever writes last wins. The waiter's screen uses
+     * edit_line_seen(), which refuses to overwrite a change the waiter never saw.
+     *
      * @param array $changes only 'quantity' (decimal string) and 'kitchen_note' (string) are read
      *
      * @return bool false when the line is missing or voided, or nothing valid was given
      */
     public function edit_line(int $order_ticket_line_id, array $changes): bool
+    {
+        return $this->apply_edit($order_ticket_line_id, $changes, null) === self::EDIT_OK;
+    }
+
+    /**
+     * The same edit as edit_line(), but only if the line still holds what the waiter's screen showed.
+     *
+     * Two waiters open the same ticket and both change the same dish. Without this, the second save
+     * silently erases the first, and the first waiter walks away believing the kitchen has their
+     * version. With it, the second save is refused as EDIT_CONFLICT and the screen can say so.
+     *
+     * OPTIMISTIC, NOT A LOCK. The check is part of the WHERE of the very UPDATE that writes, so the
+     * database decides "still what you saw?" and "write" as one step. Reading the row first and
+     * writing afterwards would reopen the window this closes. And no row is locked while a waiter
+     * types: a lock held by a phone on a bad signal in a full restaurant is worse than a retry.
+     *
+     * The quantity is compared as a number, so a seen "2" matches a stored 2.000. The note is
+     * compared byte for byte (BINARY): the column's collation ignores case, and "SIN CEBOLLA"
+     * written over "sin cebolla" is a change the kitchen reads.
+     *
+     * The seen values are what the screen showed, and nothing else: they are not written, and the
+     * same trimming as the stored note is applied to them, so a form that trims does not conflict
+     * with itself.
+     *
+     * @param array{quantity?: string, kitchen_note?: string}    $changes
+     * @param array{quantity: string, kitchen_note: string}|null $seen    what the screen showed when
+     *                                                                    the waiter started editing;
+     *                                                                    null = no check (edit_line())
+     *
+     * @return string one of EDIT_OK, EDIT_CONFLICT, EDIT_REFUSED
+     */
+    public function edit_line_seen(int $order_ticket_line_id, array $changes, ?array $seen): string
+    {
+        return $this->apply_edit($order_ticket_line_id, $changes, $seen);
+    }
+
+    /**
+     * The one implementation behind edit_line() and edit_line_seen(), so the validation and, above
+     * all, the ordering of the flag assignments exist exactly once.
+     *
+     * @param array|null $seen null skips the "still what the screen showed" condition entirely
+     *
+     * @return string one of EDIT_OK, EDIT_CONFLICT, EDIT_REFUSED
+     */
+    private function apply_edit(int $order_ticket_line_id, array $changes, ?array $seen): string
     {
         $set = [];
 
@@ -224,14 +288,14 @@ class Order_ticket_line extends Model
             $value = $changes[$key];
 
             if (! is_string($value)) {
-                return false;
+                return self::EDIT_REFUSED;
             }
 
             if ($key === 'quantity') {
                 $value = trim($value);
 
                 if (! self::is_valid_quantity($value)) {
-                    return false;
+                    return self::EDIT_REFUSED;
                 }
             } else {
                 $value = self::clean_text($value);
@@ -241,7 +305,25 @@ class Order_ticket_line extends Model
         }
 
         if ($set === []) {
-            return false;
+            return self::EDIT_REFUSED;
+        }
+
+        // What the screen showed must be complete and well formed. A malformed "seen" cannot be
+        // compared with anything, and skipping the check for it would silently turn a guarded edit
+        // into an unguarded one.
+        if ($seen !== null) {
+            if (! isset($seen['quantity'], $seen['kitchen_note'])
+                || ! is_string($seen['quantity'])
+                || ! is_string($seen['kitchen_note'])) {
+                return self::EDIT_REFUSED;
+            }
+
+            $seen_quantity = trim($seen['quantity']);
+            $seen_note     = self::clean_text($seen['kitchen_note']);
+
+            if (! self::is_valid_quantity($seen_quantity)) {
+                return self::EDIT_REFUSED;
+            }
         }
 
         // "Does any value differ from what the row holds now?" Quantity compares as a number, so
@@ -279,20 +361,63 @@ class Order_ticket_line extends Model
         $builder->where('order_ticket_line_id', $order_ticket_line_id);
         $builder->where('status !=', self::STATUS_VOIDED);
 
+        // The optimistic check. In the WHERE, never in the SET: the WHERE is evaluated against the
+        // row as it was before this UPDATE, which is exactly the row the screen is claiming to have
+        // seen. Same comparisons as above -- numeric quantity, byte-exact note.
+        if ($seen !== null) {
+            $builder->where('quantity = ' . $this->db->escape($seen_quantity), null, false);
+            $builder->where('BINARY kitchen_note = BINARY ' . $this->db->escape($seen_note), null, false);
+        }
+
         if (! $builder->update()) {
-            return false;
+            return self::EDIT_REFUSED;
         }
 
         if ($this->db->affectedRows() > 0) {
-            return true;
+            return self::EDIT_OK;
         }
 
-        // Zero affected rows means either no such editable line, or a line whose values were already
-        // exactly these (MySQL does not count an UPDATE that changes nothing). Only the second one is
-        // a success.
+        // Zero affected rows is ambiguous, and the row is read again ONLY to say which case it was --
+        // never to decide what to write, which already happened (or not) above:
+        //   - no such line, or a voided one: refused;
+        //   - a line that already holds exactly the requested values: success. MySQL does not count
+        //     an UPDATE that changes nothing, and the same form submitted twice (a double tap, a
+        //     reload carrying the old "seen") must read as done, not as somebody else's change;
+        //   - anything else, with a "seen" given: the line moved since the screen read it.
+        // Without a "seen" the UPDATE matched any live line, so zero rows can only mean "already
+        // these values"; that answer is kept as edit_line() always gave it.
         $line = $this->get_info($order_ticket_line_id);
 
-        return $line !== null && $line['status'] !== self::STATUS_VOIDED;
+        if ($line === null || $line['status'] === self::STATUS_VOIDED) {
+            return self::EDIT_REFUSED;
+        }
+
+        if ($seen === null || self::holds_values($line, $set)) {
+            return self::EDIT_OK;
+        }
+
+        return self::EDIT_CONFLICT;
+    }
+
+    /**
+     * Whether a line already holds these values, compared the way the UPDATE compares them:
+     * quantity as a number at the column's scale, the note byte for byte.
+     *
+     * @param array<string, string> $values validated, as built by apply_edit()
+     */
+    private static function holds_values(array $line, array $values): bool
+    {
+        foreach ($values as $column => $value) {
+            $same = $column === 'quantity'
+                ? bccomp((string) $line['quantity'], $value, self::QUANTITY_SCALE) === 0
+                : (string) $line['kitchen_note'] === $value;
+
+            if (! $same) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

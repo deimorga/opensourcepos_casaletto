@@ -45,38 +45,46 @@ class Order_ticket_round extends Model
     /**
      * Sends every pending line of a ticket to the kitchen as a new round.
      *
-     * Returns ['round_id' => int, 'number' => int, 'lines' => int], or null when there was nothing
-     * to send -- no pending line, or a ticket that is no longer live. Null is an ordinary answer, not
-     * a failure: it is exactly what the second tap of a double tap must get.
+     * Returns ['round_id' => int, 'number' => int, 'lines' => int], or null when there was NOTHING TO
+     * SEND: no such ticket, a ticket that is no longer live, or no pending line. Null is an ordinary
+     * answer, not a failure: it is exactly what the second tap of a double tap must get.
+     *
+     * A FAILURE IS NEVER A NULL. If the database fails -- a lock that did not come free in time, a
+     * lost connection -- this throws Order_ticket_send_failed after closing the transaction. The two
+     * must not look alike: "there were no new dishes" and "the dishes did not go" lead a waiter to
+     * opposite actions, and telling them the first when the second happened leaves a table waiting
+     * for food nobody is cooking. (Found by the 2.2 concurrency test: an earlier version answered
+     * null to a lock timeout.)
      *
      * HOW IT GUARANTEES "ONCE"
      *
      *   1. The ticket row is locked (SELECT ... FOR UPDATE) before anything is read. Two sends of the
      *      same ticket therefore run one after the other, never interleaved: the second waits for the
-     *      first to commit.
-     *   2. The round number is computed only after that lock, so two rounds can never both be
-     *      "RONDA 2". The UNIQUE (order_ticket_id, number) key is the database's backstop if that is
-     *      ever broken.
-     *   3. Lines are taken by Order_ticket_line::assign_to_round(), a single UPDATE conditioned on
-     *      round_id IS NULL. When the second send finally runs, the first has already taken every
-     *      line, so it finds none.
-     *   4. A round that took no lines is rolled back, never kept. An empty "RONDA 3" on the kitchen's
-     *      paper would read as a missing order.
+     *      first to commit. OrderTicketRoundTest proves it with a real second connection.
+     *   2. "Is there anything to send?" is asked UNDER that lock and BEFORE a round exists, so an
+     *      empty round is never created, and the answer cannot change until this send commits.
+     *   3. The round number is computed after the lock, so two rounds can never both be "RONDA 2".
+     *      The UNIQUE (order_ticket_id, number) key is the database's backstop.
+     *   4. Lines are taken by Order_ticket_line::assign_to_round(), one UPDATE conditioned on
+     *      round_id IS NULL. Taking none at this point is not "nothing to send" -- step 2 already saw
+     *      some -- so it is treated as the failure it is.
      *
-     * A ticket that was cancelled or charged sends nothing: its lines are no longer anybody's to cook.
+     * WHY EVERY STEP CHECKS FOR false: inside a transaction CodeIgniter does NOT throw for a failed
+     * query, not even with DBDebug on (BaseConnection::query(): "In transactions, do not throw
+     * exception by default"). The query just returns false. So every result is checked, in testing
+     * and in production alike.
+     *
+     * After a failed query the connection's transaction status stays "failed" under strict mode, and
+     * any later transaction on it in the same request would roll back without a word; the status is
+     * reset once this one is closed.
      *
      * MUST NOT BE CALLED INSIDE ANOTHER TRANSACTION. CodeIgniter only begins, commits and rolls back
-     * the outermost transaction; a nested transRollback() just decrements a counter. Called inside
-     * an outer transaction, step 4 would silently not happen and an empty round would be committed
-     * with it. That is a programming error, so it is refused loudly rather than tolerated.
-     *
-     * Failures are not swallowed: this runs from the ticket's own screen, where the waiter must know
-     * the order did not go (section 4.6 of the design). But the transaction is always closed first.
-     * Every step is also checked for a false return, not only for an exception: DBDebug is off in
-     * production (app/Config/Database.php), and there a failed query returns false instead of
-     * throwing.
+     * the outermost transaction; a nested transRollback() just decrements a counter. That is a
+     * programming error, so it is refused loudly rather than tolerated.
      *
      * @return array{round_id: int, number: int, lines: int}|null
+     *
+     * @throws Order_ticket_send_failed when the database failed and nothing was sent
      */
     public function send(int $order_ticket_id, int $sent_by): ?array
     {
@@ -85,6 +93,7 @@ class Order_ticket_round extends Model
         }
 
         $tickets = $this->db->prefixTable('order_tickets');
+        $lines   = $this->db->prefixTable('order_ticket_lines');
         $rounds  = $this->db->prefixTable($this->table);
 
         $this->db->transBegin();
@@ -95,12 +104,28 @@ class Order_ticket_round extends Model
                 [$order_ticket_id],
             );
 
-            $row = $ticket === false ? null : $ticket->getRowArray();
+            if ($ticket === false) {
+                $this->fail_send($order_ticket_id, 'the ticket could not be locked');
+            }
+
+            $row = $ticket->getRowArray();
 
             if ($row === null || ! in_array($row['status'], [Order_ticket::STATUS_OPEN, Order_ticket::STATUS_DELIVERED], true)) {
-                $this->db->transRollback();
+                return $this->nothing_to_send();
+            }
 
-                return null;
+            // The D8 condition, the same one assign_to_round() writes with, asked under the lock.
+            $pending = $this->db->query(
+                "SELECT COUNT(*) AS n FROM {$lines} WHERE order_ticket_id = ? AND round_id IS NULL AND status = ?",
+                [$order_ticket_id, Order_ticket_line::STATUS_PENDING],
+            );
+
+            if ($pending === false) {
+                $this->fail_send($order_ticket_id, 'the pending dishes could not be read');
+            }
+
+            if ((int) $pending->getRow()->n === 0) {
+                return $this->nothing_to_send();
             }
 
             $max = $this->db->query(
@@ -109,9 +134,7 @@ class Order_ticket_round extends Model
             );
 
             if ($max === false) {
-                $this->db->transRollback();
-
-                return null;
+                $this->fail_send($order_ticket_id, 'the next round number could not be read');
             }
 
             $number = (int) $max->getRow()->n + 1;
@@ -125,9 +148,7 @@ class Order_ticket_round extends Model
             ]);
 
             if ($inserted === false) {
-                $this->db->transRollback();
-
-                return null;
+                $this->fail_send($order_ticket_id, 'the round could not be created');
             }
 
             $round_id = (int) $this->db->insertID();
@@ -135,27 +156,58 @@ class Order_ticket_round extends Model
             // Built on THIS connection explicitly, not through model(): the UPDATE that takes the lines
             // has to run inside the transaction opened above, and a line model holding a different
             // connection would commit its UPDATE on its own -- leaving lines pointing at a round that
-            // step 4 then rolls back.
-            $lines = (new Order_ticket_line($this->db))->assign_to_round($order_ticket_id, $round_id);
+            // is then rolled back.
+            $taken = (new Order_ticket_line($this->db))->assign_to_round($order_ticket_id, $round_id);
 
-            if ($lines < 1) {
-                $this->db->transRollback();
-
-                return null;
+            if ($taken < 1) {
+                $this->fail_send($order_ticket_id, 'the dishes could not be assigned to the round');
             }
 
             if (! $this->db->transCommit()) {
-                $this->db->transRollback();
-
-                return null;
+                $this->fail_send($order_ticket_id, 'the round could not be committed');
             }
 
-            return ['round_id' => $round_id, 'number' => $number, 'lines' => $lines];
-        } catch (Throwable $e) {
-            $this->db->transRollback();
-
+            return ['round_id' => $round_id, 'number' => $number, 'lines' => $taken];
+        } catch (Order_ticket_send_failed $e) {
             throw $e;
+        } catch (Throwable $e) {
+            $this->close_failed_transaction();
+
+            throw new Order_ticket_send_failed('Sending order ticket ' . $order_ticket_id . ' failed: ' . $e->getMessage(), 0, $e);
         }
+    }
+
+    /**
+     * Nothing to send: close the transaction, which wrote nothing, and answer null.
+     */
+    private function nothing_to_send(): ?array
+    {
+        $this->db->transRollback();
+
+        return null;
+    }
+
+    /**
+     * The database failed: close the transaction, leave the connection usable, and say so.
+     *
+     * @throws Order_ticket_send_failed always
+     */
+    private function fail_send(int $order_ticket_id, string $what): never
+    {
+        $this->close_failed_transaction();
+
+        throw new Order_ticket_send_failed('Sending order ticket ' . $order_ticket_id . ' failed: ' . $what . '.');
+    }
+
+    private function close_failed_transaction(): void
+    {
+        if ($this->db->transDepth > 0) {
+            $this->db->transRollback();
+        }
+
+        // Strict mode keeps a failed status across transactions; without this, the next transaction
+        // on this connection in the same request would roll back silently.
+        $this->db->resetTransStatus();
     }
 
     public function get_info(int $round_id): ?array

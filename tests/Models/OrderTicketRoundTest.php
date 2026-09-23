@@ -6,8 +6,10 @@ use App\Database\Migrations\Migration_AddOrderTickets;
 use App\Models\Order_ticket;
 use App\Models\Order_ticket_line;
 use App\Models\Order_ticket_round;
+use App\Models\Order_ticket_send_failed;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
+use Config\Database;
 use LogicException;
 
 /**
@@ -209,6 +211,86 @@ final class OrderTicketRoundTest extends CIUnitTestCase
         } finally {
             $this->db->transRollback();
         }
+    }
+
+    /**
+     * What backs the claim "two sends of the same ticket run one after the other, never interleaved"
+     * (send()'s docblock, step 1). Every other test here sends in sequence; this one holds the lock
+     * from a REAL second connection -- another waiter, or the cashier, halfway through their own
+     * send -- and shows that this send waits for it instead of going around it.
+     *
+     * The wait is cut to one second so the test does not sit out MariaDB's default of 50. When the
+     * wait runs out the SELECT ... FOR UPDATE fails (error 1205, lock wait timeout). Inside a
+     * transaction CodeIgniter 4.7 does NOT throw for a failed query, even with DBDebug on, unless
+     * transException(true) was set (BaseConnection::query()); the query returns false, and send()
+     * turns that into Order_ticket_send_failed after rolling back. So the proof is: it FAILED LOUDLY
+     * for a ticket that did have something to send -- never the null that means "nothing to send",
+     * which is what an earlier version answered and what would have told the waiter the dishes were
+     * already in the kitchen -- it took at least the lock timeout to do it, it left no transaction
+     * open and no failed status behind, and it wrote nothing. Once the other connection lets go, the
+     * very same send goes through.
+     *
+     * The second connection is Database::connect('tests', false): same group as $this->db (and
+     * therefore the same schema the setUp() truncated), but NOT shared, so it is a separate MariaDB
+     * session with its own transaction. Asserted below rather than assumed.
+     */
+    public function testASecondSendWaitsForTheFirstInsteadOfInterleaving(): void
+    {
+        $ticket = $this->openTicket();
+        $line   = $this->addLine($ticket, 'Empanada');
+
+        $other = Database::connect('tests', false);
+        $this->assertNotSame($this->db, $other);
+        $this->assertSame($this->db->getDatabase(), $other->getDatabase(), 'Both sessions must look at the same test schema.');
+
+        $previousTimeout = (int) $this->db->query('SELECT @@SESSION.innodb_lock_wait_timeout AS t')->getRow()->t;
+
+        try {
+            $other->transBegin();
+            $other->query(
+                'SELECT status FROM ' . $other->prefixTable('order_tickets') . ' WHERE order_ticket_id = ? FOR UPDATE',
+                [$ticket],
+            );
+
+            $this->db->query('SET SESSION innodb_lock_wait_timeout = 1');
+
+            $started = microtime(true);
+            $failure = null;
+
+            try {
+                $this->rounds->send($ticket, self::CASHIER_ID);
+            } catch (Order_ticket_send_failed $e) {
+                $failure = $e;
+            }
+
+            $waited = microtime(true) - $started;
+
+            $this->assertNotNull($failure, 'While another send holds the ticket, this one must fail -- and say so, not answer "nothing to send".');
+            $this->assertGreaterThanOrEqual(0.9, $waited, 'It waited for the lock; it did not go around it.');
+            $this->assertSame(0, $this->db->transDepth, 'No transaction left open on this connection.');
+            $this->assertTrue($this->db->transStatus(), 'send() cleaned the failed status itself; the next transaction on this connection is not doomed.');
+            $this->assertSame(0, $this->db->table('order_ticket_rounds')->countAllResults(), 'No round, not even an empty one.');
+
+            $stillPending = $this->lines->get_info($line);
+            $this->assertSame(Order_ticket_line::STATUS_PENDING, $stillPending['status']);
+            $this->assertNull($stillPending['round_id']);
+        } finally {
+            // Always, even when an assertion above failed: a lock left held here would stall every
+            // later test that touches this ticket table, and a lowered timeout would leak into them.
+            $other->transRollback();
+            $other->close();
+            $this->db->query('SET SESSION innodb_lock_wait_timeout = ' . $previousTimeout);
+            // The failed query marked this shared connection's transaction status as failed, and
+            // CodeIgniter's strict mode keeps it that way: any later transStart()/transComplete() on
+            // it, in another test file, would roll back without a word.
+            $this->db->resetTransStatus();
+        }
+
+        $round = $this->rounds->send($ticket, self::WAITER_ID);
+
+        $this->assertNotNull($round, 'Once the other send let go, this one goes through.');
+        $this->assertSame(1, $round['number']);
+        $this->assertSame(1, $round['lines']);
     }
 
     public function testTheRoundRecordsWhoSentItAndIsNotYetPrinted(): void
