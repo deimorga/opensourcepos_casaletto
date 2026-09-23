@@ -32,8 +32,9 @@ caja lo cobra como cualquier venta.
 2. **Abre una comanda** con un nombre que la caja va a reconocer: «ANDREA», «mesa 4», «domicilio Juan».
 3. **Busca y agrega los platos**, cada uno con su nota para la cocina si hace falta: «sin cebolla»,
    «término medio», «para llevar».
-4. **Pulsa «Enviar a cocina».** Si después el cliente pide algo más, lo agrega y vuelve a enviar:
-   la segunda hoja lleva **solo lo nuevo**.
+4. **Pulsa «Enviar a cocina»**, si su negocio usa la hoja de cocina. Si después el cliente pide algo
+   más, lo agrega y vuelve a enviar: la segunda hoja lleva **solo lo nuevo**.
+   **Si su negocio no tiene cocina, este paso se salta**: la caja recibe los platos igual.
 5. **La caja cobra la cuenta** cuando el cliente pide pagar.
 
 ---

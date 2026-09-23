@@ -236,6 +236,26 @@ de los dos que revise y vuelva a pulsar.
 sistema dice con claridad cuándo algo **no** se guardó, pero lo que el mesero estaba escribiendo
 cuando se cayó la señal hay que volver a escribirlo.
 
+### 4.13 Un comercio sin cocina
+
+*Verificado en staging el 2026-09-23 y fijado con una prueba automática.*
+
+La cocina es opcional (D15). Un comercio que no tiene cocina, o que no quiere que la cocina reciba
+nada, **usa las comandas igual**:
+
+- El mesero abre la comanda y agrega los platos. **No necesita pulsar «Enviar a cocina».**
+- La caja recibe los platos igual: al abrir la pestaña de la comanda aparecen todos, se hayan enviado
+  a cocina o no.
+- El cajero cobra, y la comanda queda cobrada.
+
+Comprobado en staging con la casilla de cocina apagada: la comanda «SIN COCINA» se tomó desde el
+celular, nunca se envió a cocina, y la caja la cobró completa ($57.800, recibo POS 990007). No se
+generó ninguna hoja de cocina.
+
+Lo que ese comercio sigue viendo en el celular del mesero: el botón «Enviar a cocina». Pulsarlo no
+hace daño —registra una ronda que nadie imprime—, pero no hace falta. Al capacitar a ese comercio
+hay que decirle que lo ignore.
+
 ---
 
 ### 4.11 Cómo se enciende para un comercio

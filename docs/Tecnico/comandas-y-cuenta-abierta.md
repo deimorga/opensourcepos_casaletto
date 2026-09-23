@@ -506,6 +506,19 @@ D4 enciende las comandas por comercio; D15 enciende la cocina **aparte**. Son do
 
 Ambas se leen **siempre** con `?? '0'` (§3.14).
 
+**Con la cocina apagada, las comandas funcionan completas, y eso no depende del interruptor.** La
+caja jala lo **no cobrado** (`Order_ticket_line::get_unbilled()`: `billed_at IS NULL` y no anulado),
+nunca lo **enviado**: un plato que jamás pasó por «Enviar a cocina» llega a la caja y se cobra igual.
+Hoy `order_tickets_kitchen_enable` solo se guarda desde Configuración; ningún camino de ejecución lo
+lee, porque la pantalla de cocina (Entrega 3) no existe todavía.
+
+Lo fija `OrderTicketsRegisterTest::testWithTheKitchenOffADishNeverSentIsBilledAndCharged`, y se
+certificó a mano en staging el 2026-09-23 (comanda 4 «SIN COCINA», POS 990007, cero rondas).
+**Condición para la Entrega 3:** la pantalla de cocina puede leer rondas y líneas, pero la caja no
+puede empezar a exigir `round_id`. Si alguien condiciona el jalón a «enviado», un comercio sin
+cocina deja de cobrar lo que toman sus meseros sin que nada falle a la vista. Esa prueba es la que
+lo impide.
+
 ### 5.1 Dónde se configuran — decidido el 2026-09-22
 
 > **Los dos interruptores viven en la pantalla de Configuración del propio comercio**, en una
