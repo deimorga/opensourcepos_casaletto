@@ -1,6 +1,6 @@
-# Diseño técnico — Comandas: el pedido que llega a la cocina
+# Diseño técnico — Comandas: el pedido que se toma en la mesa
 
-> **Estado:** requerimiento definido el 2026-09-22. **Nada construido todavía.**
+> **Estado:** requerimiento **cerrado** el 2026-09-22. **Nada construido todavía.**
 > Alcance y decisiones de negocio en `docs/Funcional/comandas-y-cuenta-abierta.md`.
 >
 > Relevado sobre `32f280c07`.
@@ -144,6 +144,35 @@ negocio ven las mismas cuentas abiertas.** Con comandas eso deja de ser teórico
 que dice el propio diseño de pestañas (§3 de `ventas-en-paralelo-pestanas.md`). Si la comanda va a
 llevar un comentario de pedido, eso hay que arreglarlo primero.
 
+### 3.12 El carrito vive en la SESIÓN, y una sesión guarda uno solo
+
+`Sale_lib` no guarda el carrito en la base: lo guarda en `session('sales_cart')`
+(`app/Libraries/Sale_lib.php:359-363` para leer, `:536` para escribir). El propio archivo ya lo
+advierte en su comentario de la línea 370.
+
+**Esto es lo que decide la arquitectura de la pantalla del mesero.** El celular del mesero es otra
+sesión distinta de la de la caja, de modo que nada de lo que el mesero toque puede pasar por
+`sale_lib`: el cajero no lo vería, porque no comparten sesión. Y aunque la compartieran, **una
+sesión guarda un carrito**, así que un mesero atendiendo tres mesas se pisaría a sí mismo.
+
+La pantalla de comanda tiene que leer y escribir `sales`/`sales_items` **por `sale_id`**, no por el
+carrito de sesión. La caja sigue usando `sale_lib` como hoy; son dos caminos hacia el mismo dato.
+
+### 3.13 Fuera del ingreso, ninguna pantalla está preparada para un celular
+
+`app/Views/partial/header.php` —el encabezado de **todas** las pantallas internas— no declara
+`viewport`. Solo lo declaran `login.php`, `login_totp.php` y las vistas de la consola de plataforma.
+
+En un teléfono eso significa que el navegador finge un ancho de escritorio y encoge la página. El
+mesero puede **entrar** desde el celular hoy mismo; lo que ve después, no.
+
+Agregar el `viewport` a `header.php` volvería responsive… nada, y en cambio cambiaría el renderizado
+de todas las pantallas del sistema de golpe, sin una sola de ellas diseñada para ese ancho. **Es
+justo el arreglito de una línea que parece gratis y no lo es.**
+
+La pantalla de comanda lleva entonces su propio layout. `app/Views/platform/console_layout.php` es
+el precedente que ya funciona en este repositorio y la plantilla a copiar.
+
 ---
 
 ## 4. Forma del diseño
@@ -161,14 +190,40 @@ las pestañas fantasma y sirve igual para salón que para domicilio.
 ### 4.3 La impresión
 
 Mismo camino que el recibo: una vista propia, `window.print()`, impresora predeterminada (§3.6).
-Sin precios (P2) y con el kit como plato, no desglosado (P3).
+**Con precios** (D12) y con el kit como plato, nunca desglosado (D13).
 
-### 4.4 La pantalla de cocina
+### 4.4 Los estados de la comanda
 
-**Es la Entrega 2 y es la parte cara.** Hoy no hay ningún canal servidor→navegador: ni AJAX, ni
-polling, ni WebSocket hacia la aplicación. El agente local tiene un WebSocket, pero es del navegador
-hacia la máquina de la caja, no del servidor hacia una pantalla en cocina. Esto hay que diseñarlo
-aparte.
+D14 pide abierta / entregada / cancelada / cobrada. `sales.sale_status` **no** sirve para esto: solo
+distingue `SUSPENDED` de `OPENED`, y es la columna de la que dependen las pestañas y los reportes.
+El estado de la comanda va en la misma tabla propia de §4.1, que es la que ya existe para no tocar
+`sales_items`.
+
+«Cancelada» es un estado, **no** un borrado: una comanda que se cae después de haberse impreso ya
+consumió papel y quizá cocina, y esa es precisamente la información que la operación quiere ver.
+
+### 4.5 La pantalla del mesero, responsive
+
+Pantalla propia, con layout propio (§3.13) y acceso directo a `sales`/`sales_items` por `sale_id`
+(§3.12). No es la pantalla de venta encogida: la de venta pesa, depende de atajos de teclado y de
+`sale_lib`, y ninguna de esas tres cosas sirve en un teléfono.
+
+El mesero entra por el ingreso normal, que ya funciona en móvil, con un permiso propio que le da
+**solo** esta pantalla. Hoy, con los permisos existentes, darle acceso a comandas le daría la caja
+entera.
+
+Lo que esta entrega tiene que resolver y no se puede posponer: **dos meseros sobre la misma comanda**
+—§3.1 borra y reinserta todas las líneas en cada guardado, así que el último en guardar gana y el
+otro pierde su ronda sin enterarse— y qué se hace cuando el teléfono pierde señal a mitad del pedido.
+
+### 4.6 La pantalla de cocina
+
+**Es la Entrega 3, es opcional y es la parte cara.** Hoy no hay ningún canal servidor→navegador: ni
+AJAX, ni polling, ni WebSocket hacia la aplicación. El agente local tiene un WebSocket, pero es del
+navegador hacia la máquina de la caja, no del servidor hacia una pantalla en cocina.
+
+Va de última porque el dueño la separó del resto (D15): un comercio puede usar comandas sin tener
+nada en cocina, así que son **dos interruptores**, no uno.
 
 ---
 
@@ -179,3 +234,7 @@ aparte.
   catálogo o solo en la impresión.
 - **Si `_autosave_open_tab()` a cada tecla** es aceptable con pedidos de hasta 48 líneas, porque cada
   uno borra y reinserta todas las líneas de la venta (§3.1).
+- **La red del local desde un teléfono.** Toda la captura del mesero depende de que el celular
+  alcance el servidor de pie junto a la mesa, y eso no se ha probado en ningún local.
+- **Qué permisos existentes arrastra un mesero.** Antes de crear el permiso de §4.5 hay que ver qué
+  le abre hoy el módulo de ventas a quien lo tiene.

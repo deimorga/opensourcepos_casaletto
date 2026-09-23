@@ -1,7 +1,7 @@
-# Alcance funcional — Comandas: el pedido que llega a la cocina
+# Alcance funcional — Comandas: el pedido que se toma en la mesa
 
-> **Estado:** requerimiento definido el 2026-09-22 con el dueño. **Nada construido todavía.**
-> Decisiones en §6. Lo que queda por confirmar, en §6.1.
+> **Estado:** requerimiento **cerrado** el 2026-09-22 con el dueño. **Nada construido todavía.**
+> Decisiones en §6. No quedan preguntas abiertas: §6.1 recoge las cuatro que había y su respuesta.
 >
 > Documento hermano: `docs/Tecnico/comandas-y-cuenta-abierta.md`.
 
@@ -9,8 +9,11 @@
 
 ## 1. El problema, en una frase
 
-**La cocina no recibe nada del sistema.** El pedido se arma en la caja, se cobra, y lo que se
-prepara viaja de la pantalla a los fogones por voz o por un papel escrito a mano.
+**El pedido se pierde entre la mesa y la caja.** Quien atiende toma lo que el cliente pide, camina
+hasta la caja y lo registra de memoria o de un papel. Lo que se pierde en ese trayecto se pierde.
+
+Que la cocina reciba el pedido impreso es **un añadido valioso, no el motivo**. Hay comercios que lo
+van a querer y comercios que no lo necesitan, y depende del tamaño de cada uno.
 
 ## 2. Qué pasa hoy, verificado
 
@@ -117,6 +120,20 @@ Quitar o cambiar un plato que ya está en cocina **no se bloquea**. Se avisa:
 
 Y el pedido se actualiza para que **la facturación final cobre lo que de verdad se sirvió**.
 
+### 4.7b La comanda tiene estados, y se gestiona
+
+Una comanda no solo se abre y se cobra. Hay que poder decir qué pasó con ella:
+
+- **Abierta** — el pedido está tomado y puede seguir creciendo.
+- **Entregada** — se confirma que el pedido llegó a la mesa o salió a domicilio. Es la gestión de
+  orden que permite saber qué está pendiente de servir.
+- **Cancelada** — se cae antes de pedir el pago. Ocurre, y hoy no hay forma de registrarlo.
+- **Cobrada** — se facturó en la caja y la cuenta se cierra.
+
+Una comanda que se finalizó **debería haberse pagado en la caja**. Si al cierre del día queda una
+cuenta sin cobrar, eso no es un caso que el sistema deba resolver solo: es algo que la operación
+tiene que mirar, y para eso hace falta que se vea.
+
 ### 4.7 La cuenta se ve y se actualiza en la pantalla de venta
 
 La comanda no es un papel que se va y se olvida: **es una cuenta viva** en el módulo de venta, que
@@ -124,11 +141,29 @@ refleja en todo momento lo que se ha pedido y lo que se mandó a cocina.
 
 ---
 
+### 4.8 El mesero toma el pedido desde su celular, por el navegador
+
+No va a haber aplicación móvil. **La pantalla de comanda se construye responsive**, y con eso el
+mesero entra desde el navegador de su teléfono, se autentica con su propio usuario y captura el
+pedido de pie junto a la mesa. Eso es exactamente lo que el requerimiento venía a resolver: que el
+pedido no dependa de la memoria de alguien caminando hacia la caja.
+
+Cada mesero entra con **su** usuario, así que cada comanda queda con un nombre detrás.
+
+Que el teléfono sirva no significa que el resto del sistema sirva en el teléfono: **hoy solo la
+pantalla de ingreso está preparada para un celular.** Cualquier otra pantalla a la que el mesero
+llegue va a salir en ancho de escritorio. Es una limitación conocida y aceptada, y el mesero no
+necesita ninguna otra pantalla.
+
+---
+
 ## 5. Lo que este requerimiento NO hace
 
 - **No reemplaza la forma actual de vender.** Es un camino paralelo, opcional y apagado por defecto.
 - **No enruta a estaciones.** Una sola cocina, un solo destino. No hay barra que prepare aparte.
-- **No incluye la toma desde el celular del mesero** en la primera entrega. Ver §7.
+- **No hay aplicación móvil.** Se cubre con una pantalla responsive en el navegador (§4.8).
+- **No vuelve responsive el resto del sistema.** Ese refactor completo es un proyecto aparte, que el
+  dueño quiere hacer más adelante. Aquí se hace **una** pantalla, no la aplicación.
 
 ---
 
@@ -146,30 +181,40 @@ refleja en todo momento lo que se ha pedido y lo que se mandó a cocina.
 | **D8** | **Rondas: la segunda comanda imprime solo lo agregado** | 2026-09-22 |
 | **D9** | **Modificar lo ya enviado se permite**, avisando al cajero Y en la pantalla de cocina | 2026-09-22 |
 | **D10** | **Primero la caja.** El celular del mesero es requerimiento aparte | 2026-09-22 |
+| **D11** | **El objetivo es el mesero, no la cocina.** Capturar el pedido en la mesa para que no se pierda camino a la caja | 2026-09-22 |
+| **D12** | **La comanda lleva precios** | 2026-09-22 |
+| **D13** | **El kit sale como plato, jamás desglosado** | 2026-09-22 |
+| **D14** | **La comanda tiene estados** y se puede cancelar antes de pedir el pago | 2026-09-22 |
+| **D15** | **La cocina es habilitable aparte de la comanda.** Un comercio puede usar comandas sin nada en cocina | 2026-09-22 |
+| **D16** | **Sin aplicación móvil.** La pantalla de comanda se hace responsive y se usa desde el navegador del celular | 2026-09-22 |
+| **D17** | **El mesero entra con su propio usuario.** Cada comanda queda con un responsable | 2026-09-22 |
+| **D18** | **El refactor responsive del resto del sistema es otro proyecto.** Aquí se hace una sola pantalla | 2026-09-22 |
 
-### 6.1 Pendientes de confirmar
+### 6.1 Resueltas el 2026-09-22
 
-| # | Pregunta | Recomendación |
+| # | Pregunta | Respuesta del dueño |
 |---|---|---|
-| **P1** | ¿La pantalla de cocina es un monitor fijo en la cocina, o basta con que alguien abra una página? | Un monitor fijo con la página abierta. Es lo más barato y no exige aplicación nueva |
-| **P2** | ¿La comanda impresa lleva precios? | **No.** El cocinero no necesita precios y el papel se lee mejor sin ellos |
-| **P3** | ¿Un kit sale a cocina como el plato o desglosado en sus ingredientes? | Como el plato. El 69 % de los pedidos lleva kit, y desglosar «SANDWICH 4 CARNES» en 12 ingredientes haría la comanda ilegible |
-| **P4** | ¿Qué pasa con una cuenta abierta que nadie cobra al cierre del día? | Que el cuadre la muestre. Hoy una cuenta abierta no entra en reportes pero sí existe en la base |
+| **P1** | ¿La comanda lleva precios? | **Sí.** No importa que salgan |
+| **P2** | ¿Un kit sale desglosado? | **No, definitivamente.** Sale como la unidad, como el plato |
+| **P3** | ¿Y una cuenta sin cobrar al cierre? | Lo mira la operación. Una comanda finalizada debió pagarse en caja; para eso la comanda necesita estados y gestión de orden (§4.7b) |
+| **P4** | ¿La pantalla de cocina? | **Habilitable, y no la tenemos todavía.** Hay comercios que la van a requerir y comercios que no |
 
 ---
 
 ## 7. Alcance, en entregas
 
 ### Entrega 1 — La comanda desde la caja
-Cuenta abierta con nombre libre, instrucciones por plato, comanda impresa, rondas con solo lo
-agregado, y el ajuste por comercio. **Con esto la cocina ya recibe el pedido del sistema.**
+Cuenta abierta con nombre libre, instrucciones por plato, estados de la comanda (§4.7b), comanda
+impresa con precios, rondas con solo lo agregado, y el interruptor por comercio. Es el cimiento:
+define el dato, y cualquier pantalla posterior lo lee.
 
-### Entrega 2 — La pantalla de cocina
-El monitor que muestra los pedidos y se actualiza solo, incluida la notificación de lo que cambió.
-Es lo que hoy la aplicación no puede hacer sin trabajo de fondo: la pantalla de venta no sabe
-empujar cambios al navegador.
+### Entrega 2 — La misma pantalla, desde el celular del mesero
+La pantalla de comanda hecha responsive, con el mesero autenticándose desde el navegador de su
+teléfono. **Es aquí donde el requerimiento entrega lo que vino a entregar.**
 
-### Entrega 3 — El celular del mesero
-Requerimiento aparte, con su propio análisis. Tomar el pedido en la mesa desde un teléfono obliga a
-resolver que varias personas editen el mismo pedido a la vez, la autenticación de meseros y qué
-pasa cuando no hay señal.
+Lo que hay que resolver en esta entrega y no antes: dos meseros sobre la misma comanda, y qué pasa
+cuando el teléfono pierde señal a mitad de un pedido.
+
+### Entrega 3 — La pantalla de cocina
+El monitor que muestra los pedidos y se actualiza solo. Va de última **porque es la parte opcional**:
+hay comercios que la van a pedir y comercios que no, y se enciende aparte de las comandas (D15).
