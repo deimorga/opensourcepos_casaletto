@@ -9,5 +9,6 @@
  */
 
 return [
+    "back"               => "Volver",
     "void"               => "Permitir cancelar una comanda",
 ];

@@ -8,5 +8,6 @@
  */
 
 return [
+    "back"               => "Back",
     "void"               => "Allow cancelling a ticket",
 ];
