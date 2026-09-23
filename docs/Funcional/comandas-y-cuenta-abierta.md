@@ -187,6 +187,17 @@ pantalla de inicio de la caja, que no le corresponde.
 **El mesero no puede llegar a la caja.** Con el permiso de Comandas y ningún otro, el sistema no le
 abre ventas, ni configuración, ni ninguna otra pantalla, ni siquiera tecleando la dirección.
 
+**Comandas es un permiso, no un tipo de empleado** (D24, 2026-09-23). El comercio decide quién lo
+tiene, igual que decide quién tiene la caja o los reportes. En Casaletto quien cobra en la caja
+también va a las mesas a tomar pedidos: a esa persona se le dan **los dos permisos**, Caja y
+Comandas, y usa los dos. Nada obliga a que quien toma comandas no tenga caja.
+
+- Quien tiene la pantalla de inicio entra por el **mosaico «Comandas»** del menú, como a cualquier
+  otro módulo.
+- Dentro de la pantalla de comandas, quien también tiene caja ve arriba el enlace **«Caja»** para
+  volver a vender sin cerrar la sesión. El mesero sin caja no lo ve.
+- Quien tiene **solo** Comandas cae directo en su pantalla al ingresar, como se describe arriba.
+
 Que el teléfono sirva no significa que el resto del sistema sirva en el teléfono: **hoy solo la
 pantalla de ingreso está preparada para un celular.** Cualquier otra pantalla a la que el mesero
 llegue va a salir en ancho de escritorio. Es una limitación conocida y aceptada, y el mesero no
@@ -265,7 +276,9 @@ Se hace **con** el comercio, no por defecto:
 1. En **Configuración**, pestaña **Mesas**: encender.
 2. En **Configuración**, pestaña **Comandas**: encender. (La casilla de la pantalla de cocina queda
    apagada: esa pantalla todavía no existe.)
-3. En **Empleados**, crear a cada mesero con **un solo permiso: Comandas**. El permiso **«Permitir
+3. En **Empleados**, darle el permiso **Comandas** a quien vaya a tomar pedidos: a cada mesero (con
+   ese permiso solo, si no debe ver la caja) y a los cajeros que también atienden mesas (junto con
+   el de Caja). El permiso **«Permitir
    cancelar una comanda»** se le da solo a quien supervisa: cancelar una comanda que la cocina ya
    preparó es la acción que alguien va a querer revisar.
 4. Entregarle al comercio la ficha de §4.10, y decirle en voz alta que **enviar a cocina e imprimir
@@ -310,6 +323,7 @@ Se hace **con** el comercio, no por defecto:
 | **D20** | **La conectividad es un requisito del comercio**, no un riesgo del proyecto. El teléfono entra por datos móviles o WiFi | 2026-09-22 |
 | **D21** | **Comandas necesita Mesas encendido**, y Mesas no se puede apagar con Comandas encendido. La comanda llega a la caja como una pestaña de Mesas (se eligió no abrirle un camino nuevo en la pantalla del dinero). *Corrige D4* | 2026-09-23 |
 | **D22** | **La caja trae sola los platos del mesero** y **nunca cobra un total que el cajero no vio**. Lo que el mesero cambia después de pasar a la caja se avisa al cajero, no se aplica solo | 2026-09-23 |
+| **D24** | **Comandas es un permiso que el comercio le da a quien quiera**, también a quien tiene caja. El cajero que atiende mesas tiene los dos y pasa de una pantalla a la otra | 2026-09-23 |
 | **D23** | **El mesero cae directo en su pantalla y tiene su propia salida.** Con solo el permiso de Comandas no alcanza ninguna otra pantalla | 2026-09-23 |
 
 ### 6.1 Resueltas el 2026-09-22

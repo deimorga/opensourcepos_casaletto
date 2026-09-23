@@ -104,6 +104,18 @@ ella; ahora dice «Mesas».
 
 ### 0.7 El mesero: aterrizaje, salida y sede
 
+> **Comandas es un permiso, no un rol (D24, 2026-09-23).** Todo lo de abajo describe al empleado con
+> *solo* `order_tickets`. Un cajero con `sales` + `order_tickets` usa las dos pantallas; nada lo
+> impide y nada debe impedirlo. Dos defectos lo hacían inservible y se corrigieron ese día:
+> - **El mosaico del menú daba 404.** `home/home.php` y `partial/header.php` enlazan
+>   `base_url($module_id)` = `/order_tickets`, y la pantalla solo tenía rutas bajo `/comandas`.
+>   `Routes.php` agrega `addRedirect('order_tickets', 'comandas')`.
+> - **Sin camino de vuelta a la caja.** El layout solo ofrecía «Salir». `OrderTickets::layout_data()`
+>   pasa `register_url` cuando el empleado pasa `has_module_grant('sales')` —la misma comprobación de
+>   `Secure_Controller`, así que el enlace nunca lleva a `no_access`—, y el layout pinta «Caja».
+> Lo fijan `OrderTicketsPermissionTest::testTheMenuTileLeadsToTheScreen`,
+> `testACashierWhoAlsoTakesOrdersReachesBothAndCanGoBackToTheTill` y `testAWaiterIsNotOfferedTheTill`.
+
 Tres cosas que un mesero con **solo** el permiso de comandas no podía hacer, y ninguna estaba prevista:
 
 - **Entrar.** Los tres caminos del login mandaban a todos a `home`, que exige el permiso `home` (en

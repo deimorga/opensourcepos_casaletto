@@ -20,9 +20,11 @@ caja lo cobra como cualquier venta.
 ## Lo que nosotros configuramos con usted
 
 1. Encendemos **Mesas** y **Comandas** en su configuración.
-2. Creamos a cada mesero con **su propio usuario** y con un solo permiso: **Comandas**. Así, cada
-   comanda queda con el nombre de quien la tomó, y el mesero **no puede entrar a la caja** ni a
-   ninguna otra pantalla.
+2. Le damos el permiso **Comandas** a cada persona que vaya a tomar pedidos, con **su propio
+   usuario**, para que cada comanda quede con el nombre de quien la tomó. Usted decide quién:
+   - **Un mesero** recibe solo Comandas: **no puede entrar a la caja** ni a ninguna otra pantalla.
+   - **Un cajero que también atiende mesas** recibe Caja y Comandas: entra a comandas por el menú, y
+     desde comandas vuelve a la caja con el enlace «Caja».
 3. A quien supervisa le damos además **«Permitir cancelar una comanda»**. Cancelar una comanda que la
    cocina ya preparó es algo que usted va a querer poder revisar.
 
