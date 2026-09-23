@@ -66,7 +66,7 @@ foreach ($lines as $line) {
     <table>
         <?php foreach ($lines as $line): ?>
             <tr>
-                <td class="q"><?= esc(to_quantity_decimals((string) $line['quantity'])) ?></td>
+                <td class="q"><?= esc(\App\Models\Order_ticket_line::display_quantity((string) $line['quantity'])) ?></td>
                 <td><?= esc($line['item_name']) ?></td>
                 <td class="p"><?= esc(to_currency(bcmul((string) $line['quantity'], (string) $line['unit_price'], 2))) ?></td>
             </tr>

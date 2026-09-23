@@ -575,6 +575,20 @@ class OrderTicketLineTest extends CIUnitTestCase
         $this->assertCount(1, $this->lines->get_billing_changes(self::OTHER_TICKET));
     }
 
+    /**
+     * "2.000 x SANDWICH" on a waiter's phone and on the kitchen's paper reads worse than "2 x". The
+     * trailing zeros go; a real fraction -- half a kilo -- stays.
+     */
+    public function testAQuantityIsShownWithoutItsTrailingZeros(): void
+    {
+        $this->assertSame('2', Order_ticket_line::display_quantity('2.000'));
+        $this->assertSame('0.5', Order_ticket_line::display_quantity('0.500'));
+        $this->assertSame('1.25', Order_ticket_line::display_quantity('1.250'));
+        $this->assertSame('10', Order_ticket_line::display_quantity('10.000'), 'Only zeros AFTER the point go.');
+        $this->assertSame('100', Order_ticket_line::display_quantity('100'));
+        $this->assertSame('0.001', Order_ticket_line::display_quantity('0.001'));
+    }
+
     public function testGetInfoOfAMissingLineIsNull(): void
     {
         $this->assertNull($this->lines->get_info(999999));

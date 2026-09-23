@@ -488,6 +488,24 @@ class Order_ticket_line extends Model
     }
 
     /**
+     * A quantity as a waiter and a cook read it: "2", "0.5", "1.25" -- not the column's "2.000".
+     *
+     * Only for the order-ticket screens and the kitchen sheet. The register keeps its own format
+     * (to_quantity_decimals()), and this deliberately does not go through it: that helper applies the
+     * locale's grouping, and trimming zeros off "1,000.000" would read as one.
+     */
+    public static function display_quantity(string $quantity): string
+    {
+        $quantity = trim($quantity);
+
+        if (! str_contains($quantity, '.')) {
+            return $quantity;
+        }
+
+        return rtrim(rtrim($quantity, '0'), '.');
+    }
+
+    /**
      * A plain decimal strictly above zero that fits DECIMAL(15,3): digits, an optional fraction, no
      * sign, no grouping, no exponent. bccomp() throws a ValueError on anything else, and this is
      * reached straight from a form, so a stray letter must come back as a refusal and not a 500.

@@ -86,7 +86,7 @@ $id = (int) $ticket['order_ticket_id'];
             ?>
             <li class="ot-list-item d-block <?= $class ?>">
                 <div class="d-flex justify-content-between gap-2">
-                    <span><strong><?= esc(to_quantity_decimals((string) $line['quantity'])) ?> &times;</strong> <?= esc($line['item_name']) ?></span>
+                    <span><strong><?= esc(\App\Models\Order_ticket_line::display_quantity((string) $line['quantity'])) ?> &times;</strong> <?= esc($line['item_name']) ?></span>
                     <span class="text-nowrap"><?= esc(to_currency(bcmul((string) $line['quantity'], (string) $line['unit_price'], 2))) ?></span>
                 </div>
                 <?php if ((string) $line['kitchen_note'] !== ''): ?>
