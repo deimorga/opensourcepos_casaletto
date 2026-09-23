@@ -4,6 +4,9 @@ namespace Tests\Controllers;
 
 use App\Models\Order_ticket;
 use App\Models\Order_ticket_line;
+use App\Models\Order_ticket_round;
+use App\Models\Order_ticket_send_failed;
+use CodeIgniter\Config\Factories;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
@@ -400,12 +403,100 @@ final class OrderTicketsControllerTest extends CIUnitTestCase
         $line   = model(Order_ticket_line::class, false)->add_line($ticket, 7, 'Empanada', '1', '3500', '', 1);
         $this->postReq('comandas/' . $ticket . '/enviar', []);
 
-        $this->postReq('comandas/' . $ticket . '/linea/' . $line, ['quantity' => '2', 'kitchen_note' => ''])
+        $this->postReq('comandas/' . $ticket . '/linea/' . $line, ['quantity' => '2', 'kitchen_note' => ''] + $this->seen('1.000', ''))
             ->assertRedirectTo('comandas/' . $ticket);
 
         $row = $this->db->table('order_ticket_lines')->where('order_ticket_line_id', $line)->get()->getRowArray();
         $this->assertSame('2.000', (string) $row['quantity']);
         $this->assertSame(1, (int) $row['changed_after_send']);
+    }
+
+    /**
+     * 2.1 through the real endpoint. Two phones opened the same ticket; the other one saved first.
+     * This save carries what THIS screen showed, which is no longer true: it must not erase the other
+     * change, and it must say so -- not "saved".
+     */
+    public function testAnEditOverAChangeTheScreenNeverSawIsRefusedAndSaysSo(): void
+    {
+        $ticket = $this->openLiveTicket();
+        $line   = model(Order_ticket_line::class, false)->add_line($ticket, 7, 'Empanada', '1', '3500', '', 1);
+
+        // The other phone.
+        model(Order_ticket_line::class, false)->edit_line($line, ['quantity' => '3', 'kitchen_note' => 'sin cebolla']);
+
+        $this->postReq('comandas/' . $ticket . '/linea/' . $line, ['quantity' => '2', 'kitchen_note' => ''] + $this->seen('1.000', ''))
+            ->assertRedirectTo('comandas/' . $ticket);
+
+        $this->assertSame(lang('Order_tickets.edit_conflict'), session()->getFlashdata('error'));
+
+        $row = $this->db->table('order_ticket_lines')->where('order_ticket_line_id', $line)->get()->getRowArray();
+        $this->assertSame('3.000', (string) $row['quantity'], 'The other phone\'s change survives.');
+        $this->assertSame('sin cebolla', $row['kitchen_note']);
+    }
+
+    /**
+     * The same form sent twice -- a reload carrying the old "seen" -- is not somebody else's change.
+     * The request token already stops the second one; this is the case where the token is new (the
+     * waiter went back and resubmitted a freshly drawn copy of the same values).
+     */
+    public function testSavingTheSameValuesAgainIsNotAConflict(): void
+    {
+        $ticket = $this->openLiveTicket();
+        $line   = model(Order_ticket_line::class, false)->add_line($ticket, 7, 'Empanada', '1', '3500', '', 1);
+
+        $this->postReq('comandas/' . $ticket . '/linea/' . $line, ['quantity' => '2', 'kitchen_note' => 'tibia'] + $this->seen('1.000', ''));
+        $this->postReq('comandas/' . $ticket . '/linea/' . $line, ['quantity' => '2', 'kitchen_note' => 'tibia'] + $this->seen('1.000', ''));
+
+        $this->assertSame(lang('Order_tickets.line_saved'), session()->getFlashdata('success'));
+    }
+
+    /**
+     * A form drawn before the seen fields existed (a page left open across a deploy) is not let
+     * through unchecked: nothing is saved, and the page is reloaded like any out-of-date one.
+     */
+    public function testAnEditWithoutWhatTheScreenShowedIsTreatedAsAnOutOfDatePage(): void
+    {
+        $ticket = $this->openLiveTicket();
+        $line   = model(Order_ticket_line::class, false)->add_line($ticket, 7, 'Empanada', '1', '3500', '', 1);
+
+        $this->postReq('comandas/' . $ticket . '/linea/' . $line, ['quantity' => '2', 'kitchen_note' => '']);
+
+        $this->assertSame(lang('Order_tickets.stale_form'), session()->getFlashdata('error'));
+        $row = $this->db->table('order_ticket_lines')->where('order_ticket_line_id', $line)->get()->getRowArray();
+        $this->assertSame('1.000', (string) $row['quantity']);
+    }
+
+    /**
+     * The edit form carries what it shows, exactly as stored, so the check has something to compare.
+     */
+    public function testTheEditFormCarriesWhatItShows(): void
+    {
+        $ticket = $this->openLiveTicket();
+        model(Order_ticket_line::class, false)->add_line($ticket, 7, 'Empanada', '1.5', '3500', 'sin "ají"', 1);
+
+        $html = $this->getReq('comandas/' . $ticket)->getBody();
+
+        $this->assertMatchesRegularExpression('/name="seen_quantity" value="1\.500"/', $html);
+        $this->assertStringContainsString('name="seen_note" value="sin &quot;ají&quot;"', $html);
+    }
+
+    /**
+     * A send that failed at the database must not read as "nothing to send": those two tell the
+     * waiter opposite things about whether the kitchen has the dishes.
+     */
+    public function testAFailedSendIsReportedAsAFailureNotAsNothingToSend(): void
+    {
+        $ticket = $this->openLiveTicket();
+        model(Order_ticket_line::class, false)->add_line($ticket, 7, 'Empanada', '1', '3500', '', 1);
+
+        $failing = $this->createMock(Order_ticket_round::class);
+        $failing->method('send')->willThrowException(new Order_ticket_send_failed('lock wait timeout'));
+        Factories::injectMock('models', Order_ticket_round::class, $failing);
+
+        $this->postReq('comandas/' . $ticket . '/enviar', [])->assertRedirectTo('comandas/' . $ticket);
+
+        $this->assertSame(lang('Order_tickets.send_failed'), session()->getFlashdata('error'));
+        $this->assertNotSame(lang('Order_tickets.nothing_to_send'), lang('Order_tickets.send_failed'));
     }
 
     /**
@@ -681,6 +772,16 @@ final class OrderTicketsControllerTest extends CIUnitTestCase
         $this->withSession($_SESSION);
 
         return $this->post($path, $this->withToken($params));
+    }
+
+    /**
+     * What the edit form says the screen showed (OrderTickets::postEditLine()).
+     *
+     * @return array<string, string>
+     */
+    private function seen(string $quantity, string $note): array
+    {
+        return ['seen_quantity' => $quantity, 'seen_note' => $note];
     }
 
     /**

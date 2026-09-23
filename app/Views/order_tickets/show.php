@@ -109,7 +109,12 @@ $id = (int) $ticket['order_ticket_id'];
                 <?php if ($live && ! $voided): ?>
                     <details class="mt-2">
                         <summary><?= esc(lang('Order_tickets.edit')) ?></summary>
-                        <?= form_open('comandas/' . $id . '/linea/' . $line_id, ['class' => 'd-flex gap-2 mt-2', 'data-once' => '1'], [\App\Libraries\Order_ticket_request_guard::FIELD => $request_token]) ?>
+                        <?php // seen_*: what this screen showed, so a save cannot erase a change it never saw. ?>
+                        <?= form_open('comandas/' . $id . '/linea/' . $line_id, ['class' => 'd-flex gap-2 mt-2', 'data-once' => '1'], [
+                            \App\Libraries\Order_ticket_request_guard::FIELD => $request_token,
+                            'seen_quantity'                                   => (string) $line['quantity'],
+                            'seen_note'                                       => (string) $line['kitchen_note'],
+                        ]) ?>
                             <input class="form-control" style="max-width: 6rem" type="number" name="quantity"
                                    value="<?= esc((string) (float) $line['quantity'], 'attr') ?>" min="0.001" step="any" inputmode="decimal"
                                    aria-label="<?= esc(lang('Order_tickets.quantity'), 'attr') ?>">
@@ -173,7 +178,7 @@ $id = (int) $ticket['order_ticket_id'];
 
     <div class="ot-actionbar">
         <?= form_open('comandas/' . $id . '/enviar', ['data-once' => '1', 'class' => 'd-grid'], [\App\Libraries\Order_ticket_request_guard::FIELD => $request_token]) ?>
-            <button class="btn btn-primary" type="submit" <?= $pending === 0 ? 'disabled' : '' ?>>
+            <button class="btn btn-primary" type="submit" <?= $pending === 0 ? 'disabled data-disabled-by-server' : '' ?>>
                 <?= esc(lang('Order_tickets.send_to_kitchen', [$pending])) ?>
             </button>
         <?= form_close() ?>
@@ -183,15 +188,45 @@ $id = (int) $ticket['order_ticket_id'];
 <?php $this->endSection(); ?>
 
 <?php $this->section('scripts'); ?>
+<div class="alert alert-danger ot-offline" role="alert" hidden><?= esc(lang('Order_tickets.offline')) ?></div>
 <script>
-    // Progressive enhancement only: disable a form's button once it is submitted, so a double tap on
-    // a phone does not queue a second request. The server is idempotent without this.
-    document.querySelectorAll('form[data-once]').forEach(function (form) {
-        form.addEventListener('submit', function () {
-            form.querySelectorAll('button[type="submit"]').forEach(function (button) {
-                button.disabled = true;
+    // Progressive enhancement only. The server does not depend on any of this: a resubmitted form is
+    // refused by its single-use token, and sending twice creates one round.
+    (function () {
+        var offline = document.querySelector('.ot-offline');
+
+        document.querySelectorAll('form[data-once]').forEach(function (form) {
+            form.addEventListener('submit', function (event) {
+                // No signal: say so in words and send nothing, instead of letting the browser show
+                // its own error page. Nothing was saved, and the waiter needs to know exactly that.
+                if (navigator.onLine === false) {
+                    event.preventDefault();
+                    offline.hidden = false;
+                    offline.scrollIntoView({ block: 'center' });
+                    return;
+                }
+
+                offline.hidden = true;
+
+                // Disabled while the request travels, so a double tap on a phone does not queue a
+                // second one.
+                form.querySelectorAll('button[type="submit"]').forEach(function (button) {
+                    button.disabled = true;
+                });
             });
         });
-    });
+
+        // Coming back to this page (the back button, or the browser restoring it after a failed
+        // request) must not leave its buttons disabled forever.
+        window.addEventListener('pageshow', function () {
+            document.querySelectorAll('form[data-once] button[type="submit"]').forEach(function (button) {
+                button.disabled = button.hasAttribute('data-disabled-by-server');
+            });
+        });
+
+        window.addEventListener('online', function () {
+            offline.hidden = true;
+        });
+    })();
 </script>
 <?php $this->endSection(); ?>

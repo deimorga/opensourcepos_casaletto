@@ -8,6 +8,7 @@ use App\Models\Item;
 use App\Models\Order_ticket;
 use App\Models\Order_ticket_line;
 use App\Models\Order_ticket_round;
+use App\Models\Order_ticket_send_failed;
 use App\Models\Sale;
 use App\Models\Stock_location;
 use CodeIgniter\HTTP\RedirectResponse;
@@ -239,6 +240,12 @@ class OrderTickets extends Secure_Controller
      * Changes the quantity or the kitchen note of a dish. Touching a dish the kitchen already has is
      * allowed (D9) and announced -- here to the waiter, on the kitchen's side by the flag the model
      * raises, and on the till's side by the billing flag.
+     *
+     * The form carries what the screen showed (seen_quantity, seen_note), and the edit only goes
+     * through if the dish still holds exactly that (Order_ticket_line::edit_line_seen()). Two phones
+     * on the same table editing the same dish: the second one is told, instead of silently erasing
+     * the first. A form without those fields was drawn before they existed; it is treated like any
+     * other out-of-date page -- nothing saved, page reloaded -- rather than let through unchecked.
      */
     public function postEditLine(int $order_ticket_id, int $order_ticket_line_id): RedirectResponse
     {
@@ -252,13 +259,30 @@ class OrderTickets extends Secure_Controller
             return $this->refuse_closed($order_ticket_id);
         }
 
+        $seen_quantity = $this->request->getPost('seen_quantity');
+        $seen_note     = $this->request->getPost('seen_note');
+
+        if (! is_string($seen_quantity) || ! is_string($seen_note)) {
+            return $this->back_to($order_ticket_id, 'error', lang('Order_tickets.stale_form'));
+        }
+
         $changes = ['kitchen_note' => (string) $this->request->getPost('kitchen_note')];
 
         if ($this->request->getPost('quantity') !== null) {
             $changes['quantity'] = $this->posted_quantity();
         }
 
-        if (! $this->lines->edit_line($order_ticket_line_id, $changes)) {
+        $outcome = $this->lines->edit_line_seen(
+            $order_ticket_line_id,
+            $changes,
+            ['quantity' => $seen_quantity, 'kitchen_note' => $seen_note],
+        );
+
+        if ($outcome === Order_ticket_line::EDIT_CONFLICT) {
+            return $this->back_to($order_ticket_id, 'error', lang('Order_tickets.edit_conflict'));
+        }
+
+        if ($outcome !== Order_ticket_line::EDIT_OK) {
             return $this->back_to($order_ticket_id, 'error', lang('Order_tickets.quantity_invalid'));
         }
 
@@ -304,6 +328,10 @@ class OrderTickets extends Secure_Controller
      *
      * From a phone this creates the round; the paper comes out at the till, which is where the
      * printer is (§8.3). The ticket screen shows the round as "not printed" until it is.
+     *
+     * "Nothing to send" and "the send failed" get different messages on purpose. The first tells the
+     * waiter the kitchen already has everything; the second, that it has none of it. Confusing them
+     * leaves a table waiting for food nobody is cooking.
      */
     public function postSend(int $order_ticket_id): RedirectResponse
     {
@@ -315,7 +343,13 @@ class OrderTickets extends Secure_Controller
             return $this->refuse_closed($order_ticket_id);
         }
 
-        $round = model(Order_ticket_round::class)->send($order_ticket_id, (int) session()->get('person_id'));
+        try {
+            $round = model(Order_ticket_round::class)->send($order_ticket_id, (int) session()->get('person_id'));
+        } catch (Order_ticket_send_failed $e) {
+            log_message('error', $e->getMessage());
+
+            return $this->back_to($order_ticket_id, 'error', lang('Order_tickets.send_failed'));
+        }
 
         if ($round === null) {
             return $this->back_to($order_ticket_id, 'error', lang('Order_tickets.nothing_to_send'));
