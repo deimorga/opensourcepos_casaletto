@@ -1,9 +1,21 @@
 # Diseño técnico — Comandas: el pedido que se toma en la mesa
 
-> **Estado:** requerimiento **cerrado** el 2026-09-22. **Nada construido todavía.**
+> **Estado:** requerimiento **cerrado** el 2026-09-22, diseño técnico cerrado el 2026-09-22.
+> **Nada construido todavía.**
 > Alcance y decisiones de negocio en `docs/Funcional/comandas-y-cuenta-abierta.md`.
 >
-> Relevado sobre `32f280c07`.
+> Relevado sobre `73bc3d7b3`.
+
+**Vocabulario.** El negocio dice «comanda»; las tablas y el código dicen `order_ticket`. Los nombres
+en inglés no son un capricho: todo lo que este fork ha agregado a la base —`cash_collections`,
+`item_price_history`, `platform_activity_log`— está en inglés, y mezclar idiomas dentro del esquema
+es peor que elegir uno. La equivalencia se escribe aquí una vez y no se repite:
+
+| negocio | código |
+|---|---|
+| comanda | `order_ticket` |
+| línea de la comanda | `order_ticket_line` |
+| ronda (envío a cocina) | `order_ticket_round` |
 
 ---
 
@@ -13,10 +25,13 @@
 |---|---|---|
 | Cuenta abierta real | `sales.sale_status = OPENED` (`app/Config/Constants.php:139`) | **Sí, es la base de todo** |
 | Persistencia de la cuenta | `Sales::_autosave_open_tab()` (`app/Controllers/Sales.php:1746`) | Sí, con reservas (§3.1) |
-| Barra de pestañas | `Sale::get_all_opened()` (`app/Models/Sale.php:1300`) | Sí |
+| Barra de pestañas | `Sale::get_all_opened()` (`app/Models/Sale.php:1334`) | Sí, con un cambio (§7.4) |
 | Mesas | tabla `dinner_tables`, `app/Models/Dinner_table.php` | Parcialmente (§3.2) |
-| Agente local en la caja | `tools/pos-agent/`, WebSocket en `127.0.0.1:7878` | Sí, para imprimir |
-| Orden por categoría | ajuste `line_sequence = 2` (`app/Models/Sale.php:1000`) | Marginal |
+| Agente local en la caja | `tools/pos-agent/`, WebSocket en `127.0.0.1:7878` | No hace falta (§8) |
+| Registro de módulo + permiso | `20260906001000_AddWriteoffsModule.php` | **Sí, es la plantilla exacta** (§6) |
+| Claves de configuración | `20260902000000_AddScaleConfigKeys.php` | **Sí, es la plantilla exacta** (§5) |
+| Layout responsive que ya funciona | `app/Views/platform/console_layout.php` | **Sí, es la plantilla exacta** (§9) |
+| Tabla propia con escritura que no puede tumbar nada | `app/Models/Item_price_history.php` | Sí, es el criterio (§4.6) |
 
 Y lo que **no** existe, dicho sin rodeos: **no hay estaciones** (ni tabla, ni columna, ni ajuste),
 **no hay estados de línea** (`sales_items` no tiene ciclo de vida), **no hay notas de cocina**, **no
@@ -31,11 +46,32 @@ detrás. Quien la lea y asuma que existe algo, se equivoca.
 
 ## 2. El hecho que define el diseño
 
-**La comanda no es un documento nuevo: es una cuenta abierta que ya se sabe representar.**
+**La comanda es dueña de sus líneas. `sales_items` es la proyección de cobro, no la fuente.**
 
-Tomar un pedido crea una fila en `sales` con `sale_status = OPENED` y sus `sales_items`. Eso ya
-funciona, ya se persiste y ya se muestra como pestaña. Lo que falta es (a) que una cuenta pueda
-existir sin ser una mesa, (b) que se sepa qué líneas ya fueron a cocina, y (c) imprimir.
+Esa frase es la decisión de arquitectura de todo el documento, y no se eligió por gusto: la fuerzan
+§3.1 y §3.2. `sales_items` se borra entero y se reinserta en cada tecla que el cajero toca, y el
+número de línea se reasigna al cambiar de pestaña. Una comanda que guarde su estado ahí **pierde el
+pedido** la primera vez que alguien agregue un plato.
+
+De modo que hay dos caminos hacia el mismo pedido, y conviene tenerlos separados en la cabeza:
+
+```
+  MESERO (celular)                        CAJERO (caja)
+       │                                       │
+       ▼                                       ▼
+  order_tickets ──────────────────────►  sales (OPENED)
+  order_ticket_lines                     sales_items
+  order_ticket_rounds                          │
+       │                                       ▼
+       │  fuente de verdad                  cobro
+       │  de LO PEDIDO                  de LO FACTURADO
+       └──────────► comanda impresa
+```
+
+La comanda escribe `sales`/`sales_items` por `sale_id` para que la cuenta aparezca en la barra de
+pestañas y el cajero pueda cobrarla, pero **nunca depende de lo que haya ahí**. Si el cajero edita la
+venta en la caja, `sales_items` cambia y las líneas de la comanda no: esa diferencia es información,
+no un error, y §4.5 dice qué se hace con ella.
 
 ---
 
@@ -45,8 +81,8 @@ existir sin ser una mesa, (b) que se sepa qué líneas ya fueron a cocina, y (c)
 
 **Es la trampa mayor y hundiría la primera implementación.**
 
-`Sale::save_value()` (`app/Models/Sale.php:595`) llama en su línea 619 a
-`clear_suspended_sale_detail()` (`:1472`), que hace `DELETE` de **todos** los `sales_items`,
+`Sale::save_value()` (`app/Models/Sale.php:629`) llama en su línea 654 a
+`clear_suspended_sale_detail()` (`:1506`), que hace `DELETE` de **todos** los `sales_items`,
 `sales_payments`, `sales_items_taxes` y `sales_taxes` de esa venta. Después reinserta las líneas
 desde el carrito de sesión.
 
@@ -67,7 +103,9 @@ ida y vuelta por la sesión: al cambiar de pestaña, `Sale_lib::copy_entire_sale
 (`app/Libraries/Sale_lib.php:1851`) vacía el carrito y lo reconstruye llamando `add_item()` por cada
 fila, **asignando números de línea nuevos**.
 
-Una comanda que diga «ya mandé la línea 3» está diciendo algo que puede dejar de ser cierto.
+Una comanda que diga «ya mandé la línea 3» está diciendo algo que puede dejar de ser cierto. Por eso
+`order_ticket_lines` tiene su propia clave autoincremental (§4.2), que es la identidad estable que
+`sales_items` no ofrece.
 
 ### 3.3 «Delivery» es el valor por defecto, y está excluido de las pestañas
 
@@ -83,12 +121,13 @@ Y `_autosave_open_tab()` **sale sin hacer nada si `dinner_table <= 2`** (`:1770`
 > (`docs/Tecnico/ventas-en-paralelo-pestanas.md` §11).
 
 La comanda necesita su propia identidad —el nombre libre de D5— **sin colgarse de `dinner_tables`**,
-o se reabre ese bug.
+o se reabre ese bug. Y por lo mismo **no pasa por `_autosave_open_tab()`** (§7.3): escribe su venta
+ella misma, y el guardarraíl de las pseudo-mesas queda intacto.
 
 ### 3.4 La mesa se BORRA al cobrar, no se libera
 
-`postComplete()` (`app/Controllers/Sales.php:1455`) y `postCancel()` (`:2219`) hacen
-`Dinner_table::delete()` — soft-delete. Es deliberado: *«la mesa es una pestaña desechable, no un
+`postComplete()` (`app/Controllers/Sales.php:1206`) y `postCancel()` (`:2208`) hacen
+`Dinner_table::delete()` en sus líneas `1456` y `2220` — soft-delete. Es deliberado: *«la mesa es una pestaña desechable, no un
 mueble fijo»*. Cualquier diseño que asuma un catálogo estable de mesas se equivoca.
 
 ### 3.5 `print_option` no sirve para enrutar
@@ -97,7 +136,9 @@ Dos vocabularios de constantes con valores solapados (`PRINT_ALL == PRINT_YES ==
 `PRINT_PRICED == PRINT_NO == 1`, `app/Config/Constants.php:116-121`). Su semántica real es binaria y
 sobre un único documento: *«¿este ingrediente de kit sale impreso en el recibo del cliente?»*.
 
-No es un mecanismo de destino y no debe reutilizarse como tal.
+No es un mecanismo de destino y no debe reutilizarse como tal. Lo que sí hace es resolver D13 de
+regalo: un ingrediente de kit lleva `print_option = PRINT_NO`, así que **filtrar por esa bandera es
+exactamente «el kit sale como plato y no desglosado»** (§8.2).
 
 ### 3.6 El recibo NO pasa por el agente, y fue una decisión
 
@@ -106,10 +147,10 @@ Se imprime con `window.print()` más `--kiosk-printing`, a la **impresora predet
 (verificado: no aparece en ningún `.php` ni `.js`). La decisión del 2026-09-02 fue no acoplarse a
 ESC/POS ni al ancho de 58 mm.
 
-Para D6 —una sola impresora, la de la caja— **la comanda puede seguir el mismo camino que el
-recibo** y no tocar el agente. El día que se quiera una impresora en la cocina hay que cambiar la
-estructura de configuración del agente (hoy el nombre de impresora es un texto, no una lista), su
-protocolo (el mensaje no lleva destino) y reinstalar el binario en cada caja.
+Para D6 —una sola impresora, la de la caja— **la comanda sigue el mismo camino que el recibo** y no
+toca el agente. El día que se quiera una impresora en la cocina hay que cambiar la estructura de
+configuración del agente (hoy el nombre de impresora es un texto, no una lista), su protocolo (el
+mensaje no lleva destino) y reinstalar el binario en cada caja.
 
 ### 3.7 `print_silently` no hace nada
 
@@ -117,32 +158,46 @@ Alimenta `jsPrintSetup`, una extensión de Firefox retirada en 2017. Está dicho
 `docs/Tecnico/venta-por-peso-y-hardware-de-caja.md:1434`. No confundirlo con impresión silenciosa
 real, que la da el modo quiosco de Chrome.
 
-### 3.8 La descripción de línea ya está ocupada
+### 3.8 La descripción de línea no sirve, y por dos razones
 
-`sales_items.description` es `varchar(255)` y hoy lleva `Unidad: kilogramo` en el 90 % de las líneas
-— metadato de la importación de Siigo. **No es un campo libre**: es la descripción del artículo,
-sobrescribible por línea, y se imprime en el recibo del cliente.
+`sales_items.description` es **`varchar(30)`** — `initial_schema.sql`, y ninguna migración posterior
+lo amplió (verificado sobre los 21 scripts SQL y las 24 migraciones PHP propias del fork).
 
-Las notas de cocina de D7 necesitan **un campo propio**, y además hay que limpiar ese arrastre.
+> Una versión anterior de este documento decía `varchar(255)`. Era falso, y la corrección importa:
+> con 255 el campo estaba *ocupado*; con 30 **no cabe una instrucción de cocina** aunque estuviera
+> libre. «sin cebolla y sin tomate» son 25 caracteres y ya casi no entra.
+
+Encima está ocupado: hoy lleva `Unidad: kilogramo` en el 90 % de las líneas, metadato que arrastró la
+importación de Siigo, y se imprime en el recibo del cliente.
+
+Las notas de cocina de D7 van entonces en **un campo propio** de `order_ticket_lines`, con holgura
+real (§4.2).
 
 ### 3.9 Una cuenta abierta existe en `sales` pero no en los reportes
 
-Los reportes fijan `sale_status` explícitamente (`app/Models/Reports/Detailed_sales.php:126-161`), así
+Los reportes fijan `sale_status` explícitamente (`app/Models/Reports/Detailed_sales.php:128-159`), así
 que una cuenta `OPENED` no aparece. **Pero la fila existe, con importe y líneas y sin pagos.**
-Cualquier consulta nueva que no filtre por `sale_status` la va a contar. Relacionado con P4.
+Cualquier consulta nueva que no filtre por `sale_status` la va a contar.
 
 ### 3.10 Las pestañas no filtran por sede ni por empleado
 
-`Sale::get_all_opened()` (`app/Models/Sale.php:1300`) y `Dinner_table::get_empty_tables()` no filtran
+`Sale::get_all_opened()` (`app/Models/Sale.php:1334`) y `Dinner_table::get_empty_tables()` no filtran
 por `location_id`, pese a que ambas tablas lo tienen desde
 `20260729120000_AddLocationIdToSedeHeaders.php`. **Todas las cajas de todas las sedes del mismo
-negocio ven las mismas cuentas abiertas.** Con comandas eso deja de ser teórico.
+negocio ven las mismas cuentas abiertas.**
+
+Con comandas eso deja de ser teórico, y por eso `order_tickets` lleva `location_id` desde el primer
+día (§4.1) aunque la consulta de pestañas siga sin filtrar: arreglar la barra de pestañas es un
+trabajo aparte, pero **nacer sin la columna sería irreparable**.
 
 ### 3.11 Cambiar cliente o comentario de una cuenta abierta no se guarda
 
 `_autosave_open_tab()` no se invoca desde `postSelectCustomer` ni desde `postSetComment`, contra lo
-que dice el propio diseño de pestañas (§3 de `ventas-en-paralelo-pestanas.md`). Si la comanda va a
-llevar un comentario de pedido, eso hay que arreglarlo primero.
+que dice el propio diseño de pestañas (§3 de `ventas-en-paralelo-pestanas.md`).
+
+Como la comanda lleva su propia nota (§4.1) y no usa `sales.comment`, este defecto **no la afecta** y
+no hay que arreglarlo para esta entrega. Queda anotado porque la tentación de reusar `comment` va a
+aparecer.
 
 ### 3.12 El carrito vive en la SESIÓN, y una sesión guarda uno solo
 
@@ -155,8 +210,8 @@ sesión distinta de la de la caja, de modo que nada de lo que el mesero toque pu
 `sale_lib`: el cajero no lo vería, porque no comparten sesión. Y aunque la compartieran, **una
 sesión guarda un carrito**, así que un mesero atendiendo tres mesas se pisaría a sí mismo.
 
-La pantalla de comanda tiene que leer y escribir `sales`/`sales_items` **por `sale_id`**, no por el
-carrito de sesión. La caja sigue usando `sale_lib` como hoy; son dos caminos hacia el mismo dato.
+La pantalla de comanda lee y escribe **por `sale_id` y `order_ticket_id`**, nunca por el carrito de
+sesión. La caja sigue usando `sale_lib` como hoy; son dos caminos hacia el mismo dato.
 
 ### 3.13 Fuera del ingreso, ninguna pantalla está preparada para un celular
 
@@ -170,71 +225,484 @@ Agregar el `viewport` a `header.php` volvería responsive… nada, y en cambio c
 de todas las pantallas del sistema de golpe, sin una sola de ellas diseñada para ese ancho. **Es
 justo el arreglito de una línea que parece gratis y no lo es.**
 
-La pantalla de comanda lleva entonces su propio layout. `app/Views/platform/console_layout.php` es
-el precedente que ya funciona en este repositorio y la plantilla a copiar.
+La pantalla de comanda lleva entonces su propio layout (§9).
+
+### 3.14 El mapa de configuración está cacheado
+
+`config(OSPOS::class)->settings` se sirve de una caché, y la migración de la báscula ya dejó escrito
+el problema: *«un tenant puede estar corriendo el código nuevo contra una caché que precede a esta
+migración»*.
+
+Por eso **toda lectura de las claves nuevas usa `?? '0'`** y nunca asume que la clave existe. Un
+interruptor ausente se lee como apagado, que es el estado correcto para una función que D3 y D4
+definen como opcional.
 
 ---
 
-## 4. Forma del diseño
+## 4. El modelo de datos
 
-### 4.1 Dónde vive el estado de envío
+Tres tablas nuevas. Ninguna columna nueva en `sales` ni en `sales_items` — §3.1 las borraría.
 
-Tabla propia, **nunca una columna en `sales_items`** (§3.1). Tiene que responder: qué se mandó, de
-qué cuenta, cuándo, quién, y en qué ronda. Y su identidad de línea no puede ser `line` (§3.2).
+### 4.1 `order_tickets` — la comanda
 
-### 4.2 Cómo se identifica una cuenta sin ser una mesa
+| columna | tipo | por qué |
+|---|---|---|
+| `order_ticket_id` | INT AI PK | La identidad estable que `line` no da (§3.2) |
+| `sale_id` | INT NULL | La venta `OPENED` que la cobra. NULL solo entre crear la comanda y crear su venta, dentro de la misma transacción |
+| `name` | VARCHAR(64) NOT NULL | El nombre libre de D5: «ANDREA», «mesa 4», «domicilio Juan» |
+| `status` | VARCHAR(16) NOT NULL | `open` / `delivered` / `cancelled` / `charged` (D14). Código estable, nunca etiqueta: el mismo criterio que `payment_type_code`, `cash_source`, `unit_of_measure` y `item_price_history.source` |
+| `location_id` | INT NOT NULL | §3.10. Nace con ella aunque nadie la filtre todavía |
+| `note` | VARCHAR(255) NOT NULL DEFAULT '' | Nota de pedido. **No se usa `sales.comment`** (§3.11) |
+| `opened_by` | INT NOT NULL | `people.person_id`. D17: cada comanda tiene un responsable |
+| `opened_at` | DATETIME NOT NULL | |
+| `delivered_by` / `delivered_at` | INT NULL / DATETIME NULL | La gestión de orden de D14 |
+| `cancelled_by` / `cancelled_at` | INT NULL / DATETIME NULL | |
+| `cancel_reason` | VARCHAR(255) NOT NULL DEFAULT '' | Si se cae una comanda ya impresa, la operación quiere saber por qué |
+| `charged_at` | DATETIME NULL | Lo escribe `postComplete()` |
 
-El nombre libre de D5 vive en la cuenta, no en `dinner_tables` (§3.3). Eso evita reabrir el bug de
-las pestañas fantasma y sirve igual para salón que para domicilio.
+Índices: `idx_status_location (status, location_id)` — la pregunta de toda pantalla es «las comandas
+vivas de esta sede»; `idx_sale_id`; `idx_opened_at` para el corte del día de D14/P3.
 
-### 4.3 La impresión
+**Sin llaves foráneas**, por el mismo criterio que `item_price_history` y `platform_activity_log`: un
+fallo de FK convertiría un registro en un fallo de escritura, y la comanda debe sobrevivir a que
+alguien borre la venta.
 
-Mismo camino que el recibo: una vista propia, `window.print()`, impresora predeterminada (§3.6).
-**Con precios** (D12) y con el kit como plato, nunca desglosado (D13).
+`status` es texto y no un `tinyint`: `sale_status` ya enseñó lo que cuesta un número cuyo significado
+vive en otro archivo.
 
-### 4.4 Los estados de la comanda
+### 4.2 `order_ticket_lines` — lo que se pidió
 
-D14 pide abierta / entregada / cancelada / cobrada. `sales.sale_status` **no** sirve para esto: solo
-distingue `SUSPENDED` de `OPENED`, y es la columna de la que dependen las pestañas y los reportes.
-El estado de la comanda va en la misma tabla propia de §4.1, que es la que ya existe para no tocar
-`sales_items`.
+| columna | tipo | por qué |
+|---|---|---|
+| `order_ticket_line_id` | INT AI PK | **La identidad estable de línea.** Es la respuesta a §3.2 |
+| `order_ticket_id` | INT NOT NULL | |
+| `item_id` | INT NOT NULL | |
+| `item_name` | VARCHAR(255) NOT NULL | Copia al momento de capturar. Si mañana renombran el artículo, la comanda impresa y la pantalla siguen diciendo lo que el mesero pidió |
+| `quantity` | DECIMAL(15,3) NOT NULL | Mismo tipo que `sales_items.quantity_purchased` |
+| `unit_price` | DECIMAL(15,2) NOT NULL | Copia. D12 pide precios en la comanda, y el precio se puede repreciar desde la caja (`item_price_history`) |
+| `kitchen_note` | VARCHAR(255) NOT NULL DEFAULT '' | **D7.** Campo propio porque `sales_items.description` son 30 caracteres y están ocupados (§3.8) |
+| `round_id` | INT NULL | NULL = pedida pero **no enviada** a cocina. Es la mitad de D8 |
+| `status` | VARCHAR(16) NOT NULL | `pending` / `sent` / `voided`. `voided` es anulación lógica: una línea ya impresa **nunca se borra** |
+| `changed_after_send` | TINYINT(1) NOT NULL DEFAULT 0 | **D9.** Se tocó algo que ya estaba en cocina: se permite, y se avisa |
+| `captured_by` | INT NOT NULL | |
+| `captured_at` | DATETIME NOT NULL | |
 
-«Cancelada» es un estado, **no** un borrado: una comanda que se cae después de haberse impreso ya
-consumió papel y quizá cocina, y esa es precisamente la información que la operación quiere ver.
+Índices: `idx_ticket (order_ticket_id, status)`; `idx_round (round_id)`.
 
-### 4.5 La pantalla del mesero, responsive
+`item_name` y `unit_price` copiados es deliberado y es el mismo criterio con el que
+`item_price_history` guarda `previous_price`: **un documento que se reinterpreta cada vez que se lee
+no es un documento.**
 
-Pantalla propia, con layout propio (§3.13) y acceso directo a `sales`/`sales_items` por `sale_id`
-(§3.12). No es la pantalla de venta encogida: la de venta pesa, depende de atajos de teclado y de
+### 4.3 `order_ticket_rounds` — cada envío a cocina
+
+| columna | tipo | por qué |
+|---|---|---|
+| `round_id` | INT AI PK | |
+| `order_ticket_id` | INT NOT NULL | |
+| `number` | INT NOT NULL | 1, 2, 3… dentro de la comanda. Es lo que se imprime como «RONDA 2» |
+| `sent_at` | DATETIME NOT NULL | |
+| `sent_by` | INT NOT NULL | |
+| `printed_at` | DATETIME NULL | NULL = se mandó pero no se confirmó impresión |
+
+Índice: `idx_ticket_number (order_ticket_id, number)` UNIQUE — dos rondas con el mismo número en la
+misma comanda es un defecto, y conviene que la base lo diga.
+
+### 4.4 Cómo se resuelve D8 sin ambigüedad
+
+«La segunda comanda imprime solo lo agregado» es, con este modelo, **una sola consulta**:
+
+```sql
+SELECT * FROM order_ticket_lines
+ WHERE order_ticket_id = ? AND round_id IS NULL AND status <> 'voided'
+```
+
+Enviar a cocina es: crear la ronda, asignarle esas líneas, pasarlas a `sent`, imprimir esa ronda.
+Todo dentro de una transacción. **Si no hay líneas con `round_id IS NULL`, no hay nada que enviar y
+el botón no hace nada** — que es lo que evita que la cocina reciba dos veces lo mismo cuando alguien
+pulsa dos veces.
+
+### 4.5 Qué pasa si el cajero edita la venta
+
+Nada se rompe, y nada se sincroniza hacia atrás. La comanda registra **lo que se pidió**; la venta
+registra **lo que se cobró**. Que difieran es el caso normal de D9: se quitó un plato que ya estaba
+en cocina, o el cajero corrigió una cantidad.
+
+Lo único que se hace es **no perder la diferencia**: al cobrar, `charged_at` queda escrito y la
+comanda con sus líneas queda tal cual. Quien compare las dos cosas —un reporte futuro— tiene los dos
+lados. Sobrescribir las líneas de la comanda con las de la venta borraría exactamente la evidencia
+que D9 pide conservar.
+
+### 4.6 La escritura no puede tumbar la venta
+
+Todo lo que este módulo escriba **desde el camino de la caja** —marcar `charged` en `postComplete()`,
+sobre todo— va envuelto en `try/catch (Throwable)` con `log_message('critical', …)` y una guarda
+`tableExists()` cacheada, copiando `Item_price_history::record()`
+(`app/Models/Item_price_history.php:117-152`).
+
+**OBSERVAR NO PUEDE TUMBAR LO OBSERVADO.** Y la razón operativa es concreta: *los despliegues de este
+repositorio no corren migraciones* (`AGENTS.md`). Hay una ventana en cada release con el código vivo
+y la tabla ausente, y sin la guarda **el primer negocio cuya migración se olvide no puede cerrar una
+venta.**
+
+Esto aplica al camino de la caja. En las pantallas propias del módulo un fallo sí debe verse: ahí el
+usuario está usando la comanda, no vendiendo.
+
+---
+
+## 5. Los dos interruptores
+
+D4 enciende las comandas por comercio; D15 enciende la cocina **aparte**. Son dos claves en
+`app_config`, sembradas apagadas, con la plantilla de `20260902000000_AddScaleConfigKeys.php`:
+
+| clave | por defecto | qué apaga |
+|---|---|---|
+| `order_tickets_enable` | `'0'` | Todo el módulo. Apagado, la aplicación se comporta **exactamente** como hoy: sin menú, sin rutas útiles, sin nada en la pantalla de venta |
+| `order_tickets_kitchen_enable` | `'0'` | Solo la pantalla de cocina (Entrega 3). Sin efecto si el anterior está apagado |
+
+Ambas se leen **siempre** con `?? '0'` (§3.14).
+
+### 5.1 Dónde se configuran — y la suposición que hay detrás
+
+El dueño dijo *«la cocina debería ser habilitable desde la administración de la plataforma de la
+aplicación»*. Esa frase admite dos lecturas y **el diseño toma una**:
+
+> **Supuesto:** los dos interruptores viven en la pantalla de **Configuración del propio comercio**,
+> en una pestaña nueva «Comandas», al lado de la pestaña «Mesas» que ya existe
+> (`app/Views/configs/table_config.php`, clave `dinner_table_enable`).
+
+Las razones para elegir esa lectura: es donde vive el interruptor de la función más parecida; es el
+patrón que el sistema ya tiene; y **la consola de plataforma hoy no escribe ni una fila en el
+`app_config` de ningún negocio** (verificado sobre `PlatformAdmin`, `PlatformContext` y los modelos
+de plataforma).
+
+La lectura alternativa —que lo encienda el superadministrador desde la consola— es defendible como
+control comercial, pero cuesta más: habría que abrir un camino de escritura desde `platform_control`
+hacia el esquema de cada negocio, que hoy no existe y que es justo el tipo de acoplamiento que el
+aislamiento multi-tenant evita. **Si la intención era esa, hay que decirlo antes de la Entrega 1**,
+porque cambia de sitio la pantalla, no la lógica.
+
+---
+
+## 6. Módulo y permisos
+
+Plantilla literal: `20260906001000_AddWriteoffsModule.php`. Los menús se construyen desde `modules`
+unido a los grants del empleado (`Module::get_allowed_home_modules`), así que **un módulo sin grants
+es invisible**: no sale en la barra, no sale en los mosaicos, y `Secure_Controller` convierte una URL
+tecleada en una redirección a `no_access`.
+
+| permiso | quién | qué abre |
+|---|---|---|
+| `order_tickets` | el mesero, el cajero | Tomar y editar comandas, enviarlas a cocina, marcarlas entregadas |
+| `order_tickets_void` | el encargado | **Cancelar** una comanda (D14). Separado porque cancelar una comanda ya impresa es la acción que alguien va a querer auditar |
+| `order_tickets_kitchen` | la pantalla de cocina | Solo ver. Entrega 3 |
+
+**La migración no concede ni un grant, y eso es el punto** — la misma razón escrita en
+`AddWriteoffsModule`: conceder automáticamente metería un módulo que el negocio no pidió en el menú
+de una tienda que vende con este código todos los días. Los grants se hacen a mano desde Empleados,
+para el comercio que lo pida.
+
+### 6.1 El mesero no puede ver la caja
+
+Un mesero con **solo** `order_tickets` ve solo esa pantalla. Eso ya lo garantiza la maquinaria
+existente, y está probado en producción por el caso contrario: Ángela Rodríguez, con 19 módulos de
+inicio y cero de oficina, provocó el 500 del 2026-09-01 documentado en `Secure_Controller`.
+
+Lo que **sí** hay que verificar antes de construir (§15): qué le abre hoy el módulo `sales` a quien
+lo tiene, porque la tentación de reusarlo en vez de crear `order_tickets` va a aparecer y le daría la
+caja entera al mesero.
+
+---
+
+## 7. Componentes
+
+### 7.1 Rutas — explícitas, no auto-routing
+
+```php
+$routes->get ('comandas',                        'OrderTickets::getIndex');
+$routes->get ('comandas/nueva',                  'OrderTickets::getNew');
+$routes->post('comandas/crear',                  'OrderTickets::postCreate');
+$routes->get ('comandas/(:num)',                 'OrderTickets::getShow/$1');
+$routes->post('comandas/(:num)/linea',           'OrderTickets::postAddLine/$1');
+$routes->post('comandas/(:num)/linea/(:num)',    'OrderTickets::postEditLine/$1/$2');
+$routes->post('comandas/(:num)/enviar',          'OrderTickets::postSend/$1');
+$routes->get ('comandas/(:num)/ronda/(:num)',    'OrderTickets::getRound/$1/$2');   // la hoja a imprimir
+$routes->post('comandas/(:num)/entregada',       'OrderTickets::postDelivered/$1');
+$routes->post('comandas/(:num)/cancelar',        'OrderTickets::postCancel/$1');
+$routes->get ('comandas/cocina',                 'OrderTicketsKitchen::getIndex');  // Entrega 3
+```
+
+Explícitas por la misma razón que `items/bulk` (`app/Config/Routes.php:18-23`): **el mesero va a dejar
+la pantalla abierta en el teléfono y la va a recargar.** Las direcciones tienen que ser estables, y
+el auto-routing las ata al nombre del método.
+
+La ruta en español mientras las clases están en inglés es deliberada: es la URL que un mesero puede
+llegar a teclear.
+
+### 7.2 Modelos
+
+- `app/Models/Order_ticket.php` — la comanda y sus transiciones de estado.
+- `app/Models/Order_ticket_line.php` — las líneas, la consulta de D8 (§4.4), la anulación lógica.
+- `app/Models/Order_ticket_round.php` — crear ronda y cerrarla.
+
+Cada uno con `$allowedFields` **idéntico** a la constante `WRITABLE_COLUMNS` de su migración, y una
+prueba que compara las dos listas: CodeIgniter descarta en silencio un campo ausente de
+`$allowedFields`, **y este proyecto ya perdió datos por eso dos veces**.
+
+Las transiciones de estado viven en el modelo, no en el controlador, y son explícitas:
+
+```
+open      → delivered | cancelled | charged
+delivered → charged  | cancelled
+cancelled → (terminal)
+charged   → (terminal)
+```
+
+Una transición no permitida devuelve `false` y no lanza. Cancelar una comanda ya cobrada es el caso
+que D14 excluye —«antes de que se haya solicitado el pago»— y el modelo es el sitio donde esa regla
+no se puede saltar desde ninguna pantalla.
+
+### 7.3 Controladores
+
+- `app/Controllers/OrderTickets.php` — `extends Secure_Controller` con `$module_id = 'order_tickets'`.
+- `app/Controllers/OrderTicketsKitchen.php` — Entrega 3.
+
+**Ninguno de los dos toca `Sale_lib`.** Escriben `sales`/`sales_items` por `sale_id` a través de
+`Sale`, y **no pasan por `_autosave_open_tab()`**: así el guardarraíl de las pseudo-mesas (§3.3)
+queda intacto y no se reabre el bug de las pestañas fantasma.
+
+`Sales::postComplete()` gana **una sola llamada**, envuelta como manda §4.6: marcar la comanda
+`charged`. Nada más. Es el único punto en que este módulo toca el camino del dinero.
+
+### 7.4 La cuenta visible en la pantalla de venta
+
+El dueño pidió que la comanda *«debe ser visible en el módulo de venta como una cuenta nueva, y se
+debe ir actualizando en la medida que la comanda se actualice»* (§4.8 del funcional).
+
+`Sale::get_all_opened()` (`app/Models/Sale.php:1334`) saca el nombre de la pestaña de
+`dinner_tables.name` por un LEFT JOIN. Se le agrega un segundo LEFT JOIN a `order_tickets` y el
+rótulo cae en cascada: **nombre de comanda, si no nombre de mesa, si no `sale_id`.** Es un cambio de
+consulta, no de mecanismo, y no toca la lógica de mesas.
+
+«Se va actualizando» significa, en esta arquitectura, **que la pestaña refleja el estado al recargar
+la pantalla de venta**. No hay empuje del servidor al navegador (§1) y montarlo para la caja no está
+en el alcance. El cajero ve la comanda al día cuando entra a cobrarla, que es el momento que importa.
+
+### 7.5 Vistas
+
+| vista | entrega | layout |
+|---|---|---|
+| `app/Views/order_tickets/index.php` | 1 | propio, responsive (§9) |
+| `app/Views/order_tickets/show.php` | 1 | propio, responsive |
+| `app/Views/order_tickets/round_print.php` | 1 | **sin layout**: hoja limpia para imprimir (§8) |
+| `app/Views/order_tickets/kitchen.php` | 3 | propio |
+| `app/Views/configs/order_tickets_config.php` | 1 | el de Configuración, como `table_config.php` |
+
+### 7.6 Idioma
+
+Claves nuevas en `en/`, `es-ES/` **y `es-MX/`**. **La aplicación corre en es-MX**: una cadena escrita
+solo en es-ES es invisible y la pantalla sale en inglés sin dar ningún error.
+
+Y nada de comillas simples alrededor de un marcador: en ICU MessageFormat `'{0}'` se imprime
+literal, no da error, y solo sale mal.
+
+---
+
+## 8. La impresión
+
+### 8.1 El camino
+
+El mismo que el recibo (§3.6): una vista propia, `window.print()`, impresora predeterminada, modo
+quiosco de Chrome. **No se toca el agente local.** `getRound()` devuelve la hoja de una ronda
+concreta y la imprime; reimprimir es volver a abrir esa URL, que es una propiedad útil y gratis.
+
+### 8.2 Qué sale en el papel
+
+- **Con precios** (D12).
+- **El kit como plato, nunca desglosado** (D13). Se resuelve filtrando `print_option = PRINT_NO`,
+  que es exactamente la bandera del ingrediente de kit (§3.5).
+- **Solo las líneas de esa ronda** (D8), con «RONDA n» visible.
+- **La nota de cocina bajo cada plato** (D7), desde `kitchen_note`.
+- **Sin el `Unidad: kilogramo`** de §2.4 del funcional. En la comanda no se imprime la descripción de
+  línea: ese arrastre se queda en el recibo del cliente, donde ya vive, y limpiarlo del catálogo es
+  un trabajo aparte que esta entrega **no necesita**.
+
+### 8.3 Del teléfono no sale papel
+
+El celular del mesero no alcanza la impresora de la caja. La comanda se imprime **desde la caja**.
+Si el mesero envía a cocina desde la mesa, lo que ocurre es que la ronda queda creada y marcada como
+enviada; el papel sale cuando alguien abre esa ronda en la caja.
+
+Esa es la costura honesta del diseño sin aplicación móvil, y hay que decirla en la capacitación: **el
+envío y la impresión son dos actos**, y `printed_at` en NULL es precisamente «se mandó y todavía no
+se imprimió».
+
+---
+
+## 9. La pantalla del mesero, responsive
+
+### 9.1 Layout propio
+
+No se usa `partial/header.php` (§3.13). Se copia `app/Views/platform/console_layout.php`, que ya
+declara `viewport`, ya funciona en un teléfono y ya está en producción en este repositorio.
+
+**No es la pantalla de venta encogida.** La de venta pesa, depende de atajos de teclado y depende de
 `sale_lib`, y ninguna de esas tres cosas sirve en un teléfono.
 
-El mesero entra por el ingreso normal, que ya funciona en móvil, con un permiso propio que le da
-**solo** esta pantalla. Hoy, con los permisos existentes, darle acceso a comandas le daría la caja
-entera.
+### 9.2 Lo que la pantalla tiene que hacer bien en un móvil
 
-Lo que esta entrega tiene que resolver y no se puede posponer: **dos meseros sobre la misma comanda**
-—§3.1 borra y reinserta todas las líneas en cada guardado, así que el último en guardar gana y el
-otro pierde su ronda sin enterarse— y qué se hace cuando el teléfono pierde señal a mitad del pedido.
+- Buscar un artículo y agregarlo con el pulgar, sin teclado físico.
+- Escribir la nota de cocina sin que el teclado virtual tape el botón de guardar.
+- Enviar a cocina con un gesto claro y **no repetible por accidente** (§4.4 ya lo hace idempotente).
+- Sobrevivir a una recarga: toda la información está en la base, nada en `sessionStorage`.
 
-### 4.6 La pantalla de cocina
+### 9.3 El mesero entra por el ingreso normal
 
-**Es la Entrega 3, es opcional y es la parte cara.** Hoy no hay ningún canal servidor→navegador: ni
-AJAX, ni polling, ni WebSocket hacia la aplicación. El agente local tiene un WebSocket, pero es del
-navegador hacia la máquina de la caja, no del servidor hacia una pantalla en cocina.
-
-Va de última porque el dueño la separó del resto (D15): un comercio puede usar comandas sin tener
-nada en cocina, así que son **dos interruptores**, no uno.
+Ya funciona en móvil: `login.php` declara `viewport`. Con solo el grant `order_tickets`, el mesero
+aterriza en su pantalla y no ve nada más (§6.1).
 
 ---
 
-## 5. Lo que hay que medir antes de construir
+## 10. La pantalla de cocina — Entrega 3
 
+Opcional (D15), con su propio interruptor (§5), y **es la parte cara**: hoy no hay ningún canal
+servidor→navegador. El WebSocket del agente local va del navegador a la máquina de la caja, no del
+servidor a una pantalla en cocina.
+
+La forma barata y honesta es **polling**: la pantalla se recarga sola cada N segundos contra
+`comandas/cocina`. Con un solo monitor por local y comandas que se cuentan por decenas al día, eso
+alcanza de sobra y no obliga a montar infraestructura de tiempo real.
+
+Lo que esta entrega necesita y la 1 no: saber **qué** cambió en una línea ya enviada, no solo que
+cambió. El `changed_after_send` de §4.2 responde «esto se tocó»; una pantalla de cocina útil quiere
+«esto pasó de 2 a 3». Eso pide una tabla de eventos de línea, y **es la razón por la que la pantalla
+de cocina es una entrega aparte y no un añadido**.
+
+---
+
+## 11. Concurrencia — la Entrega 2 y su trampa
+
+Dos meseros sobre la misma comanda es el caso que **no se puede posponer** cuando la captura se hace
+desde varios teléfonos.
+
+Con el modelo de §4 el daño ya está acotado, y esa es media solución: como cada línea es una fila
+propia con su `order_ticket_line_id`, **dos meseros agregando platos distintos no se pisan** — es un
+INSERT cada uno. El problema queda reducido a dos casos:
+
+1. **Editar la misma línea a la vez.** Se resuelve con control optimista: la pantalla manda el
+   `changed_after_send` y el `captured_at` que leyó, y el servidor rechaza si ya no coinciden, con un
+   mensaje que dice qué pasó. Sin bloqueos: un candado sobre una mesa en un restaurante lleno es
+   peor que un reintento.
+2. **Enviar a cocina dos veces a la vez.** Ya es idempotente por §4.4 —la segunda no encuentra líneas
+   con `round_id IS NULL`—, siempre que el envío corra dentro de una transacción.
+
+Lo que **no** se resuelve y hay que decirlo: **sin señal no hay captura.** No hay modo sin conexión,
+y montarlo sería otro proyecto. El mesero que se queda sin red vuelve al papel, que es lo que hace
+hoy.
+
+---
+
+## 12. Migraciones
+
+En orden, con la convención de nombres del repositorio:
+
+| archivo | qué hace |
+|---|---|
+| `20260922000000_AddOrderTickets.php` | Las tres tablas de §4, con `WRITABLE_COLUMNS` pública por tabla |
+| `20260922010000_AddOrderTicketsConfigKeys.php` | Las dos claves de §5, sembradas en `'0'` |
+| `20260922020000_AddOrderTicketsModule.php` | Módulo y los tres permisos de §6. **Sin conceder ni un grant** |
+
+Reglas que este repositorio ya aprendió a golpes y que aplican aquí:
+
+- **`$this->db->resetDataCache()` antes de cualquier `tableExists()`.** La lista de esquemas del
+  driver se arma al arrancar el proceso, así que en el mismo despliegue que creó la tabla una guarda
+  puesta antes del reset responde «no existe». Ya pasó en producción con el backfill de unidades de
+  medida.
+- **Nunca sobrescribir una clave existente**: un comercio puede haberla configurado a mano.
+- **`php spark migrate` a mano por SSH.** Los despliegues de este repositorio **no corren
+  migraciones** (`AGENTS.md`), y va en el runbook de cada entrega.
+
+---
+
+## 13. Pruebas
+
+Las que de verdad protegen, no cobertura de adorno:
+
+- `tests/Models/OrderTicketTest.php`
+  - `testAllowedFieldsCoverEveryWritableColumn()` — el descarte silencioso de CI4, siguiendo
+    `CashCollectionTest::testAllowedFieldsCoverEveryWritableColumnOfTheTable()`.
+  - `testTheStateMachineRefusesToCancelAChargedTicket()` — la regla de D14 donde no se puede saltar.
+- `tests/Models/OrderTicketLineTest.php`
+  - **`testSendingTwiceDoesNotSendTheSameLineAgain()`** — la prueba más valiosa del conjunto: es el
+    defecto que le llega a la cocina.
+  - `testVoidingASentLineKeepsTheRow()` — la anulación es lógica, nunca un DELETE.
+- `tests/Controllers/OrderTicketsAutosaveTest.php`
+  - **`testTheCashierAddingAnItemDoesNotLoseTheTicketLines()`** — §3.1, la trampa mayor, probada de
+    frente: abrir comanda, enviar ronda, que el cajero agregue un ítem a la venta, y comprobar que
+    las líneas de la comanda siguen enteras y siguen marcadas como enviadas.
+- `tests/Controllers/OrderTicketsPermissionTest.php`
+  - `testAWaiterCannotReachTheRegister()` — lo que §6.1 promete.
+  - `testCancellingNeedsItsOwnPermission()`.
+- `tests/Models/OrderTicketMigrationTest.php`
+  - Correr la migración dos veces es no-op.
+  - **`testCompletingASaleStillWorksWhenTheTicketTablesAreMissing()`** — la ventana de §4.6, que es
+    la diferencia entre un despliegue olvidado y un negocio que no puede cobrar.
+
+La base de pruebas es **compartida** entre archivos: una prueba que escriba `app_config` rompe
+pruebas de otros archivos, y el fallo sale donde no está la causa. Las dos claves de §5 se tocan con
+esa precaución.
+
+---
+
+## 14. Entregas y despliegue
+
+| # | Qué | Se puede desplegar sola porque… |
+|---|---|---|
+| **1** | Migraciones + modelos + `OrderTickets` + vistas responsive + impresión + interruptor | Apagada por defecto. Un comercio que no la enciende **no nota nada** |
+| **2** | Concurrencia (§11), el mesero en el teléfono en un local real, capacitación | No hay esquema nuevo: es endurecer lo de la 1 contra varios teléfonos |
+| **3** | Pantalla de cocina + su interruptor + eventos de línea | Segundo interruptor, apagado. Sin efecto en quien no lo encienda |
+
+La pantalla responsive se construye **en la Entrega 1**, no en la 2: hacerla de escritorio y
+rehacerla después sería trabajo tirado. Lo que la Entrega 2 agrega no es la pantalla, es lo que hace
+falta para que varios teléfonos la usen a la vez sin pisarse.
+
+**Compuerta antes de producción**, cada entrega: suite verde en CI (workflow «PHPUnit Tests»),
+certificado **en staging sobre la interfaz real y no por quien escribió el código**, respaldo de las
+tres bases, `php spark migrate` a mano por SSH, y **producción después de las 22:00 hora Colombia**.
+La verificación contra producción es de solo lectura: conteos, logs, y **ninguna transacción de
+prueba**.
+
+---
+
+## 15. Lo que hay que medir o confirmar antes de construir
+
+- **Confirmar el supuesto de §5.1**: si los interruptores van en la Configuración del comercio o en
+  la consola de plataforma. Cambia de sitio la pantalla, no la lógica, pero cambia antes de empezar.
+- **Qué permisos arrastra hoy el módulo `sales`.** Antes de crear `order_tickets` hay que ver qué le
+  abriría a un mesero reusar el que existe.
+- **La red del local desde un teléfono.** Toda la captura del mesero depende de que el celular
+  alcance el servidor de pie junto a la mesa, y eso no se ha probado en ningún local. Es el riesgo
+  con más capacidad de hundir la Entrega 2 y **no es de software**.
 - **Cuántas cuentas abiertas simultáneas** aguanta la barra de pestañas antes de estorbar.
-- **El arrastre de `Unidad: …`**: cuántos artículos hay que limpiar y si la limpieza se hace en el
-  catálogo o solo en la impresión.
 - **Si `_autosave_open_tab()` a cada tecla** es aceptable con pedidos de hasta 48 líneas, porque cada
   uno borra y reinserta todas las líneas de la venta (§3.1).
-- **La red del local desde un teléfono.** Toda la captura del mesero depende de que el celular
-  alcance el servidor de pie junto a la mesa, y eso no se ha probado en ningún local.
-- **Qué permisos existentes arrastra un mesero.** Antes de crear el permiso de §4.5 hay que ver qué
-  le abre hoy el módulo de ventas a quien lo tiene.
+
+---
+
+## 16. Riesgos anotados
+
+1. **La ventana sin migración.** Código vivo y tablas ausentes en algún esquema, porque los
+   despliegues no migran. Mitigado por §4.6, y es la razón de que exista esa sección.
+2. **Que alguien «simplifique» metiendo el estado en `sales_items`.** Es la forma más probable de
+   romper esto, parece más limpia, y §3.1 explica por qué se pierde. La prueba
+   `testTheCashierAddingAnItemDoesNotLoseTheTicketLines()` existe para que esa simplificación falle
+   en CI y no en la cocina.
+3. **El `viewport` en `header.php`.** El arreglito de una línea que parece gratis y cambia el
+   renderizado de todo el sistema (§3.13).
+4. **Comanda impresa y luego cancelada.** La cocina ya preparó. El sistema no puede resolverlo; lo
+   que hace es **dejar constancia** con `cancel_reason`, que es lo que D14 pide.
+5. **Las pestañas no filtran por sede** (§3.10). Con dos sedes y comandas, una caja ve las cuentas de
+   la otra. `location_id` nace con la tabla; **arreglar la barra de pestañas es trabajo aparte** y
+   hay que decidirlo antes de que un segundo comercio con dos sedes encienda esto.
+6. **Sin señal no hay captura** (§11). No hay modo sin conexión y no está en el alcance.
+7. **El envío y la impresión son dos actos** (§8.3). Es consecuencia directa de no tener aplicación
+   móvil ni impresora en cocina, y va en la capacitación o se vive como un defecto.

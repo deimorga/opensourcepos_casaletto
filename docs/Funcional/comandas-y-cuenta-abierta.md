@@ -99,8 +99,11 @@ reinstalarlo en cada punto.
 Cada línea puede llevar su nota para el cocinero: *sin cebolla*, *término medio*, *para llevar*.
 **Es indispensable**, y sale impresa en la comanda.
 
-Antes hay que limpiar el `Unidad: kilogramo` que hoy ensucia el 90 % de las líneas, o la comanda
-saldrá ilegible.
+Es un campo **nuevo**. El que parecía servir —la descripción de la línea— no sirve por dos razones,
+no una: ya está ocupado por el `Unidad: kilogramo` de §2.4, y **solo admite 30 caracteres**, que no
+alcanzan para una instrucción de cocina.
+
+Aparte de eso hay que dejar de imprimir el `Unidad: kilogramo` en la comanda, o saldrá ilegible.
 
 ### 4.5 Se agregan platos después, y solo sale lo nuevo
 
@@ -120,7 +123,7 @@ Quitar o cambiar un plato que ya está en cocina **no se bloquea**. Se avisa:
 
 Y el pedido se actualiza para que **la facturación final cobre lo que de verdad se sirvió**.
 
-### 4.7b La comanda tiene estados, y se gestiona
+### 4.7 La comanda tiene estados, y se gestiona
 
 Una comanda no solo se abre y se cobra. Hay que poder decir qué pasó con ella:
 
@@ -134,14 +137,12 @@ Una comanda que se finalizó **debería haberse pagado en la caja**. Si al cierr
 cuenta sin cobrar, eso no es un caso que el sistema deba resolver solo: es algo que la operación
 tiene que mirar, y para eso hace falta que se vea.
 
-### 4.7 La cuenta se ve y se actualiza en la pantalla de venta
+### 4.8 La cuenta se ve y se actualiza en la pantalla de venta
 
 La comanda no es un papel que se va y se olvida: **es una cuenta viva** en el módulo de venta, que
 refleja en todo momento lo que se ha pedido y lo que se mandó a cocina.
 
----
-
-### 4.8 El mesero toma el pedido desde su celular, por el navegador
+### 4.9 El mesero toma el pedido desde su celular, por el navegador
 
 No va a haber aplicación móvil. **La pantalla de comanda se construye responsive**, y con eso el
 mesero entra desde el navegador de su teléfono, se autentica con su propio usuario y captura el
@@ -154,6 +155,10 @@ Que el teléfono sirva no significa que el resto del sistema sirva en el teléfo
 pantalla de ingreso está preparada para un celular.** Cualquier otra pantalla a la que el mesero
 llegue va a salir en ancho de escritorio. Es una limitación conocida y aceptada, y el mesero no
 necesita ninguna otra pantalla.
+
+**Del teléfono no sale ningún papel.** La impresora es la de la caja (D6) y el celular no la
+alcanza. Lo que el mesero hace desde la mesa es *tomar* el pedido; la comanda se imprime en la caja,
+que es donde está el papel y donde alguien la recoge para llevarla a la cocina.
 
 ---
 
@@ -180,7 +185,7 @@ necesita ninguna otra pantalla.
 | **D7** | **Instrucciones por plato, indispensables** | 2026-09-22 |
 | **D8** | **Rondas: la segunda comanda imprime solo lo agregado** | 2026-09-22 |
 | **D9** | **Modificar lo ya enviado se permite**, avisando al cajero Y en la pantalla de cocina | 2026-09-22 |
-| **D10** | **Primero la caja.** El celular del mesero es requerimiento aparte | 2026-09-22 |
+| **D10** | **Primero la caja, después el celular.** Es un orden de construcción, no un recorte de alcance: los dos están dentro de este requerimiento. *Reemplaza la versión de esta decisión que dejaba el celular fuera* | 2026-09-22 |
 | **D11** | **El objetivo es el mesero, no la cocina.** Capturar el pedido en la mesa para que no se pierda camino a la caja | 2026-09-22 |
 | **D12** | **La comanda lleva precios** | 2026-09-22 |
 | **D13** | **El kit sale como plato, jamás desglosado** | 2026-09-22 |
@@ -196,7 +201,7 @@ necesita ninguna otra pantalla.
 |---|---|---|
 | **P1** | ¿La comanda lleva precios? | **Sí.** No importa que salgan |
 | **P2** | ¿Un kit sale desglosado? | **No, definitivamente.** Sale como la unidad, como el plato |
-| **P3** | ¿Y una cuenta sin cobrar al cierre? | Lo mira la operación. Una comanda finalizada debió pagarse en caja; para eso la comanda necesita estados y gestión de orden (§4.7b) |
+| **P3** | ¿Y una cuenta sin cobrar al cierre? | Lo mira la operación. Una comanda finalizada debió pagarse en caja; para eso la comanda necesita estados y gestión de orden (§4.7) |
 | **P4** | ¿La pantalla de cocina? | **Habilitable, y no la tenemos todavía.** Hay comercios que la van a requerir y comercios que no |
 
 ---
@@ -204,7 +209,7 @@ necesita ninguna otra pantalla.
 ## 7. Alcance, en entregas
 
 ### Entrega 1 — La comanda desde la caja
-Cuenta abierta con nombre libre, instrucciones por plato, estados de la comanda (§4.7b), comanda
+Cuenta abierta con nombre libre, instrucciones por plato, estados de la comanda (§4.7), comanda
 impresa con precios, rondas con solo lo agregado, y el interruptor por comercio. Es el cimiento:
 define el dato, y cualquier pantalla posterior lo lee.
 
