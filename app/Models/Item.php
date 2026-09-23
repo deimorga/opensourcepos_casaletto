@@ -535,6 +535,66 @@ class Item extends Model
     }
 
     /**
+     * The item types a waiter can put on an order ticket: plain items, and kits through their
+     * representative item (every kit has one: item_kits.item_id, item_type ITEM_KIT).
+     *
+     * Left out on purpose: ITEM_AMOUNT_ENTRY and ITEM_TEMP. Both need a price typed at the till, and
+     * the waiter's phone is not the till.
+     */
+    public const ORDERABLE_ITEM_TYPES = [ITEM, ITEM_KIT];
+
+    /**
+     * Items a waiter can order, by name or by exact item number, alphabetical.
+     *
+     * Deliberately a small query of its own and not search() or get_search_suggestions(): those are
+     * built for the register's autocomplete, carry stock-location joins and suggestion formatting, and
+     * the waiter's screen is a plain server-side list that has to stay fast on a phone's signal.
+     *
+     * @return list<array{item_id: string, name: string, item_number: ?string, unit_price: string, item_type: string}>
+     */
+    public function search_orderable(string $term, int $limit = 20): array
+    {
+        $term = trim($term);
+
+        if ($term === '') {
+            return [];
+        }
+
+        return $this->db->table('items')
+            ->select('item_id, name, item_number, unit_price, item_type')
+            ->where('deleted', 0)
+            ->whereIn('item_type', self::ORDERABLE_ITEM_TYPES)
+            ->groupStart()
+                ->like('name', $term)
+                ->orWhere('item_number', $term)
+            ->groupEnd()
+            ->orderBy('name', 'ASC')
+            ->limit(max(1, $limit))
+            ->get()
+            ->getResultArray();
+    }
+
+    /**
+     * One orderable item, or null when it does not exist, was deleted, or is of a type a waiter
+     * cannot order. The server checks this on every add: the id comes from a form, and a form can be
+     * edited.
+     *
+     * @return array{item_id: string, name: string, unit_price: string, item_type: string}|null
+     */
+    public function get_orderable(int $item_id): ?array
+    {
+        $row = $this->db->table('items')
+            ->select('item_id, name, unit_price, item_type')
+            ->where('item_id', $item_id)
+            ->where('deleted', 0)
+            ->whereIn('item_type', self::ORDERABLE_ITEM_TYPES)
+            ->get()
+            ->getRowArray();
+
+        return $row ?: null;
+    }
+
+    /**
      * Gets information about a particular item
      */
     public function get_info(int $item_id): object

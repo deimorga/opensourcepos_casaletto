@@ -3,8 +3,10 @@
 namespace App\Controllers;
 
 use App\Models\Dinner_table;
+use App\Models\Item;
 use App\Models\Order_ticket;
 use App\Models\Order_ticket_line;
+use App\Models\Order_ticket_round;
 use App\Models\Sale;
 use App\Models\Stock_location;
 use CodeIgniter\HTTP\RedirectResponse;
@@ -150,6 +152,249 @@ class OrderTickets extends Secure_Controller
     }
 
     /**
+     * One ticket: its dishes, what is still unsent, its rounds, and -- when the waiter typed
+     * something in the search box -- the items that match, each with its own "add" form.
+     *
+     * The search is a plain GET that reloads the page, on purpose: no JavaScript, nothing held in the
+     * browser. The waiter can lose signal or reload at any moment and the page is simply the state of
+     * the database.
+     */
+    public function getShow(int $order_ticket_id): string|RedirectResponse
+    {
+        if (! $this->is_enabled()) {
+            return $this->render_disabled();
+        }
+
+        $ticket = $this->tickets->get_info($order_ticket_id);
+
+        if ($ticket === null) {
+            return redirect()->to('comandas')->with('error', lang('Order_tickets.not_found'));
+        }
+
+        $live  = $this->is_live($ticket);
+        $term  = trim((string) $this->request->getGet('q'));
+        $lines = $this->lines->get_lines($order_ticket_id);
+
+        return view('order_tickets/show', [
+            'title'      => $ticket['name'],
+            'back_url'   => base_url('comandas'),
+            'ticket'     => $ticket,
+            'live'       => $live,
+            'lines'      => $lines,
+            'pending'    => count($this->lines->get_pending($order_ticket_id)),
+            'rounds'     => model(Order_ticket_round::class)->get_rounds($order_ticket_id),
+            'term'       => $term,
+            'results'    => $live && $term !== '' ? model(Item::class)->search_orderable($term) : [],
+            'can_cancel' => $live && $this->can_cancel(),
+        ] + $this->layout_data());
+    }
+
+    /**
+     * Adds one dish. item_name and unit_price are taken from the catalogue HERE, by the server, and
+     * copied onto the line -- never from the form, which anybody can edit.
+     */
+    public function postAddLine(int $order_ticket_id): RedirectResponse
+    {
+        $ticket = $this->live_ticket_or_null($order_ticket_id);
+
+        if ($ticket === null) {
+            return $this->refuse_closed($order_ticket_id);
+        }
+
+        $item = model(Item::class)->get_orderable((int) $this->request->getPost('item_id'));
+
+        if ($item === null) {
+            return $this->back_to($order_ticket_id, 'error', lang('Order_tickets.item_not_found'));
+        }
+
+        $line_id = $this->lines->add_line(
+            $order_ticket_id,
+            (int) $item['item_id'],
+            (string) $item['name'],
+            $this->posted_quantity(),
+            (string) $item['unit_price'],
+            (string) $this->request->getPost('kitchen_note'),
+            (int) session()->get('person_id')
+        );
+
+        if ($line_id === 0) {
+            return $this->back_to($order_ticket_id, 'error', lang('Order_tickets.quantity_invalid'));
+        }
+
+        return $this->back_to($order_ticket_id, 'success', lang('Order_tickets.line_added', [$item['name']]));
+    }
+
+    /**
+     * Changes the quantity or the kitchen note of a dish. Touching a dish the kitchen already has is
+     * allowed (D9) and announced -- here to the waiter, on the kitchen's side by the flag the model
+     * raises, and on the till's side by the billing flag.
+     */
+    public function postEditLine(int $order_ticket_id, int $order_ticket_line_id): RedirectResponse
+    {
+        $line = $this->line_of_live_ticket($order_ticket_id, $order_ticket_line_id);
+
+        if ($line === null) {
+            return $this->refuse_closed($order_ticket_id);
+        }
+
+        $changes = ['kitchen_note' => (string) $this->request->getPost('kitchen_note')];
+
+        if ($this->request->getPost('quantity') !== null) {
+            $changes['quantity'] = $this->posted_quantity();
+        }
+
+        if (! $this->lines->edit_line($order_ticket_line_id, $changes)) {
+            return $this->back_to($order_ticket_id, 'error', lang('Order_tickets.quantity_invalid'));
+        }
+
+        $after = $this->lines->get_info($order_ticket_line_id);
+
+        if ($after !== null && (int) $after['changed_after_send'] === 1) {
+            return $this->back_to($order_ticket_id, 'warning', lang('Order_tickets.changed_in_kitchen', [$line['item_name']]));
+        }
+
+        return $this->back_to($order_ticket_id, 'success', lang('Order_tickets.line_saved'));
+    }
+
+    /**
+     * Voids a dish. Logical: the row stays, struck through. A dish that was already in the kitchen
+     * gets the same announcement as an edit.
+     */
+    public function postVoidLine(int $order_ticket_id, int $order_ticket_line_id): RedirectResponse
+    {
+        $line = $this->line_of_live_ticket($order_ticket_id, $order_ticket_line_id);
+
+        if ($line === null) {
+            return $this->refuse_closed($order_ticket_id);
+        }
+
+        if (! $this->lines->void_line($order_ticket_line_id)) {
+            return $this->back_to($order_ticket_id, 'error', lang('Order_tickets.line_already_voided'));
+        }
+
+        if ($line['round_id'] !== null) {
+            return $this->back_to($order_ticket_id, 'warning', lang('Order_tickets.voided_in_kitchen', [$line['item_name']]));
+        }
+
+        return $this->back_to($order_ticket_id, 'success', lang('Order_tickets.line_voided'));
+    }
+
+    /**
+     * Sends the unsent dishes to the kitchen as a new round (D8). Pressing it twice sends nothing the
+     * second time: Order_ticket_round::send() is what guarantees it, not this screen.
+     *
+     * From a phone this creates the round; the paper comes out at the till, which is where the
+     * printer is (§8.3). The ticket screen shows the round as "not printed" until it is.
+     */
+    public function postSend(int $order_ticket_id): RedirectResponse
+    {
+        if ($this->live_ticket_or_null($order_ticket_id) === null) {
+            return $this->refuse_closed($order_ticket_id);
+        }
+
+        $round = model(Order_ticket_round::class)->send($order_ticket_id, (int) session()->get('person_id'));
+
+        if ($round === null) {
+            return $this->back_to($order_ticket_id, 'error', lang('Order_tickets.nothing_to_send'));
+        }
+
+        return $this->back_to($order_ticket_id, 'success', lang('Order_tickets.round_sent', [$round['number'], $round['lines']]));
+    }
+
+    /**
+     * The sheet of one round, for the kitchen: a bare page, no layout (§8).
+     *
+     * With ?imprimir=1 -- the link the ticket screen offers -- the page prints itself and the round
+     * is marked printed. Without it, it is only shown: a waiter reviewing a round on a phone must not
+     * set off a print dialog, nor record a print that never happened. Reprinting is opening the same
+     * link again; the FIRST print time is the one kept.
+     *
+     * A closed ticket's rounds stay viewable: they are the record of what the kitchen was asked for.
+     */
+    public function getRound(int $order_ticket_id, int $round_id): string|RedirectResponse
+    {
+        if (! $this->is_enabled()) {
+            return $this->render_disabled();
+        }
+
+        $ticket = $this->tickets->get_info($order_ticket_id);
+        $rounds = model(Order_ticket_round::class);
+        $round  = $rounds->get_info($round_id);
+
+        if ($ticket === null || $round === null || (int) $round['order_ticket_id'] !== $order_ticket_id) {
+            return redirect()->to('comandas')->with('error', lang('Order_tickets.not_found'));
+        }
+
+        $print = $this->request->getGet('imprimir') === '1';
+
+        if ($print) {
+            $rounds->mark_printed($round_id);
+        }
+
+        return view('order_tickets/round_print', [
+            'ticket'   => $ticket,
+            'round'    => $round,
+            'lines'    => $this->lines->get_by_round($round_id),
+            'print'    => $print,
+            'company'  => (string) (config(OSPOS::class)->settings['company'] ?? ''),
+            // Who SENT the round -- the waiter the kitchen may need to ask -- not who is printing it.
+            'employee' => $this->employee_name((int) $round['sent_by']),
+        ]);
+    }
+
+    /**
+     * The order reached the table or went out for delivery (D14, "gestionar orden").
+     */
+    public function postDelivered(int $order_ticket_id): RedirectResponse
+    {
+        if (! $this->is_enabled() || ! $this->tickets->mark_delivered($order_ticket_id, (int) session()->get('person_id'))) {
+            return $this->refuse_closed($order_ticket_id);
+        }
+
+        return $this->back_to($order_ticket_id, 'success', lang('Order_tickets.delivered_done'));
+    }
+
+    /**
+     * Cancels the whole ticket (D14): only before it is charged, only with order_tickets_void, and
+     * only with a reason -- the kitchen may already have cooked, and "why" is what the operation will
+     * want to read.
+     *
+     * Cancelling the ticket also closes its tab, exactly as the register closes one it cancels
+     * (Sales::postCancel()): the throwaway table is deleted and the OPENED sale becomes CANCELED.
+     * Without that, a ghost tab would stay on every till. Only an OPENED sale is touched: anything
+     * else means the till already acted on it, and is left for a person to look at.
+     *
+     * The ticket is cancelled first because that transition is the one that can be refused (already
+     * charged, cancelled twice); closing the tab only follows a cancellation that happened.
+     */
+    public function postCancel(int $order_ticket_id): RedirectResponse
+    {
+        if (! $this->is_enabled()) {
+            return redirect()->to('comandas');
+        }
+
+        if (! $this->can_cancel()) {
+            return $this->back_to($order_ticket_id, 'error', lang('Order_tickets.cancel_not_allowed'));
+        }
+
+        $reason = trim((string) $this->request->getPost('reason'));
+
+        if ($reason === '') {
+            return $this->back_to($order_ticket_id, 'error', lang('Order_tickets.cancel_reason_required'));
+        }
+
+        $ticket = $this->tickets->get_info($order_ticket_id);
+
+        if ($ticket === null || ! $this->tickets->cancel($order_ticket_id, (int) session()->get('person_id'), $reason)) {
+            return $this->refuse_closed($order_ticket_id);
+        }
+
+        $this->close_tab_of((int) ($ticket['sale_id'] ?? 0));
+
+        return redirect()->to('comandas')->with('success', lang('Order_tickets.cancelled_done', [$ticket['name']]));
+    }
+
+    /**
      * The waiter's own way out.
      *
      * Not home/logout: Home is a Secure_Controller gated on the `home` grant, and a waiter granted
@@ -164,6 +409,123 @@ class OrderTickets extends Secure_Controller
     }
 
     /**
+     * open or delivered: a ticket that can still receive dishes, be sent and be charged.
+     */
+    private function is_live(array $ticket): bool
+    {
+        return in_array($ticket['status'], [Order_ticket::STATUS_OPEN, Order_ticket::STATUS_DELIVERED], true);
+    }
+
+    /**
+     * The ticket, only if the module is on and the ticket is still live. Every write goes through
+     * this: a cancelled or charged ticket is closed, and a stale phone screen must not reopen it.
+     */
+    private function live_ticket_or_null(int $order_ticket_id): ?array
+    {
+        if (! $this->is_enabled()) {
+            return null;
+        }
+
+        $ticket = $this->tickets->get_info($order_ticket_id);
+
+        return $ticket !== null && $this->is_live($ticket) ? $ticket : null;
+    }
+
+    /**
+     * The line, only if it belongs to THIS ticket and the ticket is live. The two ids come from the
+     * URL, so the pairing is checked rather than trusted: otherwise any line could be edited through
+     * any ticket's address.
+     */
+    private function line_of_live_ticket(int $order_ticket_id, int $order_ticket_line_id): ?array
+    {
+        if ($this->live_ticket_or_null($order_ticket_id) === null) {
+            return null;
+        }
+
+        $line = $this->lines->get_info($order_ticket_line_id);
+
+        return $line !== null && (int) $line['order_ticket_id'] === $order_ticket_id ? $line : null;
+    }
+
+    /**
+     * The answer to a write on a ticket that is closed, missing or switched off: back to the ticket
+     * if it still exists, to the list otherwise. Never an error page in the waiter's hand.
+     */
+    private function refuse_closed(int $order_ticket_id): RedirectResponse
+    {
+        if (! $this->is_enabled() || $this->tickets->get_info($order_ticket_id) === null) {
+            return redirect()->to('comandas')->with('error', lang('Order_tickets.not_found'));
+        }
+
+        return $this->back_to($order_ticket_id, 'error', lang('Order_tickets.closed'));
+    }
+
+    /**
+     * Post/Redirect/Get: every write lands back on the ticket's page, so a reload repeats nothing.
+     *
+     * @param 'success'|'warning'|'error' $type
+     */
+    private function back_to(int $order_ticket_id, string $type, string $message): RedirectResponse
+    {
+        return redirect()->to('comandas/' . $order_ticket_id)->with($type, $message);
+    }
+
+    /**
+     * The quantity as typed. A phone keyboard set to a comma-decimal locale may send "0,5"; the model
+     * only accepts a plain decimal with a dot, so the comma is converted and the model still decides.
+     */
+    private function posted_quantity(): string
+    {
+        $quantity = trim((string) ($this->request->getPost('quantity') ?? '1'));
+
+        return str_replace(',', '.', $quantity === '' ? '1' : $quantity);
+    }
+
+    /**
+     * Cancelling needs its own permission (order_tickets_void): taking orders is a waiter's job,
+     * cancelling one the kitchen may already have cooked is a supervisor's.
+     */
+    private function can_cancel(): bool
+    {
+        return $this->employee->has_grant('order_tickets_void', (int) session()->get('person_id'));
+    }
+
+    /**
+     * Closes the register tab of a cancelled ticket, the way Sales::postCancel() closes one: the sale
+     * becomes CANCELED and its throwaway table is deleted. Only an OPENED sale is touched -- the
+     * status is read here, null-safely, rather than through Sale::get_sale_status(), which
+     * dereferences a row that may not exist.
+     *
+     * Delivery and Take Away (ids 1 and 2) are never deleted, the same guard postCancel() keeps.
+     */
+    private function close_tab_of(int $sale_id): void
+    {
+        if ($sale_id <= 0) {
+            return;
+        }
+
+        $row = db_connect()->table('sales')
+            ->select('sale_status, dinner_table_id')
+            ->where('sale_id', $sale_id)
+            ->get()
+            ->getRowArray();
+
+        if ($row === null || (int) $row['sale_status'] !== OPENED) {
+            log_message('warning', 'Comanda cancelada con la venta ' . $sale_id . ' fuera de OPENED; la pestaña no se tocó.');
+
+            return;
+        }
+
+        model(Sale::class)->update_sale_status($sale_id, CANCELED);
+
+        $table_id = (int) ($row['dinner_table_id'] ?? 0);
+
+        if ($table_id > 2) {
+            model(Dinner_table::class)->delete($table_id);
+        }
+    }
+
+    /**
      * Whether the business has order tickets turned on. Absent reads as off (see the class docblock).
      */
     private function is_enabled(): bool
@@ -174,6 +536,16 @@ class OrderTickets extends Secure_Controller
     private function render_disabled(): string
     {
         return view('order_tickets/disabled', $this->layout_data());
+    }
+
+    /**
+     * "First Last" of any employee, or '' when there is no such person.
+     */
+    private function employee_name(int $person_id): string
+    {
+        $info = $this->employee->get_info($person_id);
+
+        return is_object($info) ? trim(($info->first_name ?? '') . ' ' . ($info->last_name ?? '')) : '';
     }
 
     /**

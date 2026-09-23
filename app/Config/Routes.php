@@ -34,6 +34,14 @@ $routes->get('comandas', 'OrderTickets::getIndex');
 $routes->get('comandas/salir', 'OrderTickets::getLogout');
 $routes->get('comandas/nueva', 'OrderTickets::getNew');
 $routes->post('comandas/crear', 'OrderTickets::postCreate');
+$routes->get('comandas/(:num)', 'OrderTickets::getShow/$1');
+$routes->post('comandas/(:num)/linea', 'OrderTickets::postAddLine/$1');
+$routes->post('comandas/(:num)/linea/(:num)', 'OrderTickets::postEditLine/$1/$2');
+$routes->post('comandas/(:num)/linea/(:num)/anular', 'OrderTickets::postVoidLine/$1/$2');
+$routes->post('comandas/(:num)/enviar', 'OrderTickets::postSend/$1');
+$routes->get('comandas/(:num)/ronda/(:num)', 'OrderTickets::getRound/$1/$2');
+$routes->post('comandas/(:num)/entregada', 'OrderTickets::postDelivered/$1');
+$routes->post('comandas/(:num)/cancelar', 'OrderTickets::postCancel/$1');
 
 $routes->get('/', 'Login::index');
 $routes->get('login', 'Login::index');

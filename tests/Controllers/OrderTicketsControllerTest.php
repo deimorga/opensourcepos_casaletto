@@ -40,6 +40,10 @@ final class OrderTicketsControllerTest extends CIUnitTestCase
     private ?string $switchBefore = null;
     private ?string $tablesBefore = null;
     private bool $grantedHere     = false;
+    private bool $voidGrantedHere = false;
+
+    /** @var list<int> items this file created, removed in tearDown -- items is shared by every file */
+    private array $createdItems = [];
 
     protected function setUp(): void
     {
@@ -67,6 +71,14 @@ final class OrderTicketsControllerTest extends CIUnitTestCase
     protected function tearDown(): void
     {
         $this->removeWhatOpeningTicketsCreated();
+
+        if ($this->createdItems !== []) {
+            $this->db->table('items')->whereIn('item_id', $this->createdItems)->delete();
+        }
+
+        if ($this->voidGrantedHere) {
+            $this->db->table('grants')->where(['permission_id' => 'order_tickets_void', 'person_id' => 1])->delete();
+        }
 
         if ($this->tablesBefore === null) {
             $this->db->table('app_config')->where('key', 'dinner_table_enable')->delete();
@@ -273,6 +285,242 @@ final class OrderTicketsControllerTest extends CIUnitTestCase
         $this->postReq('comandas/crear', ['name' => 'ANDREA'])->assertRedirectTo('comandas');
 
         $this->assertSame(0, $this->db->table('order_tickets')->countAllResults());
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // The ticket screen (1.15 - 1.18)
+    // ---------------------------------------------------------------------------------------------
+
+    /**
+     * The waiter can order items and kits (through the kit's representative item), and nothing that
+     * needs a price typed at the till or no longer exists.
+     */
+    public function testTheSearchOffersItemsAndKitsOnly(): void
+    {
+        $ticket = $this->openLiveTicket();
+        $this->createItem('PRUEBA OT EMPANADA');
+        $this->createItem('PRUEBA OT SANDWICH KIT', ['item_type' => ITEM_KIT]);
+        $this->createItem('PRUEBA OT MONTO LIBRE', ['item_type' => ITEM_AMOUNT_ENTRY]);
+        $this->createItem('PRUEBA OT BORRADO', ['deleted' => 1]);
+
+        $response = $this->getReq('comandas/' . $ticket . '?q=PRUEBA%20OT');
+
+        $response->assertStatus(200);
+        $response->assertSee('PRUEBA OT EMPANADA');
+        $response->assertSee('PRUEBA OT SANDWICH KIT');
+        $response->assertDontSee('PRUEBA OT MONTO LIBRE');
+        $response->assertDontSee('PRUEBA OT BORRADO');
+    }
+
+    /**
+     * Name and price come from the catalogue, read by the server. A form can be edited, and a price
+     * typed into it must never reach the ticket.
+     */
+    public function testAddingADishCopiesNameAndPriceFromTheCatalogueNotFromTheForm(): void
+    {
+        $ticket = $this->openLiveTicket();
+        $item   = $this->createItem('PRUEBA OT CAFE', ['unit_price' => '4500.00']);
+
+        $this->postReq('comandas/' . $ticket . '/linea', [
+            'item_id'      => (string) $item,
+            'quantity'     => '2',
+            'kitchen_note' => 'sin azúcar',
+            'unit_price'   => '1',
+            'item_name'    => 'FALSO',
+        ])->assertRedirectTo('comandas/' . $ticket);
+
+        $line = $this->db->table('order_ticket_lines')->where('order_ticket_id', $ticket)->get()->getRowArray();
+        $this->assertSame('PRUEBA OT CAFE', $line['item_name']);
+        $this->assertSame('4500.00', (string) $line['unit_price']);
+        $this->assertSame('2.000', (string) $line['quantity']);
+        $this->assertSame('sin azúcar', $line['kitchen_note']);
+    }
+
+    /**
+     * A phone keyboard in a comma-decimal locale sends "0,5". Half a portion is still half.
+     */
+    public function testACommaDecimalQuantityIsUnderstood(): void
+    {
+        $ticket = $this->openLiveTicket();
+        $item   = $this->createItem('PRUEBA OT QUESO');
+
+        $this->postReq('comandas/' . $ticket . '/linea', ['item_id' => (string) $item, 'quantity' => '0,5']);
+
+        $this->assertSame('0.500', (string) $this->db->table('order_ticket_lines')->get()->getRow()->quantity);
+    }
+
+    public function testAClosedTicketAcceptsNoMoreDishes(): void
+    {
+        $ticket = $this->insertTicket('YA COBRADA', self::LOCATION_ID, Order_ticket::STATUS_CHARGED);
+        $this->switchTo('1');
+        $item = $this->createItem('PRUEBA OT POSTRE');
+
+        $this->postReq('comandas/' . $ticket . '/linea', ['item_id' => (string) $item, 'quantity' => '1']);
+
+        $this->assertSame(0, $this->db->table('order_ticket_lines')->countAllResults());
+    }
+
+    /**
+     * Both ids come from the URL. A line must not be editable through another ticket's address.
+     */
+    public function testALineCannotBeEditedThroughAnotherTicketsAddress(): void
+    {
+        $mine   = $this->openLiveTicket('MIA');
+        $theirs = $this->insertTicket('AJENA', self::LOCATION_ID);
+        $line   = model(Order_ticket_line::class, false)->add_line($mine, 7, 'Empanada', '1', '3500', '', 1);
+
+        $this->postReq('comandas/' . $theirs . '/linea/' . $line, ['quantity' => '9', 'kitchen_note' => '']);
+        $this->postReq('comandas/' . $theirs . '/linea/' . $line . '/anular', []);
+
+        $row = $this->db->table('order_ticket_lines')->where('order_ticket_line_id', $line)->get()->getRowArray();
+        $this->assertSame('1.000', (string) $row['quantity']);
+        $this->assertSame('pending', $row['status']);
+    }
+
+    /**
+     * D9 from the screen: editing a dish the kitchen already has is allowed, and the dish is marked.
+     */
+    public function testEditingADishAlreadyInTheKitchenIsAllowedAndMarked(): void
+    {
+        $ticket = $this->openLiveTicket();
+        $line   = model(Order_ticket_line::class, false)->add_line($ticket, 7, 'Empanada', '1', '3500', '', 1);
+        $this->postReq('comandas/' . $ticket . '/enviar', []);
+
+        $this->postReq('comandas/' . $ticket . '/linea/' . $line, ['quantity' => '2', 'kitchen_note' => ''])
+            ->assertRedirectTo('comandas/' . $ticket);
+
+        $row = $this->db->table('order_ticket_lines')->where('order_ticket_line_id', $line)->get()->getRowArray();
+        $this->assertSame('2.000', (string) $row['quantity']);
+        $this->assertSame(1, (int) $row['changed_after_send']);
+    }
+
+    /**
+     * The double tap, through the real endpoint: one round, not two.
+     */
+    public function testSendingTwiceFromTheScreenCreatesOneRound(): void
+    {
+        $ticket = $this->openLiveTicket();
+        model(Order_ticket_line::class, false)->add_line($ticket, 7, 'Empanada', '1', '3500', '', 1);
+
+        $this->postReq('comandas/' . $ticket . '/enviar', []);
+        $this->postReq('comandas/' . $ticket . '/enviar', []);
+
+        $this->assertSame(1, $this->db->table('order_ticket_rounds')->where('order_ticket_id', $ticket)->countAllResults());
+    }
+
+    /**
+     * The kitchen's sheet: this round's dishes with the note, never the line description where
+     * "Unidad: kilogramo" lives. Printing marks it; merely viewing does not, and does not print.
+     */
+    public function testTheRoundSheetPrintsOnlyWhenAskedAndNeverShowsTheDescription(): void
+    {
+        $ticket = $this->openLiveTicket();
+        $item   = $this->createItem('PRUEBA OT CHORIZO', ['description' => 'Unidad: kilogramo']);
+        $this->postReq('comandas/' . $ticket . '/linea', ['item_id' => (string) $item, 'quantity' => '1', 'kitchen_note' => 'bien asado']);
+        $this->postReq('comandas/' . $ticket . '/enviar', []);
+        $round = (int) $this->db->table('order_ticket_rounds')->get()->getRow()->round_id;
+
+        $viewed = $this->getReq('comandas/' . $ticket . '/ronda/' . $round)->getBody();
+        $this->assertStringContainsString('PRUEBA OT CHORIZO', $viewed);
+        $this->assertStringContainsString('bien asado', $viewed);
+        $this->assertStringNotContainsString('Unidad:', $viewed);
+        $this->assertStringNotContainsString('window.print', $viewed, 'Viewing on a phone must not open a print dialog.');
+        $this->assertNull($this->db->table('order_ticket_rounds')->get()->getRow()->printed_at);
+
+        $printed = $this->getReq('comandas/' . $ticket . '/ronda/' . $round . '?imprimir=1')->getBody();
+        $this->assertStringContainsString('window.print', $printed);
+        $this->assertNotNull($this->db->table('order_ticket_rounds')->get()->getRow()->printed_at);
+    }
+
+    public function testMarkingDeliveredMovesTheTicketOn(): void
+    {
+        $ticket = $this->openLiveTicket();
+
+        $this->postReq('comandas/' . $ticket . '/entregada', [])->assertRedirectTo('comandas/' . $ticket);
+
+        $this->assertSame(Order_ticket::STATUS_DELIVERED, $this->db->table('order_tickets')->get()->getRow()->status);
+    }
+
+    /**
+     * Taking orders is a waiter's job; cancelling one the kitchen may already have cooked needs its
+     * own permission -- even by typing the address.
+     */
+    public function testCancellingNeedsItsOwnPermission(): void
+    {
+        $ticket = $this->openLiveTicket();
+
+        $this->postReq('comandas/' . $ticket . '/cancelar', ['reason' => 'el cliente se fue']);
+
+        $this->assertSame(Order_ticket::STATUS_OPEN, $this->db->table('order_tickets')->get()->getRow()->status);
+    }
+
+    /**
+     * With the permission and a reason, the ticket is cancelled AND its tab is closed the way the
+     * register closes one: the sale becomes CANCELED and the throwaway table is deleted. Without
+     * that, a ghost tab would stay on every till.
+     */
+    public function testCancellingWithAReasonClosesTheTicketAndItsTab(): void
+    {
+        $this->grantVoid();
+        $ticket = $this->openLiveTicket();
+
+        $this->postReq('comandas/' . $ticket . '/cancelar', ['reason' => '   ']);
+        $this->assertSame(Order_ticket::STATUS_OPEN, $this->db->table('order_tickets')->get()->getRow()->status, 'A blank reason is no reason.');
+
+        $this->postReq('comandas/' . $ticket . '/cancelar', ['reason' => 'el cliente se fue'])->assertRedirectTo('comandas');
+
+        $row = $this->db->table('order_tickets')->get()->getRowArray();
+        $this->assertSame(Order_ticket::STATUS_CANCELLED, $row['status']);
+        $this->assertSame('el cliente se fue', $row['cancel_reason']);
+
+        $sale = $this->db->table('sales')->where('sale_id', $row['sale_id'])->get()->getRowArray();
+        $this->assertSame(CANCELED, (int) $sale['sale_status']);
+        $this->assertSame(1, (int) $this->db->table('dinner_tables')->where('dinner_table_id', $sale['dinner_table_id'])->get()->getRow()->deleted);
+    }
+
+    /**
+     * Opens a real ticket through the endpoint -- ticket, table and OPENED sale -- and returns its id.
+     */
+    private function openLiveTicket(string $name = 'ANDREA'): int
+    {
+        $this->switchTo('1');
+        $this->tablesTo('1');
+
+        $this->postReq('comandas/crear', ['name' => $name]);
+
+        return (int) $this->db->table('order_tickets')->where('name', $name)->get()->getRow()->order_ticket_id;
+    }
+
+    /**
+     * @param array<string, mixed> $overrides
+     */
+    private function createItem(string $name, array $overrides = []): int
+    {
+        $this->db->table('items')->insert($overrides + [
+            'name'                  => $name,
+            'category'              => 'Test',
+            'item_number'           => null,
+            'description'           => '',
+            'cost_price'            => '1.00',
+            'unit_price'            => '3500.00',
+            'reorder_level'         => '0',
+            'receiving_quantity'    => '1',
+            'allow_alt_description' => 0,
+            'is_serialized'         => 0,
+        ]);
+
+        $id                   = (int) $this->db->insertID();
+        $this->createdItems[] = $id;
+
+        return $id;
+    }
+
+    private function grantVoid(): void
+    {
+        if ($this->db->table('grants')->where(['permission_id' => 'order_tickets_void', 'person_id' => 1])->countAllResults() === 0) {
+            $this->db->table('grants')->insert(['permission_id' => 'order_tickets_void', 'person_id' => 1, 'menu_group' => '--']);
+            $this->voidGrantedHere = true;
+        }
     }
 
     private function tablesTo(string $value): void

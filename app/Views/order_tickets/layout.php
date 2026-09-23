@@ -40,6 +40,7 @@ $employee_name ??= '';
 $back_url      ??= null;
 
 $success = session()->getFlashdata('success');
+$warning = session()->getFlashdata('warning');
 $error   = session()->getFlashdata('error');
 ?>
 <!doctype html>
@@ -87,6 +88,10 @@ $error   = session()->getFlashdata('error');
 
         <?php if ($success): ?>
             <div class="alert alert-success" role="status"><?= esc($success) ?></div>
+        <?php endif; ?>
+        <?php if ($warning): ?>
+            <?php // D9: something the kitchen already had was touched. Allowed, and said out loud. ?>
+            <div class="alert alert-warning" role="status"><?= esc($warning) ?></div>
         <?php endif; ?>
         <?php if ($error): ?>
             <div class="alert alert-danger" role="alert"><?= esc($error) ?></div>
