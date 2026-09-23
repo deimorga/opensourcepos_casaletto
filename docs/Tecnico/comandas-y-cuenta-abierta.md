@@ -27,6 +27,8 @@ es peor que elegir uno. La equivalencia se escribe aquí una vez y no se repite:
 
 Todo lo de abajo está en código y probado. Cada punto dice qué afirmaba el diseño y qué resultó.
 
+Lo que construyó la Entrega 2 (concurrencia, formularios de un solo uso, sin señal) está en §11.2.
+
 ### 0.1 La caja JALA la comanda; el celular nunca escribe `sales_items`
 
 **Es el cambio de fondo, y era un hueco del plan.** §2 decía que la comanda «escribe `sales`/`sales_items`
@@ -741,12 +743,67 @@ Con el modelo de §4 el daño ya está acotado, y esa es media solución: como c
 propia con su `order_ticket_line_id`, **dos meseros agregando platos distintos no se pisan** — es un
 INSERT cada uno. El problema queda reducido a dos casos:
 
-1. **Editar la misma línea a la vez.** Se resuelve con control optimista: la pantalla manda el
-   `changed_after_send` y el `captured_at` que leyó, y el servidor rechaza si ya no coinciden, con un
-   mensaje que dice qué pasó. Sin bloqueos: un candado sobre una mesa en un restaurante lleno es
-   peor que un reintento.
-2. **Enviar a cocina dos veces a la vez.** Ya es idempotente por §4.4 —la segunda no encuentra líneas
-   con `round_id IS NULL`—, siempre que el envío corra dentro de una transacción.
+1. **Editar la misma línea a la vez.** Se resuelve con control optimista, sin bloqueos: un candado
+   sobre una mesa en un restaurante lleno es peor que un reintento. (Este párrafo decía que la
+   pantalla mandaría `changed_after_send` y `captured_at`. **No sirven**: `captured_at` no cambia al
+   editar, y `changed_after_send` se queda en 1 después del primer cambio. Lo construido compara los
+   **valores**; ver §11.2.)
+2. **Enviar a cocina dos veces a la vez.** Idempotente por §4.4, y con el bloqueo de la fila de la
+   comanda para que dos envíos no se intercalen (§11.2).
+
+### 11.2 Lo que construyó la Entrega 2
+
+**Edición con lo que la pantalla vio** — `Order_ticket_line::edit_line_seen()`. El formulario de
+edición lleva dos campos ocultos, `seen_quantity` y `seen_note`, con la cantidad y la nota **tal como
+están guardadas** al dibujar la página. La comprobación va en el `WHERE` del mismo `UPDATE` que
+escribe, así que «¿sigue igual?» y «escribir» son un solo paso en la base; leer primero y escribir
+después reabriría la ventana. La cantidad se compara como número (`2` contra `2.000` no es cambio) y
+la nota byte a byte (`BINARY`: la colación ignora mayúsculas, y «SIN CEBOLLA» sobre «sin cebolla» es
+un cambio que la cocina lee). Cero filas afectadas se desambigua releyendo la fila **solo para
+elegir el mensaje**: línea anulada o inexistente → rechazo; ya tiene exactamente lo pedido → éxito
+(el mismo formulario enviado dos veces no es un conflicto); cualquier otra cosa → `EDIT_CONFLICT`.
+Un POST sin los campos `seen_*` —una página dibujada antes de este cambio— se trata como página
+desactualizada: no se guarda nada. Dejarlo pasar sin comprobar convertiría en silencio una edición
+protegida en una sin proteger.
+
+**Envío** — `Order_ticket_round::send()`:
+
+- `SELECT … FOR UPDATE` sobre la fila de la comanda **antes** de leer nada: el segundo envío espera
+  al primero. `OrderTicketRoundTest` lo prueba con una segunda conexión real que sostiene el bloqueo.
+- «¿Hay algo que enviar?» se pregunta **bajo el bloqueo y antes de crear la ronda**. Nunca nace una
+  ronda vacía.
+- **Un fallo nunca es un `null`.** `null` significa «no había nada que enviar». Un fallo de la base
+  —bloqueo que no se liberó a tiempo, conexión perdida— lanza `Order_ticket_send_failed` después de
+  cerrar la transacción y limpiar su estado (`resetTransStatus()`). Lo encontró la prueba de
+  concurrencia: una versión anterior contestaba `null` a un *lock wait timeout*, y la pantalla le
+  decía al mesero «no hay platos nuevos» cuando la cocina no tenía ninguno. Son mensajes opuestos
+  (`nothing_to_send` y `send_failed`) porque llevan al mesero a hacer cosas opuestas.
+- Por qué se revisa cada consulta contra `false`: **dentro de una transacción CodeIgniter 4.7 no
+  lanza por una consulta fallida, ni con `DBDebug` encendido** (`BaseConnection::query()`: «In
+  transactions, do not throw exception by default»), salvo `transException(true)`. La consulta
+  devuelve `false` y el estado de la transacción queda marcado como fallido para el resto de la
+  petición.
+
+**Formularios de un solo uso** — `Order_ticket_request_guard`. Cada página dibujada lleva un token
+de 32 hexadecimales en todos sus formularios. El primer POST que lo trae lo consume (se guarda en la
+sesión, los últimos 200); el segundo con el mismo token no hace nada y dice «ya se había guardado».
+Un POST sin token es una página vieja: no se guarda nada y se recarga. Es lo que cubre el reenvío
+del navegador al recuperar la señal y el doble toque que el JavaScript no alcanzó a frenar.
+
+**Sin señal** — `show.php`, mejora progresiva, el servidor no depende de ella: si
+`navigator.onLine` es `false` al enviar un formulario, no se envía y se muestra «Sin señal: no se
+envió nada». Distingue «no se guardó» de la página de error del navegador, que no dice nada. Los
+botones se deshabilitan mientras viaja la petición y se rehabilitan en `pageshow` (volver atrás o
+una página restaurada tras un fallo), excepto el de enviar cuando el servidor lo dibujó deshabilitado
+(`data-disabled-by-server`). **No se inventa ningún estado optimista**: la pantalla solo muestra lo
+que la base tiene.
+
+**Lo que no está construido y no se va a construir aquí:** modo sin conexión, cola de reenvío,
+Service Worker. Lo que se estaba escribiendo cuando cayó la señal se pierde (§11.1).
+
+**Lo que queda de la Entrega 2 y no se puede automatizar:** medir §9.2 en un teléfono real (teclado
+virtual sobre el botón de guardar, objetivos táctiles) y el turno de certificación en staging con dos
+meseros, dos teléfonos y la caja cobrando.
 
 ### 11.1 La conectividad no es un riesgo del proyecto: es un requisito no funcional del local
 

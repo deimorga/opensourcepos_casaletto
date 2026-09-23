@@ -212,6 +212,30 @@ Y la contraparte honesta: **si la señal se cae a mitad de un pedido, lo ya guar
 que se estaba escribiendo se pierde.** No hay modo sin conexión. El mesero que se queda sin red
 vuelve al papel, que es lo que hace hoy.
 
+### 4.12 Varios teléfonos sobre la misma comanda, y la señal que va y viene
+
+*Construido en la Entrega 2 (2026-09-23), pendiente de probar en staging.*
+
+Lo que el mesero ve en cada caso:
+
+| Qué pasa | Qué hace el sistema | Qué ve el mesero |
+|---|---|---|
+| Dos meseros agregan platos **distintos** a la misma comanda | Guarda los dos. No se pisan | Cada uno, su plato guardado |
+| Dos meseros cambian **el mismo plato** a la vez | Guarda el primero. Al segundo **no le guarda nada** | «Otra persona cambió este plato mientras usted lo editaba. No se guardó nada: revíselo y vuelva a intentar.» La pantalla ya muestra el cambio del otro |
+| Dos personas pulsan «Enviar a cocina» a la vez | La segunda espera a la primera. Sale **una** hoja | La primera ve la ronda enviada; la segunda, «No hay platos nuevos para enviar» |
+| El envío falla (la base de datos no respondió a tiempo) | No envía nada | «Los platos NO llegaron a la cocina… vuelva a pulsar». **Nunca** «no hay platos nuevos», que diría lo contrario |
+| El mesero pulsa sin señal | No manda nada | «Sin señal: no se envió nada. Cuando vuelva la señal, vuelva a pulsar.» En lugar de la página de error del navegador |
+| Recarga la página, o el celular reenvía el formulario al recuperar la señal | No repite nada | «Eso ya se había guardado; no se repitió.» |
+| Pulsa en una pantalla que quedó vieja (abierta desde antes de una actualización) | No guarda nada y recarga | «Esta página estaba desactualizada y no se guardó nada…» |
+
+**Por qué no se bloquea la comanda mientras alguien la edita.** Un candado sostenido por un celular
+con mala señal, en un restaurante lleno, deja a todos los demás esperando. Es peor que pedirle a uno
+de los dos que revise y vuelva a pulsar.
+
+**Lo que sigue sin existir:** un modo sin conexión. Lo que ya estaba guardado está a salvo y el
+sistema dice con claridad cuándo algo **no** se guardó, pero lo que el mesero estaba escribiendo
+cuando se cayó la señal hay que volver a escribirlo.
+
 ---
 
 ### 4.11 Cómo se enciende para un comercio
@@ -290,12 +314,16 @@ Se construyó ya **responsive**, así que un mesero puede usarla desde el celula
 lo que la Entrega 2 agrega es que varios teléfonos trabajen a la vez sobre la misma comanda sin
 pisarse.
 
-### Entrega 2 — La misma pantalla, desde el celular del mesero
+### Entrega 2 — La misma pantalla, desde el celular del mesero — **construida el 2026-09-23, pendiente de certificar en staging**
 La pantalla de comanda hecha responsive, con el mesero autenticándose desde el navegador de su
 teléfono. **Es aquí donde el requerimiento entrega lo que vino a entregar.**
 
-Lo que hay que resolver en esta entrega y no antes: dos meseros sobre la misma comanda, y qué pasa
-cuando el teléfono pierde señal a mitad de un pedido.
+Resuelve dos meseros sobre la misma comanda y lo que pasa cuando el teléfono pierde la señal a mitad
+de un pedido (§4.12). También la ficha que se le entrega al comercio
+(`comandas-ficha-para-el-comercio.md`).
+
+Falta la prueba que no se puede automatizar: **un turno en staging con dos meseros, dos teléfonos
+reales y la caja cobrando**, hecha por alguien que no escribió el código.
 
 ### Entrega 3 — La pantalla de cocina
 El monitor que muestra los pedidos y se actualiza solo. Va de última **porque es la parte opcional**:
