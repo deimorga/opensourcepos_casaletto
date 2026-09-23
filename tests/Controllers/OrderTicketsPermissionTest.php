@@ -7,6 +7,7 @@ use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
 use CodeIgniter\Test\TestResponse;
 use Config\OSPOS;
+use DOMDocument;
 
 /**
  * What a waiter can and cannot reach.
@@ -136,8 +137,7 @@ final class OrderTicketsPermissionTest extends CIUnitTestCase
 
         $screen = $this->getAs('comandas');
         $screen->assertStatus(200);
-        $screen->assertSee(lang('Order_tickets.to_register'));
-        $this->assertStringContainsString('href="' . base_url('sales') . '"', $screen->getBody());
+        $this->assertContains(base_url('sales'), $this->links($screen->getBody()), 'The "Caja" link is there, and leads to the till.');
 
         $register = $this->getAs('sales');
         $this->assertStringNotContainsString('no_access', (string) $register->getRedirectUrl());
@@ -151,9 +151,31 @@ final class OrderTicketsPermissionTest extends CIUnitTestCase
     {
         $this->grant('order_tickets');
 
-        $html = $this->getAs('comandas')->getBody();
+        $links = $this->links($this->getAs('comandas')->getBody());
 
-        $this->assertStringNotContainsString('href="' . base_url('sales') . '"', $html);
+        $this->assertContains(base_url('comandas/salir'), $links, 'Guard: the links were read at all.');
+        $this->assertNotContains(base_url('sales'), $links);
+    }
+
+    /**
+     * Every href on the page, decoded the way the browser decodes it. The layout escapes attributes
+     * (esc(..., 'attr') turns "https://" into entities), so matching the raw HTML for a literal URL
+     * would never match -- and a "must NOT contain" assertion would pass no matter what.
+     *
+     * @return list<string>
+     */
+    private function links(string $html): array
+    {
+        $dom = new DOMDocument();
+        $dom->loadHTML('<?xml encoding="UTF-8">' . $html, LIBXML_NOERROR | LIBXML_NOWARNING);
+
+        $links = [];
+
+        foreach ($dom->getElementsByTagName('a') as $a) {
+            $links[] = $a->getAttribute('href');
+        }
+
+        return $links;
     }
 
     private function assertDenied(TestResponse $response): void
