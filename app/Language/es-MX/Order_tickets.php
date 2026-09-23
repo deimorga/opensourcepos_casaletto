@@ -79,6 +79,7 @@ return [
     "status_delivered"               => "Entregada",
     "status_open"                    => "Abierta",
     "tables_off"                     => "Las comandas necesitan Mesas encendido en este negocio. Avise a un administrador.",
+    "to_register"                    => "Caja",
     "total"                          => "Total",
     "view"                           => "Ver",
     "void"                           => "Permitir cancelar una comanda",

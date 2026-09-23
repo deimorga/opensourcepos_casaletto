@@ -79,6 +79,7 @@ return [
     "status_delivered"               => "Delivered",
     "status_open"                    => "Open",
     "tables_off"                     => "Order tickets need Tables turned on for this business. Ask an administrator.",
+    "to_register"                    => "Register",
     "total"                          => "Total",
     "view"                           => "View",
     "void"                           => "Allow cancelling a ticket",

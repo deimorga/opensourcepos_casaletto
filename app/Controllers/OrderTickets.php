@@ -662,9 +662,18 @@ class OrderTickets extends Secure_Controller
             ? trim(($employee->first_name ?? '') . ' ' . ($employee->last_name ?? ''))
             : '';
 
+        // Taking orders is a permission like any other, not a kind of employee: a cashier who also
+        // walks to the tables holds both, and needs a way back to the till that is not "log out".
+        // The same check Secure_Controller applies to the register, so the link never leads to
+        // no_access.
+        $register_url = is_object($employee) && $this->employee->has_module_grant('sales', (int) $employee->person_id)
+            ? base_url('sales')
+            : null;
+
         return [
             'title'         => lang('Module.order_tickets'),
             'employee_name' => $name,
+            'register_url'  => $register_url,
             // One single-use token per drawn page, carried by every form on it. Submitting any one of
             // them reloads the page, which draws a new token. See refuse_repeated_submission().
             'request_token' => $this->guard->issue(),

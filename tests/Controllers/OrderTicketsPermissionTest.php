@@ -109,6 +109,53 @@ final class OrderTicketsPermissionTest extends CIUnitTestCase
         $this->assertDenied($this->getAs('comandas'));
     }
 
+    /**
+     * The menu tile of every module links to base_url($module_id): for order tickets, /order_tickets.
+     * The screen lives at /comandas. Without the redirect, the tile of anyone granted Comandas led to
+     * a 404 -- found on 2026-09-23, when the owner looked for the way in as a cashier.
+     */
+    public function testTheMenuTileLeadsToTheScreen(): void
+    {
+        $this->grant('order_tickets');
+
+        $response = $this->getAs('order_tickets');
+
+        $response->assertRedirect();
+        $this->assertStringEndsWith('/comandas', (string) $response->getRedirectUrl());
+    }
+
+    /**
+     * Taking orders is a permission, not a kind of employee. At Casaletto the cashier also walks to
+     * the tables: granted both, they reach both screens, and the order screen offers the way back to
+     * the till instead of only "log out".
+     */
+    public function testACashierWhoAlsoTakesOrdersReachesBothAndCanGoBackToTheTill(): void
+    {
+        $this->grant('order_tickets');
+        $this->grant('sales');
+
+        $screen = $this->getAs('comandas');
+        $screen->assertStatus(200);
+        $screen->assertSee(lang('Order_tickets.to_register'));
+        $this->assertStringContainsString('href="' . base_url('sales') . '"', $screen->getBody());
+
+        $register = $this->getAs('sales');
+        $this->assertStringNotContainsString('no_access', (string) $register->getRedirectUrl());
+    }
+
+    /**
+     * The waiter granted only Comandas gets no link to a register they cannot open: it would lead to
+     * no_access, which is a dead end on a phone.
+     */
+    public function testAWaiterIsNotOfferedTheTill(): void
+    {
+        $this->grant('order_tickets');
+
+        $html = $this->getAs('comandas')->getBody();
+
+        $this->assertStringNotContainsString('href="' . base_url('sales') . '"', $html);
+    }
+
     private function assertDenied(TestResponse $response): void
     {
         // Not assertFalse($response->isOK()): CI4 counts 200-399 as OK, so a redirect would pass that

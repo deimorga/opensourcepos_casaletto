@@ -31,6 +31,8 @@
  * @var string      $title         goes in <title> and in the <h1>
  * @var string      $employee_name shown in the top bar, so the waiter sees whose session this is
  * @var string|null $back_url      when set, a "←" link before the title (ticket -> list)
+ * @var string|null $register_url  when set, a link back to the register -- only for an employee who
+ *                                 also has the register (a cashier who takes orders at the tables)
  */
 
 // Every variable is optional: a stale controller or a half-applied deploy must render a page,
@@ -38,6 +40,7 @@
 $title         ??= lang('Module.order_tickets');
 $employee_name ??= '';
 $back_url      ??= null;
+$register_url  ??= null;
 
 $success = session()->getFlashdata('success');
 $warning = session()->getFlashdata('warning');
@@ -71,6 +74,9 @@ $error   = session()->getFlashdata('error');
                 // granted only order_tickets does not have it: that link would land them on
                 // no_access, unable to leave. OrderTickets carries its own logout for that reason.
                 ?>
+                <?php if (! empty($register_url)): ?>
+                    <a class="ot-topbar-link" href="<?= esc($register_url, 'attr') ?>"><?= esc(lang('Order_tickets.to_register')) ?></a>
+                <?php endif; ?>
                 <a class="ot-topbar-link" href="<?= base_url('comandas/salir') ?>"><?= esc(lang('Login.logout')) ?></a>
             </div>
         </div>

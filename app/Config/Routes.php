@@ -30,6 +30,10 @@ $routes->get('items/bulk/previous', 'ItemsBulk::getPrevious');
 // dirección que un mesero puede llegar a teclear. Las fijas van ANTES de cualquier (:num) que se
 // agregue después, o éste se las tragaría. Ver app/Controllers/OrderTickets.php.
 // ---------------------------------------------------------------------------------------------
+// The menu tile links to base_url($module_id), i.e. /order_tickets (home/home.php, partial/header.php).
+// Without this the tile of every employee granted Comandas -- a cashier who also takes orders, an
+// administrator -- led to a 404.
+$routes->addRedirect('order_tickets', 'comandas');
 $routes->get('comandas', 'OrderTickets::getIndex');
 $routes->get('comandas/salir', 'OrderTickets::getLogout');
 $routes->get('comandas/nueva', 'OrderTickets::getNew');
