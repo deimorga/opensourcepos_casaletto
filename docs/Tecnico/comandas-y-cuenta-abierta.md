@@ -361,25 +361,20 @@ D4 enciende las comandas por comercio; D15 enciende la cocina **aparte**. Son do
 
 Ambas se leen **siempre** con `?? '0'` (§3.14).
 
-### 5.1 Dónde se configuran — y la suposición que hay detrás
+### 5.1 Dónde se configuran — decidido el 2026-09-22
 
-El dueño dijo *«la cocina debería ser habilitable desde la administración de la plataforma de la
-aplicación»*. Esa frase admite dos lecturas y **el diseño toma una**:
-
-> **Supuesto:** los dos interruptores viven en la pantalla de **Configuración del propio comercio**,
-> en una pestaña nueva «Comandas», al lado de la pestaña «Mesas» que ya existe
+> **Los dos interruptores viven en la pantalla de Configuración del propio comercio**, en una
+> pestaña nueva «Comandas», al lado de la pestaña «Mesas» que ya existe
 > (`app/Views/configs/table_config.php`, clave `dinner_table_enable`).
 
-Las razones para elegir esa lectura: es donde vive el interruptor de la función más parecida; es el
-patrón que el sistema ya tiene; y **la consola de plataforma hoy no escribe ni una fila en el
-`app_config` de ningún negocio** (verificado sobre `PlatformAdmin`, `PlatformContext` y los modelos
-de plataforma).
+Las razones: es donde vive el interruptor de la función más parecida; es el patrón que el sistema ya
+tiene; y **la consola de plataforma hoy no escribe ni una fila en el `app_config` de ningún negocio**
+(verificado sobre `PlatformAdmin`, `PlatformContext` y los modelos de plataforma).
 
-La lectura alternativa —que lo encienda el superadministrador desde la consola— es defendible como
-control comercial, pero cuesta más: habría que abrir un camino de escritura desde `platform_control`
-hacia el esquema de cada negocio, que hoy no existe y que es justo el tipo de acoplamiento que el
-aislamiento multi-tenant evita. **Si la intención era esa, hay que decirlo antes de la Entrega 1**,
-porque cambia de sitio la pantalla, no la lógica.
+La alternativa que se consideró y se descartó —que lo encendiera el superadministrador desde la
+consola— habría obligado a abrir un camino de escritura desde `platform_control` hacia el esquema de
+cada negocio, que no existe y que es justo el tipo de acoplamiento que el aislamiento multi-tenant
+evita.
 
 ---
 
@@ -595,9 +590,28 @@ INSERT cada uno. El problema queda reducido a dos casos:
 2. **Enviar a cocina dos veces a la vez.** Ya es idempotente por §4.4 —la segunda no encuentra líneas
    con `round_id IS NULL`—, siempre que el envío corra dentro de una transacción.
 
-Lo que **no** se resuelve y hay que decirlo: **sin señal no hay captura.** No hay modo sin conexión,
-y montarlo sería otro proyecto. El mesero que se queda sin red vuelve al papel, que es lo que hace
-hoy.
+### 11.1 La conectividad no es un riesgo del proyecto: es un requisito no funcional del local
+
+**La aplicación se sirve por internet público**, con HTTPS a través de Traefik sobre
+`*.ospos-saas.micronuba.net` (`docker-compose.staging.yml:109-112`). El teléfono del mesero la
+alcanza como alcanzaría cualquier página web: por WiFi **o por los datos móviles de su plan**. No
+hay servidor en el local, no hay red local de por medio y no hay nada que descubrir sobre eso.
+
+> Una versión anterior de este documento listaba «probar la red del local desde un teléfono» como el
+> riesgo con más capacidad de hundir la Entrega 2. **Era falso**, y nacía de suponer un servidor en
+> el local que este sistema no tiene.
+
+Lo correcto es tratarlo como lo que es: **un requisito no funcional que el comercio garantiza**, al
+mismo nivel que tener luz o tener impresora. Va en la ficha de requisitos que se le entrega a cada
+cliente antes de encender las comandas:
+
+- Cobertura de datos móviles aceptable dentro del local, o WiFi que llegue a las mesas.
+- Un teléfono por mesero con navegador actualizado.
+
+Lo que **sí** es asunto del software, y es distinto: **no hay modo sin conexión.** Si la señal se
+cae a mitad de un pedido, lo ya guardado está a salvo —cada línea es un POST propio— y lo que se
+estaba escribiendo se pierde. Montar captura sin conexión sería otro proyecto. El mesero que se
+queda sin red vuelve al papel, que es lo que hace hoy.
 
 ---
 
@@ -675,13 +689,8 @@ prueba**.
 
 ## 15. Lo que hay que medir o confirmar antes de construir
 
-- **Confirmar el supuesto de §5.1**: si los interruptores van en la Configuración del comercio o en
-  la consola de plataforma. Cambia de sitio la pantalla, no la lógica, pero cambia antes de empezar.
 - **Qué permisos arrastra hoy el módulo `sales`.** Antes de crear `order_tickets` hay que ver qué le
   abriría a un mesero reusar el que existe.
-- **La red del local desde un teléfono.** Toda la captura del mesero depende de que el celular
-  alcance el servidor de pie junto a la mesa, y eso no se ha probado en ningún local. Es el riesgo
-  con más capacidad de hundir la Entrega 2 y **no es de software**.
 - **Cuántas cuentas abiertas simultáneas** aguanta la barra de pestañas antes de estorbar.
 - **Si `_autosave_open_tab()` a cada tecla** es aceptable con pedidos de hasta 48 líneas, porque cada
   uno borra y reinserta todas las líneas de la venta (§3.1).
@@ -703,6 +712,8 @@ prueba**.
 5. **Las pestañas no filtran por sede** (§3.10). Con dos sedes y comandas, una caja ve las cuentas de
    la otra. `location_id` nace con la tabla; **arreglar la barra de pestañas es trabajo aparte** y
    hay que decidirlo antes de que un segundo comercio con dos sedes encienda esto.
-6. **Sin señal no hay captura** (§11). No hay modo sin conexión y no está en el alcance.
+6. **Sin señal no hay modo sin conexión** (§11.1). Lo guardado está a salvo; lo que se estaba
+   escribiendo se pierde. La cobertura en sí **no es un riesgo del proyecto**: es un requisito no
+   funcional que el comercio garantiza, como la luz o la impresora.
 7. **El envío y la impresión son dos actos** (§8.3). Es consecuencia directa de no tener aplicación
    móvil ni impresora en cocina, y va en la capacitación o se vive como un defecto.

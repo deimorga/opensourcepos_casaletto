@@ -160,6 +160,22 @@ necesita ninguna otra pantalla.
 alcanza. Lo que el mesero hace desde la mesa es *tomar* el pedido; la comanda se imprime en la caja,
 que es donde está el papel y donde alguien la recoge para llevarla a la cocina.
 
+### 4.10 Lo que el comercio tiene que poner
+
+La aplicación vive en internet, no en una máquina del local, así que el teléfono del mesero entra
+igual que entraría a cualquier página: **por los datos móviles de su plan o por el WiFi del local.**
+
+Eso convierte la conectividad en un requisito que el comercio garantiza, al mismo nivel que tener
+luz o tener impresora. Va en la ficha que se le entrega al cliente **antes** de encenderle las
+comandas:
+
+- Cobertura de datos móviles aceptable dentro del local, o WiFi que llegue a las mesas.
+- Un teléfono por mesero, con navegador actualizado.
+
+Y la contraparte honesta: **si la señal se cae a mitad de un pedido, lo ya guardado está a salvo y lo
+que se estaba escribiendo se pierde.** No hay modo sin conexión. El mesero que se queda sin red
+vuelve al papel, que es lo que hace hoy.
+
 ---
 
 ## 5. Lo que este requerimiento NO hace
@@ -194,6 +210,8 @@ que es donde está el papel y donde alguien la recoge para llevarla a la cocina.
 | **D16** | **Sin aplicación móvil.** La pantalla de comanda se hace responsive y se usa desde el navegador del celular | 2026-09-22 |
 | **D17** | **El mesero entra con su propio usuario.** Cada comanda queda con un responsable | 2026-09-22 |
 | **D18** | **El refactor responsive del resto del sistema es otro proyecto.** Aquí se hace una sola pantalla | 2026-09-22 |
+| **D19** | **Los dos interruptores se ponen en la Configuración del comercio**, junto a la pestaña «Mesas». No en la consola de plataforma | 2026-09-22 |
+| **D20** | **La conectividad es un requisito del comercio**, no un riesgo del proyecto. El teléfono entra por datos móviles o WiFi | 2026-09-22 |
 
 ### 6.1 Resueltas el 2026-09-22
 
