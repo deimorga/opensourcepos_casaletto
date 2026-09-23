@@ -35,7 +35,7 @@ $id = (int) $ticket['order_ticket_id'];
 
 <?php if ($live): ?>
     <form method="get" action="<?= esc(base_url('comandas/' . $id), 'attr') ?>" role="search" class="d-flex gap-2 mb-3">
-        <input class="form-control" type="search" name="q" value="<?= esc($term, 'attr') ?>"
+        <input class="form-control" type="search" name="q" value="<?= esc($term, 'attr') ?>" enterkeyhint="search"
                placeholder="<?= esc(lang('Order_tickets.search_placeholder'), 'attr') ?>"
                aria-label="<?= esc(lang('Order_tickets.search_placeholder'), 'attr') ?>" autocomplete="off">
         <button class="btn btn-outline-primary" type="submit"><?= esc(lang('Order_tickets.search')) ?></button>
@@ -45,11 +45,13 @@ $id = (int) $ticket['order_ticket_id'];
         <?php if ($results === []): ?>
             <p class="text-body-secondary"><?= esc(lang('Order_tickets.no_results', [$term])) ?></p>
         <?php else: ?>
-            <ul class="ot-list">
+            <?php // #ot-results: adding a dish comes back here, to the same search (OrderTickets::back_to()). ?>
+            <ul class="ot-list" id="ot-results">
                 <?php foreach ($results as $item): ?>
                     <li class="ot-list-item d-block">
                         <?= form_open('comandas/' . $id . '/linea', ['data-once' => '1']) ?>
                             <input type="hidden" name="item_id" value="<?= (int) $item['item_id'] ?>">
+                            <input type="hidden" name="q" value="<?= esc($term, 'attr') ?>">
                             <div class="d-flex justify-content-between gap-2">
                                 <strong><?= esc($item['name']) ?></strong>
                                 <span class="text-nowrap"><?= esc(to_currency((string) $item['unit_price'])) ?></span>

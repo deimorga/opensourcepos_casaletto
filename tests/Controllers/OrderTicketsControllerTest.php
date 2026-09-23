@@ -337,6 +337,20 @@ final class OrderTicketsControllerTest extends CIUnitTestCase
     }
 
     /**
+     * After adding a dish the waiter comes back to the SAME search, scrolled to the results: three
+     * sandwiches of different kinds should not mean typing the search three times on a phone.
+     */
+    public function testAddingADishComesBackToTheSameSearch(): void
+    {
+        $ticket = $this->openLiveTicket();
+        $item   = $this->createItem('PRUEBA OT SANDWICH UNO');
+
+        $response = $this->postReq('comandas/' . $ticket . '/linea', ['item_id' => (string) $item, 'quantity' => '1', 'q' => 'PRUEBA OT SANDWICH']);
+
+        $this->assertStringContainsString('comandas/' . $ticket . '?q=PRUEBA%20OT%20SANDWICH#ot-results', (string) $response->getRedirectUrl());
+    }
+
+    /**
      * A phone keyboard in a comma-decimal locale sends "0,5". Half a portion is still half.
      */
     public function testACommaDecimalQuantityIsUnderstood(): void

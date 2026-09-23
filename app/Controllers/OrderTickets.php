@@ -221,7 +221,7 @@ class OrderTickets extends Secure_Controller
             return $this->back_to($order_ticket_id, 'error', lang('Order_tickets.quantity_invalid'));
         }
 
-        return $this->back_to($order_ticket_id, 'success', lang('Order_tickets.line_added', [$item['name']]));
+        return $this->back_to($order_ticket_id, 'success', lang('Order_tickets.line_added', [$item['name']]), trim((string) $this->request->getPost('q')));
     }
 
     /**
@@ -465,9 +465,18 @@ class OrderTickets extends Secure_Controller
      *
      * @param 'error'|'success'|'warning' $type
      */
-    private function back_to(int $order_ticket_id, string $type, string $message): RedirectResponse
+    private function back_to(int $order_ticket_id, string $type, string $message, string $search = ''): RedirectResponse
     {
-        return redirect()->to('comandas/' . $order_ticket_id)->with($type, $message);
+        // After adding a dish the waiter usually wants another from the same search -- three
+        // sandwiches of different kinds, a drink for each. Coming back to the same results, scrolled
+        // to them, saves typing the search again on a phone keyboard for every dish.
+        $url = 'comandas/' . $order_ticket_id;
+
+        if ($search !== '') {
+            $url .= '?q=' . rawurlencode($search) . '#ot-results';
+        }
+
+        return redirect()->to($url)->with($type, $message);
     }
 
     /**
