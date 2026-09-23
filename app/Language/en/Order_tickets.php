@@ -10,6 +10,7 @@
 
 return [
     "add"                            => "Add",
+    "already_saved"                  => "That was already saved; it was not repeated.",
     "back"                           => "Back",
     "cancel_not_allowed"             => "You do not have permission to cancel tickets.",
     "cancel_reason"                  => "Why is it cancelled?",
@@ -69,6 +70,7 @@ return [
     "search"                         => "Search",
     "search_placeholder"             => "Search item",
     "send_to_kitchen"                => "Send to kitchen ({0})",
+    "stale_form"                     => "This page was out of date and nothing was saved. It has been reloaded: please try again.",
     "status_cancelled"               => "Cancelled",
     "status_charged"                 => "Charged",
     "status_delivered"               => "Delivered",

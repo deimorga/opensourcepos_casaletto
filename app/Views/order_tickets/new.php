@@ -13,7 +13,7 @@ $this->extend('order_tickets/layout');
 $this->section('content');
 ?>
 
-<?= form_open('comandas/crear', ['class' => 'd-grid gap-3']) ?>
+<?= form_open('comandas/crear', ['class' => 'd-grid gap-3'], [\App\Libraries\Order_ticket_request_guard::FIELD => $request_token]) ?>
     <div>
         <label class="form-label" for="ot-name"><?= esc(lang('Order_tickets.name')) ?></label>
         <input class="form-control" type="text" id="ot-name" name="name" maxlength="64" required

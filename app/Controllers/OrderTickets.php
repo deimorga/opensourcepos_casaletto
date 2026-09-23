@@ -2,6 +2,7 @@
 
 namespace App\Controllers;
 
+use App\Libraries\Order_ticket_request_guard;
 use App\Models\Dinner_table;
 use App\Models\Item;
 use App\Models\Order_ticket;
@@ -41,6 +42,7 @@ class OrderTickets extends Secure_Controller
 {
     private Order_ticket $tickets;
     private Order_ticket_line $lines;
+    private Order_ticket_request_guard $guard;
 
     public function __construct()
     {
@@ -48,6 +50,7 @@ class OrderTickets extends Secure_Controller
 
         $this->tickets = model(Order_ticket::class);
         $this->lines   = model(Order_ticket_line::class);
+        $this->guard   = new Order_ticket_request_guard();
     }
 
     /**
@@ -105,6 +108,10 @@ class OrderTickets extends Secure_Controller
      */
     public function postCreate(): RedirectResponse
     {
+        if (($repeated = $this->refuse_repeated_submission(0)) !== null) {
+            return $repeated;
+        }
+
         if (! $this->is_enabled()) {
             return redirect()->to('comandas');
         }
@@ -195,6 +202,10 @@ class OrderTickets extends Secure_Controller
      */
     public function postAddLine(int $order_ticket_id): RedirectResponse
     {
+        if (($repeated = $this->refuse_repeated_submission($order_ticket_id)) !== null) {
+            return $repeated;
+        }
+
         $ticket = $this->live_ticket_or_null($order_ticket_id);
 
         if ($ticket === null) {
@@ -231,6 +242,10 @@ class OrderTickets extends Secure_Controller
      */
     public function postEditLine(int $order_ticket_id, int $order_ticket_line_id): RedirectResponse
     {
+        if (($repeated = $this->refuse_repeated_submission($order_ticket_id)) !== null) {
+            return $repeated;
+        }
+
         $line = $this->line_of_live_ticket($order_ticket_id, $order_ticket_line_id);
 
         if ($line === null) {
@@ -262,6 +277,10 @@ class OrderTickets extends Secure_Controller
      */
     public function postVoidLine(int $order_ticket_id, int $order_ticket_line_id): RedirectResponse
     {
+        if (($repeated = $this->refuse_repeated_submission($order_ticket_id)) !== null) {
+            return $repeated;
+        }
+
         $line = $this->line_of_live_ticket($order_ticket_id, $order_ticket_line_id);
 
         if ($line === null) {
@@ -288,6 +307,10 @@ class OrderTickets extends Secure_Controller
      */
     public function postSend(int $order_ticket_id): RedirectResponse
     {
+        if (($repeated = $this->refuse_repeated_submission($order_ticket_id)) !== null) {
+            return $repeated;
+        }
+
         if ($this->live_ticket_or_null($order_ticket_id) === null) {
             return $this->refuse_closed($order_ticket_id);
         }
@@ -347,6 +370,10 @@ class OrderTickets extends Secure_Controller
      */
     public function postDelivered(int $order_ticket_id): RedirectResponse
     {
+        if (($repeated = $this->refuse_repeated_submission($order_ticket_id)) !== null) {
+            return $repeated;
+        }
+
         if (! $this->is_enabled() || ! $this->tickets->mark_delivered($order_ticket_id, (int) session()->get('person_id'))) {
             return $this->refuse_closed($order_ticket_id);
         }
@@ -369,6 +396,10 @@ class OrderTickets extends Secure_Controller
      */
     public function postCancel(int $order_ticket_id): RedirectResponse
     {
+        if (($repeated = $this->refuse_repeated_submission($order_ticket_id)) !== null) {
+            return $repeated;
+        }
+
         if (! $this->is_enabled()) {
             return redirect()->to('comandas');
         }
@@ -406,6 +437,34 @@ class OrderTickets extends Secure_Controller
         $this->employee->logout();
 
         return redirect()->to('login');
+    }
+
+    /**
+     * Every write starts here. On a waiter's phone with poor signal the request can reach the server
+     * and be saved while the answer is lost; the waiter reloads, the browser offers to resubmit the
+     * form, and "Add" would add the dish twice -- or "Open ticket" open two tickets. Every form carries
+     * a single-use token (Order_ticket_request_guard) and the second arrival of the same token does
+     * nothing.
+     *
+     * Two different answers on purpose: a form with no token at all is a page drawn before this
+     * safeguard existed (a phone left open across a deploy), and the waiter has to reload; a token
+     * already used is the resubmission, and what it asked for is already saved.
+     *
+     * @return RedirectResponse|null null when this is the first arrival and the action may proceed
+     */
+    private function refuse_repeated_submission(int $order_ticket_id): ?RedirectResponse
+    {
+        $token = (string) $this->request->getPost(Order_ticket_request_guard::FIELD);
+
+        if ($this->guard->claim($token === '' ? null : $token)) {
+            return null;
+        }
+
+        $target = $order_ticket_id > 0 ? 'comandas/' . $order_ticket_id : 'comandas';
+
+        return $token === ''
+            ? redirect()->to($target)->with('error', lang('Order_tickets.stale_form'))
+            : redirect()->to($target)->with('success', lang('Order_tickets.already_saved'));
     }
 
     /**
@@ -560,7 +619,7 @@ class OrderTickets extends Secure_Controller
     /**
      * What every order-ticket view hands to the layout.
      *
-     * @return array{title: string, employee_name: string}
+     * @return array{title: string, employee_name: string, request_token: string}
      */
     private function layout_data(): array
     {
@@ -572,6 +631,9 @@ class OrderTickets extends Secure_Controller
         return [
             'title'         => lang('Module.order_tickets'),
             'employee_name' => $name,
+            // One single-use token per drawn page, carried by every form on it. Submitting any one of
+            // them reloads the page, which draws a new token. See refuse_repeated_submission().
+            'request_token' => $this->guard->issue(),
         ];
     }
 

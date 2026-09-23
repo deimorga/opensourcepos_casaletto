@@ -10,6 +10,7 @@
 
 return [
     "add"                            => "Agregar",
+    "already_saved"                  => "Eso ya se había guardado; no se repitió.",
     "back"                           => "Volver",
     "cancel_not_allowed"             => "No tiene permiso para cancelar comandas.",
     "cancel_reason"                  => "¿Por qué se cancela?",
@@ -69,6 +70,7 @@ return [
     "search"                         => "Buscar",
     "search_placeholder"             => "Buscar artículo",
     "send_to_kitchen"                => "Enviar a cocina ({0})",
+    "stale_form"                     => "Esta página estaba desactualizada y no se guardó nada. Ya se recargó: intente de nuevo.",
     "status_cancelled"               => "Cancelada",
     "status_charged"                 => "Cobrada",
     "status_delivered"               => "Entregada",

@@ -537,6 +537,73 @@ final class OrderTicketsControllerTest extends CIUnitTestCase
         }
     }
 
+    // ---------------------------------------------------------------------------------------------
+    // Poor signal: a resubmitted form does nothing the second time (2.4)
+    // ---------------------------------------------------------------------------------------------
+
+    /**
+     * The request reached the server and was saved, the answer was lost, the waiter reloaded and the
+     * browser resubmitted. One dish, not two.
+     */
+    public function testResubmittingTheSameAddAddsTheDishOnce(): void
+    {
+        $ticket = $this->openLiveTicket();
+        $item   = $this->createItem('PRUEBA OT REENVIO');
+        $form   = ['item_id' => (string) $item, 'quantity' => '1', 'request_token' => bin2hex(random_bytes(16))];
+
+        $this->postReq('comandas/' . $ticket . '/linea', $form);
+        $this->postAgain('comandas/' . $ticket . '/linea', $form)->assertRedirectTo('comandas/' . $ticket);
+
+        $this->assertSame(1, $this->db->table('order_ticket_lines')->where('order_ticket_id', $ticket)->countAllResults());
+        $this->assertSame(lang('Order_tickets.already_saved'), session()->getFlashdata('success'));
+    }
+
+    public function testResubmittingOpenTicketOpensOneTicket(): void
+    {
+        $this->switchTo('1');
+        $this->tablesTo('1');
+        $form = ['name' => 'REENVIO', 'request_token' => bin2hex(random_bytes(16))];
+
+        $this->postReq('comandas/crear', $form);
+        $this->postAgain('comandas/crear', $form);
+
+        $this->assertSame(1, $this->db->table('order_tickets')->where('name', 'REENVIO')->countAllResults());
+    }
+
+    /**
+     * A page drawn before the safeguard existed -- a phone left open across a deploy -- has no token.
+     * Nothing is written, and the waiter is told to try again rather than that it was saved.
+     */
+    public function testAFormWithoutATokenDoesNothingAndAsksToTryAgain(): void
+    {
+        $ticket = $this->openLiveTicket();
+        $item   = $this->createItem('PRUEBA OT SIN TOKEN');
+
+        $this->postReq('comandas/' . $ticket . '/linea', ['item_id' => (string) $item, 'quantity' => '1', 'request_token' => '']);
+
+        $this->assertSame(0, $this->db->table('order_ticket_lines')->where('order_ticket_id', $ticket)->countAllResults());
+        $this->assertSame(lang('Order_tickets.stale_form'), session()->getFlashdata('error'));
+    }
+
+    /**
+     * Every form the waiter can submit carries the token. A form added later without it would be the
+     * one place a bad signal could still duplicate a dish.
+     */
+    public function testEveryFormOnTheTicketScreenCarriesAToken(): void
+    {
+        $ticket = $this->openLiveTicket();
+        model(Order_ticket_line::class, false)->add_line($ticket, 7, 'Empanada', '1', '3500', '', 1);
+
+        $html = (string) $this->getReq('comandas/' . $ticket . '?q=PRUEBA')->getBody();
+
+        preg_match_all('#<form[^>]*method="post"[^>]*>(.*?)</form>#si', $html, $forms);
+        $this->assertNotEmpty($forms[1]);
+
+        foreach ($forms[1] as $form) {
+            $this->assertMatchesRegularExpression('#name="request_token" value="[0-9a-f]{32}"#', $form);
+        }
+    }
+
     private function tablesTo(string $value): void
     {
         $this->db->table('app_config')->replace(['key' => 'dinner_table_enable', 'value' => $value]);
@@ -613,6 +680,37 @@ final class OrderTicketsControllerTest extends CIUnitTestCase
         $_SESSION = ['person_id' => 1, 'menu_group' => 'home'];
         $this->withSession($_SESSION);
 
+        return $this->post($path, $this->withToken($params));
+    }
+
+    /**
+     * POST that KEEPS the session the previous request left, instead of starting a fresh one. The
+     * single-use tokens live in the session, so a resubmission is only a resubmission if the second
+     * request sees what the first one claimed.
+     *
+     * @param array<string, string> $params
+     */
+    private function postAgain(string $path, array $params): TestResponse
+    {
+        $this->withSession($_SESSION);
+
         return $this->post($path, $params);
+    }
+
+    /**
+     * Every order-ticket form carries a single-use token (OrderTickets::refuse_repeated_submission()).
+     * Tests that are not about the token get a fresh, well-formed one; a test that sets the key itself
+     * -- even to '' -- keeps what it set.
+     *
+     * @param array<string, string> $params
+     * @return array<string, string>
+     */
+    private function withToken(array $params): array
+    {
+        if (! array_key_exists('request_token', $params)) {
+            $params['request_token'] = bin2hex(random_bytes(16));
+        }
+
+        return $params;
     }
 }

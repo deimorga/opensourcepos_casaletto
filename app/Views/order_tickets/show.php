@@ -16,6 +16,7 @@
  * @var string                           $term       what was typed in the search box
  * @var list<array<string, mixed>>       $results
  * @var bool                             $can_cancel
+ * @var string                           $request_token single-use, see OrderTickets::refuse_repeated_submission()
  */
 $this->extend('order_tickets/layout');
 $this->section('content');
@@ -49,7 +50,7 @@ $id = (int) $ticket['order_ticket_id'];
             <ul class="ot-list" id="ot-results">
                 <?php foreach ($results as $item): ?>
                     <li class="ot-list-item d-block">
-                        <?= form_open('comandas/' . $id . '/linea', ['data-once' => '1']) ?>
+                        <?= form_open('comandas/' . $id . '/linea', ['data-once' => '1'], [\App\Libraries\Order_ticket_request_guard::FIELD => $request_token]) ?>
                             <input type="hidden" name="item_id" value="<?= (int) $item['item_id'] ?>">
                             <input type="hidden" name="q" value="<?= esc($term, 'attr') ?>">
                             <div class="d-flex justify-content-between gap-2">
@@ -108,7 +109,7 @@ $id = (int) $ticket['order_ticket_id'];
                 <?php if ($live && ! $voided): ?>
                     <details class="mt-2">
                         <summary><?= esc(lang('Order_tickets.edit')) ?></summary>
-                        <?= form_open('comandas/' . $id . '/linea/' . $line_id, ['class' => 'd-flex gap-2 mt-2', 'data-once' => '1']) ?>
+                        <?= form_open('comandas/' . $id . '/linea/' . $line_id, ['class' => 'd-flex gap-2 mt-2', 'data-once' => '1'], [\App\Libraries\Order_ticket_request_guard::FIELD => $request_token]) ?>
                             <input class="form-control" style="max-width: 6rem" type="number" name="quantity"
                                    value="<?= esc((string) (float) $line['quantity'], 'attr') ?>" min="0.001" step="any" inputmode="decimal"
                                    aria-label="<?= esc(lang('Order_tickets.quantity'), 'attr') ?>">
@@ -117,7 +118,7 @@ $id = (int) $ticket['order_ticket_id'];
                                    aria-label="<?= esc(lang('Order_tickets.kitchen_note_placeholder'), 'attr') ?>">
                             <button class="btn btn-outline-primary" type="submit"><?= esc(lang('Order_tickets.save')) ?></button>
                         <?= form_close() ?>
-                        <?= form_open('comandas/' . $id . '/linea/' . $line_id . '/anular', ['class' => 'mt-2', 'data-once' => '1']) ?>
+                        <?= form_open('comandas/' . $id . '/linea/' . $line_id . '/anular', ['class' => 'mt-2', 'data-once' => '1'], [\App\Libraries\Order_ticket_request_guard::FIELD => $request_token]) ?>
                             <button class="btn btn-outline-danger" type="submit"><?= esc(lang('Order_tickets.void_line')) ?></button>
                         <?= form_close() ?>
                     </details>
@@ -153,7 +154,7 @@ $id = (int) $ticket['order_ticket_id'];
 <?php if ($live): ?>
     <div class="d-grid gap-2 mt-4">
         <?php if ($ticket['status'] === 'open'): ?>
-            <?= form_open('comandas/' . $id . '/entregada', ['data-once' => '1', 'class' => 'd-grid']) ?>
+            <?= form_open('comandas/' . $id . '/entregada', ['data-once' => '1', 'class' => 'd-grid'], [\App\Libraries\Order_ticket_request_guard::FIELD => $request_token]) ?>
                 <button class="btn btn-outline-success" type="submit"><?= esc(lang('Order_tickets.mark_delivered')) ?></button>
             <?= form_close() ?>
         <?php endif; ?>
@@ -161,7 +162,7 @@ $id = (int) $ticket['order_ticket_id'];
         <?php if ($can_cancel): ?>
             <details>
                 <summary class="text-danger"><?= esc(lang('Order_tickets.cancel_ticket')) ?></summary>
-                <?= form_open('comandas/' . $id . '/cancelar', ['class' => 'd-grid gap-2 mt-2', 'data-once' => '1']) ?>
+                <?= form_open('comandas/' . $id . '/cancelar', ['class' => 'd-grid gap-2 mt-2', 'data-once' => '1'], [\App\Libraries\Order_ticket_request_guard::FIELD => $request_token]) ?>
                     <label class="form-label" for="ot-cancel-reason"><?= esc(lang('Order_tickets.cancel_reason')) ?></label>
                     <textarea class="form-control" id="ot-cancel-reason" name="reason" maxlength="255" rows="2" required></textarea>
                     <button class="btn btn-danger" type="submit"><?= esc(lang('Order_tickets.confirm_cancel')) ?></button>
@@ -171,7 +172,7 @@ $id = (int) $ticket['order_ticket_id'];
     </div>
 
     <div class="ot-actionbar">
-        <?= form_open('comandas/' . $id . '/enviar', ['data-once' => '1', 'class' => 'd-grid']) ?>
+        <?= form_open('comandas/' . $id . '/enviar', ['data-once' => '1', 'class' => 'd-grid'], [\App\Libraries\Order_ticket_request_guard::FIELD => $request_token]) ?>
             <button class="btn btn-primary" type="submit" <?= $pending === 0 ? 'disabled' : '' ?>>
                 <?= esc(lang('Order_tickets.send_to_kitchen', [$pending])) ?>
             </button>
