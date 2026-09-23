@@ -75,9 +75,10 @@ class Order_ticket_line extends Model
     protected $useSoftDeletes   = false;
 
     /**
-     * Must stay identical to Migration_AddOrderTickets::WRITABLE_COLUMNS_LINES -- CodeIgniter drops
-     * any field missing from here without raising anything, and this project has already lost data
-     * to that twice. There is a test that compares the two.
+     * Must stay identical to Migration_AddOrderTickets::WRITABLE_COLUMNS_LINES plus
+     * Migration_AddOrderTicketLineBilling::ADDED_COLUMNS -- CodeIgniter drops any field missing from
+     * here without raising anything, and this project has already lost data to that twice. There is
+     * a test that compares them.
      */
     protected $allowedFields = [
         'order_ticket_id',
@@ -91,6 +92,10 @@ class Order_ticket_line extends Model
         'changed_after_send',
         'captured_by',
         'captured_at',
+        // Added by 20260923030000_AddOrderTicketLineBilling -- see that migration for why the
+        // register pulls lines instead of the phone writing sales_items.
+        'billed_at',
+        'changed_after_billed',
     ];
 
     // captured_at is written by hand. CI4's automatic timestamps would insist on created_at and
@@ -258,6 +263,14 @@ class Order_ticket_line extends Model
             . ' THEN 1 ELSE changed_after_send END',
             false
         );
+        // The same question for the register: a dish it already brought into the sale changed.
+        // The cart is not touched behind the cashier's back; the flag makes the register say so.
+        $builder->set(
+            'changed_after_billed',
+            'CASE WHEN billed_at IS NULL THEN changed_after_billed WHEN ' . implode(' OR ', $differs)
+            . ' THEN 1 ELSE changed_after_billed END',
+            false
+        );
         $builder->set($set);
         $builder->where('order_ticket_line_id', $order_ticket_line_id);
         $builder->where('status !=', self::STATUS_VOIDED);
@@ -292,6 +305,8 @@ class Order_ticket_line extends Model
         $builder = $this->db->table($this->table);
         $builder->set('status', self::STATUS_VOIDED);
         $builder->set('changed_after_send', 'CASE WHEN round_id IS NULL THEN changed_after_send ELSE 1 END', false);
+        // A voided dish the register already has is still in the cashier's cart until they remove it.
+        $builder->set('changed_after_billed', 'CASE WHEN billed_at IS NULL THEN changed_after_billed ELSE 1 END', false);
         $builder->where('order_ticket_line_id', $order_ticket_line_id);
         $builder->where('status !=', self::STATUS_VOIDED);
 
@@ -327,6 +342,81 @@ class Order_ticket_line extends Model
         $builder->where('order_ticket_id', $order_ticket_id);
         $builder->where('round_id', null);
         $builder->where('status', self::STATUS_PENDING);
+
+        if (!$builder->update()) {
+            return 0;
+        }
+
+        return $this->db->affectedRows();
+    }
+
+    /**
+     * The dishes of a ticket the register has not brought into the sale yet: never billed, not
+     * voided. A line voided before it was ever billed is simply never charged -- nobody needs to be
+     * told, it was never in the cart.
+     */
+    public function get_unbilled(int $order_ticket_id): array
+    {
+        return $this->where('order_ticket_id', $order_ticket_id)
+            ->where('billed_at', null)
+            ->where('status !=', self::STATUS_VOIDED)
+            ->orderBy('order_ticket_line_id', 'ASC')
+            ->findAll();
+    }
+
+    /**
+     * Stamps lines as brought into the sale. Called by the register only AFTER the tab was saved
+     * with them in it: stamped first and saved second, a failed save would leave dishes marked as
+     * charged that the sale does not contain.
+     *
+     * Conditioned on billed_at IS NULL, so a line is stamped once and keeps its first time.
+     *
+     * @param list<int> $order_ticket_line_ids
+     * @return int rows stamped
+     */
+    public function mark_billed(array $order_ticket_line_ids): int
+    {
+        $ids = array_values(array_unique(array_map('intval', $order_ticket_line_ids)));
+
+        if ($ids === []) {
+            return 0;
+        }
+
+        $builder = $this->db->table($this->table);
+        $builder->set('billed_at', date('Y-m-d H:i:s'));
+        $builder->whereIn('order_ticket_line_id', $ids);
+        $builder->where('billed_at', null);
+
+        if (!$builder->update()) {
+            return 0;
+        }
+
+        return $this->db->affectedRows();
+    }
+
+    /**
+     * Dishes the waiter edited or voided after the register already had them (D9, the cashier's
+     * side). The register shows these; it never applies them to the cart by itself.
+     */
+    public function get_billing_changes(int $order_ticket_id): array
+    {
+        return $this->where('order_ticket_id', $order_ticket_id)
+            ->where('changed_after_billed', 1)
+            ->orderBy('order_ticket_line_id', 'ASC')
+            ->findAll();
+    }
+
+    /**
+     * The cashier saw the changes and dealt with them. Clears the notice for this ticket.
+     *
+     * @return int lines acknowledged
+     */
+    public function acknowledge_billing_changes(int $order_ticket_id): int
+    {
+        $builder = $this->db->table($this->table);
+        $builder->set('changed_after_billed', 0);
+        $builder->where('order_ticket_id', $order_ticket_id);
+        $builder->where('changed_after_billed', 1);
 
         if (!$builder->update()) {
             return 0;

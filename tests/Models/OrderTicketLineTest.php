@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Models;
 
+use App\Database\Migrations\Migration_AddOrderTicketLineBilling;
 use App\Database\Migrations\Migration_AddOrderTickets;
 use App\Models\Order_ticket_line;
 use CodeIgniter\Test\CIUnitTestCase;
@@ -58,7 +59,11 @@ class OrderTicketLineTest extends CIUnitTestCase
      */
     public function testAllowedFieldsCoverEveryWritableColumn(): void
     {
-        $expected = Migration_AddOrderTickets::WRITABLE_COLUMNS_LINES;
+        // The table was built by two migrations; the model has to cover both.
+        $expected = array_merge(
+            Migration_AddOrderTickets::WRITABLE_COLUMNS_LINES,
+            Migration_AddOrderTicketLineBilling::ADDED_COLUMNS
+        );
         sort($expected);
 
         $allowed = $this->lines->allowedFields;
@@ -478,6 +483,96 @@ class OrderTicketLineTest extends CIUnitTestCase
         $this->assertSame(['dishes' => 1, 'pending' => 1], $counts[self::OTHER_TICKET]);
         $this->assertSame(['dishes' => 0, 'pending' => 0], $counts[303], 'A ticket with no lines still comes back, with zeros.');
         $this->assertSame([], $this->lines->count_by_ticket([]));
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // The register's side: billing
+    // ---------------------------------------------------------------------------------------------
+
+    /**
+     * What the register pulls into the cart: never billed, not voided. A dish voided before it was
+     * ever billed simply never reaches the sale.
+     */
+    public function testUnbilledExcludesBilledAndVoidedLines(): void
+    {
+        $billed  = $this->addLine(self::TICKET, '1', '1000');
+        $waiting = $this->addLine(self::TICKET, '1', '1000');
+        $this->lines->void_line($this->addLine(self::TICKET, '1', '1000'));
+        $this->lines->mark_billed([$billed]);
+
+        $this->assertSame([$waiting], $this->idsOf($this->lines->get_unbilled(self::TICKET)));
+    }
+
+    /**
+     * Stamped once. The second stamp is a no-op and the first time is kept -- it is when the dish
+     * entered the sale.
+     */
+    public function testALineIsBilledOnlyOnce(): void
+    {
+        $id = $this->addLine(self::TICKET, '1', '1000');
+
+        $this->assertSame(1, $this->lines->mark_billed([$id]));
+        $this->db->table('order_ticket_lines')->where('order_ticket_line_id', $id)->update(['billed_at' => '2026-09-23 12:00:00']);
+
+        $this->assertSame(0, $this->lines->mark_billed([$id]));
+        $this->assertSame('2026-09-23 12:00:00', $this->lines->get_info($id)['billed_at']);
+        $this->assertSame(0, $this->lines->mark_billed([]));
+    }
+
+    /**
+     * D9 on the cashier's side: a dish the register already has changed. Flagged, never applied to
+     * the cart behind the cashier's back -- and only when something really changed.
+     */
+    public function testEditingABilledLineFlagsItForTheCashierOnlyWhenSomethingChanges(): void
+    {
+        $id = $this->addLine(self::TICKET, '1', '1000', 'sin cebolla');
+        $this->lines->mark_billed([$id]);
+
+        $this->lines->edit_line($id, ['quantity' => '1', 'kitchen_note' => 'sin cebolla']);
+        $this->assertSame(0, (int) $this->lines->get_info($id)['changed_after_billed'], 'A resubmitted form is not a change.');
+
+        $this->lines->edit_line($id, ['quantity' => '2']);
+        $this->assertSame(1, (int) $this->lines->get_info($id)['changed_after_billed']);
+    }
+
+    public function testEditingAnUnbilledLineDoesNotConcernTheCashier(): void
+    {
+        $id = $this->addLine(self::TICKET, '1', '1000');
+
+        $this->lines->edit_line($id, ['quantity' => '3']);
+
+        $this->assertSame(0, (int) $this->lines->get_info($id)['changed_after_billed'], 'The register will pull the new quantity; nothing to tell.');
+    }
+
+    /**
+     * A voided dish the register already has is still in the cart until the cashier removes it.
+     */
+    public function testVoidingABilledLineFlagsItButVoidingAnUnbilledOneDoesNot(): void
+    {
+        $billed   = $this->addLine(self::TICKET, '1', '1000');
+        $unbilled = $this->addLine(self::TICKET, '1', '1000');
+        $this->lines->mark_billed([$billed]);
+
+        $this->lines->void_line($billed);
+        $this->lines->void_line($unbilled);
+
+        $this->assertSame(1, (int) $this->lines->get_info($billed)['changed_after_billed']);
+        $this->assertSame(0, (int) $this->lines->get_info($unbilled)['changed_after_billed']);
+        $this->assertSame([$billed], $this->idsOf($this->lines->get_billing_changes(self::TICKET)));
+    }
+
+    public function testAcknowledgingClearsTheNoticeOfThatTicketOnly(): void
+    {
+        $mine   = $this->addLine(self::TICKET, '1', '1000');
+        $theirs = $this->addLine(self::OTHER_TICKET, '1', '1000');
+        $this->lines->mark_billed([$mine, $theirs]);
+        $this->lines->void_line($mine);
+        $this->lines->void_line($theirs);
+
+        $this->assertSame(1, $this->lines->acknowledge_billing_changes(self::TICKET));
+
+        $this->assertSame([], $this->lines->get_billing_changes(self::TICKET));
+        $this->assertCount(1, $this->lines->get_billing_changes(self::OTHER_TICKET));
     }
 
     public function testGetInfoOfAMissingLineIsNull(): void

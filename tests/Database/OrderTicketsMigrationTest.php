@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Database;
 
+use App\Database\Migrations\Migration_AddOrderTicketLineBilling;
 use App\Database\Migrations\Migration_AddOrderTickets;
 use App\Database\Migrations\Migration_AddOrderTicketsConfigKeys;
 use App\Database\Migrations\Migration_AddOrderTicketsModule;
@@ -99,10 +100,11 @@ class OrderTicketsMigrationTest extends CIUnitTestCase
             'order_ticket_id',
             Migration_AddOrderTickets::WRITABLE_COLUMNS_TICKETS
         );
+        // order_ticket_lines was built by two migrations: the second added the billing columns.
         $this->assertWritableColumns(
             'order_ticket_lines',
             'order_ticket_line_id',
-            Migration_AddOrderTickets::WRITABLE_COLUMNS_LINES
+            array_merge(Migration_AddOrderTickets::WRITABLE_COLUMNS_LINES, Migration_AddOrderTicketLineBilling::ADDED_COLUMNS)
         );
         $this->assertWritableColumns(
             'order_ticket_rounds',
@@ -183,6 +185,21 @@ class OrderTicketsMigrationTest extends CIUnitTestCase
             (int) $ticketName->max_length,
             'If the ticket name were no wider than the tab label there would be no reason to store it twice.'
         );
+    }
+
+    /**
+     * NULL is the whole mechanism of the register pull: "not in the sale yet". A default would make
+     * every dish look already charged, and the register would never bring it in.
+     */
+    public function testAnUnbilledLineIsRecognisableBecauseBilledAtAcceptsNull(): void
+    {
+        $billed = $this->fieldOf('order_ticket_lines', 'billed_at');
+        $this->assertTrue($billed->nullable);
+        $this->assertNull($billed->default);
+
+        $flag = $this->fieldOf('order_ticket_lines', 'changed_after_billed');
+        $this->assertFalse($flag->nullable);
+        $this->assertSame('0', (string) $flag->default);
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -323,6 +340,7 @@ class OrderTicketsMigrationTest extends CIUnitTestCase
         $this->runMigrationQuietly(new Migration_AddOrderTickets());
         $this->runMigrationQuietly(new Migration_AddOrderTicketsConfigKeys());
         $this->runMigrationQuietly(new Migration_AddOrderTicketsModule());
+        $this->runMigrationQuietly(new Migration_AddOrderTicketLineBilling());
 
         foreach ($before as $table => $count) {
             $this->assertSame($count, $db->table($table)->countAllResults(), "Re-running the migrations changed $table.");
