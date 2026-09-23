@@ -1,10 +1,14 @@
 # Diseño técnico — Comandas: el pedido que se toma en la mesa
 
-> **Estado:** requerimiento **cerrado** el 2026-09-22, diseño técnico cerrado el 2026-09-22.
-> **Nada construido todavía.**
-> Alcance y decisiones de negocio en `docs/Funcional/comandas-y-cuenta-abierta.md`.
+> **Estado (2026-09-23):** **Entrega 1 construida** (`23786d768`…`db4e20d0e`), suite verde en CI
+> en PHP 8.2/8.3/8.4 con 164 pruebas nuevas. Migraciones aplicadas en los cuatro esquemas de
+> **staging**; el código de la pantalla todavía no está desplegado allí. **Pendiente: certificación en
+> staging por alguien que no escribió el código, y producción.** Entregas 2 y 3 sin empezar.
 >
-> Relevado sobre `73bc3d7b3`.
+> Construir la Entrega 1 corrigió varias cosas de este diseño. Están juntas en §0 y corregidas en su
+> sección; donde el texto original quedó por historia, lo dice.
+>
+> Alcance y decisiones de negocio en `docs/Funcional/comandas-y-cuenta-abierta.md`.
 
 **Vocabulario.** El negocio dice «comanda»; las tablas y el código dicen `order_ticket`. Los nombres
 en inglés no son un capricho: todo lo que este fork ha agregado a la base —`cash_collections`,
@@ -16,6 +20,141 @@ es peor que elegir uno. La equivalencia se escribe aquí una vez y no se repite:
 | comanda | `order_ticket` |
 | línea de la comanda | `order_ticket_line` |
 | ronda (envío a cocina) | `order_ticket_round` |
+
+---
+
+## 0. Lo que la Entrega 1 construyó, y dónde se apartó de este diseño
+
+Todo lo de abajo está en código y probado. Cada punto dice qué afirmaba el diseño y qué resultó.
+
+### 0.1 La caja JALA la comanda; el celular nunca escribe `sales_items`
+
+**Es el cambio de fondo, y era un hueco del plan.** §2 decía que la comanda «escribe `sales`/`sales_items`
+por `sale_id`», pero ninguna tarea la escribía, y la forma obvia pierde plata: el cajero guarda el
+carrito en la sesión y cada edición de una pestaña borra y reinserta todos los `sales_items` desde ese
+carrito (§3.1). Un plato escrito desde el celular mientras el cajero tiene esa pestaña abierta
+desaparecería con su siguiente tecla: servido y nunca cobrado.
+
+Lo que quedó:
+
+- El celular escribe **solo** `order_ticket_lines`.
+- Mientras la pestaña de una comanda es la venta activa, `Sales::_reload()` —antes de leer el
+  carrito— llama `_sync_order_ticket()`, que agrega al CARRITO los platos que la caja no tiene, con la
+  **misma lógica de agregar que usa el cajero** (`Order_ticket_register::add_line()`), autoguarda, y
+  **solo si ese guardado llegó a la base** los estampa `billed_at`. Si no llegó, el carrito vuelve
+  exactamente a como estaba; si no, el siguiente dibujo los jalaría otra vez y saldrían dos veces.
+- Como el celular nunca toca `sales_items`, **el autoguardado del cajero no puede borrar un plato del
+  mesero**: ese plato vive en `order_ticket_lines` hasta que la caja lo jala. Esa es la propiedad que
+  hace seguro el diseño, y la prueba `OrderTicketsRegisterTest::testTheCashierAddingAnItemDoesNotLoseTheTicketLines`
+  la vigila contra la caja real.
+
+Columnas nuevas, en una migración nueva (`20260923030000_AddOrderTicketLineBilling`), porque la
+primera ya estaba aplicada en staging: `billed_at` (NULL = aún no está en la venta) y
+`changed_after_billed` (el mesero tocó un plato que la caja ya tenía).
+
+### 0.2 La caja nunca cobra un total que el cajero no vio
+
+Si entre el último dibujo de la pantalla y el toque en «Completar» llegó un plato —o la comanda se
+canceló desde un celular—, `postComplete()` se detiene al principio, redibuja (que jala el plato o
+quita la pestaña) y lo dice. Nada se cobra en ese toque.
+
+### 0.3 Cambios después de pasar a la caja: se listan, no se aplican (D9, lado del cajero)
+
+Un plato que el mesero edita o anula **después** de que la caja lo trajo sube `changed_after_billed`.
+La caja **no** toca el carrito por su cuenta —el cajero puede haberlo ajustado ya—: lo lista en un aviso
+con un botón «Entendido» (`POST sales/acknowledgeOrderTicket`). La bandera, como la de cocina, solo
+sube si algo cambió de verdad: un formulario reenviado con los mismos valores no avisa a nadie.
+
+### 0.4 Cobrar, cancelar y resucitar
+
+- **Cobrar** marca la comanda `charged`: una llamada junto a `_apply_pending_reprices`, en las dos ramas
+  que confirman la venta. No lanza nunca.
+- **Cancelar la pestaña en la caja** cancela la comanda, con motivo «Cancelada desde la caja».
+- **Cancelar la comanda en el celular** cierra su pestaña como la cierra la caja: la venta pasa a
+  `CANCELED` y la mesa desechable se borra. Si el cajero tenía esa pestaña abierta,
+  `_autosave_open_tab()` se niega a reescribir la venta como `OPENED` (la habría resucitado) y el
+  dibujo siguiente la quita de esa caja y avisa.
+
+### 0.5 Los kits no necesitaron columna
+
+Los 40 kits de staging tienen su **artículo representativo** en `items` (`item_kits.item_id`,
+`item_type = ITEM_KIT`). El mesero busca en artículos, la línea guarda ese `item_id`, y la caja lo
+agrega como `postAdd()` agrega un kit: el representativo en `PRICE_MODE_KIT` y los componentes con
+`add_item_kit()`. **Una diferencia deliberada:** `postAdd()` agrega los componentes ×1 sea cual sea la
+cantidad; al jalar se pasa la cantidad como multiplicador, para que dos kits descuenten los
+ingredientes de dos. La hoja de cocina muestra el kit como un plato por construcción (D13): la línea
+nunca contiene los ingredientes.
+
+### 0.6 Comandas exige Mesas, en los dos sentidos
+
+Por la decisión de la mesa desechable (§7.4), la barra de pestañas —que vive detrás de
+`dinner_table_enable`— es el único camino de la comanda a la caja. Por eso:
+
+- encender Comandas con Mesas apagado se **rechaza** (`Config::postSaveOrderTickets()`);
+- apagar Mesas con Comandas encendido **también** se rechaza (`Config::postSaveTables()`), o las
+  comandas abiertas quedarían inalcanzables con los pedidos en la cocina.
+
+Rechazar y no corregir, como `postSaveScale()`: encender o apagar el otro interruptor por debajo sería
+una decisión que nadie tomó. **Esto corrige D4**, que prometía un interruptor independiente.
+
+La pestaña «Mesas» se llamaba **«Table»** en es-MX —upstream nunca la tradujo— y el mensaje remite a
+ella; ahora dice «Mesas».
+
+### 0.7 El mesero: aterrizaje, salida y sede
+
+Tres cosas que un mesero con **solo** el permiso de comandas no podía hacer, y ninguna estaba prevista:
+
+- **Entrar.** Los tres caminos del login mandaban a todos a `home`, que exige el permiso `home` (en
+  staging solo lo tienen las personas 1, 2 y 4). `Employee::landing_route()` manda a `comandas` a
+  quien no tiene `home` pero sí `order_tickets`; para todo empleado existente no cambia nada. Trampa
+  esquivada: en `Login`, `$this->employee` solo existe dentro de `index()`; usarla en `totp()` o
+  `pass()` habría dado un 500 en el login con segundo factor y en la entrada de soporte.
+- **Salir.** `home/logout` exige `home`. La pantalla tiene su salida propia, `comandas/salir`.
+- **Tener sede.** La caja resuelve la sede por permisos de venta, y
+  `Stock_location::get_default_location_id()` revienta cuando no hay fila (su propio `TODO`). Al mesero
+  no se le pueden dar permisos de sede de venta: con dos sedes, dos de esos permisos pasarían
+  `has_module_grant('sales')` y le abrirían la caja. Orden de resolución: la sede que la caja eligió en
+  la sesión, la sede de venta del empleado, la primera sede activa. `Dinner_table::create()` tenía el
+  mismo problema y ganó `create_at()` con sede explícita.
+
+### 0.8 Permisos: un solo subpermiso, a propósito
+
+`Employee::has_module_grant()` resuelve con `LIKE 'x%'` y, si hay ≠1 coincidencia, devuelve
+`count != 0`: **con dos o más subpermisos bajo un prefijo y sin el permiso base, el módulo se abre
+igual.** Comandas trae exactamente uno (`order_tickets_void`), y la cocina de la Entrega 3 irá a un
+módulo propio (`kitchen_display`) cuyo prefijo no empieza por `order_tickets`. Así el hueco queda
+cerrado por construcción sin tocar una función de la que dependen todos los módulos. El hueco sigue
+abierto en otros (`sales` tiene tres subpermisos); arreglarlo es tarea aparte.
+
+La clave de idioma `Order_tickets.void` es la etiqueta de ese permiso en la pantalla de Empleados y
+queda **reservada**: el botón «Anular plato» usa `void_line`. Reusarla le rompió la etiqueta al
+permiso de cancelar comandas y CI lo atrapó.
+
+De paso se arregló un defecto preexistente: en `employees/form.php` la etiqueta de TODO subpermiso
+salía en inglés, porque la comparación que decidía si había traducción era siempre verdadera.
+`Cashups.delete` y `Cashups.reopen` estaban traducidas y nunca se veían.
+
+### 0.9 Las migraciones SÍ corren al desplegar
+
+§4.6, §12 y §14 dicen que los despliegues no migran y que hay que correr `php spark migrate` a mano.
+**Ya no es cierto desde el 2026-08-28 (`8f92b4901`):** `docker/entrypoint.sh` migra **todos los esquemas
+de negocio** con `scripts/migrate-tenants.sh` antes de que Apache acepte una petición, y si un esquema
+falla Apache no arranca. Verificado al migrar staging el 2026-09-23: el log del contenedor muestra las
+tres migraciones corriendo en los cuatro esquemas y `[entrypoint] All schemas current.`
+
+La regla de `AGENTS.md` quedó desactualizada; se dejó señalado para que el dueño decida corregirla.
+Las guardas `tableExists()` del camino de la caja se conservan como seguro barato, no como el camino
+normal: cubren `SKIP_MIGRATIONS=1` y una tabla perdida a mano.
+
+### 0.10 Otras correcciones al diseño
+
+- `console_layout.php` **no es responsive** (§9.1 decía que sí): su docblock dice que es de escritorio,
+  no tiene media queries y su barra no colapsa. De él solo se tomó el `viewport` y Bootstrap 5; lo
+  responsive se escribió en `public/css/order_tickets.css`.
+- `public/images/menubar/` es **salida de build** y está en `.gitignore`: el icono se agrega como una
+  línea en la tarea `copy-menubar` del gulpfile. `MenubarIconsTest` exige una línea por módulo.
+- Las fechas de las tres tablas son `DATETIME`, no `TIMESTAMP`: así la regla de MySQL que le pone
+  `ON UPDATE CURRENT_TIMESTAMP` a la primera `TIMESTAMP` sin default no puede aparecer nunca.
 
 ---
 
@@ -68,10 +207,13 @@ De modo que hay dos caminos hacia el mismo pedido, y conviene tenerlos separados
        └──────────► comanda impresa
 ```
 
-La comanda escribe `sales`/`sales_items` por `sale_id` para que la cuenta aparezca en la barra de
-pestañas y el cajero pueda cobrarla, pero **nunca depende de lo que haya ahí**. Si el cajero edita la
-venta en la caja, `sales_items` cambia y las líneas de la comanda no: esa diferencia es información,
-no un error, y §4.5 dice qué se hace con ella.
+> **Corregido en la Entrega 1 (§0.1).** El texto original decía que la comanda escribe
+> `sales`/`sales_items`. Lo que quedó es al revés: la comanda crea solo la venta `OPENED` vacía (para
+> que aparezca en la barra de pestañas), y **la caja jala** los platos al carrito con su propia lógica.
+> El celular nunca escribe `sales_items`.
+
+Si el cajero edita la venta en la caja, `sales_items` cambia y las líneas de la comanda no: esa
+diferencia es información, no un error, y §4.5 dice qué se hace con ella.
 
 ---
 
@@ -339,10 +481,11 @@ sobre todo— va envuelto en `try/catch (Throwable)` con `log_message('critical'
 `tableExists()` cacheada, copiando `Item_price_history::record()`
 (`app/Models/Item_price_history.php:117-152`).
 
-**OBSERVAR NO PUEDE TUMBAR LO OBSERVADO.** Y la razón operativa es concreta: *los despliegues de este
-repositorio no corren migraciones* (`AGENTS.md`). Hay una ventana en cada release con el código vivo
-y la tabla ausente, y sin la guarda **el primer negocio cuya migración se olvide no puede cerrar una
-venta.**
+**OBSERVAR NO PUEDE TUMBAR LO OBSERVADO.** La razón que se escribió aquí —«los despliegues no corren
+migraciones»— quedó vieja (§0.9): el contenedor migra al arrancar. La guarda se conserva como seguro
+barato para `SKIP_MIGRATIONS=1` y para una tabla perdida a mano, caso en que `is_latest()` sigue en
+verdadero y la caja sigue vendiendo. Toda la lógica de la caja vive en
+`App\Libraries\Order_ticket_register`, cuyos métodos públicos nunca lanzan.
 
 Esto aplica al camino de la caja. En las pantallas propias del módulo un fallo sí debe verse: ahí el
 usuario está usando la comanda, no vendiendo.
@@ -473,14 +616,23 @@ queda intacto y no se reabre el bug de las pestañas fantasma.
 El dueño pidió que la comanda *«debe ser visible en el módulo de venta como una cuenta nueva, y se
 debe ir actualizando en la medida que la comanda se actualice»* (§4.8 del funcional).
 
-`Sale::get_all_opened()` (`app/Models/Sale.php:1334`) saca el nombre de la pestaña de
-`dinner_tables.name` por un LEFT JOIN. Se le agrega un segundo LEFT JOIN a `order_tickets` y el
-rótulo cae en cascada: **nombre de comanda, si no nombre de mesa, si no `sale_id`.** Es un cambio de
-consulta, no de mecanismo, y no toca la lógica de mesas.
+> **Corregido en la Entrega 1.** Esta sección decía que bastaba un LEFT JOIN. Era falso: la barra de
+> pestañas entera vive dentro de `if ($config['dinner_table_enable'])` (`register.php`) y el clic
+> **reabre por `dinner_table_id`** (`.open_tab_button` → `#mode_form` → `Sales::postChangeMode()` →
+> `Sale::get_open_sale_by_table()`). No hay camino de reapertura por `sale_id`.
 
-«Se va actualizando» significa, en esta arquitectura, **que la pestaña refleja el estado al recargar
-la pantalla de venta**. No hay empuje del servidor al navegador (§1) y montarlo para la caja no está
-en el alcance. El cajero ve la comanda al día cuando entra a cobrarla, que es el momento que importa.
+**Decisión del dueño (2026-09-23): la mesa desechable.** Al abrir una comanda se crea una mesa propia,
+nacida ocupada, con el nombre cortado a 30 caracteres —lo mismo que hace el botón «nueva mesa» y lo
+que el negocio ya hacía a mano—. Con eso la barra la lista, el clic la reabre y `postComplete()` la
+borra al cobrar, sin código nuevo en esa mecánica. El costo: **Comandas exige Mesas** (§0.6).
+
+El rótulo cae en cascada: `Sale::get_all_opened()` hace LEFT JOIN a `order_tickets` —solo si la tabla
+existe— y la vista muestra **nombre de comanda (64), si no nombre de mesa, si no `#id`.**
+
+«Se va actualizando» significa que **cada dibujo de la pantalla de venta jala los platos nuevos**
+(§0.1). No hay empuje del servidor al navegador; el cajero ve la comanda al día en cualquier acción
+que haga sobre esa pestaña, y la caja se niega a cobrar si llegó algo después del último dibujo
+(§0.2).
 
 ### 7.5 Vistas
 
@@ -537,8 +689,14 @@ se imprimió».
 
 ### 9.1 Layout propio
 
-No se usa `partial/header.php` (§3.13). Se copia `app/Views/platform/console_layout.php`, que ya
-declara `viewport`, ya funciona en un teléfono y ya está en producción en este repositorio.
+No se usa `partial/header.php` (§3.13). El layout propio es `app/Views/order_tickets/layout.php`,
+sobre Bootstrap 5 (Bootswatch Flatly) y sin dependencia de JavaScript.
+
+> **Corregido:** esta sección decía que `console_layout.php` «ya funciona en un teléfono». No: es de
+> escritorio (su docblock lo dice, cero media queries, barra sin punto de corte). De él se tomó solo el
+> `viewport` y la hoja BS5. Lo responsive está en `public/css/order_tickets.css`: sin scroll horizontal
+> a 360 px, objetivos táctiles de 44 px, entradas a 16 px (con menos, iOS hace zoom al enfocar) y barra
+> de acción inferior con `env(safe-area-inset-bottom)`.
 
 **No es la pantalla de venta encogida.** La de venta pesa, depende de atajos de teclado y depende de
 `sale_lib`, y ninguna de esas tres cosas sirve en un teléfono.
@@ -621,9 +779,10 @@ En orden, con la convención de nombres del repositorio:
 
 | archivo | qué hace |
 |---|---|
-| `20260922000000_AddOrderTickets.php` | Las tres tablas de §4, con `WRITABLE_COLUMNS` pública por tabla |
-| `20260922010000_AddOrderTicketsConfigKeys.php` | Las dos claves de §5, sembradas en `'0'` |
-| `20260922020000_AddOrderTicketsModule.php` | Módulo y los tres permisos de §6. **Sin conceder ni un grant** |
+| `20260923000000_AddOrderTickets.php` | Las tres tablas de §4, con `WRITABLE_COLUMNS_*` públicas |
+| `20260923010000_AddOrderTicketsConfigKeys.php` | Las dos claves de §5, sembradas en `'0'` |
+| `20260923020000_AddOrderTicketsModule.php` | Módulo y **dos** permisos (`order_tickets`, `order_tickets_void`), §0.8. **Sin conceder ni un grant** |
+| `20260923030000_AddOrderTicketLineBilling.php` | `billed_at` y `changed_after_billed` en las líneas (§0.1) |
 
 Reglas que este repositorio ya aprendió a golpes y que aplican aquí:
 
@@ -632,8 +791,9 @@ Reglas que este repositorio ya aprendió a golpes y que aplican aquí:
   puesta antes del reset responde «no existe». Ya pasó en producción con el backfill de unidades de
   medida.
 - **Nunca sobrescribir una clave existente**: un comercio puede haberla configurado a mano.
-- **`php spark migrate` a mano por SSH.** Los despliegues de este repositorio **no corren
-  migraciones** (`AGENTS.md`), y va en el runbook de cada entrega.
+- ~~`php spark migrate` a mano por SSH.~~ **Corregido (§0.9):** el contenedor migra todos los
+  esquemas al arrancar. Lo que va en el runbook es **comprobar** que migró: el log del contenedor debe
+  terminar en `[entrypoint] All schemas current.`
 
 ---
 
@@ -681,11 +841,41 @@ falta para que varios teléfonos la usen a la vez sin pisarse.
 
 **Compuerta antes de producción**, cada entrega: suite verde en CI (workflow «PHPUnit Tests»),
 certificado **en staging sobre la interfaz real y no por quien escribió el código**, respaldo de las
-tres bases, `php spark migrate` a mano por SSH, y **producción después de las 22:00 hora Colombia**.
+tres bases, imagen de retorno etiquetada, comprobar en el log que el entrypoint migró (§0.9), y
+**producción después de las 22:00 hora Colombia**.
 La verificación contra producción es de solo lectura: conteos, logs, y **ninguna transacción de
 prueba**.
 
 ---
+
+### 14.1 Runbook de la Entrega 1
+
+**Desplegar** (staging primero; producción solo después de las 22:00 hora Colombia):
+
+1. Etiquetar la imagen que sirve como punto de retorno:
+   `docker tag <id-de-la-imagen-que-corre> casaletto-ospos:rollback-AAAAMMDD`.
+2. Respaldar las bases: un `mariadb-dump --single-transaction` por esquema, y comprobar que cada
+   volcado termina en `-- Dump completed`.
+3. `git fetch origin <rama>` + `git reset --hard` + `git clean -fd`, y
+   `docker compose -f docker-compose.<env>.yml up -d --build ospos`. La imagen construye sola vendor,
+   assets e iconos.
+4. Comprobar: el log termina en `[entrypoint] All schemas current.`; en cada esquema existen las tres
+   tablas y las dos claves en `'0'`; **cero grants** de `order_tickets%`; 21 iconos en la imagen, entre
+   ellos `order_tickets.svg`; el login y el encabezado interno con sus referencias de CSS/JS iguales a
+   las de producción.
+
+**Encender para un comercio** (con el comercio, no por defecto):
+
+1. Configuración → pestaña **Mesas** → encender (si no lo está).
+2. Configuración → pestaña **Comandas** → encender.
+3. Empleados → crear a cada mesero con **solo** el permiso **Comandas**. «Permitir cancelar una
+   comanda» se le da solo a quien supervisa.
+4. Entregar la ficha de requisitos (funcional §4.10) y explicar que **enviar e imprimir son dos
+   actos** (§8.3).
+
+**Certificación en staging** (por alguien que no escribió el código), sobre la interfaz real: los once
+pasos del plan, empezando con los dos interruptores apagados para comprobar que la caja se comporta
+exactamente como hoy.
 
 ## 15. Lo que hay que medir o confirmar antes de construir
 

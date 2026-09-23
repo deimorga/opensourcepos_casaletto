@@ -1,7 +1,12 @@
 # Alcance funcional — Comandas: el pedido que se toma en la mesa
 
-> **Estado:** requerimiento **cerrado** el 2026-09-22 con el dueño. **Nada construido todavía.**
-> Decisiones en §6. No quedan preguntas abiertas: §6.1 recoge las cuatro que había y su respuesta.
+> **Estado (2026-09-23):** la **Entrega 1 está construida y probada**, pero **todavía no la usa
+> ningún comercio**: falta que alguien distinto de quien la programó la pruebe en staging, y después
+> subirla a producción. Mientras tanto, para todos los negocios la aplicación sigue exactamente igual.
+>
+> Decisiones en §6. Al construirla aparecieron tres cosas que el negocio tiene que saber, y están en
+> §4.1, §4.6 y §4.11: comandas necesita Mesas encendido, la caja avisa cuando el mesero cambia algo, y
+> cómo se enciende para un comercio.
 >
 > Documento hermano: `docs/Tecnico/comandas-y-cuenta-abierta.md`.
 
@@ -81,6 +86,13 @@ vez no ve ningún cambio, no abre ninguna cuenta y no imprime ninguna comanda.
 Y el negocio decide: **es un ajuste que cada comercio enciende o apaga**. Apagado, la aplicación se
 comporta como hoy.
 
+**Comandas necesita Mesas encendido.** La comanda llega a la caja como una pestaña más de la barra de
+cuentas abiertas, y esa barra solo existe cuando Mesas está encendido. Por eso el sistema **no deja**
+encender Comandas con Mesas apagado, **ni apagar** Mesas mientras Comandas esté encendido: las comandas
+abiertas quedarían sin forma de llegar a la caja, con los pedidos ya en la cocina. En los dos casos la
+pantalla dice qué hacer primero. Esto corrige lo que prometía D4 —un interruptor independiente— y está
+anotado como D21.
+
 ### 4.2 La cuenta se identifica con un nombre libre
 
 El cajero escribe **«ANDREA»**, **«mesa 4»** o **«domicilio Juan»**. Es literalmente lo que ya hacen,
@@ -118,10 +130,14 @@ Eso exige que el sistema recuerde qué líneas ya se mandaron. Es la parte más 
 
 Quitar o cambiar un plato que ya está en cocina **no se bloquea**. Se avisa:
 
-- **Al cajero**, con una advertencia en su pantalla: *«esto ya está en cocina»*.
-- **En la cocina**, en un monitor que muestra los pedidos y se actualiza solo.
+- **Al mesero**, en su pantalla: *«ya estaba en cocina: el cambio queda marcado»*, y el plato queda
+  señalado como «cambió después de enviarse».
+- **Al cajero**, si ese plato ya había pasado a la caja: arriba de la venta aparece la lista de lo que
+  cambió —*«Empanada: ahora 3»*, *«Jugo: anulado»*— con un botón **Entendido**. La caja **no cambia el
+  cobro por su cuenta**, porque el cajero puede haberlo ajustado ya; él decide y ajusta.
+- **En la cocina**, en un monitor que se actualiza solo. *Esto llega con la Entrega 3.*
 
-Y el pedido se actualiza para que **la facturación final cobre lo que de verdad se sirvió**.
+Así la facturación final cobra lo que de verdad se sirvió, con una persona decidiendo.
 
 ### 4.7 La comanda tiene estados, y se gestiona
 
@@ -139,8 +155,23 @@ tiene que mirar, y para eso hace falta que se vea.
 
 ### 4.8 La cuenta se ve y se actualiza en la pantalla de venta
 
-La comanda no es un papel que se va y se olvida: **es una cuenta viva** en el módulo de venta, que
-refleja en todo momento lo que se ha pedido y lo que se mandó a cocina.
+La comanda no es un papel que se va y se olvida: **es una cuenta viva** en el módulo de venta. Aparece
+como una pestaña con el nombre completo de la comanda, y **cada vez que el cajero hace algo en esa
+pestaña, los platos nuevos que tomó el mesero entran solos a la venta**, con su precio, como si el
+cajero los hubiera tecleado. Un kit entra como entra siempre en la caja, con sus ingredientes para el
+inventario.
+
+Dos garantías que el negocio puede dar por hechas:
+
+- **Ningún plato del mesero se pierde** porque el cajero esté trabajando en la misma cuenta al mismo
+  tiempo.
+- **La caja nunca cobra un total distinto del que el cajero tiene en pantalla.** Si llegó un plato
+  justo antes de pulsar «Completar», la caja no cobra: muestra el plato nuevo, lo avisa, y el cajero
+  vuelve a cobrar con el total correcto.
+
+Cobrar la cuenta cierra la comanda. Cancelar la cuenta en la caja cancela la comanda. Y cancelar la
+comanda desde el celular quita la cuenta de la caja, aunque el cajero la tuviera abierta en ese
+momento.
 
 ### 4.9 El mesero toma el pedido desde su celular, por el navegador
 
@@ -149,7 +180,12 @@ mesero entra desde el navegador de su teléfono, se autentica con su propio usua
 pedido de pie junto a la mesa. Eso es exactamente lo que el requerimiento venía a resolver: que el
 pedido no dependa de la memoria de alguien caminando hacia la caja.
 
-Cada mesero entra con **su** usuario, así que cada comanda queda con un nombre detrás.
+Cada mesero entra con **su** usuario, así que cada comanda queda con un nombre detrás. Al ingresar,
+**el mesero cae directo en su pantalla de comandas** y tiene su propio botón **Salir**: no pasa por la
+pantalla de inicio de la caja, que no le corresponde.
+
+**El mesero no puede llegar a la caja.** Con el permiso de Comandas y ningún otro, el sistema no le
+abre ventas, ni configuración, ni ninguna otra pantalla, ni siquiera tecleando la dirección.
 
 Que el teléfono sirva no significa que el resto del sistema sirva en el teléfono: **hoy solo la
 pantalla de ingreso está preparada para un celular.** Cualquier otra pantalla a la que el mesero
@@ -175,6 +211,22 @@ comandas:
 Y la contraparte honesta: **si la señal se cae a mitad de un pedido, lo ya guardado está a salvo y lo
 que se estaba escribiendo se pierde.** No hay modo sin conexión. El mesero que se queda sin red
 vuelve al papel, que es lo que hace hoy.
+
+---
+
+### 4.11 Cómo se enciende para un comercio
+
+Se hace **con** el comercio, no por defecto:
+
+1. En **Configuración**, pestaña **Mesas**: encender.
+2. En **Configuración**, pestaña **Comandas**: encender. (La casilla de la pantalla de cocina queda
+   apagada: esa pantalla todavía no existe.)
+3. En **Empleados**, crear a cada mesero con **un solo permiso: Comandas**. El permiso **«Permitir
+   cancelar una comanda»** se le da solo a quien supervisa: cancelar una comanda que la cocina ya
+   preparó es la acción que alguien va a querer revisar.
+4. Entregarle al comercio la ficha de §4.10, y decirle en voz alta que **enviar a cocina e imprimir
+   son dos actos**: el mesero envía desde el celular, y la hoja sale cuando alguien la imprime en la
+   caja. En la comanda, cada ronda dice «Sin imprimir» hasta que se imprime.
 
 ---
 
@@ -212,6 +264,9 @@ vuelve al papel, que es lo que hace hoy.
 | **D18** | **El refactor responsive del resto del sistema es otro proyecto.** Aquí se hace una sola pantalla | 2026-09-22 |
 | **D19** | **Los dos interruptores se ponen en la Configuración del comercio**, junto a la pestaña «Mesas». No en la consola de plataforma | 2026-09-22 |
 | **D20** | **La conectividad es un requisito del comercio**, no un riesgo del proyecto. El teléfono entra por datos móviles o WiFi | 2026-09-22 |
+| **D21** | **Comandas necesita Mesas encendido**, y Mesas no se puede apagar con Comandas encendido. La comanda llega a la caja como una pestaña de Mesas (se eligió no abrirle un camino nuevo en la pantalla del dinero). *Corrige D4* | 2026-09-23 |
+| **D22** | **La caja trae sola los platos del mesero** y **nunca cobra un total que el cajero no vio**. Lo que el mesero cambia después de pasar a la caja se avisa al cajero, no se aplica solo | 2026-09-23 |
+| **D23** | **El mesero cae directo en su pantalla y tiene su propia salida.** Con solo el permiso de Comandas no alcanza ninguna otra pantalla | 2026-09-23 |
 
 ### 6.1 Resueltas el 2026-09-22
 
@@ -226,10 +281,14 @@ vuelve al papel, que es lo que hace hoy.
 
 ## 7. Alcance, en entregas
 
-### Entrega 1 — La comanda desde la caja
+### Entrega 1 — La comanda desde la caja — **construida, pendiente de probar en staging**
 Cuenta abierta con nombre libre, instrucciones por plato, estados de la comanda (§4.7), comanda
 impresa con precios, rondas con solo lo agregado, y el interruptor por comercio. Es el cimiento:
 define el dato, y cualquier pantalla posterior lo lee.
+
+Se construyó ya **responsive**, así que un mesero puede usarla desde el celular desde el primer día;
+lo que la Entrega 2 agrega es que varios teléfonos trabajen a la vez sobre la misma comanda sin
+pisarse.
 
 ### Entrega 2 — La misma pantalla, desde el celular del mesero
 La pantalla de comanda hecha responsive, con el mesero autenticándose desde el navegador de su
