@@ -134,6 +134,10 @@ final class OrderTicketsPermissionTest extends CIUnitTestCase
     {
         $this->grant('order_tickets');
         $this->grant('sales');
+        // A real cashier also holds their site: without a sales location grant the register itself
+        // fails (Stock_location::get_default_location_id(), a known pre-existing defect, docs/Tecnico
+        // §0.7). cert_cajero on staging holds exactly these.
+        $this->grant('sales_stock', '--');
 
         $screen = $this->getAs('comandas');
         $screen->assertStatus(200);
