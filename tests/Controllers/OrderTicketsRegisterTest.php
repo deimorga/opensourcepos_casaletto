@@ -169,6 +169,47 @@ final class OrderTicketsRegisterTest extends CIUnitTestCase
     }
 
     /**
+     * D15: the kitchen is optional. A business with the kitchen switched off, whose waiter never
+     * presses "send to kitchen", still gets every dish to the till and charges it. The register pulls
+     * what is UNBILLED, never what was SENT -- if anyone ever conditions the pull on round_id, a
+     * business without a kitchen silently stops billing its waiters' orders, and this fails.
+     *
+     * Certified by hand on staging on 2026-09-23 as well (ticket «SIN COCINA», POS 990007).
+     */
+    public function testWithTheKitchenOffADishNeverSentIsBilledAndCharged(): void
+    {
+        $before = $this->db->table('app_config')->where('key', 'order_tickets_kitchen_enable')->get()->getRow()?->value;
+        model(Appconfig::class)->save(['order_tickets_kitchen_enable' => '0']);
+        config(OSPOS::class)->update_settings();
+
+        try {
+            [$ticket, $table, $sale] = $this->openTicket('SIN COCINA', [[$this->itemA, '2']]);
+
+            $this->openTab($table);
+            $this->postReq('sales/addPayment', ['payment_type' => 'Cash', 'amount_tendered' => '100.00']);
+            $this->postReq('sales/complete', [])->assertStatus(200);
+
+            $this->assertSame(COMPLETED, $this->saleStatus($sale));
+            $this->assertSame(['OT Plato A' => '2.000'], $this->saleItems($sale));
+            $this->assertSame(Order_ticket::STATUS_CHARGED, model(Order_ticket::class, false)->get_info($ticket)['status']);
+            $this->assertSame(0, $this->db->table('order_ticket_rounds')->where('order_ticket_id', $ticket)->countAllResults(), 'Nothing ever went to a kitchen.');
+
+            $line = $this->db->table('order_ticket_lines')->where('order_ticket_id', $ticket)->get()->getRowArray();
+            $this->assertNull($line['round_id']);
+            $this->assertSame(Order_ticket_line::STATUS_PENDING, $line['status']);
+            $this->assertNotNull($line['billed_at'], 'Billed without ever being sent.');
+        } finally {
+            if ($before === null) {
+                $this->db->table('app_config')->where('key', 'order_tickets_kitchen_enable')->delete();
+            } else {
+                $this->db->table('app_config')->replace(['key' => 'order_tickets_kitchen_enable', 'value' => $before]);
+            }
+
+            config(OSPOS::class)->update_settings();
+        }
+    }
+
+    /**
      * D9 on the cashier's side: a dish the waiter changes after the till has it is LISTED, not
      * applied behind the cashier's back, until the cashier acknowledges it.
      */
