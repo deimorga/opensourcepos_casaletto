@@ -297,6 +297,9 @@ gulp.task('copy-menubar', function() {
     // public/images/menubar is a build output and is gitignored, so a new module without a line
     // here ships a broken image in the top bar for whoever is granted it.
     pipeline(gulp.src("./node_modules/elegant-circles/svg/full-color/recycle.svg"),rename("writeoffs.svg"),gulp.dest("public/images/menubar"));
+    // Order tickets ("comandas"). Same trap as the line above: the icon is not in the repository,
+    // it is produced here. A booklet is the waiter's pad, which is what the screen actually is.
+    pipeline(gulp.src("./node_modules/elegant-circles/svg/full-color/booklet.svg"),rename("order_tickets.svg"),gulp.dest("public/images/menubar"));
     return pipeline(gulp.src('./node_modules/elegant-circles/svg/full-color/money.svg'),rename("taxes.svg"),gulp.dest("public/images/menubar"));
 });
 
