@@ -386,6 +386,17 @@
     --bs-btn-active-border-color: #0f7a65;
 }
 
+/* The round's "Ver" link: Flatly's #95a5a6 on white is 2.55:1. Only visible once a round exists,
+   which is why the first measurement missed it. */
+.ot-body .btn-outline-secondary {
+    --bs-btn-color: #5f6d6e;
+    --bs-btn-border-color: #5f6d6e;
+    --bs-btn-hover-bg: #5f6d6e;
+    --bs-btn-hover-border-color: #5f6d6e;
+    --bs-btn-active-bg: #5f6d6e;
+    --bs-btn-active-border-color: #5f6d6e;
+}
+
 .ot-body .btn-outline-danger {
     --bs-btn-color: #c0392b;
     --bs-btn-border-color: #c0392b;
