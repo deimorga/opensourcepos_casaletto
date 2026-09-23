@@ -1331,6 +1331,39 @@ class Sale extends Model
     /**
      * Retrieves all sales currently open as a restaurant table tab (OPENED status).
      */
+    /**
+     * Inserts an OPENED sale with no lines yet, and returns its id (0 when the insert failed).
+     *
+     * This is how an order ticket gets its account on the register's tab bar. save_value() cannot do
+     * it: it refuses an empty cart (returns -1 before inserting anything), and a ticket that was just
+     * opened has no dishes yet. The row has exactly the shape save_value() gives a new sale -- same
+     * columns, same defaults -- so the register cannot tell the two apart when it loads the tab.
+     *
+     * No cashup_id: save_value() only stamps a shift on COMPLETED sales, because an open account has
+     * not put any money in a drawer yet.
+     *
+     * Deliberately does not touch the session, Sale_lib or the cart: the caller may be a waiter on a
+     * phone, whose session is not the cashier's (docs/Tecnico/comandas-y-cuenta-abierta.md §3.12).
+     */
+    public function create_open_sale(int $employee_id, int $dinner_table_id, int $location_id): int
+    {
+        $inserted = $this->db->table('sales')->insert([
+            'sale_time'         => date('Y-m-d H:i:s'),
+            'customer_id'       => null,
+            'employee_id'       => $employee_id,
+            'comment'           => '',
+            'sale_status'       => OPENED,
+            'invoice_number'    => null,
+            'quote_number'      => null,
+            'work_order_number' => null,
+            'dinner_table_id'   => $dinner_table_id,
+            'sale_type'         => SALE_TYPE_POS,
+            'location_id'       => $location_id,
+        ]);
+
+        return $inserted ? (int) $this->db->insertID() : 0;
+    }
+
     public function get_all_opened(): array
     {
         $builder = $this->db->table('sales');

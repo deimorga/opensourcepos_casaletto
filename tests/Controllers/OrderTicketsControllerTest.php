@@ -38,6 +38,7 @@ final class OrderTicketsControllerTest extends CIUnitTestCase
     protected $namespace   = 'App';
 
     private ?string $switchBefore = null;
+    private ?string $tablesBefore = null;
     private bool $grantedHere     = false;
 
     protected function setUp(): void
@@ -50,6 +51,8 @@ final class OrderTicketsControllerTest extends CIUnitTestCase
 
         $row                = $this->db->table('app_config')->where('key', 'order_tickets_enable')->get()->getRow();
         $this->switchBefore = $row === null ? null : (string) $row->value;
+        $row                = $this->db->table('app_config')->where('key', 'dinner_table_enable')->get()->getRow();
+        $this->tablesBefore = $row === null ? null : (string) $row->value;
 
         if ($this->db->table('grants')->where(['permission_id' => 'order_tickets', 'person_id' => 1])->countAllResults() === 0) {
             $this->db->table('grants')->insert(['permission_id' => 'order_tickets', 'person_id' => 1, 'menu_group' => 'home']);
@@ -63,6 +66,14 @@ final class OrderTicketsControllerTest extends CIUnitTestCase
 
     protected function tearDown(): void
     {
+        $this->removeWhatOpeningTicketsCreated();
+
+        if ($this->tablesBefore === null) {
+            $this->db->table('app_config')->where('key', 'dinner_table_enable')->delete();
+        } else {
+            $this->db->table('app_config')->replace(['key' => 'dinner_table_enable', 'value' => $this->tablesBefore]);
+        }
+
         if ($this->switchBefore === null) {
             $this->db->table('app_config')->where('key', 'order_tickets_enable')->delete();
         } else {
@@ -173,6 +184,132 @@ final class OrderTicketsControllerTest extends CIUnitTestCase
         $this->getReq('comandas/salir')->assertRedirectTo('login');
     }
 
+    // ---------------------------------------------------------------------------------------------
+    // Opening a ticket (1.14)
+    // ---------------------------------------------------------------------------------------------
+
+    /**
+     * All three or none: the ticket, the throwaway table that puts it on the register's tab bar, and
+     * the OPENED sale that will charge it -- linked to each other.
+     */
+    public function testOpeningATicketCreatesTheTicketItsTableAndItsOpenSaleTogether(): void
+    {
+        $this->switchTo('1');
+        $this->tablesTo('1');
+
+        $response = $this->postReq('comandas/crear', ['name' => 'ANDREA', 'note' => 'cumpleaños']);
+
+        $ticket = $this->db->table('order_tickets')->get()->getRowArray();
+        $this->assertNotNull($ticket);
+        $response->assertRedirectTo('comandas/' . $ticket['order_ticket_id']);
+
+        $this->assertSame('ANDREA', $ticket['name']);
+        $this->assertSame('cumpleaños', $ticket['note']);
+        $this->assertSame(Order_ticket::STATUS_OPEN, $ticket['status']);
+        $this->assertSame(1, (int) $ticket['opened_by']);
+        $this->assertNotNull($ticket['sale_id']);
+
+        $sale = $this->db->table('sales')->where('sale_id', $ticket['sale_id'])->get()->getRowArray();
+        $this->assertSame(OPENED, (int) $sale['sale_status'], 'An open account, exactly like a tab the cashier opened.');
+        $this->assertSame(SALE_TYPE_POS, (int) $sale['sale_type']);
+        $this->assertSame((int) $ticket['location_id'], (int) $sale['location_id']);
+
+        $table = $this->db->table('dinner_tables')->where('dinner_table_id', $sale['dinner_table_id'])->get()->getRowArray();
+        $this->assertSame('ANDREA', $table['name']);
+        $this->assertSame(1, (int) $table['status'], 'Born occupied, or the register would offer it as a free table.');
+        $this->assertGreaterThan(2, (int) $table['dinner_table_id'], 'Never Delivery or Take Away.');
+    }
+
+    /**
+     * The table is a label cut to its column's 30 characters; the ticket is the record and keeps 64.
+     */
+    public function testTheTicketKeepsTheFullNameWhileTheTabLabelIsCut(): void
+    {
+        $this->switchTo('1');
+        $this->tablesTo('1');
+        $name = 'DOMICILIO JUAN CARLOS PEREZ CALLE 45 NUMERO 12';
+
+        $this->postReq('comandas/crear', ['name' => $name]);
+
+        $ticket = $this->db->table('order_tickets')->get()->getRowArray();
+        $sale   = $this->db->table('sales')->where('sale_id', $ticket['sale_id'])->get()->getRowArray();
+        $table  = $this->db->table('dinner_tables')->where('dinner_table_id', $sale['dinner_table_id'])->get()->getRowArray();
+
+        $this->assertSame($name, $ticket['name']);
+        $this->assertSame(mb_substr($name, 0, 30), $table['name']);
+    }
+
+    public function testABlankNameOpensNothing(): void
+    {
+        $this->switchTo('1');
+        $this->tablesTo('1');
+        $salesBefore = $this->db->table('sales')->countAllResults();
+
+        $this->postReq('comandas/crear', ['name' => '   '])->assertRedirectTo('comandas/nueva');
+
+        $this->assertSame(0, $this->db->table('order_tickets')->countAllResults());
+        $this->assertSame($salesBefore, $this->db->table('sales')->countAllResults());
+    }
+
+    /**
+     * The tab bar lives behind Tables. A ticket opened without it would be unreachable from the till,
+     * so nothing is opened at all.
+     */
+    public function testWithTablesOffNothingIsOpened(): void
+    {
+        $this->switchTo('1');
+        $this->tablesTo('0');
+
+        $this->postReq('comandas/crear', ['name' => 'ANDREA'])->assertRedirectTo('comandas/nueva');
+
+        $this->assertSame(0, $this->db->table('order_tickets')->countAllResults());
+    }
+
+    public function testWithTheSwitchOffOpeningIsNotPossible(): void
+    {
+        $this->switchTo('0');
+        $this->tablesTo('1');
+
+        $this->postReq('comandas/crear', ['name' => 'ANDREA'])->assertRedirectTo('comandas');
+
+        $this->assertSame(0, $this->db->table('order_tickets')->countAllResults());
+    }
+
+    private function tablesTo(string $value): void
+    {
+        $this->db->table('app_config')->replace(['key' => 'dinner_table_enable', 'value' => $value]);
+        config(OSPOS::class)->update_settings();
+    }
+
+    /**
+     * Opening a ticket writes into sales and dinner_tables, which every other test file shares.
+     * Sales first: sales.dinner_table_id carries a foreign key to the table.
+     */
+    private function removeWhatOpeningTicketsCreated(): void
+    {
+        $saleIds = array_filter(array_map('intval', array_column(
+            $this->db->table('order_tickets')->select('sale_id')->get()->getResultArray(),
+            'sale_id'
+        )));
+
+        if ($saleIds === []) {
+            return;
+        }
+
+        $tableIds = array_map('intval', array_column(
+            $this->db->table('sales')->select('dinner_table_id')->whereIn('sale_id', $saleIds)->get()->getResultArray(),
+            'dinner_table_id'
+        ));
+
+        $this->db->table('sales')->whereIn('sale_id', $saleIds)->delete();
+
+        $tableIds = array_values(array_filter($tableIds, static fn (int $id): bool => $id > 2));
+
+        if ($tableIds !== []) {
+            $this->db->table('dinner_tables')->whereIn('dinner_table_id', $tableIds)->delete();
+        }
+    }
+
     private function switchTo(string $value): void
     {
         $this->db->table('app_config')->replace(['key' => 'order_tickets_enable', 'value' => $value]);
@@ -202,5 +339,18 @@ final class OrderTicketsControllerTest extends CIUnitTestCase
         $this->withSession($_SESSION);
 
         return $this->get($path);
+    }
+
+    /**
+     * POST with the session re-armed -- see getReq().
+     *
+     * @param array<string, string> $params
+     */
+    private function postReq(string $path, array $params): TestResponse
+    {
+        $_SESSION = ['person_id' => 1, 'menu_group' => 'home'];
+        $this->withSession($_SESSION);
+
+        return $this->post($path, $params);
     }
 }

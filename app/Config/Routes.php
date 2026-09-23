@@ -32,6 +32,8 @@ $routes->get('items/bulk/previous', 'ItemsBulk::getPrevious');
 // ---------------------------------------------------------------------------------------------
 $routes->get('comandas', 'OrderTickets::getIndex');
 $routes->get('comandas/salir', 'OrderTickets::getLogout');
+$routes->get('comandas/nueva', 'OrderTickets::getNew');
+$routes->post('comandas/crear', 'OrderTickets::postCreate');
 
 $routes->get('/', 'Login::index');
 $routes->get('login', 'Login::index');

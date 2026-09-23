@@ -42,15 +42,34 @@ class Dinner_table extends Model
      */
     public function create(string $name): int
     {
+        return $this->create_at($name, (int) (new Item_lib())->get_item_location());
+    }
+
+    /**
+     * Same as create(), with the location given instead of resolved from the session.
+     *
+     * create() resolves it through Item_lib::get_item_location(), which ends in
+     * Stock_location::get_default_location_id('items') -- and that dereferences a row that does not
+     * exist for an employee without an items location grant. An order-ticket waiter is exactly that
+     * employee, so the ticket screen resolves the location itself and passes it here.
+     *
+     * $occupied: an open account occupies its table (Sale::save_value() does it for the register's
+     * tabs). A table created for an order ticket is born with its sale, so it is born occupied --
+     * otherwise it would also be offered in the register's list of free tables.
+     *
+     * @return int the new dinner_table_id, 0 when the insert failed
+     */
+    public function create_at(string $name, int $location_id, bool $occupied = false): int
+    {
         $builder = $this->db->table('dinner_tables');
-        $builder->insert([
+        $inserted = $builder->insert([
             'name'        => $name,
-            'status'      => 0,
+            'status'      => $occupied ? 1 : 0,
             'deleted'     => 0,
-            'location_id' => (int) (new Item_lib())->get_item_location()
+            'location_id' => $location_id
         ]);
 
-        return (int) $this->db->insertID();
+        return $inserted ? (int) $this->db->insertID() : 0;
     }
 
     /**

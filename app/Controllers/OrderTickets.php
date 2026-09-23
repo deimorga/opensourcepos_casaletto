@@ -2,11 +2,14 @@
 
 namespace App\Controllers;
 
+use App\Models\Dinner_table;
 use App\Models\Order_ticket;
 use App\Models\Order_ticket_line;
+use App\Models\Sale;
 use App\Models\Stock_location;
 use CodeIgniter\HTTP\RedirectResponse;
 use Config\OSPOS;
+use Throwable;
 
 /**
  * The waiter's screens: take an order at the table, from a phone, so it is not lost on the way to
@@ -61,6 +64,89 @@ class OrderTickets extends Secure_Controller
             'tickets' => $tickets,
             'counts'  => $this->lines->count_by_ticket(array_column($tickets, 'order_ticket_id')),
         ]);
+    }
+
+    /**
+     * The form to open a ticket: a free name (D5) and an optional note for the whole order.
+     */
+    public function getNew(): string
+    {
+        if (! $this->is_enabled()) {
+            return $this->render_disabled();
+        }
+
+        // The specific values go on the LEFT of the union: `+` keeps the left-hand key, and
+        // layout_data() also carries a title.
+        return view('order_tickets/new', [
+            'title'    => lang('Order_tickets.new_ticket'),
+            'back_url' => base_url('comandas'),
+        ] + $this->layout_data());
+    }
+
+    /**
+     * Opens a ticket: the ticket itself, the throwaway table that puts it on the register's tab bar,
+     * and the OPENED sale that will charge it -- all three or none, in one transaction.
+     *
+     * WHY A THROWAWAY TABLE. The register's tab bar lists OPENED sales by dinner_table_id and reopens
+     * them by dinner_table_id (sales/register.php, Sales::postChangeMode()); there is no path by
+     * sale_id. A table of its own makes the ticket show up, reopen and be cleaned up on payment
+     * exactly like a tab the cashier opened with "new table" -- which is what the business was
+     * already doing by hand ("ANDREA", "LOBO GORDITO"). The owner chose this over a new path through
+     * the money screen.
+     *
+     * The table gets the name cut to its column's 30 characters, the same cut Sales::postCreateTable()
+     * makes. The ticket keeps the full 64: the table is a label, the ticket is the record.
+     *
+     * Neither Sale_lib nor _autosave_open_tab() is used: the waiter's session is not the cashier's,
+     * and the autosave's guard on pseudo-tables must stay exactly as it is (§3.3). The three models
+     * write through the shared default connection, which is what the transaction below wraps.
+     */
+    public function postCreate(): RedirectResponse
+    {
+        if (! $this->is_enabled()) {
+            return redirect()->to('comandas');
+        }
+
+        // The tab bar lives behind dinner_table_enable; without it the ticket would be unreachable
+        // from the till. Configuration refuses this combination, but a stale settings row can still
+        // produce it, and a ticket nobody can charge is worse than a clear refusal.
+        if ((string) (config(OSPOS::class)->settings['dinner_table_enable'] ?? '0') !== '1') {
+            return redirect()->to('comandas/nueva')->withInput()->with('error', lang('Order_tickets.tables_off'));
+        }
+
+        $name = trim((string) $this->request->getPost('name'));
+
+        if ($name === '') {
+            return redirect()->to('comandas/nueva')->withInput()->with('error', lang('Order_tickets.name_required'));
+        }
+
+        $person_id   = (int) session()->get('person_id');
+        $location_id = $this->resolve_location_id();
+        $db          = db_connect();
+
+        $db->transBegin();
+
+        try {
+            $ticket_id = $this->tickets->create_ticket($name, $location_id, $person_id, (string) $this->request->getPost('note'));
+            $table_id  = $ticket_id > 0 ? model(Dinner_table::class)->create_at(mb_substr($name, 0, 30), $location_id, true) : 0;
+            $sale_id   = $table_id > 0 ? model(Sale::class)->create_open_sale($person_id, $table_id, $location_id) : 0;
+            $attached  = $sale_id > 0 && $this->tickets->attach_sale($ticket_id, $sale_id);
+
+            // Every step is checked for its return value and not only for an exception: DBDebug is
+            // off in production, where a failed insert answers false instead of throwing.
+            if (! $attached || ! $db->transCommit()) {
+                $db->transRollback();
+
+                return redirect()->to('comandas/nueva')->withInput()->with('error', lang('Order_tickets.create_failed'));
+            }
+        } catch (Throwable $e) {
+            $db->transRollback();
+            log_message('error', 'No se pudo abrir la comanda "' . $name . '": ' . $e->getMessage());
+
+            return redirect()->to('comandas/nueva')->withInput()->with('error', lang('Order_tickets.create_failed'));
+        }
+
+        return redirect()->to('comandas/' . $ticket_id);
     }
 
     /**
