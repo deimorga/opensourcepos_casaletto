@@ -12,6 +12,8 @@ use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
 use CodeIgniter\Test\TestResponse;
 use Config\OSPOS;
+use DOMDocument;
+use DOMXPath;
 
 /**
  * The waiter's order-ticket screens, over real requests.
@@ -350,7 +352,14 @@ final class OrderTicketsControllerTest extends CIUnitTestCase
 
         $response = $this->postReq('comandas/' . $ticket . '/linea', ['item_id' => (string) $item, 'quantity' => '1', 'q' => 'PRUEBA OT SANDWICH']);
 
-        $this->assertStringContainsString('comandas/' . $ticket . '?q=PRUEBA%20OT%20SANDWICH#ot-results', (string) $response->getRedirectUrl());
+        // Compared decoded: '+' and '%20' are both a space in a query string, and which one the URL
+        // uses is not the behaviour under test.
+        $url = parse_url((string) $response->getRedirectUrl());
+        parse_str($url['query'] ?? '', $query);
+
+        $this->assertStringEndsWith('comandas/' . $ticket, $url['path']);
+        $this->assertSame(['q' => 'PRUEBA OT SANDWICH'], $query);
+        $this->assertSame('ot-results', $url['fragment'] ?? null);
     }
 
     /**
@@ -476,8 +485,14 @@ final class OrderTicketsControllerTest extends CIUnitTestCase
 
         $html = $this->getReq('comandas/' . $ticket)->getBody();
 
-        $this->assertMatchesRegularExpression('/name="seen_quantity" value="1\.500"/', $html);
-        $this->assertStringContainsString('name="seen_note" value="sin &quot;ají&quot;"', $html);
+        // Read the way a browser reads it -- the decoded attribute value is what gets posted back --
+        // rather than matching one particular way of escaping the quotes and the accent.
+        $dom = new DOMDocument();
+        $dom->loadHTML('<?xml encoding="UTF-8">' . $html, LIBXML_NOERROR | LIBXML_NOWARNING);
+        $xpath = new DOMXPath($dom);
+
+        $this->assertSame('1.500', $xpath->evaluate('string(//input[@name="seen_quantity"]/@value)'));
+        $this->assertSame('sin "ají"', $xpath->evaluate('string(//input[@name="seen_note"]/@value)'));
     }
 
     /**
