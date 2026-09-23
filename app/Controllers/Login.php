@@ -101,7 +101,8 @@ class Login extends BaseController
             }
         }
 
-        return redirect()->to('home');
+        // 'home' for everybody but a waiter granted only order tickets. See Employee::landing_route().
+        return redirect()->to($this->employee->landing_route((int) session()->get('person_id')));
     }
 
     /**
@@ -206,7 +207,9 @@ class Login extends BaseController
             return view('login_totp', $data);
         }
 
-        return redirect()->to('home');
+        // model() and not $this->employee: that property is only assigned inside index(), and this
+        // is a different action -- reading it here throws "must not be accessed before initialization".
+        return redirect()->to(model(Employee::class)->landing_route((int) session()->get('person_id')));
     }
 
     /**
@@ -275,7 +278,8 @@ class Login extends BaseController
         session()->regenerate(true);
         $entrada->openSupportSession($canje['account_id'], (int)$soporte->person_id);
 
-        return redirect()->to('home');
+        // model() and not $this->employee, for the same reason as in totp().
+        return redirect()->to(model(Employee::class)->landing_route((int)$soporte->person_id));
     }
 
     public function migrate(): ResponseInterface

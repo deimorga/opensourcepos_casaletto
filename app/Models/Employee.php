@@ -458,6 +458,26 @@ class Employee extends Person
     }
 
     /**
+     * Where an employee lands after logging in: 'home' for everybody, except a waiter.
+     *
+     * Home is a Secure_Controller gated on the `home` grant. A waiter who takes orders from their
+     * phone is granted order_tickets and nothing else (D17), so sending them to home -- which every
+     * login path did unconditionally -- stranded them on no_access with no way forward.
+     *
+     * The rule only applies to an employee WITHOUT `home`. Every employee that existed before order
+     * tickets has it, so nothing changes for any of them; this answer can only differ for a new kind
+     * of employee.
+     */
+    public function landing_route(int $person_id): string
+    {
+        if (!$this->has_grant('home', $person_id) && $this->has_grant('order_tickets', $person_id)) {
+            return 'comandas';
+        }
+
+        return 'home';
+    }
+
+    /**
      * Determines if an employee is logged in
      */
     public function is_logged_in(): bool
