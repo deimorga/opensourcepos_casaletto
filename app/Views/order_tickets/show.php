@@ -116,7 +116,7 @@ $id = (int) $ticket['order_ticket_id'];
                             <button class="btn btn-outline-primary" type="submit"><?= esc(lang('Order_tickets.save')) ?></button>
                         <?= form_close() ?>
                         <?= form_open('comandas/' . $id . '/linea/' . $line_id . '/anular', ['class' => 'mt-2', 'data-once' => '1']) ?>
-                            <button class="btn btn-outline-danger" type="submit"><?= esc(lang('Order_tickets.void')) ?></button>
+                            <button class="btn btn-outline-danger" type="submit"><?= esc(lang('Order_tickets.void_line')) ?></button>
                         <?= form_close() ?>
                     </details>
                 <?php endif; ?>
