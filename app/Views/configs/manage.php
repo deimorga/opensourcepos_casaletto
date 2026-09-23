@@ -42,6 +42,9 @@
         <a data-toggle="tab" href="#table_tab" title="<?= lang('Config.table_configuration') ?>"><?= lang('Config.table') ?></a>
     </li>
     <li role="presentation">
+        <a data-toggle="tab" href="#order_tickets_tab" title="<?= lang('Config.order_tickets_configuration') ?>"><?= lang('Config.order_tickets') ?></a>
+    </li>
+    <li role="presentation">
         <a data-toggle="tab" href="#system_tab" title="<?= lang('Config.system_conf') ?>"><?= lang('Config.system_conf') ?></a>
     </li>
 </ul>
@@ -82,6 +85,9 @@
     </div>
     <div class="tab-pane" id="table_tab">
         <?= view('configs/table_config') ?>
+    </div>
+    <div class="tab-pane" id="order_tickets_tab">
+        <?= view('configs/order_tickets_config') ?>
     </div>
     <div class="tab-pane" id="system_tab">
         <?= view('configs/system_config') ?>

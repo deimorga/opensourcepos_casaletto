@@ -844,9 +844,19 @@ class Config extends Secure_Controller
      */
     public function postSaveTables(): ResponseInterface
     {
-        $this->db->transStart();
-
         $dinner_table_enable = $this->request->getPost('dinner_table_enable') != null;
+
+        // The other half of the rule postSaveOrderTickets() enforces. Order tickets reach the register
+        // through the tab bar, and the whole bar lives behind this switch: turning Tables off while
+        // order tickets are on would leave every open ticket unreachable from the till, with the
+        // orders still in the kitchen. Refused rather than corrected, for the same reason -- switching
+        // order tickets off from here would be a decision nobody took. Checked before the transaction
+        // opens, so a refusal writes nothing at all.
+        if (!$dinner_table_enable && ($this->config['order_tickets_enable'] ?? '0') == '1') {
+            return $this->response->setJSON(['success' => false, 'message' => lang('Config.tables_required_by_order_tickets')]);
+        }
+
+        $this->db->transStart();
 
         $this->appconfig->save(['dinner_table_enable' => $dinner_table_enable]);
 
@@ -878,6 +888,46 @@ class Config extends Secure_Controller
         $this->db->transComplete();
 
         $success = $this->db->transStatus();
+
+        return $this->response->setJSON(['success' => $success, 'message' => lang('Config.saved_' . ($success ? '' : 'un') . 'successfully')]);
+    }
+
+    /**
+     * Saves the order tickets switches. Used in app/Views/configs/order_tickets_config.php
+     *
+     * Order tickets need Tables. An order ticket reaches the register by opening a throwaway table in
+     * the tab bar, and that whole bar lives behind dinner_table_enable (sales/register.php). Turning
+     * order tickets on while Tables is off is refused rather than corrected, the same stance as
+     * postSaveScale(): switching Tables on from here would change every till's register without
+     * anybody having decided it.
+     *
+     * The kitchen switch only means something while order tickets are on, so with order tickets off
+     * it is stored as '0' whatever arrived -- no error, the page already greys it out.
+     *
+     * An unchecked box is absent from the POST. Both switches are always written as an explicit '1'
+     * or '0': a missing row is what an unmigrated tenant looks like, and this screen must not make a
+     * migrated one look like that.
+     *
+     * @throws ReflectionException
+     * @return ResponseInterface
+     * @noinspection PhpUnused
+     */
+    public function postSaveOrderTickets(): ResponseInterface
+    {
+        $order_tickets_enable = $this->request->getPost('order_tickets_enable') != null;
+        $kitchen_enable = $order_tickets_enable && $this->request->getPost('order_tickets_kitchen_enable') != null;
+
+        // ?? '0': a settings cache that predates the key reads as Tables off, which is the safe side.
+        if ($order_tickets_enable && ($this->config['dinner_table_enable'] ?? '0') != '1') {
+            return $this->response->setJSON(['success' => false, 'message' => lang('Config.order_tickets_requires_tables')]);
+        }
+
+        $batch_save_data = [
+            'order_tickets_enable'         => $order_tickets_enable ? '1' : '0',
+            'order_tickets_kitchen_enable' => $kitchen_enable ? '1' : '0'
+        ];
+
+        $success = $this->appconfig->batch_save($batch_save_data);
 
         return $this->response->setJSON(['success' => $success, 'message' => lang('Config.saved_' . ($success ? '' : 'un') . 'successfully')]);
     }
