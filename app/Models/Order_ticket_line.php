@@ -44,8 +44,9 @@ class Order_ticket_line extends Model
      * through void_line(). Nothing ever leaves voided.
      */
     public const STATUS_PENDING = 'pending';
-    public const STATUS_SENT    = 'sent';
-    public const STATUS_VOIDED  = 'voided';
+
+    public const STATUS_SENT   = 'sent';
+    public const STATUS_VOIDED = 'voided';
 
     /**
      * The scales of the columns (DECIMAL(15,3) and DECIMAL(15,2)). Validation compares at these and
@@ -53,7 +54,8 @@ class Order_ticket_line extends Model
      * silently drop the third decimal of a weight.
      */
     private const QUANTITY_SCALE = 3;
-    private const PRICE_SCALE    = 2;
+
+    private const PRICE_SCALE = 2;
 
     /**
      * Both text columns are VARCHAR(255).
@@ -112,6 +114,7 @@ class Order_ticket_line extends Model
      *
      * @param string $quantity   decimal string strictly greater than zero, e.g. "0.500"
      * @param string $unit_price decimal string, zero or more (a gift line is a real line at zero)
+     *
      * @return int the new order_ticket_line_id, or 0 when the input was refused and nothing was written
      */
     public function add_line(
@@ -121,12 +124,12 @@ class Order_ticket_line extends Model
         string $quantity,
         string $unit_price,
         string $kitchen_note,
-        int $captured_by
+        int $captured_by,
     ): int {
         $quantity   = trim($quantity);
         $unit_price = trim($unit_price);
 
-        if (!self::is_valid_quantity($quantity) || !self::is_valid_price($unit_price)) {
+        if (! self::is_valid_quantity($quantity) || ! self::is_valid_price($unit_price)) {
             return 0;
         }
 
@@ -167,7 +170,7 @@ class Order_ticket_line extends Model
     {
         $this->where('order_ticket_id', $order_ticket_id);
 
-        if (!$include_voided) {
+        if (! $include_voided) {
             $this->where('status !=', self::STATUS_VOIDED);
         }
 
@@ -206,6 +209,7 @@ class Order_ticket_line extends Model
      * double tap, a reload -- must not tell the kitchen that a dish was altered when nothing was.
      *
      * @param array $changes only 'quantity' (decimal string) and 'kitchen_note' (string) are read
+     *
      * @return bool false when the line is missing or voided, or nothing valid was given
      */
     public function edit_line(int $order_ticket_line_id, array $changes): bool
@@ -213,20 +217,20 @@ class Order_ticket_line extends Model
         $set = [];
 
         foreach (self::EDITABLE_KEYS as $key) {
-            if (!array_key_exists($key, $changes)) {
+            if (! array_key_exists($key, $changes)) {
                 continue;
             }
 
             $value = $changes[$key];
 
-            if (!is_string($value)) {
+            if (! is_string($value)) {
                 return false;
             }
 
             if ($key === 'quantity') {
                 $value = trim($value);
 
-                if (!self::is_valid_quantity($value)) {
+                if (! self::is_valid_quantity($value)) {
                     return false;
                 }
             } else {
@@ -261,7 +265,7 @@ class Order_ticket_line extends Model
             'changed_after_send',
             'CASE WHEN round_id IS NULL THEN changed_after_send WHEN ' . implode(' OR ', $differs)
             . ' THEN 1 ELSE changed_after_send END',
-            false
+            false,
         );
         // The same question for the register: a dish it already brought into the sale changed.
         // The cart is not touched behind the cashier's back; the flag makes the register say so.
@@ -269,13 +273,13 @@ class Order_ticket_line extends Model
             'changed_after_billed',
             'CASE WHEN billed_at IS NULL THEN changed_after_billed WHEN ' . implode(' OR ', $differs)
             . ' THEN 1 ELSE changed_after_billed END',
-            false
+            false,
         );
         $builder->set($set);
         $builder->where('order_ticket_line_id', $order_ticket_line_id);
         $builder->where('status !=', self::STATUS_VOIDED);
 
-        if (!$builder->update()) {
+        if (! $builder->update()) {
             return false;
         }
 
@@ -343,7 +347,7 @@ class Order_ticket_line extends Model
         $builder->where('round_id', null);
         $builder->where('status', self::STATUS_PENDING);
 
-        if (!$builder->update()) {
+        if (! $builder->update()) {
             return 0;
         }
 
@@ -372,6 +376,7 @@ class Order_ticket_line extends Model
      * Conditioned on billed_at IS NULL, so a line is stamped once and keeps its first time.
      *
      * @param list<int> $order_ticket_line_ids
+     *
      * @return int rows stamped
      */
     public function mark_billed(array $order_ticket_line_ids): int
@@ -387,7 +392,7 @@ class Order_ticket_line extends Model
         $builder->whereIn('order_ticket_line_id', $ids);
         $builder->where('billed_at', null);
 
-        if (!$builder->update()) {
+        if (! $builder->update()) {
             return 0;
         }
 
@@ -418,7 +423,7 @@ class Order_ticket_line extends Model
         $builder->where('order_ticket_id', $order_ticket_id);
         $builder->where('changed_after_billed', 1);
 
-        if (!$builder->update()) {
+        if (! $builder->update()) {
             return 0;
         }
 
@@ -438,6 +443,7 @@ class Order_ticket_line extends Model
      * The aliases are not `lines`/`pending` on purpose: LINES is a reserved word in MySQL.
      *
      * @param list<int> $order_ticket_ids
+     *
      * @return array<int, array{dishes: int, pending: int}>
      */
     public function count_by_ticket(array $order_ticket_ids): array

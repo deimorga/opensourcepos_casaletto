@@ -27,7 +27,8 @@ class Order_ticket extends Model
      * time, so switching locale cannot change what the data means. Same reasoning as
      * payment_type_code, cash_source and item_price_history.source.
      */
-    public const STATUS_OPEN      = 'open';
+    public const STATUS_OPEN = 'open';
+
     public const STATUS_DELIVERED = 'delivered';
     public const STATUS_CANCELLED = 'cancelled';
     public const STATUS_CHARGED   = 'charged';

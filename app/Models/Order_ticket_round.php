@@ -92,7 +92,7 @@ class Order_ticket_round extends Model
         try {
             $ticket = $this->db->query(
                 "SELECT status FROM {$tickets} WHERE order_ticket_id = ? FOR UPDATE",
-                [$order_ticket_id]
+                [$order_ticket_id],
             );
 
             $row = $ticket === false ? null : $ticket->getRowArray();
@@ -105,7 +105,7 @@ class Order_ticket_round extends Model
 
             $max = $this->db->query(
                 "SELECT COALESCE(MAX(number), 0) AS n FROM {$rounds} WHERE order_ticket_id = ?",
-                [$order_ticket_id]
+                [$order_ticket_id],
             );
 
             if ($max === false) {

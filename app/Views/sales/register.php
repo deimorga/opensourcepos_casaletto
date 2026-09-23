@@ -39,6 +39,7 @@
  * @var float $cash_amount_due
  * @var array $config
  * @var array $weight_entry
+ * @var array $order_ticket_changes set by Sales::_sync_order_ticket() when the tab is an order ticket's
  */
 
 use App\Libraries\Sale_lib;
@@ -65,6 +66,29 @@ if (isset($success)) {
 
 helper('url');
 ?>
+
+<?php
+// D9, the cashier's side: the waiter changed or voided dishes this till had already brought in. The
+// cart is NOT changed behind the cashier's back -- they may have adjusted it already -- so the changes
+// are listed here until the cashier acknowledges them. See Sales::_sync_order_ticket().
+if (!empty($order_ticket_changes['lines'])) { ?>
+    <div class="alert alert-warning" role="alert">
+        <strong><?= esc(lang('Order_tickets.register_changes_title', [$order_ticket_changes['name']])) ?></strong>
+        <ul>
+            <?php foreach ($order_ticket_changes['lines'] as $change) { ?>
+                <li>
+                    <?= esc($change['status'] === 'voided'
+                        ? lang('Order_tickets.register_change_voided', [$change['item_name']])
+                        : lang('Order_tickets.register_change_edited', [$change['item_name'], to_quantity_decimals((string) $change['quantity'])])) ?>
+                    <?php if ((string) $change['kitchen_note'] !== '') { ?>&middot; <?= esc($change['kitchen_note']) ?><?php } ?>
+                </li>
+            <?php } ?>
+        </ul>
+        <?= form_open("$controller_name/acknowledgeOrderTicket") ?>
+            <button type="submit" class="btn btn-sm btn-warning"><?= esc(lang('Order_tickets.register_acknowledge')) ?></button>
+        <?= form_close() ?>
+    </div>
+<?php } ?>
 
 <div id="register_wrapper">
 
@@ -125,7 +149,7 @@ helper('url');
                     <?php foreach ($open_tabs as $open_tab) { ?>
                         <li class="<?= ((int) $open_tab['dinner_table_id'] === (int) $selected_table) ? 'active' : '' ?>">
                             <a href="#" class="open_tab_button" data-dinner-table-id="<?= esc($open_tab['dinner_table_id']) ?>">
-                                <span class="glyphicon glyphicon-cutlery">&nbsp;</span><?= esc($open_tab['dinner_table_name'] ?? ('#' . $open_tab['dinner_table_id'])) ?>
+                                <span class="glyphicon glyphicon-cutlery">&nbsp;</span><?= esc($open_tab['order_ticket_name'] ?? $open_tab['dinner_table_name'] ?? ('#' . $open_tab['dinner_table_id'])) ?>
                             </a>
                         </li>
                     <?php } ?>

@@ -4,6 +4,7 @@ namespace App\Controllers;
 
 use App\Libraries\Barcode_lib;
 use App\Libraries\Email_lib;
+use App\Libraries\Order_ticket_register;
 use App\Libraries\Sale_lib;
 use App\Libraries\Tax_lib;
 use App\Libraries\Token_lib;
@@ -43,6 +44,7 @@ class Sales extends Secure_Controller
     protected Employee $employee;
     private Item $item;
     private Item_kit $item_kit;
+    private Order_ticket_register $order_tickets;
     private Sale $sale;
     private Stock_location $stock_location;
     private array $config;
@@ -66,6 +68,7 @@ class Sales extends Secure_Controller
         $this->stock_location = model(Stock_location::class);
         $this->customer_rewards = model(Customer_rewards::class);
         $this->dinner_table = model(Dinner_table::class);
+        $this->order_tickets = new Order_ticket_register();
         $this->employee = model(Employee::class);
     }
 
@@ -1207,6 +1210,16 @@ class Sales extends Secure_Controller
     {
         $sale_id = $this->sale_lib->get_sale_id();
         $data = [];
+
+        // An order ticket's tab: never charge a total the cashier has not seen. If the waiter added
+        // dishes after this screen was drawn, or the ticket was cancelled from a phone, stop here and
+        // redraw -- _reload() brings the dishes in (or drops the cancelled tab) and says why.
+        $order_ticket = $this->order_tickets->ticket_for_sale((int) $sale_id);
+
+        if ($order_ticket !== null && ($this->order_tickets->is_cancelled($order_ticket)
+            || ($this->order_tickets->is_live($order_ticket) && $this->order_tickets->has_unbilled((int) $order_ticket['order_ticket_id'])))) {
+            return $this->_reload(['warning' => lang('Order_tickets.register_changed_before_charge', [$order_ticket['name']])]);
+        }
         $data['dinner_table'] = $this->sale_lib->get_dinner_table();
 
         $data['cart'] = $this->sale_lib->get_cart();
@@ -1361,6 +1374,8 @@ class Sales extends Secure_Controller
                     return $this->_reload($data);
                 } else {
                     $this->_apply_pending_reprices((int) $data['sale_id_num'], $employee_id, $sale_type);
+                    // Never throws: a ticket register that fails cannot un-charge a paid sale.
+                    $this->order_tickets->mark_charged((int) $data['sale_id_num']);
 
                     $data['barcode'] = $this->barcode_lib->generate_receipt_barcode($data['sale_id']);
                     $this->sale_lib->clear_all();
@@ -1458,6 +1473,8 @@ class Sales extends Secure_Controller
 
                 // Aquí, y no una línea antes: la venta ya está confirmada en la base.
                 $this->_apply_pending_reprices((int) $data['sale_id_num'], $employee_id, $sale_type);
+                // Same moment, same reason: the order ticket this sale charges is closed. Never throws.
+                $this->order_tickets->mark_charged((int) $data['sale_id_num']);
 
                 $data['barcode'] = $this->barcode_lib->generate_receipt_barcode($data['sale_id']);
 
@@ -1743,16 +1760,16 @@ class Sales extends Secure_Controller
      * dinner-table mode, and on the Delivery/Take Away pseudo-tables. See
      * docs/Tecnico/ventas-en-paralelo-pestanas.md sections 3 and 13.
      */
-    private function _autosave_open_tab(): void
+    private function _autosave_open_tab(): bool
     {
         if (!$this->config['dinner_table_enable']) {
-            return;
+            return false;
         }
 
         $dinner_table = $this->sale_lib->get_dinner_table();
 
         if ($dinner_table === null) {
-            return;
+            return false;
         }
 
         // Delivery (1) and Take Away (2) are pseudo-tables, not tabs: they are
@@ -1768,16 +1785,25 @@ class Sales extends Secure_Controller
         // no-ops). Pseudo-tables keep the stock OSPOS behaviour instead: the
         // cart lives in session until Complete/Suspend.
         if ($dinner_table <= 2) {
-            return;
+            return false;
         }
 
         $cart = $this->sale_lib->get_cart();
 
         if (count($cart) === 0) {
-            return;    // save_value() refuses empty carts anyway (returns -1)
+            return false;    // save_value() refuses empty carts anyway (returns -1)
         }
 
         $sale_id = $this->sale_lib->get_sale_id();
+
+        // An order ticket cancelled from a phone while this till still had its tab open. save_value()
+        // would write the sale back as OPENED and resurrect a tab everybody else already closed; the
+        // next render drops it from this till instead (_sync_order_ticket()).
+        $ticket = $this->order_tickets->ticket_for_sale((int) $sale_id);
+
+        if ($ticket !== null && $this->order_tickets->is_cancelled($ticket)) {
+            return false;
+        }
         $sale_status = OPENED;
         $payments = $this->sale_lib->get_payments();
         $employee_id = $this->employee->get_logged_in_employee_info()->person_id;
@@ -1799,6 +1825,99 @@ class Sales extends Secure_Controller
         if ($new_sale_id > 0 && $sale_id === NEW_ENTRY) {
             $this->sale_lib->set_sale_id($new_sale_id);
         }
+
+        // Whether the tab really reached the database. Order tickets only stamp a dish as billed after
+        // this is true; every other caller ignores it.
+        return $new_sale_id > 0;
+    }
+
+    /**
+     * Keeps the active tab in step with its order ticket, when it is one. Called by _reload() before
+     * the cart is read, so what the cashier sees is always what will be charged.
+     *
+     * THE REGISTER PULLS. The waiter's phone never writes sales_items: this till's cart would
+     * overwrite it on the next keystroke. Instead, the dishes the till has not brought in yet are
+     * added to the CART here -- through the register's own add logic, see Order_ticket_register -- the
+     * tab is autosaved, and only when that save succeeded are they stamped as billed. If the save did
+     * not happen, the cart is put back exactly as it was: stamped-less dishes are pulled again on the
+     * next render, and a cart that kept them would carry them twice.
+     *
+     * A ticket cancelled from a phone is dropped from this till instead: _autosave_open_tab() already
+     * refuses to write it back as OPENED, and here the stale cart is cleared.
+     *
+     * Dishes the waiter changed after the till had them are NOT applied to the cart: the cashier may
+     * already have adjusted it. They are listed on screen (D9) until the cashier acknowledges them.
+     *
+     * Nothing here can stop a sale: Order_ticket_register never throws, and a sale that is not a
+     * ticket's -- nearly all of them -- costs one cached lookup.
+     */
+    private function _sync_order_ticket(array &$data): void
+    {
+        $ticket = $this->order_tickets->ticket_for_sale((int) $this->sale_lib->get_sale_id());
+
+        if ($ticket === null) {
+            return;
+        }
+
+        $name = (string) $ticket['name'];
+
+        if ($this->order_tickets->is_cancelled($ticket)) {
+            $this->sale_lib->clear_all();
+            $this->_append_message($data, 'warning', lang('Order_tickets.register_cancelled', [$name]));
+
+            return;
+        }
+
+        if (!$this->order_tickets->is_live($ticket)) {
+            return;
+        }
+
+        $ticket_id = (int) $ticket['order_ticket_id'];
+        $before    = $this->sale_lib->get_cart();
+        $pulled    = $this->order_tickets->add_unbilled_to_cart($this->sale_lib, $ticket_id, $this->sale_lib->get_sale_location());
+
+        if ($pulled['added'] !== []) {
+            if ($this->_autosave_open_tab()) {
+                $this->order_tickets->mark_billed($pulled['added']);
+                $this->_append_message($data, 'success', lang('Order_tickets.register_pulled', [$name, count($pulled['added'])]));
+            } else {
+                $this->sale_lib->set_cart($before);
+            }
+        }
+
+        if ($pulled['skipped'] > 0) {
+            $this->_append_message($data, 'warning', lang('Order_tickets.register_skipped', [$name, $pulled['skipped']]));
+        }
+
+        $data['order_ticket_changes'] = [
+            'name'  => $name,
+            'lines' => $this->order_tickets->billing_changes($ticket_id),
+        ];
+    }
+
+    /**
+     * The register shows one warning and one success message per screen. A second message is added
+     * to the first instead of replacing it, so an out-of-stock warning is not lost behind a ticket's.
+     */
+    private function _append_message(array &$data, string $key, string $message): void
+    {
+        $data[$key] = empty($data[$key]) ? $message : $data[$key] . ' ' . $message;
+    }
+
+    /**
+     * The cashier saw the order ticket changes listed on the register and dealt with them.
+     *
+     * @noinspection PhpUnused
+     */
+    public function postAcknowledgeOrderTicket(): ResponseInterface|string
+    {
+        $ticket = $this->order_tickets->ticket_for_sale((int) $this->sale_lib->get_sale_id());
+
+        if ($ticket !== null) {
+            $this->order_tickets->acknowledge((int) $ticket['order_ticket_id']);
+        }
+
+        return $this->_reload();
     }
 
     /**
@@ -1813,6 +1932,11 @@ class Sales extends Secure_Controller
             $sale_id = NEW_ENTRY;
             $this->session->set('sale_id', NEW_ENTRY);
         }
+
+        // Before the cart is read below: an order ticket's new dishes have to be IN the cart this
+        // screen shows. See _sync_order_ticket().
+        $this->_sync_order_ticket($data);
+
         $cash_rounding = $this->sale_lib->reset_cash_rounding();
 
         // cash_rounding indicates only that the site is configured for cash rounding
@@ -2210,6 +2334,10 @@ class Sales extends Secure_Controller
         $sale_id = $this->sale_lib->get_sale_id();
         if ($sale_id != NEW_ENTRY && $sale_id != '') {
             $sale_type = $this->sale_lib->get_sale_type();
+
+            // Cancelling an order ticket's tab from the till cancels the ticket too; otherwise the
+            // waiter's phone would keep showing an order that no longer exists. Never throws.
+            $this->order_tickets->cancel_from_register((int) $sale_id, (int) $this->employee->get_logged_in_employee_info()->person_id);
 
             if ($this->config['dinner_table_enable']) {
                 $dinner_table = $this->sale_lib->get_dinner_table();

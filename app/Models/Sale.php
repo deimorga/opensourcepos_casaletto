@@ -1369,6 +1369,16 @@ class Sale extends Model
         $builder = $this->db->table('sales');
         $builder->select('sales.sale_id, sales.dinner_table_id, dinner_tables.name as dinner_table_name, sales.customer_id, sales.comment, sales.sale_time');
         $builder->join('dinner_tables', 'dinner_tables.dinner_table_id = sales.dinner_table_id', 'left');
+
+        // An order ticket's tab carries the ticket's full name: the throwaway table holds it cut to
+        // 30 characters, the ticket keeps 64. Joined only when the table exists -- the register must
+        // keep working on a schema that has not been migrated -- and LEFT, so every tab that is not
+        // a ticket's is untouched and falls back to the table name in the view.
+        if ($this->db->tableExists('order_tickets')) {
+            $builder->select('order_tickets.name as order_ticket_name');
+            $builder->join('order_tickets', 'order_tickets.sale_id = sales.sale_id', 'left');
+        }
+
         $builder->where('sales.sale_status', OPENED);
         $builder->orderBy('sales.dinner_table_id', 'ASC');
 

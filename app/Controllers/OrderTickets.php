@@ -159,7 +159,7 @@ class OrderTickets extends Secure_Controller
      * browser. The waiter can lose signal or reload at any moment and the page is simply the state of
      * the database.
      */
-    public function getShow(int $order_ticket_id): string|RedirectResponse
+    public function getShow(int $order_ticket_id): RedirectResponse|string
     {
         if (! $this->is_enabled()) {
             return $this->render_disabled();
@@ -214,7 +214,7 @@ class OrderTickets extends Secure_Controller
             $this->posted_quantity(),
             (string) $item['unit_price'],
             (string) $this->request->getPost('kitchen_note'),
-            (int) session()->get('person_id')
+            (int) session()->get('person_id'),
         );
 
         if ($line_id === 0) {
@@ -311,7 +311,7 @@ class OrderTickets extends Secure_Controller
      *
      * A closed ticket's rounds stay viewable: they are the record of what the kitchen was asked for.
      */
-    public function getRound(int $order_ticket_id, int $round_id): string|RedirectResponse
+    public function getRound(int $order_ticket_id, int $round_id): RedirectResponse|string
     {
         if (! $this->is_enabled()) {
             return $this->render_disabled();
@@ -332,11 +332,11 @@ class OrderTickets extends Secure_Controller
         }
 
         return view('order_tickets/round_print', [
-            'ticket'   => $ticket,
-            'round'    => $round,
-            'lines'    => $this->lines->get_by_round($round_id),
-            'print'    => $print,
-            'company'  => (string) (config(OSPOS::class)->settings['company'] ?? ''),
+            'ticket'  => $ticket,
+            'round'   => $round,
+            'lines'   => $this->lines->get_by_round($round_id),
+            'print'   => $print,
+            'company' => (string) (config(OSPOS::class)->settings['company'] ?? ''),
             // Who SENT the round -- the waiter the kitchen may need to ask -- not who is printing it.
             'employee' => $this->employee_name((int) $round['sent_by']),
         ]);
@@ -463,7 +463,7 @@ class OrderTickets extends Secure_Controller
     /**
      * Post/Redirect/Get: every write lands back on the ticket's page, so a reload repeats nothing.
      *
-     * @param 'success'|'warning'|'error' $type
+     * @param 'error'|'success'|'warning' $type
      */
     private function back_to(int $order_ticket_id, string $type, string $message): RedirectResponse
     {
