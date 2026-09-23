@@ -8,6 +8,15 @@
  */
 
 return [
-    "back"               => "Back",
-    "void"               => "Allow cancelling a ticket",
+    "back"             => "Back",
+    "disabled"         => "Order tickets are turned off for this business. An administrator can turn them on in Configuration, Order Tickets tab.",
+    "dishes"           => "Dishes: {0}",
+    "new_ticket"       => "New ticket",
+    "no_tickets"       => "There are no open tickets at this site.",
+    "pending"          => "Not sent: {0}",
+    "status_cancelled" => "Cancelled",
+    "status_charged"   => "Charged",
+    "status_delivered" => "Delivered",
+    "status_open"      => "Open",
+    "void"             => "Allow cancelling a ticket",
 ];

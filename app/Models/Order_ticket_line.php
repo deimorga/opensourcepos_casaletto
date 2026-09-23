@@ -336,6 +336,50 @@ class Order_ticket_line extends Model
     }
 
     /**
+     * For each ticket: how many dishes it carries and how many are still waiting to be sent.
+     *
+     * One grouped query for the whole list, not one per ticket: the list screen is what a waiter
+     * reloads all evening, from a phone, on whatever signal the table has.
+     *
+     * Every requested id comes back, with zeros when it has no lines, so the caller never needs an
+     * isset(). Voided lines are not dishes. "Pending" is the D8 condition, the same one get_pending()
+     * and assign_to_round() use, so the number on the list is exactly what the next send would carry.
+     *
+     * The aliases are not `lines`/`pending` on purpose: LINES is a reserved word in MySQL.
+     *
+     * @param list<int> $order_ticket_ids
+     * @return array<int, array{dishes: int, pending: int}>
+     */
+    public function count_by_ticket(array $order_ticket_ids): array
+    {
+        $ids = array_values(array_unique(array_map('intval', $order_ticket_ids)));
+
+        if ($ids === []) {
+            return [];
+        }
+
+        $rows = $this->db->table($this->table)
+            ->select('order_ticket_id')
+            ->select("SUM(CASE WHEN status <> 'voided' THEN 1 ELSE 0 END) AS dish_count", false)
+            ->select("SUM(CASE WHEN status = 'pending' AND round_id IS NULL THEN 1 ELSE 0 END) AS pending_count", false)
+            ->whereIn('order_ticket_id', $ids)
+            ->groupBy('order_ticket_id')
+            ->get()
+            ->getResultArray();
+
+        $counts = array_fill_keys($ids, ['dishes' => 0, 'pending' => 0]);
+
+        foreach ($rows as $row) {
+            $counts[(int) $row['order_ticket_id']] = [
+                'dishes'  => (int) $row['dish_count'],
+                'pending' => (int) $row['pending_count'],
+            ];
+        }
+
+        return $counts;
+    }
+
+    /**
      * What one round carries -- what prints as "RONDA n". Voided lines are left out: this is what the
      * kitchen is asked to cook, and a reprint must not bring back a dish that was cancelled.
      */

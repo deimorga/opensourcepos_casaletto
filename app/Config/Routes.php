@@ -22,6 +22,17 @@ $routes->post('items/bulk/preview', 'ItemsBulk::postPreview');
 $routes->post('items/bulk/apply', 'ItemsBulk::postApply');
 $routes->get('items/bulk/previous', 'ItemsBulk::getPrevious');
 
+// ---------------------------------------------------------------------------------------------
+// Comandas: el mesero toma el pedido en la mesa, desde el navegador de su celular.
+//
+// Rutas EXPLÍCITAS por la misma razón que items/bulk: el mesero deja la pantalla abierta en el
+// teléfono y la recarga, así que las direcciones tienen que ser estables. En español porque es la
+// dirección que un mesero puede llegar a teclear. Las fijas van ANTES de cualquier (:num) que se
+// agregue después, o éste se las tragaría. Ver app/Controllers/OrderTickets.php.
+// ---------------------------------------------------------------------------------------------
+$routes->get('comandas', 'OrderTickets::getIndex');
+$routes->get('comandas/salir', 'OrderTickets::getLogout');
+
 $routes->get('/', 'Login::index');
 $routes->get('login', 'Login::index');
 $routes->post('login', 'Login::index');

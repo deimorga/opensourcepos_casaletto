@@ -9,6 +9,15 @@
  */
 
 return [
-    "back"               => "Volver",
-    "void"               => "Permitir cancelar una comanda",
+    "back"             => "Volver",
+    "disabled"         => "Las comandas están apagadas en este negocio. Un administrador puede encenderlas en Configuración, pestaña Comandas.",
+    "dishes"           => "Platos: {0}",
+    "new_ticket"       => "Nueva comanda",
+    "no_tickets"       => "No hay comandas abiertas en este local.",
+    "pending"          => "Sin enviar: {0}",
+    "status_cancelled" => "Cancelada",
+    "status_charged"   => "Cobrada",
+    "status_delivered" => "Entregada",
+    "status_open"      => "Abierta",
+    "void"             => "Permitir cancelar una comanda",
 ];

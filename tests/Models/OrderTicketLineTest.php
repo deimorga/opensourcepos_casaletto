@@ -458,6 +458,28 @@ class OrderTicketLineTest extends CIUnitTestCase
         $this->assertFalse($this->lines->edit_line(999999, ['quantity' => '2']));
     }
 
+    /**
+     * The list screen's numbers, for every ticket in one query. A voided line is not a dish, and
+     * "pending" must be exactly what the next send would carry.
+     */
+    public function testCountByTicketCountsDishesAndPendingForEveryTicketAskedFor(): void
+    {
+        $this->addLine(self::TICKET, '1', '1000');
+        $this->addLine(self::TICKET, '1', '1000');
+        $this->lines->assign_to_round(self::TICKET, 1);
+        $this->addLine(self::TICKET, '1', '1000');
+        $this->lines->void_line($this->addLine(self::TICKET, '1', '1000'));
+
+        $this->addLine(self::OTHER_TICKET, '2', '500');
+
+        $counts = $this->lines->count_by_ticket([self::TICKET, self::OTHER_TICKET, 303]);
+
+        $this->assertSame(['dishes' => 3, 'pending' => 1], $counts[self::TICKET]);
+        $this->assertSame(['dishes' => 1, 'pending' => 1], $counts[self::OTHER_TICKET]);
+        $this->assertSame(['dishes' => 0, 'pending' => 0], $counts[303], 'A ticket with no lines still comes back, with zeros.');
+        $this->assertSame([], $this->lines->count_by_ticket([]));
+    }
+
     public function testGetInfoOfAMissingLineIsNull(): void
     {
         $this->assertNull($this->lines->get_info(999999));

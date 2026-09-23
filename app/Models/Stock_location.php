@@ -131,6 +131,47 @@ class Stock_location extends Model
      * @param string $module_id
      * @return int
      */
+    /**
+     * The first active location an employee is granted for a module, or null when there is none.
+     *
+     * The same query as get_default_location_id() below, taking the person explicitly and answering
+     * null instead of failing. That one dereferences ->location_id on a row that may not exist (its
+     * own TODO says so), and an order-ticket waiter -- granted order_tickets and no sales location --
+     * is exactly the employee for whom it does not exist.
+     */
+    public function find_granted_location_id(int $person_id, string $module_id): ?int
+    {
+        $row = $this->db->table('stock_locations')
+            ->select('stock_locations.location_id')
+            ->join('permissions AS permissions', 'permissions.location_id = stock_locations.location_id')
+            ->join('grants AS grants', 'grants.permission_id = permissions.permission_id')
+            ->where('grants.person_id', $person_id)
+            ->like('permissions.permission_id', $module_id, 'after')
+            ->where('stock_locations.deleted', 0)
+            ->orderBy('stock_locations.location_id', 'ASC')
+            ->limit(1)
+            ->get()
+            ->getRow();
+
+        return $row === null ? null : (int) $row->location_id;
+    }
+
+    /**
+     * The business's first active location, or null when it has none at all.
+     */
+    public function find_first_active_location_id(): ?int
+    {
+        $row = $this->db->table('stock_locations')
+            ->select('location_id')
+            ->where('deleted', 0)
+            ->orderBy('location_id', 'ASC')
+            ->limit(1)
+            ->get()
+            ->getRow();
+
+        return $row === null ? null : (int) $row->location_id;
+    }
+
     public function get_default_location_id(string $module_id = 'items'): int
     {
         $builder = $this->db->table('stock_locations');
