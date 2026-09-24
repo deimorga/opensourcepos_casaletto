@@ -24,8 +24,18 @@ the only exception, and it is a deliberate call, not a default.
 
 These are not upstream's rules. Ignoring them has caused real incidents in this repo.
 
-- **The deploy workflows do NOT run database migrations.** Any commit that adds a migration needs
-  `php spark migrate` triggered manually over SSH after the deploy finishes.
+- **The container migrates every tenant schema when it starts** (`docker/entrypoint.sh` →
+  `scripts/migrate-tenants.sh`, since `8f92b4901`). A deploy with a new migration needs no manual
+  `php spark migrate`; check the log ends in `[entrypoint] All schemas current.` If any schema fails,
+  Apache does not start, on purpose. Take a database backup before deploying a migration anyway.
+- **A new permission leaves the support employee behind.** `soporte_micronuba` holds the permissions
+  that existed when it was created. After a deploy that adds a module or permission, run
+  `php spark platform:support-employee` (all tenants, idempotent) or a support session won't see it.
+  Deliberately not in the entrypoint: a failure there would take the till down.
+- **Never roll back to an image older than the schema.** An image whose latest migration is below the
+  database's makes `MY_Migration::is_latest()` false, and `Load_config` destroys the session on every
+  request: nobody can log in, with every check green. Roll back image and database backup together,
+  or pick a rollback image with the same migrations.
 - **Any manual `docker compose up --build` must be preceded by the asset build.** The Dockerfile only
   copies the repo; it never runs composer or npm. Skipping the build leaves the page with no CSS or
   JS behind an HTTP 200 that no smoke test catches.
