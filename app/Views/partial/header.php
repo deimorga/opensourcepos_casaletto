@@ -52,7 +52,7 @@ $request = Services::request();
     <?php endif; ?>
 
     <?php foreach ($extra_stylesheets ?? [] as $stylesheet) : ?>
-        <link rel="stylesheet" href="<?= esc($stylesheet, 'attr') ?>">
+        <link rel="stylesheet" href="<?= esc($stylesheet) ?>">
     <?php endforeach; ?>
 
     <?= view('partial/header_js') ?>
