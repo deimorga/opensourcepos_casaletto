@@ -5,10 +5,14 @@ Bitácora de errores detectados revisando `writable/logs/` en producción que **
 Cómo revisar los logs de producción (solo lectura):
 
 ```bash
-ssh -i ~/.ssh/ospos_deploy root@148.230.82.172
-cd /root/POS_Casaletto
+ssh <alias-del-servidor>          # el alias, el usuario y la clave están en el repositorio de infraestructura
+cd <directorio-de-despliegue>
 docker compose -f docker-compose.prod.yml exec -T ospos sh -c 'grep -E "^(CRITICAL|ERROR)" writable/logs/log-$(date +%F).log'
 ```
+
+> **Este repositorio es público.** La dirección del servidor, el usuario, la ruta de despliegue y el
+> nombre del fichero de clave no se escriben aquí: viven en el repositorio de infraestructura, que es
+> privado. Ver `docs/Tecnico/ci-diagnostico-y-estrategia.md`.
 
 ---
 
