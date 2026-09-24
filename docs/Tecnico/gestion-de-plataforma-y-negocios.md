@@ -125,6 +125,14 @@ código tecleado venda otro producto.
 > `tax_included` **no está en el perfil**, ni en una lista ni en la otra, así que un negocio nuevo se
 > queda con el `0` de la semilla. `country_codes` pasa a `co`. Las dos decisiones están escritas en
 > §5 del documento funcional.
+>
+> **2026-09-24:** `PREFERENCES` suma `dateformat = d/m/Y` (D27) y tres textos
+> (`quote_default_comments` y `invoice_default_comments` vacíos, `invoice_email_message` en español).
+> Las migraciones `20260924000000` y `20260924010000` hacen lo mismo con los negocios que ya existían,
+> pero solo si el esquema está en español, y en un negocio nuevo corren ANTES que el perfil, con el
+> esquema todavía en `en`: sin esto, un negocio nuevo nacía con mes/día/año y los textos en inglés.
+> `TenantConfigProfileTest::testTheProfileAndTheMigrationsAgree` exige que perfil y migraciones usen
+> los mismos valores.
 
 **Paraíso está bien configurado** porque alguien lo corrigió a mano, no porque el sistema lo hiciera.
 Y **una clave se escapó**: `language_code` quedó en `es-ES` frente al `es-MX` de Casaletto, así que

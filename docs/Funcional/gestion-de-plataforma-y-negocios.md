@@ -286,6 +286,9 @@ vendiendo es una operación revisada, clave por clave, según D13—, pero tampo
 | `timezone` | `America/Bogota` | Un cliente fuera de Bogotá lo necesitaría distinto |
 | `company` | el nombre del negocio | Evidentemente suya |
 | `country_codes` | `co` *(decidido el 2026-09-01)* | Hoy `us` en los dos negocios, que es sencillamente incorrecto para Colombia |
+| `dateformat` | `d/m/Y` *(D27, 2026-09-24)* | Día/mes/año, como se lee en Colombia. Ver `formato-de-fecha.md` |
+| `quote_default_comments`, `invoice_default_comments` | vacíos *(2026-09-24)* | La semilla trae textos de ejemplo en inglés que se imprimen en cotizaciones y facturas |
+| `invoice_email_message` | «Estimado(a) {CU}: adjuntamos el documento {ISEQ}.» *(2026-09-24)* | La semilla lo trae en inglés |
 | `tax_included` | **sigue por decidir** | Hoy `0` en los dos. El perfil **no lo toca**, y un negocio nuevo se queda con el `0` de la semilla |
 
 **Sobre `tax_included`, y por qué el perfil lo deja quieto.** El documento de venta por peso
