@@ -107,8 +107,7 @@ pasaba `'C20013'` a `Item_kit::get_info()` (busca por id) y a `Sale_lib::out_of_
 - **Correo.** Producción tiene `protocol = mail`, sin `smtp_host`, y el contenedor no trae `sendmail`:
   `getSendPdf()` falla. Se necesita una cuenta SMTP; es configuración, no código. El PDF descargable
   cubre la necesidad mientras tanto.
-- **Formato de fecha.** `dateformat = m/d/Y` es del negocio y afecta a todo el sistema (y a los
-  formularios de Turnos, que exigen ese formato).
+- **Formato de fecha.** Resuelto aparte el mismo día: `d/m/Y` (D27, `docs/Tecnico/formato-de-fecha.md`).
 - **Cliente obligatorio en el servidor.** Solo la pantalla lo exige (oculta el botón). Se deja así: la
   única forma de cotizar sin cliente es fabricar la petición.
 - Defectos menores vistos y no tocados: `Token_quote_sequence` listado dos veces en

@@ -87,7 +87,5 @@ En **Configuración → Facturación** (visible con la facturación encendida):
 | **Comentario de las cotizaciones** | Texto al pie de cada cotización (condiciones, forma de pago…) |
 | **Vigencia de la cotización (días)** | Cuántos días vale. Con 0 no se imprime la vigencia |
 
-La fecha sale en el formato de fecha del negocio (Configuración → Local). Hoy es **mes/día/año**, el
-formato de Estados Unidos: la vigencia «10/09/2026» significa 9 de octubre, pero un cliente en Colombia
-la lee como 10 de septiembre. Cambiarlo a día/mes/año cambia todas las pantallas y documentos a la vez,
-así que es una decisión del negocio, pendiente (2026-09-24).
+La fecha sale en el formato de fecha del negocio. Desde el 2026-09-24 es **día/mes/año**: la vigencia
+«09/10/2026» es el 9 de octubre. Antes era mes/día/año y se leía al revés. Ver `formato-de-fecha.md`.
