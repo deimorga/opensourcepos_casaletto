@@ -1,6 +1,6 @@
 # Cotizaciones
 
-> **Estado (2026-09-24):** revisadas y ajustadas. Hasta ese día **nadie había hecho una cotización**
+> **Estado (2026-09-24, 09:00):** revisadas, ajustadas y **en producción** en los tres negocios. Hasta ese día **nadie había hecho una cotización**
 > en ningún negocio: todas las ventas eran ventas normales. Al probarlas aparecieron varios defectos,
 > ya corregidos (§4). Falta una sola cosa que no depende del programa: **el envío por correo** (§5).
 >
@@ -87,5 +87,7 @@ En **Configuración → Facturación** (visible con la facturación encendida):
 | **Comentario de las cotizaciones** | Texto al pie de cada cotización (condiciones, forma de pago…) |
 | **Vigencia de la cotización (días)** | Cuántos días vale. Con 0 no se imprime la vigencia |
 
-La fecha sale en el formato de fecha del negocio (Configuración → Local). Hoy es mes/día/año; cambiarlo
-cambia todas las pantallas y documentos, así que es una decisión del negocio y no de las cotizaciones.
+La fecha sale en el formato de fecha del negocio (Configuración → Local). Hoy es **mes/día/año**, el
+formato de Estados Unidos: la vigencia «10/09/2026» significa 9 de octubre, pero un cliente en Colombia
+la lee como 10 de septiembre. Cambiarlo a día/mes/año cambia todas las pantallas y documentos a la vez,
+así que es una decisión del negocio, pendiente (2026-09-24).
