@@ -80,6 +80,26 @@ class Item_kit extends Model
     }
 
     /**
+     * The id of the kit whose code (item_kit_number) is exactly this, or null.
+     *
+     * The register accepts a kit two ways: "KIT <id>", which is what its live search sends, and the
+     * kit's own code, typed or scanned. The second way used to reach Item_kit::get_info() and
+     * Sale_lib::out_of_stock() with the code in place of the id -- "C20013" where an id was expected
+     * -- and the register answered 500. Sales::postAdd() now turns a code into "KIT <id>" first.
+     */
+    public function get_item_kit_id_by_number(string $item_kit_number): ?int
+    {
+        $row = $this->db->table('item_kits')
+            ->select('item_kit_id')
+            ->where('item_kit_number', $item_kit_number)
+            ->orderBy('item_kit_id', 'ASC')
+            ->get(1)
+            ->getRowArray();
+
+        return $row === null ? null : (int) $row['item_kit_id'];
+    }
+
+    /**
      * Gets total of rows
      */
     public function get_total_rows(): int

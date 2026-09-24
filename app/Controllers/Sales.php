@@ -606,6 +606,16 @@ class Sales extends Secure_Controller
         if ($mode == 'return' && $this->sale->isValidReceipt($item_id_or_number_or_item_kit_or_receipt)) {
             $this->sale_lib->return_entire_sale($item_id_or_number_or_item_kit_or_receipt);
         } elseif ($this->item_kit->is_valid_item_kit($item_id_or_number_or_item_kit_or_receipt)) {
+            // A kit's own code, typed or scanned, becomes "KIT <id>" -- the form the live search
+            // sends -- before anything below reads it as an id. See Item_kit::get_item_kit_id_by_number().
+            if (count(explode(' ', $item_id_or_number_or_item_kit_or_receipt)) === 1) {
+                $kit_id_from_number = $this->item_kit->get_item_kit_id_by_number($item_id_or_number_or_item_kit_or_receipt);
+
+                if ($kit_id_from_number !== null) {
+                    $item_id_or_number_or_item_kit_or_receipt = 'KIT ' . $kit_id_from_number;
+                }
+            }
+
             // Add kit item to order if one is assigned
             $pieces = explode(' ', $item_id_or_number_or_item_kit_or_receipt);
 

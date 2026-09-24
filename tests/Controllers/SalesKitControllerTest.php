@@ -199,4 +199,31 @@ class SalesKitControllerTest extends CIUnitTestCase
         // instead of a fatal error / timeout.
         $response->assertOK();
     }
+
+    /**
+     * A kit's own code, typed or scanned, adds the kit exactly like picking it from the live search.
+     *
+     * It used to answer 500: the code ("TEST-TYPED-KIT") reached Sale_lib::out_of_stock() and
+     * Item_kit::get_info() where the kit's id was expected. Found on staging on 2026-09-23 by typing
+     * C20013 (SANDWICH 4 CARNES) in the register.
+     */
+    public function testTypingAKitsCodeAddsTheKitLikeTheLiveSearch(): void
+    {
+        $panId = $this->createItem('TEST-TYPED-PAN', 'Pan tecleado');
+
+        [, $kitItemId] = $this->createItemKit('TEST-TYPED-KIT', 'Kit tecleado', [
+            ['item_id' => $panId, 'quantity' => '2'],
+        ]);
+
+        $response = $this->postReq('sales/add', ['item' => 'TEST-TYPED-KIT']);
+        $response->assertOK();
+
+        $cart     = $_SESSION['sales_cart'] ?? [];
+        $findLine = fn (int $itemId) => array_values(array_filter($cart, fn ($line) => $line['item_id'] == $itemId))[0] ?? null;
+
+        $this->assertNotNull($findLine($kitItemId), 'The kit line is in the cart.');
+        $this->assertNotNull($findLine($panId), 'And its ingredient, as with "KIT <id>".');
+        $this->assertEquals('2.0000', bcadd($findLine($panId)['quantity'], '0', 4));
+    }
+
 }
