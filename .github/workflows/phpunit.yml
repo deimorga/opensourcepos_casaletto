@@ -1,5 +1,13 @@
 name: PHPUnit Tests
 
+# Los cuatro ultimos filtros se anadieron el 2026-09-23. Hasta entonces un commit
+# que solo cambiara dependencias --`composer.json`, `composer.lock`-- o la forma de
+# construir la imagen NO disparaba esta suite: se desplegaba con CERO de las 1.360
+# pruebas ejecutadas.
+#
+# Es justo el cambio que mas necesita correrlas. `vendor/` lo construye la imagen
+# desde `composer.lock` desde el 2026-09-16, asi que tocar el lock cambia lo que
+# corre en produccion sin tocar una sola linea de PHP.
 on:
   push:
     paths:
@@ -9,6 +17,11 @@ on:
       - '.github/workflows/phpunit.yml'
       - 'gulpfile.js'
       - 'app/Database/**'
+      - 'composer.json'
+      - 'composer.lock'
+      - 'Dockerfile'
+      - 'package.json'
+      - 'package-lock.json'
   pull_request:
     paths:
       - '**.php'
@@ -17,6 +30,11 @@ on:
       - '.github/workflows/phpunit.yml'
       - 'gulpfile.js'
       - 'app/Database/**'
+      - 'composer.json'
+      - 'composer.lock'
+      - 'Dockerfile'
+      - 'package.json'
+      - 'package-lock.json'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
