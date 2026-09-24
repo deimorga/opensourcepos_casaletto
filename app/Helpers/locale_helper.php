@@ -341,6 +341,71 @@ function to_date(int $date = DEFAULT_DATE): string
 }
 
 /**
+ * Reads a date typed into a form, in the business's format, and refuses what is not a real date.
+ *
+ * Every form writes its dates with date($config['dateformat'] ...) and used to read them back with
+ * date_create_from_format(), which does NOT fail on an impossible date: it rolls it over. With
+ * d/m/Y, "09/30/2026" (the old month-first habit) became 2028-06-09 and was saved without a word.
+ * This function:
+ *
+ *   1. reads the value in the business's format and accepts it only if PHP reported no warning
+ *      and no error -- so nothing rolls over;
+ *   2. if that fails, reads it with day and month swapped. A value that is only a real date the
+ *      other way round ("09/30/2026") can only mean one thing, and is taken that way. The form
+ *      already showed the person the date in words before saving (partial/datepicker_locale.php);
+ *   3. otherwise answers false, and the caller refuses the form with its own message.
+ *
+ * A value valid both ways ("05/09/2026") is read in the business's format: the screen spelled it out
+ * ("5 de septiembre de 2026") so the person could see it. D27, docs/Tecnico/formato-de-fecha.md.
+ *
+ * @param bool $with_time whether the field carries the time as well (all of them but date attributes)
+ *
+ * @return DateTime|false
+ */
+function parse_typed_datetime(?string $value, bool $with_time = true): DateTime|false
+{
+    $config = config(OSPOS::class)->settings;
+    $format = $config['dateformat'] . ($with_time ? ' ' . $config['timeformat'] : '');
+    $value  = trim((string) $value);
+
+    if ($value === '') {
+        return false;
+    }
+
+    foreach ([$format, swap_day_and_month($format)] as $candidate) {
+        $date   = DateTime::createFromFormat($candidate, $value);
+        $errors = DateTime::getLastErrors();
+
+        $clean = $errors === false || ($errors['warning_count'] === 0 && $errors['error_count'] === 0);
+
+        if ($date !== false && $clean) {
+            return $date;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * The refusal every form gives when parse_typed_datetime() answers false: what was typed, and an
+ * example of today in the business's format so the person sees the order that is expected.
+ */
+function typed_date_error(?string $value): string
+{
+    $config = config(OSPOS::class)->settings;
+
+    return lang('Common.date_invalid', [trim((string) $value), date($config['dateformat'])]);
+}
+
+/**
+ * The same format with day and month swapped: d/m/Y -> m/d/Y. Time letters are left alone.
+ */
+function swap_day_and_month(string $format): string
+{
+    return strtr($format, ['d' => 'm', 'm' => 'd', 'j' => 'n', 'n' => 'j']);
+}
+
+/**
  * @param int $datetime
  * @return string
  */

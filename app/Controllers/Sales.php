@@ -2315,7 +2315,13 @@ class Sales extends Secure_Controller
         $newdate = $this->request->getPost('date', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
         $employee_id = $this->employee->get_logged_in_employee_info()->person_id;
         $inventory = model(Inventory::class);
-        $date_formatter = date_create_from_format($this->config['dateformat'] . ' ' . $this->config['timeformat'], $newdate);
+        $date_formatter = parse_typed_datetime($newdate);
+
+        // Before, ->format() on a false from date_create_from_format() was a 500.
+        if ($date_formatter === false) {
+            return $this->response->setJSON(['success' => false, 'message' => typed_date_error($newdate), 'id' => $sale_id]);
+        }
+
         $sale_time = $date_formatter->format('Y-m-d H:i:s');
 
         $sale_data = [

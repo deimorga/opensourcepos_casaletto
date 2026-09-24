@@ -263,7 +263,12 @@ class Customers extends Persons
             'comments'     => $this->request->getPost('comments')
         ];
 
-        $date_formatter = date_create_from_format($this->config['dateformat'] . ' ' . $this->config['timeformat'], $this->request->getPost('date'));
+        $date_formatter = parse_typed_datetime($this->request->getPost('date'));
+
+        // Before, ->format() on a false from date_create_from_format() was a 500.
+        if ($date_formatter === false) {
+            return $this->response->setJSON(['success' => false, 'message' => typed_date_error($this->request->getPost('date')), 'id' => $customer_id]);
+        }
 
         $customer_data = [
             'consent'           => $this->request->getPost('consent') != null,

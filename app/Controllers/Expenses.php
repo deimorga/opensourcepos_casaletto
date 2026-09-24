@@ -189,7 +189,7 @@ class Expenses extends Secure_Controller
         $config = config(OSPOS::class)->settings;
         $newdate = $this->request->getPost('date', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
 
-        $date_formatter = date_create_from_format($config['dateformat'] . ' ' . $config['timeformat'], $newdate);
+        $date_formatter = parse_typed_datetime($newdate);
 
         // date_create_from_format() returns false when the posted date does not match the
         // configured format, and calling ->format() on that is a fatal, not a validation failure.
@@ -197,7 +197,7 @@ class Expenses extends Secure_Controller
         if ($date_formatter === false) {
             return $this->response->setJSON([
                 'success' => false,
-                'message' => lang('Expenses.error_adding_updating'),
+                'message' => typed_date_error($newdate),
                 'id'      => $expense_id
             ]);
         }

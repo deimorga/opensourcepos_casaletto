@@ -154,6 +154,42 @@ class ExpensesCashSourceTest extends CIUnitTestCase
      * The field is greyed out in the cashier's form, but a disabled field is not submitted and a
      * hand-made POST can say anything. The decision belongs to the server.
      */
+    /**
+     * D27 through a real form. The test database runs month/day/year, so the rule is exercised the
+     * other way round: "30/09/2026" is only a real date day-first, and is read that way instead of
+     * rolling over into 2028 as date_create_from_format() did.
+     */
+    public function testADateTypedInTheOtherOrderIsReadAsTheOnlyRealDate(): void
+    {
+        $this->loginAs($this->createCashier());
+        $post = $this->expensePost('cash', 'register');
+        $post['date'] = '30/09/2026 10:15:00';
+
+        $result = json_decode($this->post('expenses/save', $post)->getJSON(), true);
+
+        $this->assertTrue($result['success']);
+        $row = db_connect()->table('expenses')->where('expense_id', (int) $result['id'])->get()->getRow();
+        $this->assertSame('2026-09-30 10:15:00', $row->date);
+    }
+
+    /**
+     * A date that is not real either way is refused with a message that shows what was typed, and
+     * nothing is stored.
+     */
+    public function testAnImpossibleDateIsRefusedAndNothingIsStored(): void
+    {
+        $this->loginAs($this->createCashier());
+        $post = $this->expensePost('cash', 'register');
+        $post['date'] = '31/31/2026 10:15:00';
+        $before = db_connect()->table('expenses')->countAllResults();
+
+        $result = json_decode($this->post('expenses/save', $post)->getJSON(), true);
+
+        $this->assertFalse($result['success']);
+        $this->assertStringContainsString('31/31/2026', $result['message']);
+        $this->assertSame($before, db_connect()->table('expenses')->countAllResults());
+    }
+
     public function testCashierCannotPostTheirWayIntoCollectedCash(): void
     {
         $this->loginAs($this->createCashier());

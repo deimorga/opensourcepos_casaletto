@@ -117,7 +117,8 @@ class Attribute extends Model
         switch ($definitionType) {
             case DATE:
                 $dataType = 'date';
-                $attributeDateValue = DateTime::createFromFormat($config['dateformat'], $attributeValue);
+                // Date only; see parse_typed_datetime(). An unreadable value is kept as typed, as before.
+                $attributeDateValue = parse_typed_datetime($attributeValue, false);
                 $attributeValue = $attributeDateValue ? $attributeDateValue->format('Y-m-d') : $attributeValue;
                 break;
             case DECIMAL:
@@ -936,7 +937,7 @@ class Attribute extends Model
 
         if ($definitionType === DATE) {
             $config = config(OSPOS::class)->settings;
-            $date = DateTime::createFromFormat($config['dateformat'], $attributeValue);
+            $date = parse_typed_datetime($attributeValue, false);
             if ($date !== false) {
                 $attributeValue = $date->format('Y-m-d');
             }

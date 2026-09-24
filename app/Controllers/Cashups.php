@@ -357,13 +357,12 @@ class Cashups extends Secure_Controller
 
         if ($is_new) {
             $open_date = $this->request->getPost('open_date');
-            $open_date_formatter = date_create_from_format($this->config['dateformat'] . ' ' . $this->config['timeformat'], $open_date);
+            // parse_typed_datetime(): the business's format, no roll-over, day/month swapped when that
+            // is the only real reading. False is a refusal, never a fatal ->format() on false.
+            $open_date_formatter = parse_typed_datetime($open_date);
 
-            // date_create_from_format() returns false when the posted date does
-            // not match the configured format, and calling ->format() on that
-            // is a fatal, not a validation failure.
             if ($open_date_formatter === false) {
-                return $this->response->setJSON(['success' => false, 'message' => lang('Cashups.error_adding_updating'), 'id' => NEW_ENTRY]);
+                return $this->response->setJSON(['success' => false, 'message' => typed_date_error($open_date), 'id' => NEW_ENTRY]);
             }
 
             $open_employee_id = $this->request->getPost('open_employee_id', FILTER_SANITIZE_NUMBER_INT);
@@ -390,10 +389,10 @@ class Cashups extends Secure_Controller
             ];
         } else {
             $close_date = $this->request->getPost('close_date');
-            $close_date_formatter = date_create_from_format($this->config['dateformat'] . ' ' . $this->config['timeformat'], $close_date);
+            $close_date_formatter = parse_typed_datetime($close_date);
 
             if ($close_date_formatter === false) {
-                return $this->response->setJSON(['success' => false, 'message' => lang('Cashups.error_adding_updating'), 'id' => $cashup_id]);
+                return $this->response->setJSON(['success' => false, 'message' => typed_date_error($close_date), 'id' => $cashup_id]);
             }
 
             $cash_up_data = [
@@ -602,7 +601,7 @@ class Cashups extends Secure_Controller
         }
 
         $collected_at = $this->request->getPost('collected_at');
-        $collected_at_formatter = date_create_from_format($this->config['dateformat'] . ' ' . $this->config['timeformat'], $collected_at);
+        $collected_at_formatter = parse_typed_datetime($collected_at);
 
         // date_create_from_format() returns false on a format mismatch and calling ->format() on
         // that is a fatal. The time is the whole point of the record -- it is what decides which
