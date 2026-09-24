@@ -1,9 +1,9 @@
 # Diseño técnico — Comandas: el pedido que se toma en la mesa
 
-> **Estado (2026-09-23):** **Entrega 1 construida** (`23786d768`…`db4e20d0e`), suite verde en CI
-> en PHP 8.2/8.3/8.4 con 164 pruebas nuevas. Migraciones aplicadas en los cuatro esquemas de
-> **staging**; el código de la pantalla todavía no está desplegado allí. **Pendiente: certificación en
-> staging por alguien que no escribió el código, y producción.** Entregas 2 y 3 sin empezar.
+> **Estado (2026-09-23, noche):** **Entregas 1 y 2 en producción** (`bcfac895f`, `master` al mismo
+> commit), piloto en Casaletto (§14.2). CI verde, 1.393 pruebas. Los otros negocios tienen las tablas
+> y el módulo con el interruptor apagado. Entrega 3 (cocina) sin empezar. La certificación formal por
+> otra persona se reemplazó, por decisión del dueño, por el piloto.
 >
 > Construir la Entrega 1 corrigió varias cosas de este diseño. Están juntas en §0 y corregidas en su
 > sección; donde el texto original quedó por historia, lo dice.
@@ -113,6 +113,14 @@ ella; ahora dice «Mesas».
 > - **Sin camino de vuelta a la caja.** El layout solo ofrecía «Salir». `OrderTickets::layout_data()`
 >   pasa `register_url` cuando el empleado pasa `has_module_grant('sales')` —la misma comprobación de
 >   `Secure_Controller`, así que el enlace nunca lleva a `no_access`—, y el layout pinta «Caja».
+> **D26 (2026-09-23): el celular lleva a Comandas.** `Employee::landing_route($person_id, $from_phone)`
+> devuelve `comandas` también para quien tiene `home` **si** entra desde un celular, tiene
+> `order_tickets` y el interruptor está encendido. `Login::from_phone()` es
+> `$this->request->getUserAgent()->isMobile()` y lo pasan los tres caminos de ingreso (normal,
+> segundo factor, entrada de soporte). Solo elige la pantalla de llegada, nunca un permiso: el
+> user agent es lo que el navegador dice. Lo fijan `EmployeeLandingRouteTest` (cuatro casos) y
+> `LoginPhoneDetectionTest` (iPhone y Android sí, Mac y Windows no; los tres caminos pasan el dato).
+> **El dispositivo no se guarda** en ningún lado: `ospos_sessions` solo tiene id, IP, hora y datos.
 > Lo fijan `OrderTicketsPermissionTest::testTheMenuTileLeadsToTheScreen`,
 > `testACashierWhoAlsoTakesOrdersReachesBothAndCanGoBackToTheTill` y `testAWaiterIsNotOfferedTheTill`.
 
@@ -761,6 +769,12 @@ línea de diseño: quien usa la caja tiene que reconocer la pantalla. Se rehízo
 Verificado en staging el 2026-09-23 con Chrome sin ventana a 1440 px y a 390 px (sin desplazamiento
 horizontal): lista, búsqueda en vivo y agregar un plato eligiéndolo de la lista.
 
+**La hoja lleva huella de contenido** (`css/order_tickets.css?v=<8 hex de md5>`,
+`OrderTickets::stylesheet_url()`). El servidor la entrega sin `Cache-Control` y cada navegador adivina
+cuánto guardarla: el iPhone del dueño se quedó con la hoja del diseño rechazado —mismo nombre, reglas
+de otra pantalla— y la nueva salió con los paneles encimados. El paquete común no tiene el problema
+porque gulp-rev le pone la huella en el nombre; esta hoja no va en el paquete.
+
 ### 9.2 Lo que la pantalla tiene que hacer bien en un móvil
 
 - Buscar un artículo y agregarlo con el pulgar, sin teclado físico.
@@ -1001,6 +1015,31 @@ prueba**.
 **Certificación en staging** (por alguien que no escribió el código), sobre la interfaz real: los once
 pasos del plan, empezando con los dos interruptores apagados para comprobar que la caja se comporta
 exactamente como hoy.
+
+### 14.2 Producción, 2026-09-23 — lo que se hizo
+
+Autorizado por el dueño con el local cerrado (última venta 20:50; despliegue desde las 21:21).
+
+1. Imagen de retorno `casaletto-ospos:rollback-20260923` (`b9b4bb351149`, lo que corría: `32f280c07`).
+2. Respaldo de las cuatro bases en `/root/backups/prod-20260923-pre-comandas/`, cada una terminada en
+   `Dump completed`.
+3. Despliegue de `4b94cc051`; el entrypoint migró los tres negocios (`All active tenants migrated
+   cleanly`). Las tres tablas quedaron en `ospos`, `tenant_paraisodelacanasta` y
+   `tenant_diversosoluciones`.
+4. `php spark platform:support-employee`: 2 permisos completados en cada uno de los tres negocios.
+5. En `ospos` (Casaletto): `order_tickets_enable = 1`, `order_tickets_kitchen_enable = 0`; permisos
+   `order_tickets` (menú Inicio) y `order_tickets_void` a las personas 1–6. Caché de configuración
+   borrada (`writable/cache/settings_*`).
+6. Verificación de solo lectura: ingreso 200, `/comandas` redirige al ingreso, hoja e icono servidos,
+   58/3 referencias de assets iguales, cero comandas, ninguna venta nueva.
+7. Segundo despliegue, `bcfac895f` (D26), con imagen de retorno `casaletto-ospos:rollback-20260923b`
+   (= `4b94cc051`). `master` adelantado a `bcfac895f`.
+
+> **Vuelta atrás: usar `rollback-20260923b`, NO `rollback-20260923`.** Esta última es de antes de las
+> migraciones de comandas. Volver a ella con las bases ya migradas hace que `MY_Migration::is_latest()`
+> dé falso y `Load_config` destruya la sesión en cada petición: nadie puede entrar, con todo en verde.
+> Si hubiera que volver al código anterior a comandas, es imagen **y** respaldo de base juntos.
+> Apagar el piloto no necesita volver atrás: basta `order_tickets_enable = 0` y borrar la caché.
 
 ## 15. Lo que hay que medir o confirmar antes de construir
 

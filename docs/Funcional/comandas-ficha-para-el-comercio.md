@@ -30,7 +30,9 @@ caja lo cobra como cualquier venta.
 
 ## Cómo se usa, en cinco pasos
 
-1. **El mesero entra** desde el navegador de su celular con su usuario. Cae directo en su pantalla.
+1. **Se entra** desde el navegador del celular con el usuario de cada uno. Quien tiene Comandas y
+   entra desde el celular cae directo en la pantalla de comandas, que es la misma pantalla de Ventas
+   sin el cobro. Desde el computador, Comandas está en el menú.
 2. **Abre una comanda** con un nombre que la caja va a reconocer: «ANDREA», «mesa 4», «domicilio Juan».
 3. **Busca y agrega los platos**, cada uno con su nota para la cocina si hace falta: «sin cebolla»,
    «término medio», «para llevar».

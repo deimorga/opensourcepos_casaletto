@@ -1,8 +1,10 @@
 # Alcance funcional — Comandas: el pedido que se toma en la mesa
 
-> **Estado (2026-09-23):** la **Entrega 1 está construida y probada**, pero **todavía no la usa
-> ningún comercio**: falta que alguien distinto de quien la programó la pruebe en staging, y después
-> subirla a producción. Mientras tanto, para todos los negocios la aplicación sigue exactamente igual.
+> **Estado (2026-09-23, 21:30):** las **Entregas 1 y 2 están en producción**, y **Casaletto hace el
+> piloto**: comandas encendido, pantalla de cocina apagada, y los 6 empleados con permiso para tomar
+> y para cancelar comandas (§4.14). Los otros negocios tienen el módulo instalado y **apagado**: para
+> ellos la aplicación sigue exactamente igual. El dueño decidió ir al piloto sin la certificación
+> formal por otra persona en staging; el piloto hace ese papel.
 >
 > Decisiones en §6. Al construirla aparecieron tres cosas que el negocio tiene que saber, y están en
 > §4.1, §4.6 y §4.11: comandas necesita Mesas encendido, la caja avisa cuando el mesero cambia algo, y
@@ -202,6 +204,15 @@ precio, cantidad y total, y los botones tienen el tamaño del dedo.
 > recargaba la página. El dueño la rechazó el 2026-09-23 por romper la línea de diseño; se rehízo
 > sobre la pantalla de venta.
 
+**Quien entra desde un celular y tiene Comandas, cae en Comandas** (D26, 2026-09-23). En Casaletto
+el cajero también toma pedidos en las mesas: si inicia sesión desde el celular es para eso, y la caja
+no se usa desde un celular. Desde un computador todo sigue igual: entra a Inicio. Si el negocio tiene
+Comandas apagado, el celular también va a Inicio.
+
+> **Qué dispositivo usó cada quien:** hoy el sistema **no lo guarda**. Solo lo mira en el momento de
+> entrar, para decidir la pantalla de llegada. Registrarlo por ingreso (empleado, hora, celular o
+> computador, sistema y navegador) es poco trabajo y quedó propuesto para el piloto.
+
 Cada mesero entra con **su** usuario, así que cada comanda queda con un nombre detrás. Al ingresar,
 **el mesero cae directo en su pantalla de comandas** y tiene su propio botón **Salir**: no pasa por la
 pantalla de inicio de la caja, que no le corresponde.
@@ -309,6 +320,22 @@ Se hace **con** el comercio, no por defecto:
 
 ---
 
+### 4.14 El piloto en Casaletto
+
+*En producción desde el 2026-09-23, después del cierre del local.*
+
+| | |
+|---|---|
+| Comandas | **Encendido** |
+| Pantalla de cocina | Apagada (no existe todavía) |
+| Mesas | Encendido (ya lo estaba) |
+| Quién toma comandas | Los 6 empleados: Deiby, Juan David, Karen, Rocío, Rodrigo y Luis Eduardo |
+| Quién puede cancelar una comanda | Los mismos 6 (decisión del dueño para el piloto; el diseño lo reservaba a quien supervisa) |
+
+Cómo se usa en el piloto: el cajero entra desde el celular y cae directo en Comandas; toma el pedido
+en la mesa, y lo cobra en la caja, donde la comanda aparece como una cuenta abierta con su nombre.
+Desde el computador de la caja entra como siempre, y Comandas está en el menú.
+
 ## 5. Lo que este requerimiento NO hace
 
 - **No reemplaza la forma actual de vender.** Es un camino paralelo, opcional y apagado por defecto.
@@ -345,6 +372,7 @@ Se hace **con** el comercio, no por defecto:
 | **D20** | **La conectividad es un requisito del comercio**, no un riesgo del proyecto. El teléfono entra por datos móviles o WiFi | 2026-09-22 |
 | **D21** | **Comandas necesita Mesas encendido**, y Mesas no se puede apagar con Comandas encendido. La comanda llega a la caja como una pestaña de Mesas (se eligió no abrirle un camino nuevo en la pantalla del dinero). *Corrige D4* | 2026-09-23 |
 | **D22** | **La caja trae sola los platos del mesero** y **nunca cobra un total que el cajero no vio**. Lo que el mesero cambia después de pasar a la caja se avisa al cajero, no se aplica solo | 2026-09-23 |
+| **D26** | **Quien entra desde un celular y tiene Comandas cae en Comandas.** Desde un computador, en Inicio como siempre | 2026-09-23 |
 | **D25** | **La pantalla de comandas es la de Ventas, responsive y sin cobro.** Mismo tema, misma barra de cuentas, misma búsqueda en vivo, misma tabla; donde la caja cobra, la comanda envía a cocina | 2026-09-23 |
 | **D24** | **Comandas es un permiso que el comercio le da a quien quiera**, también a quien tiene caja. El cajero que atiende mesas tiene los dos y pasa de una pantalla a la otra | 2026-09-23 |
 | **D23** | **El mesero cae directo en su pantalla y tiene su propia salida.** Con solo el permiso de Comandas no alcanza ninguna otra pantalla | 2026-09-23 |
@@ -362,7 +390,7 @@ Se hace **con** el comercio, no por defecto:
 
 ## 7. Alcance, en entregas
 
-### Entrega 1 — La comanda desde la caja — **construida, pendiente de probar en staging**
+### Entrega 1 — La comanda desde la caja — **en producción desde el 2026-09-23 (piloto en Casaletto)**
 Cuenta abierta con nombre libre, instrucciones por plato, estados de la comanda (§4.7), comanda
 impresa con precios, rondas con solo lo agregado, y el interruptor por comercio. Es el cimiento:
 define el dato, y cualquier pantalla posterior lo lee.
@@ -371,7 +399,7 @@ Se construyó ya **responsive**, así que un mesero puede usarla desde el celula
 lo que la Entrega 2 agrega es que varios teléfonos trabajen a la vez sobre la misma comanda sin
 pisarse.
 
-### Entrega 2 — La misma pantalla, desde el celular del mesero — **construida el 2026-09-23, pendiente de certificar en staging**
+### Entrega 2 — La misma pantalla, desde el celular del mesero — **en producción desde el 2026-09-23 (piloto en Casaletto)**
 La pantalla de comanda hecha responsive, con el mesero autenticándose desde el navegador de su
 teléfono. **Es aquí donde el requerimiento entrega lo que vino a entregar.**
 
@@ -379,8 +407,8 @@ Resuelve dos meseros sobre la misma comanda y lo que pasa cuando el teléfono pi
 de un pedido (§4.12). También la ficha que se le entrega al comercio
 (`comandas-ficha-para-el-comercio.md`).
 
-Falta la prueba que no se puede automatizar: **un turno en staging con dos meseros, dos teléfonos
-reales y la caja cobrando**, hecha por alguien que no escribió el código.
+La prueba que no se puede automatizar —un turno con varios teléfonos y la caja cobrando— la hace el
+piloto de Casaletto, en producción, por decisión del dueño.
 
 ### Entrega 3 — La pantalla de cocina
 El monitor que muestra los pedidos y se actualiza solo. Va de última **porque es la parte opcional**:
