@@ -2,9 +2,10 @@
 
 > **Estado (2026-09-24):** revisión completa del flujo y correcciones en `3e4d3700a`, `bb76587fe` y
 > `5458fcf93`. **En producción desde las 09:00 del 2026-09-24** (`926e64501`, junto con CodeIgniter
-> 4.7.4): imagen de retorno `casaletto-ospos:rollback-20260924` (= `bcfac895f`, mismas migraciones
-> salvo `20260924000000`, que solo toca `app_config` — volver a ella deja la clave de vigencia sin uso,
-> no rompe el ingreso), respaldo en `/root/backups/prod-20260924-pre-cotizaciones/`. Autorizado por el
+> 4.7.4): imagen de retorno `casaletto-ospos:rollback-20260924` (= `bcfac895f`). **Es anterior a la
+> migración `20260924000000`: volver a ella con las bases ya migradas deja a todos sin poder entrar**
+> (`MY_Migration::is_latest()` da falso; ver `AGENTS.md`). Volver atrás exige imagen **y** respaldo de
+> base juntos; respaldo en `/root/backups/prod-20260924-pre-cotizaciones/`. Autorizado por el
 > dueño en horario de apertura: cero sesiones con usuario (solo el monitor de disponibilidad). Pruebas: `SalesQuoteTest`, `QuoteDefaultsMigrationTest`, `Token_libTest`,
 > `SalesKitControllerTest::testTypingAKitsCodeAddsTheKitLikeTheLiveSearch`.
 >
