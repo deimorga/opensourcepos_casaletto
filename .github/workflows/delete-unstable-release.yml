@@ -1,17 +1,40 @@
 name: "Delete Unstable Release"
 
+# NEUTRALIZADO el 2026-09-23. El fichero se conserva a proposito, con la razon escrita,
+# en vez de borrarlo: borrarlo se lleva el porque del repositorio y garantiza que vuelva
+# a colarse en la proxima sincronizacion con upstream.
+#
+# POR QUE NO SE USA AQUI
+#
+#   Este workflow borra los prereleases `unstable` que publica el proyecto original.
+#   Este fork **no publica releases**: el despliegue se hace por SSH contra el VPS, que
+#   construye la imagen alli. El 2026-09-23 se quitaron tambien de `build-release.yml`
+#   los jobs que los creaban, asi que ya no hay nada que borrar.
+#
+#   Ademas usa `secrets.TOKEN`, un secreto del repositorio original. Este fork no lo
+#   tiene --y no deberia tenerlo--, asi que cada ejecucion moria con:
+#
+#       Error: Parameter token or opts.auth is required
+#
+#   Fallaba en las 4 de las ultimas 4 ejecuciones, en cada push a master.
+#
+# QUEDA PENDIENTE, y es decision del equipo: en el repositorio sigue publicado un
+# prerelease `unstable` del 2026-07-06, anterior a todo esto. No se borra aqui porque
+# borrar algo publicado no deberia ocurrir por efecto colateral de un arreglo de CI.
+#
+# El disparador queda en `workflow_dispatch` --solo a mano, nunca solo-- por si alguna
+# vez hiciera falta limpiar prereleases de forma deliberada.
+
 on:
-  push:
-    branches:
-    - master
+  workflow_dispatch:
 
 jobs:
   delete_unstable_release:
     runs-on: ubuntu-latest
-    steps: 
+    steps:
       - name: "Delete last unstable release"
         uses: sgpublic/delete-release-action@v1.2
-        env: 
+        env:
           GITHUB_TOKEN: ${{ secrets.TOKEN }}
         with:
           release-drop: false
@@ -19,4 +42,3 @@ jobs:
           pre-release-drop: true
           pre-release-keep-count: -1
           pre-release-drop-tag: true
-

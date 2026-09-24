@@ -1,4 +1,34 @@
-name: Build and Release
+name: Build
+
+# Este workflow ya NO publica nada. Se recorto el 2026-09-23 y la razon queda escrita
+# aqui para que nadie la reintroduzca "a ver que pasa" en la proxima sincronizacion con
+# upstream.
+#
+# QUE SE QUITO Y POR QUE
+#
+#   - Los dos pasos `upload-artifact`. Nadie los consume: el despliegue real se hace por
+#     SSH contra el VPS, que construye la imagen alli desde el repositorio. Ademas el
+#     segundo subia `path: .` con `include-hidden-files: true`, es decir **el arbol de
+#     trabajo entero** --con `.env` y `vendor/` dentro-- como artefacto descargable por
+#     cualquiera, porque este repositorio es publico.
+#
+#     Ese paso es tambien el que venia fallando en cada push desde el 2026-07-09:
+#     `actions/upload-artifact` rechaza `?` en los nombres de fichero, y el wiki
+#     vendorizado trae uno. 26 de las ultimas 27 ejecuciones murieron ahi.
+#
+#   - Los jobs `docker` y `release`. Son maquinaria del proyecto original: publican una
+#     imagen en Docker Hub y un prerelease `unstable`. Este fork no consume ninguna de
+#     las dos y no tiene los secretos que exigen. Llevaban en `skipped` desde julio
+#     unicamente porque `build` fallaba antes; arreglar `build` sin quitarlos los habria
+#     despertado, cambiando un fallo por una publicacion que nadie pidio.
+#
+# QUE SE CONSERVA, Y ES LO QUE DE VERDAD APORTA
+#
+#   El job `build` es el UNICO sitio del CI donde se ejecutan `npm run build` y
+#   `gulp compress`. `phpunit.yml` solo hace `npm install`; `main.yml` y `php-linter.yml`
+#   ni tocan node. Y un build de assets roto no da error: sirve la pagina con 200 y sin
+#   una linea de CSS ni de JavaScript. Esta comprobacion es la que lo atrapa antes de
+#   que llegue al mostrador.
 
 on:
   push:
@@ -17,11 +47,6 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-22.04
-
-    outputs:
-      version: ${{ steps.version.outputs.version }}
-      version-tag: ${{ steps.version.outputs.version-tag }}
-      short-sha: ${{ steps.version.outputs.short-sha }}
 
     steps:
       - name: Checkout
@@ -109,109 +134,3 @@ jobs:
           SHORT_SHA="${{ steps.version.outputs.short-sha }}"
           mv dist/opensourcepos.tar "dist/opensourcepos.$VERSION.$SHORT_SHA.tar"
           mv dist/opensourcepos.zip "dist/opensourcepos.$VERSION.$SHORT_SHA.zip"
-
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: dist-${{ steps.version.outputs.short-sha }}
-          path: dist/
-          retention-days: 7
-
-      - name: Upload build context for Docker
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-context-${{ steps.version.outputs.short-sha }}
-          path: |
-            .
-            !.git
-            !node_modules
-          include-hidden-files: true
-          retention-days: 1
-
-  docker:
-    name: Build Docker Image
-    runs-on: ubuntu-22.04
-    needs: build
-    if: github.event_name == 'push'
-
-    steps:
-      - name: Download build context
-        uses: actions/download-artifact@v4
-        with:
-          name: build-context-${{ needs.build.outputs.short-sha }}
-          path: .
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
-      - name: Determine Docker tags
-        id: tags
-        run: |
-          BRANCH=$(echo "${GITHUB_REF#refs/heads/}" | tr '/' '_')
-          if [ "$BRANCH" = "master" ]; then
-            echo "tags=${{ secrets.DOCKER_USERNAME }}/opensourcepos:${{ needs.build.outputs.version-tag }},${{ secrets.DOCKER_USERNAME }}/opensourcepos:master" >> $GITHUB_OUTPUT
-          else
-            echo "tags=${{ secrets.DOCKER_USERNAME }}/opensourcepos:${{ needs.build.outputs.version-tag }}" >> $GITHUB_OUTPUT
-          fi
-        env:
-          GITHUB_REF: ${{ github.ref }}
-
-      - name: Build and push Docker images
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          target: ospos
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.tags.outputs.tags }}
-
-  release:
-    name: Create Release
-    needs: build
-    runs-on: ubuntu-22.04
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-    permissions:
-      contents: write
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: dist-${{ needs.build.outputs.short-sha }}
-          path: dist/
-
-      - name: Get version info
-        id: version
-        run: |
-          VERSION="${{ needs.build.outputs.version }}"
-          SHORT_SHA=$(git rev-parse --short=6 HEAD)
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "short-sha=$SHORT_SHA" >> $GITHUB_OUTPUT
-
-      - name: Create/Update unstable release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: unstable
-          name: Unstable OpenSourcePOS
-          body: |
-            This is a build of the latest master which might contain bugs. Use at your own risk.
-            
-            Check the releases section for the latest official release.
-          files: |
-            dist/opensourcepos.${{ steps.version.outputs.version }}.${{ steps.version.outputs.short-sha }}.zip
-          prerelease: true
-          draft: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
