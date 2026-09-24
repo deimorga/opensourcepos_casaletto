@@ -49,6 +49,14 @@
     max-width: 16em;
 }
 
+/* The live-search menu is appended inside #ot_screen (screen.php). Long names wrap instead of
+   widening the menu past the screen, which on a phone let the whole page slide sideways. */
+#ot_screen .ui-autocomplete {
+    max-width: calc(100vw - 24px);
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
 /* --- The dish table ---------------------------------------------------------------------------- */
 
 #ot_screen #register td {

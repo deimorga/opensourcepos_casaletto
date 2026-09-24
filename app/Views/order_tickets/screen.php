@@ -383,6 +383,8 @@ $error   = session()->getFlashdata('error');
         if ($('#item').length && $.fn.autocomplete) {
             $('#item').autocomplete({
                 source: "<?= esc(base_url('comandas/buscar'), 'js') ?>",
+                // Inside the screen, so css/order_tickets.css can keep it within a phone's width.
+                appendTo: '#ot_screen',
                 minLength: 1,
                 autoFocus: false,
                 delay: 300,
