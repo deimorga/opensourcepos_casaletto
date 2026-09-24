@@ -2,6 +2,33 @@ name: PHP Linting
 
 on: push
 
+# La accion de terceros `dbfx/github-phplint` va fijada a SHA, no a `@master`.
+#
+# Una accion anclada a rama cambia bajo los pies: el dia que su autor empuje algo
+# a master, este workflow ejecuta codigo distinto sin que aqui cambie una linea.
+# Aqui el riesgo es de reproducibilidad y no de credenciales --este workflow no
+# recibe ningun secreto--, pero es la unica accion de terceros del repositorio
+# que seguia sin fijar (las de despliegue ya van a etiqueta).
+#
+# Se fija al SHA y NO a una etiqueta, aunque el repositorio tenga v1, v2.0.0 y
+# v2.1.0, porque ninguna sirve: comprobado el 2026-09-23 contra la API de GitHub,
+# el arbol de v2.1.0 --la mas reciente, la unica candidata-- llega hasta el
+# directorio 8.1. Los directorios 8.2, 8.3 y 8.4 que usa este workflow existen
+# solo en master; 8.3 se anadio en marzo de 2024 y 8.4 en noviembre de 2024, y
+# desde entonces no se ha etiquetado nada. Fijar a v2.1.0 dejaria los tres `uses`
+# apuntando a rutas que no existen y el workflow no arrancaria.
+#
+# SHA fijado: a00a7e5ae7492e476616750fdd166e6545c60652
+#   - es el HEAD de master de dbfx/github-phplint el 2026-09-23
+#   - su commit es del 2024-11-15 ("Merge pull request #4", el que anade 8.4);
+#     o sea master lleva casi dos anos quieto
+#   - verificado que en ese SHA existen 8.2/action.yml, 8.3/action.yml y
+#     8.4/action.yml
+#
+# Para subirlo: Dependabot (ecosistema github-actions, ver .github/dependabot.yml)
+# propone el cambio de SHA en un PR revisable. Si algun dia el autor etiqueta una
+# version que incluya 8.2+, se prefiere la etiqueta.
+
 jobs:
   phplint:
 
@@ -13,14 +40,14 @@ jobs:
         with:
           fetch-depth: 0
       - name: PHP Lint 8.2
-        uses: dbfx/github-phplint/8.2@master
+        uses: dbfx/github-phplint/8.2@a00a7e5ae7492e476616750fdd166e6545c60652
         with:
           folder-to-exclude: "! -path \"./vendor/*\" ! -path \"./folder/excluded/*\""
       - name: PHP Lint 8.3
-        uses: dbfx/github-phplint/8.3@master
+        uses: dbfx/github-phplint/8.3@a00a7e5ae7492e476616750fdd166e6545c60652
         with:
           folder-to-exclude: "! -path \"./vendor/*\" ! -path \"./folder/excluded/*\""
       - name: PHP Lint 8.4
-        uses: dbfx/github-phplint/8.4@master
+        uses: dbfx/github-phplint/8.4@a00a7e5ae7492e476616750fdd166e6545c60652
         with:
           folder-to-exclude: "! -path \"./vendor/*\" ! -path \"./folder/excluded/*\""
