@@ -175,15 +175,59 @@ final class OrderTicketsControllerTest extends CIUnitTestCase
         $response->assertSee(lang('Order_tickets.pending', [2]));
     }
 
-    public function testTheScreenIsTheMobileLayoutNotTheRegisterHeader(): void
+    /**
+     * D25: the screen is the register's design, made responsive -- not a separate look. The owner
+     * rejected the first, Bootstrap 5 version on 2026-09-23 for breaking the system's visual line.
+     * Same shared header and theme, same register ids, plus a viewport and one extra stylesheet.
+     */
+    public function testTheScreenIsTheRegistersDesignMadeResponsive(): void
     {
         $this->switchTo('1');
+        $ticket = $this->openLiveTicket();
 
-        $html = $this->getReq('comandas')->getBody();
+        $html = $this->getReq('comandas/' . $ticket)->getBody();
 
-        $this->assertStringContainsString('viewport-fit=cover', $html);
+        $this->assertMatchesRegularExpression('/<meta name="viewport" content="[^"]*width=device-width/', $html);
+        $this->assertStringContainsString('resources/bootswatch/', $html, 'The business theme, as on the register.');
         $this->assertStringContainsString('css/order_tickets.css', $html);
-        $this->assertStringNotContainsString('resources/bootswatch/', $html, 'The POS Bootstrap 3 must never be mixed in.');
+        $this->assertStringNotContainsString('bootswatch5', $html, 'No second design system.');
+
+        foreach (['register_wrapper', 'open_tabs_bar', 'add_item_form', 'register', 'overall_sale', 'sale_totals'] as $id) {
+            $this->assertStringContainsString('id="' . $id . '"', $html, 'The register\'s layout block #' . $id . ' is missing.');
+        }
+    }
+
+    /**
+     * The one thing this screen must never do: charge. No payment, no completing the sale -- the
+     * register pulls the ticket and charges it there.
+     */
+    public function testTheScreenCannotCharge(): void
+    {
+        $this->switchTo('1');
+        $ticket = $this->openLiveTicket();
+        model(Order_ticket_line::class, false)->add_line($ticket, 7, 'Empanada', '1', '3500', '', 1);
+
+        $html = $this->getReq('comandas/' . $ticket)->getBody();
+
+        foreach (['sales/addPayment', 'sales/complete', 'finish_sale_button', 'add_payment_form'] as $charging) {
+            $this->assertStringNotContainsString($charging, $html);
+        }
+    }
+
+    /**
+     * The register's live search, for the waiter: items and kits by name or code, as JSON the jQuery
+     * UI autocomplete reads ({value, label}). Its own endpoint, so a waiter needs no `sales` grant.
+     */
+    public function testTheLiveSearchAnswersLikeTheRegistersAutocomplete(): void
+    {
+        $this->switchTo('1');
+        $item = $this->createItem('PRUEBA OT BUSCAR EMPANADA');
+
+        $response = $this->getReq('comandas/buscar?term=' . rawurlencode('OT BUSCAR'));
+        $rows     = json_decode($response->getJSON(), true);
+
+        $this->assertSame($item, $rows[0]['value']);
+        $this->assertStringStartsWith('PRUEBA OT BUSCAR EMPANADA', $rows[0]['label']);
     }
 
     /**

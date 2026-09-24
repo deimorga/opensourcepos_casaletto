@@ -12,6 +12,7 @@ use App\Models\Order_ticket_send_failed;
 use App\Models\Sale;
 use App\Models\Stock_location;
 use CodeIgniter\HTTP\RedirectResponse;
+use CodeIgniter\HTTP\ResponseInterface;
 use Config\OSPOS;
 use Throwable;
 
@@ -26,8 +27,11 @@ use Throwable;
  * overwrite their own cart. Everything here reads and writes by order_ticket_id and sale_id instead
  * (docs/Tecnico/comandas-y-cuenta-abierta.md §3.12).
  *
- * The usual header. These views extend order_tickets/layout, the one responsive page in the system
- * (§3.13, §9).
+ * THE SCREEN IS THE REGISTER'S. The views use the shared POS header and footer, register.css and the
+ * register's element ids, so the business sees the design it already knows (D25, 2026-09-23 -- an
+ * earlier separate Bootstrap 5 layout was rejected by the owner for breaking that). What this screen
+ * adds is a viewport and css/order_tickets.css, which make it usable on a phone; and what it leaves
+ * out is charging, which stays in the register.
  *
  * THE SWITCH
  *
@@ -55,8 +59,8 @@ class OrderTickets extends Secure_Controller
     }
 
     /**
-     * The live tickets of this site, newest first, with how many dishes each carries and how many
-     * have not been sent to the kitchen yet.
+     * The order-ticket screen with no ticket selected: the bar of live tickets, like the register's
+     * bar of open tabs, and nothing else until one is picked or a new one is opened.
      */
     public function getIndex(): string
     {
@@ -64,12 +68,7 @@ class OrderTickets extends Secure_Controller
             return $this->render_disabled();
         }
 
-        $tickets = $this->tickets->get_live_for_location($this->resolve_location_id());
-
-        return view('order_tickets/index', $this->layout_data() + [
-            'tickets' => $tickets,
-            'counts'  => $this->lines->count_by_ticket(array_column($tickets, 'order_ticket_id')),
-        ]);
+        return $this->render_screen(null);
     }
 
     /**
@@ -81,12 +80,7 @@ class OrderTickets extends Secure_Controller
             return $this->render_disabled();
         }
 
-        // The specific values go on the LEFT of the union: `+` keeps the left-hand key, and
-        // layout_data() also carries a title.
-        return view('order_tickets/new', [
-            'title'    => lang('Order_tickets.new_ticket'),
-            'back_url' => base_url('comandas'),
-        ] + $this->layout_data());
+        return view('order_tickets/new', $this->layout_data());
     }
 
     /**
@@ -160,12 +154,12 @@ class OrderTickets extends Secure_Controller
     }
 
     /**
-     * One ticket: its dishes, what is still unsent, its rounds, and -- when the waiter typed
-     * something in the search box -- the items that match, each with its own "add" form.
+     * One ticket, drawn as the register draws a sale: the bar of live tickets with this one active,
+     * the item search, the table of dishes and, on the right, the totals and what can be done with
+     * the ticket -- send to the kitchen, mark delivered, cancel. Never charge: that is the register's.
      *
-     * The search is a plain GET that reloads the page, on purpose: no JavaScript, nothing held in the
-     * browser. The waiter can lose signal or reload at any moment and the page is simply the state of
-     * the database.
+     * A ticket that is no longer live (charged, cancelled) is still shown, read-only: its rounds are
+     * the record of what the kitchen was asked for.
      */
     public function getShow(int $order_ticket_id): RedirectResponse|string
     {
@@ -179,22 +173,28 @@ class OrderTickets extends Secure_Controller
             return redirect()->to('comandas')->with('error', lang('Order_tickets.not_found'));
         }
 
-        $live  = $this->is_live($ticket);
-        $term  = trim((string) $this->request->getGet('q'));
-        $lines = $this->lines->get_lines($order_ticket_id);
+        return $this->render_screen($ticket);
+    }
 
-        return view('order_tickets/show', [
-            'title'      => $ticket['name'],
-            'back_url'   => base_url('comandas'),
-            'ticket'     => $ticket,
-            'live'       => $live,
-            'lines'      => $lines,
-            'pending'    => count($this->lines->get_pending($order_ticket_id)),
-            'rounds'     => model(Order_ticket_round::class)->get_rounds($order_ticket_id),
-            'term'       => $term,
-            'results'    => $live && $term !== '' ? model(Item::class)->search_orderable($term) : [],
-            'can_cancel' => $live && $this->can_cancel(),
-        ] + $this->layout_data());
+    /**
+     * Live item search for the screen's search box: the same jQuery UI autocomplete the register
+     * uses, fed from Item::search_orderable() -- items and kits only, never deleted ones.
+     *
+     * Its own endpoint and not sales/itemSearch: a waiter has no `sales` grant, and must not be
+     * given one to search.
+     */
+    public function getSearch(): ResponseInterface
+    {
+        if (! $this->is_enabled()) {
+            return $this->response->setJSON([]);
+        }
+
+        $rows = model(Item::class)->search_orderable((string) $this->request->getGet('term'), 25);
+
+        return $this->response->setJSON(array_map(static fn (array $row): array => [
+            'value' => (int) $row['item_id'],
+            'label' => $row['name'] . ' | ' . to_currency((string) $row['unit_price']),
+        ], $rows));
     }
 
     /**
@@ -651,29 +651,82 @@ class OrderTickets extends Secure_Controller
     }
 
     /**
-     * What every order-ticket view hands to the layout.
+     * The screen, with or without a selected ticket. See screen.php for how it maps onto the register.
      *
-     * @return array{title: string, employee_name: string, request_token: string}
+     * @param array<string, mixed>|null $ticket
+     */
+    private function render_screen(?array $ticket): string
+    {
+        $tickets = $this->tickets->get_live_for_location($this->resolve_location_id());
+        $data    = [
+            'tickets' => $tickets,
+            'counts'  => $this->lines->count_by_ticket(array_column($tickets, 'order_ticket_id')),
+            'ticket'  => $ticket,
+        ];
+
+        if ($ticket !== null) {
+            $id    = (int) $ticket['order_ticket_id'];
+            $live  = $this->is_live($ticket);
+            $term  = trim((string) $this->request->getGet('q'));
+            $lines = $this->lines->get_lines($id);
+
+            $data += [
+                'live'         => $live,
+                'lines'        => $lines,
+                'item_numbers' => $this->item_numbers(array_column($lines, 'item_id')),
+                'pending'      => count($this->lines->get_pending($id)),
+                'rounds'       => model(Order_ticket_round::class)->get_rounds($id),
+                'term'         => $term,
+                // Without JavaScript the search box is a plain GET and the matches are listed here.
+                'results'    => $live && $term !== '' ? model(Item::class)->search_orderable($term) : [],
+                'can_cancel' => $live && $this->can_cancel(),
+            ];
+        }
+
+        return view('order_tickets/screen', $data + $this->layout_data());
+    }
+
+    /**
+     * The "Artículo #" column, as the register shows it. Read from the catalogue at draw time: the
+     * line keeps the name and price it was ordered at, but the code is only for finding it.
+     *
+     * @param list<int|string> $item_ids
+     *
+     * @return array<int, string>
+     */
+    private function item_numbers(array $item_ids): array
+    {
+        $item_ids = array_values(array_unique(array_map('intval', $item_ids)));
+
+        if ($item_ids === []) {
+            return [];
+        }
+
+        $rows = db_connect()->table('items')->select('item_id, item_number')->whereIn('item_id', $item_ids)->get()->getResultArray();
+
+        return array_column($rows, 'item_number', 'item_id');
+    }
+
+    /**
+     * What every order-ticket view hands to the shared POS header (partial/header.php): the same
+     * theme, menu and bundle as the register, plus the three options only this screen turns on.
+     *
+     * - responsive: the header declares no viewport by default, and this screen is used on phones.
+     * - logout_route / profile_link: home/logout and home/changePassword sit behind the `home` grant;
+     *   a waiter granted only Comandas does not have it, and those links would be dead ends.
+     *
+     * @return array<string, mixed>
      */
     private function layout_data(): array
     {
         $employee = $this->employee->get_logged_in_employee_info();
-        $name     = is_object($employee)
-            ? trim(($employee->first_name ?? '') . ' ' . ($employee->last_name ?? ''))
-            : '';
-
-        // Taking orders is a permission like any other, not a kind of employee: a cashier who also
-        // walks to the tables holds both, and needs a way back to the till that is not "log out".
-        // The same check Secure_Controller applies to the register, so the link never leads to
-        // no_access.
-        $register_url = is_object($employee) && $this->employee->has_module_grant('sales', (int) $employee->person_id)
-            ? base_url('sales')
-            : null;
+        $has_home = is_object($employee) && $this->employee->has_module_grant('home', (int) $employee->person_id);
 
         return [
-            'title'         => lang('Module.order_tickets'),
-            'employee_name' => $name,
-            'register_url'  => $register_url,
+            'responsive'        => true,
+            'extra_stylesheets' => ['css/order_tickets.css'],
+            'logout_route'      => 'comandas/salir',
+            'profile_link'      => $has_home,
             // One single-use token per drawn page, carried by every form on it. Submitting any one of
             // them reloads the page, which draws a new token. See refuse_repeated_submission().
             'request_token' => $this->guard->issue(),

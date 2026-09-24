@@ -37,6 +37,7 @@ $routes->addRedirect('order_tickets', 'comandas');
 $routes->get('comandas', 'OrderTickets::getIndex');
 $routes->get('comandas/salir', 'OrderTickets::getLogout');
 $routes->get('comandas/nueva', 'OrderTickets::getNew');
+$routes->get('comandas/buscar', 'OrderTickets::getSearch');
 $routes->post('comandas/crear', 'OrderTickets::postCreate');
 $routes->get('comandas/(:num)', 'OrderTickets::getShow/$1');
 $routes->post('comandas/(:num)/linea', 'OrderTickets::postAddLine/$1');

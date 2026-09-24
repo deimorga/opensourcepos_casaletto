@@ -1,411 +1,285 @@
 /*
- * Order tickets (comandas) -- the waiter's screen, the only responsive screen in the system.
+ * The order-ticket screen (app/Views/order_tickets/screen.php).
  *
- * Loaded ONLY by app/Views/order_tickets/layout.php, on top of Bootstrap 5 (Bootswatch Flatly).
- * Nothing here may leak into the rest of the POS: every rule is scoped to an `ot-` class or to
- * `.ot-body`, so even if someone links this file elsewhere it changes nothing.
+ * The screen IS the register's: the shared header, the theme the business chose, and register.css,
+ * which already lays out #register_wrapper, #register and #overall_sale exactly as the sales screen.
+ * This file only adds what the register does not need:
  *
- * Mobile first: the base rules are the phone (360px wide, used with a thumb, standing up). The
- * media queries adjust for small phones and for the tablet at the till.
+ *   1. small touches for the parts the register does not have (kitchen note under the dish name, the
+ *      line state labels, the action buttons that replace the payment panel);
+ *   2. below 768px, the phone layout: the two panels stacked, the dish table as one card per dish,
+ *      and every control big enough for a thumb.
  *
- * Colours come from Bootstrap's own CSS variables so the Flatly contrast is kept, not re-invented.
+ * Every rule is scoped to #ot_screen, so nothing here can reach the register or any other screen.
+ * Colours are never set here: they come from the business's theme, as on every other screen.
  * See docs/Tecnico/comandas-y-cuenta-abierta.md §9.
  */
 
-/* ---------------------------------------------------------------- page frame */
-
-.ot-body {
-    /* Explicit background: the page is otherwise transparent over whatever the browser defaults to. */
-    background-color: var(--bs-tertiary-bg);
-    /* Belt and braces against horizontal scroll at 360px: one over-long word (a customer's name,
-       an unbroken kitchen note) must wrap instead of widening the page. */
-    overflow-wrap: anywhere;
-    /* Stops iOS from inflating text sizes on rotation, which reflows the whole list. */
-    -webkit-text-size-adjust: 100%;
-    text-size-adjust: 100%;
+#ot_screen::after {
+    content: "";
+    display: table;
+    clear: both;
 }
 
-/* Fluid on a phone, capped and centred on a tablet or desktop so rows do not stretch to 1400px. */
-.ot-container {
-    width: 100%;
-    max-width: 48rem;
-    margin-inline: auto;
-    /* Side gutter respects the notch in landscape (needs viewport-fit=cover in the layout). */
-    padding-left: max(1rem, env(safe-area-inset-left));
-    padding-right: max(1rem, env(safe-area-inset-right));
+/* --- Search ------------------------------------------------------------------------------------ */
+
+#ot_screen #add_item_form .ot-search-field input {
+    min-width: 22em;
 }
 
-.ot-main {
-    padding-top: 1rem;
-    padding-bottom: 1rem;
+#ot_screen .ot-results-table td {
+    padding: 4px;
+    vertical-align: middle;
 }
 
-/* ---------------------------------------------------------------- top bar */
-
-/* A flat flex bar, not a Bootstrap navbar: there is no BS5 JS bundle, so nothing may collapse. */
-.ot-topbar {
-    padding-top: env(safe-area-inset-top);
-}
-
-.ot-topbar-inner {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
-    min-height: 3rem;
-}
-
-.ot-topbar-brand {
-    font-weight: 700;
+#ot_screen .ot-results-price {
+    text-align: right;
     white-space: nowrap;
 }
 
-.ot-topbar-user {
+#ot_screen .ot-inline-form {
     display: flex;
+    gap: 4px;
     align-items: center;
-    gap: 0.75rem;
-    /* min-width: 0 lets the name shrink and ellipsise instead of pushing "Salir" off-screen. */
-    min-width: 0;
-}
-
-.ot-topbar-name {
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-    overflow-wrap: normal;
-}
-
-.ot-topbar-link {
-    display: inline-flex;
-    align-items: center;
-    min-height: 44px;
-    min-width: 44px;
-    justify-content: center;
-    padding-inline: 0.5rem;
-    color: #fff;
-    font-weight: 700;
-    text-decoration: underline;
-    white-space: nowrap;
-}
-
-.ot-topbar-link:hover,
-.ot-topbar-link:focus-visible {
-    color: #fff;
-}
-
-/* ---------------------------------------------------------------- heading and back link */
-
-.ot-heading {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 1rem;
-}
-
-.ot-title {
+    justify-content: flex-end;
     margin: 0;
-    font-size: 1.5rem;
-    min-width: 0;
 }
 
-.ot-back {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex: 0 0 auto;
-    min-width: 44px;
-    min-height: 44px;
-    font-size: 1.5rem;
-    line-height: 1;
-    text-decoration: none;
-    border-radius: var(--bs-border-radius);
+#ot_screen .ot-inline-form .ot-note {
+    max-width: 16em;
 }
 
-/* ---------------------------------------------------------------- touch targets */
+/* --- The dish table ---------------------------------------------------------------------------- */
 
-/*
- * 44x44 px is the minimum a thumb hits reliably (Apple HIG, WCAG 2.5.5). The waiter is standing,
- * often holding a plate in the other hand; a miss here means the wrong dish goes to the kitchen.
- */
-.ot-body .btn,
-.ot-body .form-control,
-.ot-body .form-select,
-.ot-body .ot-action {
-    min-height: 44px;
+#ot_screen #register td {
+    vertical-align: middle;
 }
 
-.ot-body .btn,
-.ot-body .ot-action {
-    min-width: 44px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+#ot_screen .ot-item-name {
+    display: block;
 }
 
-/*
- * 16px is not a style choice: iOS Safari zooms the page in when an input with a smaller font gets
- * focus, and does not zoom back out. The waiter would be left with a sideways-scrolled screen.
- * The -sm variants are included on purpose -- they are the ones that would trigger it.
- */
-.ot-body input,
-.ot-body select,
-.ot-body textarea,
-.ot-body .form-control,
-.ot-body .form-control-sm,
-.ot-body .form-select,
-.ot-body .form-select-sm {
-    font-size: 16px;
+#ot_screen .ot-line-state .label {
+    display: inline-block;
+    margin: 2px 2px 0 0;
 }
 
-/* A native checkbox is ~16px; its box grows and its label becomes part of the hit area. */
-.ot-body .form-check-input {
-    width: 1.5rem;
-    height: 1.5rem;
-    margin-top: 0;
+#ot_screen .ot-note {
+    margin-top: 4px;
 }
 
-.ot-body .form-check {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    min-height: 44px;
-    padding-left: 0;
+#ot_screen .ot-note-text {
+    display: block;
+    font-style: italic;
 }
 
-.ot-body .form-check .form-check-input {
-    float: none;
-    margin-left: 0;
-    flex: 0 0 auto;
+#ot_screen .ot-qty {
+    width: 6em;
+    margin: 0 auto;
+    text-align: center;
 }
 
-.ot-body .form-check-label {
-    flex: 1 1 auto;
-    min-height: 44px;
-    display: flex;
-    align-items: center;
-}
-
-/* ---------------------------------------------------------------- lists */
-
-/* Tickets and ticket lines: full width, tall rows, the whole row is the touch target. */
-.ot-list {
-    list-style: none;
-    margin: 0 0 1rem;
-    padding: 0;
-    background-color: var(--bs-body-bg);
-    border: var(--bs-border-width) solid var(--bs-border-color);
-    border-radius: var(--bs-border-radius);
-}
-
-.ot-list > li + li {
-    border-top: var(--bs-border-width) solid var(--bs-border-color);
-}
-
-.ot-list-item,
-.ot-list > li > a {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
-    min-height: 56px;
-    padding: 0.75rem 1rem;
-    color: var(--bs-body-color);
-    text-decoration: none;
-}
-
-.ot-list > li > a:focus-visible {
-    outline: 3px solid var(--bs-primary);
-    outline-offset: -3px;
-}
-
-/* A voided line stays on screen (nothing is ever deleted) but must not read as an active dish.
-   The text colour is Bootstrap's secondary colour, not an opacity: opacity would also fade the
-   strike-through and drop the contrast below AA. The strike carries the meaning without colour. */
-.ot-line-voided,
-.ot-line-voided * {
-    color: var(--bs-secondary-color);
+/* A voided dish stays in the list, struck through: the strike carries the meaning, not a fade that
+   would drop the text below readable contrast. */
+#ot_screen .ot-line-voided .ot-item-name,
+#ot_screen .ot-line-voided .ot-cell-price,
+#ot_screen .ot-line-voided .ot-cell-qty,
+#ot_screen .ot-line-voided .ot-cell-total {
     text-decoration: line-through;
 }
 
-/* "Already in the kitchen": discreet, because it is the normal state of most lines. A left rule
-   plus a word in the view (not colour alone) marks it. */
-.ot-line-sent {
-    box-shadow: inset 4px 0 0 var(--bs-success);
+#ot_screen .ot-icon-button {
+    padding: 4px 8px;
+    font-size: 16px;
 }
 
-.ot-line-sent .ot-line-status {
-    color: var(--bs-success-text-emphasis);
-    font-size: 0.875rem;
+/* --- The right-hand panel: actions instead of payments ------------------------------------------ */
+
+#ot_screen .ot-ticket-head th,
+#ot_screen .ot-ticket-head td {
+    padding: 2px 0;
 }
 
-/* D9: a line edited after it was sent is the one the kitchen may have made wrong. It must be
-   seen at a glance, so it is a solid badge with text, not a tint. */
-.ot-badge-changed {
-    display: inline-block;
-    padding: 0.125rem 0.5rem;
-    border: 1px solid var(--bs-warning-text-emphasis);
-    border-radius: var(--bs-border-radius);
-    background-color: var(--bs-warning-bg-subtle);
-    color: var(--bs-warning-text-emphasis);
-    font-size: 0.875rem;
-    font-weight: 700;
-    white-space: nowrap;
-    /* A badge inside a voided line must not inherit the strike: the warning still applies. */
-    text-decoration: none;
+#ot_screen #ot_actions {
+    border-top: 1px solid;
+    margin-top: 0.5em;
+    padding-top: 0.5em;
+    text-align: left;
 }
 
-/* ---------------------------------------------------------------- bottom action bar */
-
-/*
- * The primary action ("Enviar a cocina") stays under the thumb however long the ticket is.
- * sticky, not fixed: it sits at the end of the content on a short ticket and never covers the
- * last line, and when the virtual keyboard opens it moves with the layout instead of floating over
- * the note being typed. The bottom inset keeps it above the iPhone gesture bar.
- */
-.ot-actionbar {
-    position: sticky;
-    bottom: 0;
-    z-index: 10;
-    display: flex;
-    gap: 0.5rem;
-    margin-inline: calc(-1 * max(1rem, env(safe-area-inset-left)));
-    padding: 0.75rem max(1rem, env(safe-area-inset-right)) 0.75rem max(1rem, env(safe-area-inset-left));
-    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
-    background-color: var(--bs-body-bg);
-    border-top: var(--bs-border-width) solid var(--bs-border-color);
+#ot_screen #ot_actions form {
+    margin: 0;
 }
 
-.ot-actionbar .btn {
-    flex: 1 1 auto;
-    min-height: 48px;
-    font-weight: 700;
+#ot_screen .ot-cancel-form {
+    margin-top: 1em !important;
 }
 
-/* ---------------------------------------------------------------- phones */
+#ot_screen #payment_totals td {
+    padding: 4px 2px;
+    vertical-align: middle;
+}
 
-@media (max-width: 575.98px) {
-    /* At 360px the title competes with the back arrow; a smaller heading keeps it on one or two
-       lines instead of four. */
-    .ot-title {
-        font-size: 1.25rem;
+#ot_screen .ot-new-panel {
+    max-width: 48em;
+    margin: 1em auto;
+}
+
+/* --- Phone ------------------------------------------------------------------------------------- */
+
+@media (max-width: 767px) {
+    /* register.css floats the two panels at 70% and 29%. On a phone they stack, the order first. */
+    #ot_screen #register_wrapper,
+    #ot_screen #overall_sale {
+        float: none;
+        width: 100%;
+        margin-left: 0;
+        font-size: 15px;
     }
 
-    /* The employee name is the first thing to give way: "Salir" must always stay reachable. */
-    .ot-topbar-name {
-        max-width: 40vw;
+    /* 16px or iOS zooms the page on every focus, and the waiter has to pinch back out. */
+    #ot_screen input.form-control,
+    #ot_screen select.form-control,
+    #ot_screen textarea.form-control {
+        font-size: 16px;
+        height: auto;
+        min-height: 40px;
     }
 
-    /* Inside a list row, secondary actions stack under the text rather than squeezing it. */
-    .ot-list-item {
+    /* The search bar: one field across the whole width. */
+    #ot_screen #add_item_form ul li {
+        float: none !important;
+        margin-left: 0 !important;
+        margin-bottom: 6px;
+    }
+
+    #ot_screen #add_item_form .ot-search-field input {
+        min-width: 0;
+        width: 100%;
+    }
+
+    #ot_screen #add_item_form .btn {
+        width: 100%;
+        min-height: 44px;
+    }
+
+    /* The matches of a search without JavaScript: one per block. */
+    #ot_screen .ot-results-table,
+    #ot_screen .ot-results-table tbody,
+    #ot_screen .ot-results-table tr,
+    #ot_screen .ot-results-table td {
+        display: block;
+        width: 100%;
+    }
+
+    #ot_screen .ot-results-table tr {
+        border-bottom: 1px solid rgba(128, 128, 128, 0.4);
+        padding: 6px 0;
+    }
+
+    #ot_screen .ot-results-price {
+        text-align: left;
+    }
+
+    #ot_screen .ot-inline-form {
         flex-wrap: wrap;
+        justify-content: flex-start;
     }
 
-    /* Toasts/alerts eat vertical space the list needs; tighten them. */
-    .ot-main .alert {
-        padding: 0.5rem 0.75rem;
-    }
-}
-
-/* ---------------------------------------------------------------- tablet at the till, desktop */
-
-@media (min-width: 768px) {
-    .ot-main {
-        padding-top: 1.5rem;
+    #ot_screen .ot-inline-form .ot-note {
+        max-width: none;
+        flex: 1 1 10em;
     }
 
-    /* On a wide screen a full-width primary button is a banner, not a button; align it right. */
-    .ot-actionbar {
-        justify-content: flex-end;
-        margin-inline: 0;
-        border: var(--bs-border-width) solid var(--bs-border-color);
-        border-radius: var(--bs-border-radius) var(--bs-border-radius) 0 0;
+    #ot_screen .ot-inline-form .btn {
+        min-height: 44px;
     }
 
-    .ot-actionbar .btn {
-        flex: 0 0 auto;
-        min-width: 12rem;
+    /* The dish table as one card per dish: trash on the left, update on the right, and price,
+       quantity and total as labelled rows in between. The header row is dropped; each value carries
+       its own label (data-label). */
+    #ot_screen #register thead,
+    #ot_screen #register .ot-col-number {
+        display: none;
     }
 
-    /* Pointer devices get a hover cue; touch devices never see a stuck hover state. */
-    .ot-list > li > a:hover {
-        background-color: var(--bs-secondary-bg);
+    #ot_screen #register,
+    #ot_screen #register tbody,
+    #ot_screen #register tr,
+    #ot_screen #register td {
+        display: block;
+        width: 100% !important;
     }
-}
 
-/* ---------------------------------------------------------------- motion */
-
-/* Bootstrap already animates buttons and inputs; honour the user's OS setting and switch it off. */
-@media (prefers-reduced-motion: reduce) {
-    .ot-body *,
-    .ot-body *::before,
-    .ot-body *::after {
-        transition: none !important;
-        animation: none !important;
-        scroll-behavior: auto !important;
+    #ot_screen #register tr.ot-line {
+        position: relative;
+        padding: 8px 52px;
+        border-bottom: 1px solid rgba(128, 128, 128, 0.4);
     }
-}
 
-/* ------------------------------------------------------------------------------------------------
-   Contrast. Flatly's solid colours put white text on light fills: the success alert measures 2.41:1,
-   the grey badge 2.56:1, the outline success button 2.28:1, and the WARNING alert -- "this dish was
-   already in the kitchen", the one message a waiter must not miss -- 2.19:1. WCAG AA asks for 4.5:1.
-   Measured with Lighthouse on staging (2026-09-23) and fixed here with darker shades of the SAME
-   hues, each checked against both the white and the #f8f9fa backgrounds:
-     success #0f7a65 5.26 / 4.99   grey #5f6d6e 5.39 / 5.11   danger #c0392b 5.44 / 5.16
-     warning keeps its fill and switches to dark text: #212529 on #f39c12 is 7.03.
-   Scoped to .ot-body: the register's Bootstrap 3 pages are not touched.
-   ------------------------------------------------------------------------------------------------ */
-.ot-body .alert-success,
-.ot-body .text-bg-success {
-    background-color: #0f7a65 !important;
-    border-color: #0f7a65;
-    color: #fff !important;
-}
+    #ot_screen #register td {
+        text-align: left;
+        padding: 2px 0;
+    }
 
-.ot-body .alert-danger {
-    background-color: #c0392b;
-    border-color: #c0392b;
-    color: #fff;
-}
+    #ot_screen #register .ot-cell-void,
+    #ot_screen #register .ot-cell-update {
+        position: absolute;
+        top: 6px;
+        width: 48px !important;
+        padding: 0;
+        text-align: center;
+    }
 
-.ot-body .alert-warning {
-    color: #212529;
-}
+    #ot_screen #register .ot-cell-void {
+        left: 0;
+    }
 
-.ot-body .text-bg-secondary {
-    background-color: #5f6d6e !important;
-    color: #fff !important;
-}
+    #ot_screen #register .ot-cell-update {
+        right: 0;
+    }
 
-.ot-body .btn-outline-success {
-    --bs-btn-color: #0f7a65;
-    --bs-btn-border-color: #0f7a65;
-    --bs-btn-hover-bg: #0f7a65;
-    --bs-btn-hover-border-color: #0f7a65;
-    --bs-btn-active-bg: #0f7a65;
-    --bs-btn-active-border-color: #0f7a65;
-}
+    #ot_screen .ot-icon-button {
+        min-width: 44px;
+        min-height: 44px;
+        font-size: 20px;
+    }
 
-/* The round's "Ver" link: Flatly's #95a5a6 on white is 2.55:1. Only visible once a round exists,
-   which is why the first measurement missed it. */
-.ot-body .btn-outline-secondary {
-    --bs-btn-color: #5f6d6e;
-    --bs-btn-border-color: #5f6d6e;
-    --bs-btn-hover-bg: #5f6d6e;
-    --bs-btn-hover-border-color: #5f6d6e;
-    --bs-btn-active-bg: #5f6d6e;
-    --bs-btn-active-border-color: #5f6d6e;
-}
+    #ot_screen #register .ot-cell-price,
+    #ot_screen #register .ot-cell-qty,
+    #ot_screen #register .ot-cell-total {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+    }
 
-.ot-body .btn-outline-danger {
-    --bs-btn-color: #c0392b;
-    --bs-btn-border-color: #c0392b;
-    --bs-btn-hover-bg: #c0392b;
-    --bs-btn-hover-border-color: #c0392b;
-    --bs-btn-active-bg: #c0392b;
-    --bs-btn-active-border-color: #c0392b;
-}
+    #ot_screen #register .ot-cell-price::before,
+    #ot_screen #register .ot-cell-qty::before,
+    #ot_screen #register .ot-cell-total::before {
+        content: attr(data-label);
+    }
 
-.ot-body .text-danger {
-    color: #c0392b !important;
+    #ot_screen #register .ot-cell-total {
+        font-weight: bold;
+    }
+
+    #ot_screen .ot-qty {
+        margin: 0;
+    }
+
+    /* The actions: full width and a thumb tall. */
+    #ot_screen #ot_actions .btn,
+    #ot_screen #payment_totals .btn {
+        min-height: 44px;
+    }
+
+    #ot_screen #payment_totals .btn {
+        padding-top: 11px;
+    }
+
+    /* The bar of tickets: wraps instead of pushing the page sideways. */
+    #ot_screen #open_tabs_bar .nav-pills > li > a {
+        padding: 10px 12px;
+    }
 }

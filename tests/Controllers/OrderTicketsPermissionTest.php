@@ -126,9 +126,10 @@ final class OrderTicketsPermissionTest extends CIUnitTestCase
     }
 
     /**
-     * Taking orders is a permission, not a kind of employee. At Casaletto the cashier also walks to
-     * the tables: granted both, they reach both screens, and the order screen offers the way back to
-     * the till instead of only "log out".
+     * Taking orders is a permission, not a kind of employee (D24). At Casaletto the cashier also walks
+     * to the tables: granted both, they reach both screens. The way back to the till is the same menu
+     * as on every other screen (D25: the order screen uses the shared POS header), where "Ventas"
+     * shows for whoever holds the register.
      */
     public function testACashierWhoAlsoTakesOrdersReachesBothAndCanGoBackToTheTill(): void
     {
@@ -141,7 +142,7 @@ final class OrderTicketsPermissionTest extends CIUnitTestCase
 
         $screen = $this->getAs('comandas');
         $screen->assertStatus(200);
-        $this->assertContains(base_url('sales'), $this->links($screen->getBody()), 'The "Caja" link is there, and leads to the till.');
+        $this->assertContains(base_url('sales'), $this->links($screen->getBody()), 'The menu offers the register, as on any other screen.');
 
         $register = $this->getAs('sales');
         $this->assertStringNotContainsString('no_access', (string) $register->getRedirectUrl());
@@ -149,7 +150,8 @@ final class OrderTicketsPermissionTest extends CIUnitTestCase
 
     /**
      * The waiter granted only Comandas gets no link to a register they cannot open: it would lead to
-     * no_access, which is a dead end on a phone.
+     * no_access, which is a dead end on a phone. Nor the header's usual logout and profile links,
+     * which sit behind the `home` grant: logout goes through comandas/salir.
      */
     public function testAWaiterIsNotOfferedTheTill(): void
     {
@@ -159,6 +161,11 @@ final class OrderTicketsPermissionTest extends CIUnitTestCase
 
         $this->assertContains(base_url('comandas/salir'), $links, 'Guard: the links were read at all.');
         $this->assertNotContains(base_url('sales'), $links);
+        $this->assertNotContains(base_url('home/logout'), $links);
+
+        foreach ($links as $link) {
+            $this->assertStringNotContainsString('home/changePassword', $link);
+        }
     }
 
     /**
