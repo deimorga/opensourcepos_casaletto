@@ -34,21 +34,30 @@ jobs:
             git reset --hard origin/develop
             git clean -fd
 
-            echo "Instalando dependencias PHP/JS y compilando assets (el Dockerfile solo copia, no compila)..."
-            docker run --rm -v "$PWD":/app -w /app php:8.4-cli bash -c "
-              set -e
-              apt-get update -qq
-              apt-get install -y -qq --no-install-recommends unzip libicu-dev git curl ca-certificates gnupg > /dev/null
-              docker-php-ext-install intl > /dev/null 2>&1
-              curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
-              curl -fsSL https://deb.nodesource.com/setup_20.x | bash - > /dev/null 2>&1
-              apt-get install -y -qq nodejs > /dev/null
-              composer install --no-dev --optimize-autoloader
-              npm ci
-              npm run build
-            "
+            # AQUI HABIA un `docker run --rm ... php:8.4-cli` que instalaba
+            # Composer y Node en el servidor y ejecutaba `composer install`,
+            # `npm ci` y `npm run build` sobre el directorio de trabajo, ANTES de
+            # construir la imagen.
+            #
+            # Sobra desde el 2026-09-16: el Dockerfile ya lo hace DENTRO de la
+            # imagen. La etapa `vendor` corre `composer install --no-dev
+            # --optimize-autoloader` y la etapa `assets` corre las tareas de gulp
+            # --mas la comprobacion de que los bloques inject quedaron rellenos y
+            # de que el autoload resuelve `App\`--. El `up -d --build` de abajo
+            # construye el target `ospos`, que es el que depende de esas dos
+            # etapas, asi que ejecutarlo ya compila todo.
+            #
+            # El texto que acompanaba al bloque decia "el Dockerfile solo copia,
+            # no compila". Fue cierto hasta esa fecha; desde entonces es falso, y
+            # dejarlo escrito confundia sobre cual es la fuente real de `vendor/`
+            # y de `public/resources`.
+            #
+            # Y no era solo redundante: compilaba en el directorio de trabajo del
+            # servidor, que es exactamente la dependencia que se quito --un clon
+            # limpio debe producir una imagen completa por si solo, sin ningun
+            # paso previo a mano--.
 
-            echo "Reconstruyendo y levantando contenedores..."
+            echo "Reconstruyendo la imagen (compila vendor y assets dentro) y levantando contenedores..."
             docker compose -f docker-compose.staging.yml up -d --build
 
             echo "Limpiando imagenes huerfanas..."
