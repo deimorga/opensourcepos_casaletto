@@ -79,7 +79,7 @@ final class SalesQuoteTest extends CIUnitTestCase
     {
         $response = $this->makeQuote();
 
-        $row = db_connect()->table('sales')->where('sale_type', SALE_TYPE_QUOTE)->get()->getRowArray();
+        $row = db_connect()->table('sales')->where('sale_type', SALE_TYPE_QUOTE)->orderBy('sale_id', 'DESC')->get(1)->getRowArray();
 
         $this->assertNotNull($row, 'Saved as a quote, not as a sale.');
         $this->assertSame(SUSPENDED, (int) $row['sale_status']);
@@ -98,6 +98,11 @@ final class SalesQuoteTest extends CIUnitTestCase
      */
     public function testAQuoteWithAPaymentIsRefusedAndNothingIsSaved(): void
     {
+        // Counted before and after: with migrateOnce the database is not reset between the tests of
+        // this class, and another one leaves a quote behind.
+        $quotesBefore = db_connect()->table('sales')->where('sale_type', SALE_TYPE_QUOTE)->countAllResults();
+        $numberBefore = model(Appconfig::class)->get_value('last_used_quote_number');
+
         $this->postReq('sales/changeMode', ['mode' => 'sale_quote']);
         $this->postReq('sales/add', ['item' => $this->itemNumber]);
         $this->postReq('sales/selectCustomer', ['customer' => (string) $this->customerId]);
@@ -105,8 +110,8 @@ final class SalesQuoteTest extends CIUnitTestCase
 
         $this->postReq('sales/complete', [])->assertSee(lang('Sales.quote_no_payments'));
 
-        $this->assertSame(0, db_connect()->table('sales')->where('sale_type', SALE_TYPE_QUOTE)->countAllResults());
-        $this->assertSame('0', model(Appconfig::class)->get_value('last_used_quote_number'), 'No number used up.');
+        $this->assertSame($quotesBefore, db_connect()->table('sales')->where('sale_type', SALE_TYPE_QUOTE)->countAllResults());
+        $this->assertSame($numberBefore, model(Appconfig::class)->get_value('last_used_quote_number'), 'No number used up.');
     }
 
     /**
@@ -115,7 +120,7 @@ final class SalesQuoteTest extends CIUnitTestCase
     public function testASavedQuoteCanBeOpenedAgainAndDownloadedAsPdf(): void
     {
         $this->makeQuote();
-        $saleId = (int) db_connect()->table('sales')->where('sale_type', SALE_TYPE_QUOTE)->get()->getRow()->sale_id;
+        $saleId = (int) db_connect()->table('sales')->where('sale_type', SALE_TYPE_QUOTE)->orderBy('sale_id', 'DESC')->get(1)->getRow()->sale_id;
 
         $again = $this->getReq('sales/quote/' . $saleId);
         $again->assertStatus(200);
@@ -134,7 +139,7 @@ final class SalesQuoteTest extends CIUnitTestCase
         $this->postReq('sales/addPayment', ['payment_type' => lang('Sales.cash'), 'amount_tendered' => '10.00']);
         $this->postReq('sales/complete', []);
 
-        $saleId = (int) db_connect()->table('sales')->where('sale_type', SALE_TYPE_POS)->get()->getRow()->sale_id;
+        $saleId = (int) db_connect()->table('sales')->where('sale_type', SALE_TYPE_POS)->orderBy('sale_id', 'DESC')->get(1)->getRow()->sale_id;
 
         $this->getReq('sales/quote/' . $saleId)->assertSee(lang('Sales.quote_not_found'));
         $this->getReq('sales/quotePdf/' . $saleId)->assertSee(lang('Sales.quote_not_found'));
