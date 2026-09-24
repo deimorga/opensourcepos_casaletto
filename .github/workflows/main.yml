@@ -1,58 +1,50 @@
 name: Coding Standards
 
-# EN PAUSA desde el 2026-09-24, con fecha de reencendido. NO es que sobre.
+# REENCENDIDO el 2026-09-24, el mismo dia que se pauso. Se deja escrita la
+# historia entera porque explica por que este workflow nunca habia dicho nada.
 #
-# POR QUE
-#   Este workflow corre `composer update`, y Composer se niega a instalar un
-#   paquete con avisos de seguridad ABIERTOS. Hoy queda uno: `dompdf/dompdf`
-#   2.0.x. El de `codeigniter4/framework` ya esta cerrado en la rama
-#   `deps/codeigniter-4.7.4`.
+# LO QUE PASO, EN ORDEN
 #
-#   O sea: no falla porque el codigo viole el estandar. Falla en
-#   `Install dependencies`, antes de que PHP CS Fixer llegue a ejecutarse. Nunca
-#   ha llegado a decirnos nada sobre el estilo del codigo.
+#   1. Durante meses el filtro de rutas apuntaba a
+#      `.github/workflows/test-coding-standards.yml`, un fichero que NO EXISTE
+#      --el workflow es `main.yml`--. Asi que casi no se disparaba, y su rojo no
+#      se veia. Corregido el 2026-09-23.
 #
-#   Hasta el 2026-09-23 el filtro de rutas de aqui abajo apuntaba a
-#   `.github/workflows/test-coding-standards.yml`, un fichero que no existe, asi
-#   que este workflow casi no se disparaba y su rojo no se veia. Al corregirlo
-#   paso a dispararse en cada cambio de PHP --y a fallar, en cada uno--. Cambiamos
-#   «no se ejecuta y nadie lo sabe» por «se ejecuta y falla a la vista», que es lo
-#   correcto, pero a la 1 de la madrugada son decenas de correos rojos por una
-#   causa que ya esta identificada y con arreglo en marcha.
+#   2. Al corregirlo empezo a dispararse de verdad... y a fallar en todas. No
+#      por el estilo del codigo: fallaba en `Install dependencies`, porque
+#      `composer update` se niega a instalar paquetes con avisos de seguridad
+#      ABIERTOS. PHP CS Fixer no llegaba a ejecutarse nunca.
 #
-# CUANDO SE REENCIENDE
-#   En cuanto aterrice la subida de dompdf a 3.1.6. Ese dia, esto vuelve a
-#   `push:` y `pull_request:` --los bloques estan justo abajo, listos-- y deberia
-#   ponerse verde por primera vez.
+#   3. Los dos bloqueos eran `codeigniter4/framework` 4.7.2 y `dompdf/dompdf`
+#      2.0.x. Se pauso este workflow mientras se cerraban, para no ahogar el
+#      canal de avisos con un rojo cuya causa ya estaba identificada.
 #
-#   Si el 2026-10-31 sigue en pausa, es que la subida se atasco: hay que
-#   reabrirlo o decidir explicitamente que este fork no comprueba estandar.
-#   Un workflow en pausa sin fecha es un workflow abandonado.
+#   4. Cerrados los dos --4.7.4 y 3.1.6--, `composer audit` esta en CERO avisos.
+#      El bloqueo desaparecio y esto vuelve a `push` y `pull_request`.
 #
-# Mientras tanto queda en `workflow_dispatch` para poder lanzarlo a mano y ver si
-# el bloqueo ya cayo, sin que mande correo a nadie.
+# ESTA EJECUCION ES LA PRIMERA QUE DE VERDAD COMPRUEBA EL ESTILO DEL CODIGO.
+# Si sale roja, esta vez SI habla de codigo, y hay que leerla.
 #
-# Nota para el reencendido: los filtros de abajo llevan ya `composer.json` y
-# `composer.lock`. Sin ellos --como estaba-- una subida de dependencias no
-# disparaba este workflow, que es justo el unico que las instala. Lo descubrimos
-# cuando la subida de CodeIgniter paso por delante sin que se enterara.
+# Los filtros llevan ahora `composer.json` y `composer.lock`: sin ellos, una
+# subida de dependencias no disparaba el unico workflow que las instala. Se vio
+# cuando la subida de CodeIgniter paso por delante sin que este se enterara.
 on:
   workflow_dispatch:
 
-  # push:
-  #   paths:
-  #     - '**.php'
-  #     - 'spark'
-  #     - 'composer.json'
-  #     - 'composer.lock'
-  #     - '.github/workflows/main.yml'
-  # pull_request:
-  #   paths:
-  #     - '**.php'
-  #     - 'spark'
-  #     - 'composer.json'
-  #     - 'composer.lock'
-  #     - '.github/workflows/main.yml'
+  push:
+    paths:
+      - '**.php'
+      - 'spark'
+      - 'composer.json'
+      - 'composer.lock'
+      - '.github/workflows/main.yml'
+  pull_request:
+    paths:
+      - '**.php'
+      - 'spark'
+      - 'composer.json'
+      - 'composer.lock'
+      - '.github/workflows/main.yml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
