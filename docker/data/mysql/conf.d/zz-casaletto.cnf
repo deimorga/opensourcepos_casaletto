@@ -1,0 +1,38 @@
+# Sitio de configuracion de MariaDB propio del fork.
+#
+# Todo archivo .cnf que se deje en docker/data/mysql/conf.d/ del repositorio se
+# monta en /etc/mysql/conf.d del contenedor de MariaDB y el servidor lo lee al
+# arrancar. El montaje vive DENTRO del bloque `volumes: !override` de
+# docker-compose.prod.yml y docker-compose.staging.yml -- ver el comentario de
+# esos archivos, que explica por que no puede estar en docker/docker-mysql.yml.
+#
+# POR QUE EXISTE. /etc/mysql/conf.d existe en la imagen de MariaDB, pero estaba
+# vacio y sin montar. Cualquier ajuste del motor terminaba aplicado con un
+# `SET GLOBAL` o con un `docker exec` dentro del contenedor, y se perdia en el
+# siguiente despliegue --el contenedor se recrea-- sin un solo mensaje de error.
+# Nada avisa de que el ajuste ya no esta puesto.
+#
+# ORDEN. MariaDB lee los archivos de un `!includedir` en orden alfabetico y, si
+# una misma opcion aparece dos veces, gana la ULTIMA. El prefijo `zz-` deja este
+# archivo al final de /etc/mysql/conf.d. CUIDADO: la imagen trae ademas su propia
+# configuracion en /etc/mysql/mariadb.conf.d, que es otro includedir distinto de
+# este; si aqui se ajusta una opcion que la imagen ya fija alli, no se puede dar
+# por hecho quien gana -- hay que COMPROBAR el valor efectivo con
+# `SHOW GLOBAL VARIABLES LIKE '<opcion>'` despues de arrancar.
+#
+# LA CABECERA DE GRUPO ES OBLIGATORIA. Una opcion suelta sin `[mariadbd]` delante
+# hace que el servidor se niegue a arrancar ("found option without preceding
+# group"), y aqui eso es el POS caido. Se deja puesta y vacia para que agregar un
+# ajuste sea una sola linea y no haya que recordar esto.
+#
+# NO FIJA NINGUNA OPCION TODAVIA, A PROPOSITO: este cambio es solo el andamiaje.
+# Un cambio aqui exige reiniciar el contenedor de MariaDB; no se recarga solo.
+#
+# ESTE ARCHIVO NO SE EDITA EN EL SERVIDOR. El despliegue hace
+# `git reset --hard origin/<rama>` + `git clean -fd`, sin `-x`: un archivo
+# versionado como este sobrevive al despliegue y se restaura si alguien lo edito a
+# mano --que es justo lo que se quiere-- pero por lo mismo cualquier edicion de
+# emergencia hecha directamente en el VPS queda REVERTIDA por el siguiente
+# despliegue, sin avisar. Los ajustes se commitean.
+
+[mariadbd]

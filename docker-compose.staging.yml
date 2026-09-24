@@ -33,8 +33,41 @@ volumes:
 services:
     mysql:
         container_name: mysql-casaletto-staging
+        # ATENCIÓN antes de tocar esta lista: `!override` DESCARTA ENTERA la
+        # lista heredada de docker/docker-mysql.yml. Todo montaje que este
+        # contenedor necesite tiene que estar DENTRO de aquí. Uno agregado en el
+        # archivo incluido parece correcto, funciona en local, y se descarta sin
+        # un solo aviso justo en los dos ambientes que importan.
+        #
+        # Ya pasó con el propio volumen de datos: un cherry-pick se llevó este
+        # bloque sin reportar conflicto y staging remontó el volumen viejo de
+        # MariaDB 10.5 en vez del migrado. Ver
+        # docs/Tecnico/multi-tenant-arquitectura.md, sección 15, "Segundo
+        # hallazgo".
         volumes: !override
             - mysql_11_4:/var/lib/mysql:rw
+            # Sitio de configuración del motor, versionado en el repositorio.
+            # /etc/mysql/conf.d existe en la imagen pero estaba vacío y sin
+            # montar: cualquier ajuste acababa aplicado con `SET GLOBAL` o con un
+            # `docker exec` dentro del contenedor, y se perdía al recrearlo en el
+            # siguiente despliegue, en silencio y sin que nadie se enterara.
+            #
+            # El despliegue hace `git reset --hard origin/<rama>` +
+            # `git clean -fd`, SIN `-x`: un directorio versionado como este
+            # sobrevive a cada despliegue y se restaura si alguien lo editó a
+            # mano en el servidor -- que es justo lo que se quiere. La otra cara
+            # de lo mismo: una edición de emergencia hecha directamente en el VPS
+            # será REVERTIDA por el siguiente despliegue. Los ajustes se
+            # commitean.
+            #
+            # :ro porque el servidor solo lee (es lo que documenta la propia
+            # imagen de MariaDB). Un cambio aquí exige reiniciar el contenedor:
+            # no se recarga solo.
+            #
+            # Este archivo y docker-compose.prod.yml tienen que seguir diciendo
+            # lo MISMO aquí: la divergencia entre los dos es lo que produjo el
+            # incidente citado arriba.
+            - ./docker/data/mysql/conf.d:/etc/mysql/conf.d:ro
         environment:
             - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
             - MYSQL_DATABASE=${MYSQL_DB_NAME}

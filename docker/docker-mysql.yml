@@ -19,6 +19,13 @@ services:
           - "3306"
         networks:
           - app_net
+        # NO AGREGAR MONTAJES AQUI ESPERANDO QUE LLEGUEN A STAGING O A
+        # PRODUCCION. Los dos declaran este mismo servicio con
+        # `volumes: !override`, que DESCARTA ENTERA esta lista y la reemplaza por
+        # la suya. Un montaje agregado aqui parece correcto, funciona en local, y
+        # se descarta sin un solo aviso justo en los dos ambientes que importan.
+        # El sitio de configuracion del motor (/etc/mysql/conf.d) se monta, por
+        # eso, dentro de esos dos bloques `!override`.
         volumes:
           - mysql:/var/lib/mysql:rw
         environment:

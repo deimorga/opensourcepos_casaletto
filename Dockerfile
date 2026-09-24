@@ -99,6 +99,59 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 RUN echo "date.timezone = \"\${PHP_TIMEZONE}\"" > /usr/local/etc/php/conf.d/timezone.ini
 
+# El sitio de configuracion de PHP del fork: los .ini versionados en
+# docker/php/conf.d/ entran en la imagen. Hasta ahora la linea de arriba era el
+# UNICO ajuste de PHP que existia; cualquier otro se aplicaba con `docker exec`
+# dentro del contenedor del servidor y se perdia, en silencio, en el siguiente
+# despliegue, porque el contenedor se recrea desde la imagen.
+#
+# COPY y no un montaje, a proposito, por tres razones:
+#
+#  - Montar ./docker/php/conf.d sobre /usr/local/etc/php/conf.d TAPARIA lo que la
+#    imagen ya puso ahi: los docker-php-ext-{mysqli,bcmath,intl,gd}.ini que genera
+#    el RUN de mas arriba y el timezone.ini de la linea anterior. El contenedor
+#    arrancaria igual y Apache responderia 200 -- con el POS muerto por falta de
+#    mysqli. Montar archivo por archivo evita ese efecto, pero entonces cada .ini
+#    nuevo obliga a tocar los dos compose: deja de ser un sitio donde dejar
+#    archivos y vuelve a ser un tramite que alguien se salta.
+#  - La imagen es la unidad de despliegue Y de vuelta atras (etiquetas
+#    casaletto-ospos:rollback-AAAAMMDD). Si la configuracion viniera del
+#    directorio del servidor, volver a una imagen anterior la emparejaria con los
+#    .ini de la revision actual. Dentro de la imagen, cada etiqueta lleva la suya.
+#  - La imagen se construye EN EL SERVIDOR desde el repositorio
+#    (`docker compose -f docker-compose.<env>.yml up -d --build`), asi que el
+#    origen del COPY siempre esta en el contexto de build. Y es el mismo mecanismo
+#    que ya usa timezone.ini: uno, no dos.
+#
+# COPY de un directorio FUSIONA con el destino, no lo reemplaza, asi que los .ini
+# de las extensiones siguen en su sitio. Un archivo con el mismo nombre si los
+# pisaria: no reutilizar los nombres docker-php-ext-*.ini ni timezone.ini.
+#
+# Requiere que docker/php/conf.d NO quede excluido en .dockerignore (hoy no lo
+# esta: ningun patron lo alcanza). De eso se encarga la comprobacion de abajo.
+COPY docker/php/conf.d/ /usr/local/etc/php/conf.d/
+
+# La comprobacion que convierte un fallo silencioso en un build roto, igual que
+# las de las otras etapas. Comprueba las tres cosas que pueden salir mal sin dar
+# ni un error:
+#
+#  - que los .ini del repositorio LLEGARON. Si alguien excluye docker/php/ en
+#    .dockerignore, el COPY no trae nada, la imagen se construye igual y la
+#    configuracion simplemente no esta.
+#  - que el directorio al que se copian es DE VERDAD el que PHP escanea (si la
+#    imagen base lo cambiara, el COPY seguiria funcionando y no serviria de nada).
+#  - que el COPY no se llevo por delante la configuracion de la imagen base:
+#    timezone.ini y los .ini de las extensiones. Se comprueba que mysqli e intl
+#    esten CARGADAS, no que exista un archivo con cierto nombre.
+#
+# Nombra el archivo del sitio: si se renombra, hay que actualizar esta linea.
+RUN test -f /usr/local/etc/php/conf.d/zz-casaletto.ini \
+    && php -r 'exit(rtrim(PHP_CONFIG_FILE_SCAN_DIR, "/") === "/usr/local/etc/php/conf.d" ? 0 : 1);' \
+    && test -f /usr/local/etc/php/conf.d/timezone.ini \
+    && php -m | grep -qx 'mysqli' \
+    && php -m | grep -qx 'intl' \
+    || ( echo "FALLO: docker/php/conf.d no llego a la imagen, o piso la configuracion de la imagen base" && exit 1 )
+
 WORKDIR /app
 COPY --chown=www-data:www-data . /app
 
