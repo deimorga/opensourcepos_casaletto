@@ -170,7 +170,8 @@ normal: cubren `SKIP_MIGRATIONS=1` y una tabla perdida a mano.
 
 - `console_layout.php` **no es responsive** (§9.1 decía que sí): su docblock dice que es de escritorio,
   no tiene media queries y su barra no colapsa. De él solo se tomó el `viewport` y Bootstrap 5; lo
-  responsive se escribió en `public/css/order_tickets.css`.
+  responsive se escribió en `public/css/order_tickets.css`. **Luego descartado (D25):** la pantalla
+  pasó a usar la cabecera de la caja; ver §9.1.
 - `public/images/menubar/` es **salida de build** y está en `.gitignore`: el icono se agrega como una
   línea en la tarea `copy-menubar` del gulpfile. `MenubarIconsTest` exige una línea por módulo.
 - Las fechas de las tres tablas son `DATETIME`, no `TIMESTAMP`: así la regla de MySQL que le pone
@@ -189,7 +190,7 @@ normal: cubren `SKIP_MIGRATIONS=1` y una tabla perdida a mano.
 | Agente local en la caja | `tools/pos-agent/`, WebSocket en `127.0.0.1:7878` | No hace falta (§8) |
 | Registro de módulo + permiso | `20260906001000_AddWriteoffsModule.php` | **Sí, es la plantilla exacta** (§6) |
 | Claves de configuración | `20260902000000_AddScaleConfigKeys.php` | **Sí, es la plantilla exacta** (§5) |
-| Layout responsive que ya funciona | `app/Views/platform/console_layout.php` | **Sí, es la plantilla exacta** (§9) |
+| Layout responsive que ya funciona | `app/Views/platform/console_layout.php` | ~~Sí, es la plantilla exacta~~ — no era responsive, y al final no se usó: la pantalla es la de la caja (§9.1, D25) |
 | Tabla propia con escritura que no puede tumbar nada | `app/Models/Item_price_history.php` | Sí, es el criterio (§4.6) |
 
 Y lo que **no** existe, dicho sin rodeos: **no hay estaciones** (ni tabla, ni columna, ni ajuste),
@@ -388,6 +389,11 @@ de todas las pantallas del sistema de golpe, sin una sola de ellas diseñada par
 justo el arreglito de una línea que parece gratis y no lo es.**
 
 La pantalla de comanda lleva entonces su propio layout (§9).
+
+> **Superado por D25 (2026-09-23).** La salida no fue un layout propio sino **opciones apagadas por
+> defecto** en `header.php` (`$responsive`, `$extra_stylesheets`, `$logout_route`, `$profile_link`):
+> la cabecera solo emite el `viewport` cuando una pantalla lo pide, así que el razonamiento de arriba
+> sigue en pie —ninguna otra pantalla cambia— y comandas usa la cabecera de todos. Ver §9.1.
 
 ### 3.14 El mapa de configuración está cacheado
 
@@ -671,8 +677,8 @@ que haga sobre esa pestaña, y la caja se niega a cobrar si llegó algo después
 
 | vista | entrega | layout |
 |---|---|---|
-| `app/Views/order_tickets/index.php` | 1 | propio, responsive (§9) |
-| `app/Views/order_tickets/show.php` | 1 | propio, responsive |
+| `app/Views/order_tickets/screen.php` | 1 | **el de la caja** (`partial/header`), responsive (§9.1, D25) |
+| `app/Views/order_tickets/new.php` | 1 | el de la caja; formulario sin JavaScript para abrir una comanda |
 | `app/Views/order_tickets/round_print.php` | 1 | **sin layout**: hoja limpia para imprimir (§8) |
 | `app/Views/order_tickets/kitchen.php` | 3 | propio |
 | `app/Views/configs/order_tickets_config.php` | 1 | el de Configuración, como `table_config.php` |
@@ -720,19 +726,40 @@ se imprimió».
 
 ## 9. La pantalla del mesero, responsive
 
-### 9.1 Layout propio
+### 9.1 La pantalla es la de la caja (D25)
 
-No se usa `partial/header.php` (§3.13). El layout propio es `app/Views/order_tickets/layout.php`,
-sobre Bootstrap 5 (Bootswatch Flatly) y sin dependencia de JavaScript.
+**Corregido el 2026-09-23.** La primera versión tenía layout propio (`order_tickets/layout.php`,
+Bootstrap 5 Flatly, búsqueda por GET que recargaba la página). El dueño la rechazó por romper la
+línea de diseño: quien usa la caja tiene que reconocer la pantalla. Se rehízo así:
 
-> **Corregido:** esta sección decía que `console_layout.php` «ya funciona en un teléfono». No: es de
-> escritorio (su docblock lo dice, cero media queries, barra sin punto de corte). De él se tomó solo el
-> `viewport` y la hoja BS5. Lo responsive está en `public/css/order_tickets.css`: sin scroll horizontal
-> a 360 px, objetivos táctiles de 44 px, entradas a 16 px (con menos, iOS hace zoom al enfocar) y barra
-> de acción inferior con `env(safe-area-inset-bottom)`.
+- `order_tickets/screen.php` usa `partial/header` y `partial/footer`: el **tema del negocio**, el menú,
+  el aviso de sesión de soporte y el paquete de CSS/JS de siempre, que ya trae `register.css` y
+  jQuery UI.
+- Usa los **mismos ids** de `sales/register.php` —`register_wrapper`, `open_tabs_bar`,
+  `add_item_form`, `register`, `overall_sale`, `sale_totals`, `payment_totals`— y los mismos textos
+  (`Sales.item_number`, `Sales.quantity_of_items`…), así que `register.css` la dibuja igual que la venta.
+- **Búsqueda en vivo** con el mismo `autocomplete` de jQuery UI, contra `comandas/buscar`
+  (`OrderTickets::getSearch()`, JSON `{value, label}` desde `Item::search_orderable()`). Endpoint
+  propio porque el mesero no tiene el permiso `sales` y no se le debe dar para buscar. Elegir un
+  resultado envía `#ot_add_form` y el plato se agrega de una vez.
+- La tabla de platos: los campos de cada fila apuntan con el atributo `form` a formularios fuera de
+  la tabla (un `<form>` no puede envolver un `<tr>`); el de edición lleva `seen_quantity`/`seen_note`.
+- El panel derecho reemplaza el pago por **Enviar a cocina / Marcar entregada / Cancelar**. No hay
+  ninguna ruta de cobro en la vista (`OrderTicketsScreenDesignTest::testTheScreenCannotCharge`).
+- La cabecera recibe cuatro opciones que solo pasa `OrderTickets::layout_data()`, todas apagadas por
+  defecto: `responsive` (emite el `viewport`), `extra_stylesheets` (`css/order_tickets.css`),
+  `logout_route` (`comandas/salir`: `home/logout` exige el permiso `home`) y `profile_link` (el
+  cambio de clave también está detrás de `home`).
+- `public/css/order_tickets.css` **solo** agrega lo que la caja no necesita, y todas sus reglas
+  empiezan por `#ot_screen` (lo verifica una prueba): no puede alcanzar la caja. Bajo 768 px apila los
+  paneles, vuelve cada plato una tarjeta con etiquetas (`data-label`), entradas a 16 px (con menos,
+  iOS hace zoom) y objetivos de 44 px. La lista del autocompletado se monta dentro de `#ot_screen` y
+  se limita al ancho de la pantalla: sin eso, un nombre largo corría la página hacia los lados.
+- Sin JavaScript sigue funcionando: la búsqueda cae a un GET que lista los resultados, y «+ Nueva
+  comanda» es un enlace al formulario.
 
-**No es la pantalla de venta encogida.** La de venta pesa, depende de atajos de teclado y depende de
-`sale_lib`, y ninguna de esas tres cosas sirve en un teléfono.
+Verificado en staging el 2026-09-23 con Chrome sin ventana a 1440 px y a 390 px (sin desplazamiento
+horizontal): lista, búsqueda en vivo y agregar un plato eligiéndolo de la lista.
 
 ### 9.2 Lo que la pantalla tiene que hacer bien en un móvil
 
@@ -821,7 +848,7 @@ sesión, los últimos 200); el segundo con el mismo token no hace nada y dice «
 Un POST sin token es una página vieja: no se guarda nada y se recarga. Es lo que cubre el reenvío
 del navegador al recuperar la señal y el doble toque que el JavaScript no alcanzó a frenar.
 
-**Sin señal** — `show.php`, mejora progresiva, el servidor no depende de ella: si
+**Sin señal** — `screen.php`, mejora progresiva, el servidor no depende de ella: si
 `navigator.onLine` es `false` al enviar un formulario, no se envía y se muestra «Sin señal: no se
 envió nada». Distingue «no se guardó» de la página de error del navegador, que no dice nada. Los
 botones se deshabilitan mientras viaja la petición y se rehabilitan en `pageshow` (volver atrás o

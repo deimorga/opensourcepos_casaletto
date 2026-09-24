@@ -180,6 +180,28 @@ mesero entra desde el navegador de su teléfono, se autentica con su propio usua
 pedido de pie junto a la mesa. Eso es exactamente lo que el requerimiento venía a resolver: que el
 pedido no dependa de la memoria de alguien caminando hacia la caja.
 
+**La pantalla de comandas es la misma pantalla de Ventas, sin el cobro** (D25, 2026-09-23). Quien ya
+usa la caja la reconoce de inmediato:
+
+- Arriba, la **barra de comandas abiertas**, igual que la barra de mesas de la caja, con
+  **«+ Nueva comanda»** al final. Cada comanda muestra cuántos platos le faltan por enviar.
+- La **búsqueda en vivo** de la caja: se escribe «carnes» y aparece la lista; al elegir un plato se
+  agrega de una vez.
+- La **tabla del pedido** con las mismas columnas de la venta (Artículo #, Nombre, Precio, Cantidad,
+  Total, Actualizar), más la nota para cocina bajo el nombre y si el plato está «Sin enviar» o «En
+  cocina».
+- A la derecha, donde la caja tiene el pago, están los **totales** y los botones **Enviar a cocina**,
+  **Marcar entregada** y **Cancelar comanda**. **Desde aquí no se cobra**: la comanda se cobra en la
+  caja, que la trae completa.
+- Usa el **mismo tema y los mismos colores** que el negocio tenga configurados.
+
+En el celular los dos paneles quedan uno debajo del otro, cada plato se ve como una tarjeta con su
+precio, cantidad y total, y los botones tienen el tamaño del dedo.
+
+> La primera versión tenía un diseño propio, distinto al del resto del sistema, y una búsqueda que
+> recargaba la página. El dueño la rechazó el 2026-09-23 por romper la línea de diseño; se rehízo
+> sobre la pantalla de venta.
+
 Cada mesero entra con **su** usuario, así que cada comanda queda con un nombre detrás. Al ingresar,
 **el mesero cae directo en su pantalla de comandas** y tiene su propio botón **Salir**: no pasa por la
 pantalla de inicio de la caja, que no le corresponde.
@@ -323,6 +345,7 @@ Se hace **con** el comercio, no por defecto:
 | **D20** | **La conectividad es un requisito del comercio**, no un riesgo del proyecto. El teléfono entra por datos móviles o WiFi | 2026-09-22 |
 | **D21** | **Comandas necesita Mesas encendido**, y Mesas no se puede apagar con Comandas encendido. La comanda llega a la caja como una pestaña de Mesas (se eligió no abrirle un camino nuevo en la pantalla del dinero). *Corrige D4* | 2026-09-23 |
 | **D22** | **La caja trae sola los platos del mesero** y **nunca cobra un total que el cajero no vio**. Lo que el mesero cambia después de pasar a la caja se avisa al cajero, no se aplica solo | 2026-09-23 |
+| **D25** | **La pantalla de comandas es la de Ventas, responsive y sin cobro.** Mismo tema, misma barra de cuentas, misma búsqueda en vivo, misma tabla; donde la caja cobra, la comanda envía a cocina | 2026-09-23 |
 | **D24** | **Comandas es un permiso que el comercio le da a quien quiera**, también a quien tiene caja. El cajero que atiende mesas tiene los dos y pasa de una pantalla a la otra | 2026-09-23 |
 | **D23** | **El mesero cae directo en su pantalla y tiene su propia salida.** Con solo el permiso de Comandas no alcanza ninguna otra pantalla | 2026-09-23 |
 
