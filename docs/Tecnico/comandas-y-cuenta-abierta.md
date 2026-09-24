@@ -133,6 +133,12 @@ Tres cosas que un mesero con **solo** el permiso de comandas no podía hacer, y 
 
 ### 0.8 Permisos: un solo subpermiso, a propósito
 
+> **Etiqueta del subpermiso (corregido 2026-09-23).** La pantalla de Empleados partía el id en el
+> primer `_`: `order_tickets_void` daba `tickets_void`, no encontraba `Order_tickets.void` y mostraba
+> «Tickets Void» en inglés. Ahora usa `Module::subpermission_suffix()`, que corta por el largo del
+> módulo. La prueba anterior escribía `'void'` a mano en vez de usar el código de la vista, y por eso
+> no lo vio.
+
 `Employee::has_module_grant()` resuelve con `LIKE 'x%'` y, si hay ≠1 coincidencia, devuelve
 `count != 0`: **con dos o más subpermisos bajo un prefijo y sin el permiso base, el módulo se abre
 igual.** Comandas trae exactamente uno (`order_tickets_void`), y la cocina de la Entrega 3 irá a un
@@ -945,6 +951,16 @@ prueba**.
    tablas y las dos claves en `'0'`; **cero grants** de `order_tickets%`; 21 iconos en la imagen, entre
    ellos `order_tickets.svg`; el login y el encabezado interno con sus referencias de CSS/JS iguales a
    las de producción.
+
+5. **Completar los permisos del empleado de soporte** en todos los negocios:
+   `docker compose -f docker-compose.<env>.yml exec -T ospos php spark platform:support-employee`
+   (sin slug recorre todos los activos; idempotente, solo agrega lo que falte). Las migraciones de
+   comandas agregan `order_tickets` y `order_tickets_void`, y el empleado de soporte recibe los
+   permisos que existían **cuando se creó**: sin este paso, una sesión de soporte **no ve el módulo
+   Comandas en el menú** aunque todo lo demás esté bien. Pasó en staging el 2026-09-23: el dueño dio
+   el permiso a su empleado, entró por soporte —que es otro empleado, `soporte_micronuba`— y no vio
+   nada. No va en el arranque a propósito (cabecera de `PlatformSupportEmployee.php`: un fallo ahí
+   tumbaría Apache).
 
 **Encender para un comercio** (con el comercio, no por defecto):
 
