@@ -5,15 +5,15 @@ declare(strict_types=1);
 namespace Tests\Libraries;
 
 use CodeIgniter\Test\CIUnitTestCase;
-use Dompdf\Helpers as DompdfHelpers;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
  * create_pdf() -- app/Helpers/dompdf_helper.php -- had no test at all. It is the only thing in the
  * application that turns HTML into a PDF, it is reached from exactly one place
- * (Sales::getSendPdf(), which emails the customer a PDF of the sale), and `dompdf/dompdf` is about
- * to go from 2.0.8 to 3.1.6: a major version, six open advisories. This file is the net under that
- * upgrade.
+ * (Sales::getSendPdf(), which emails the customer a PDF of the sale), and `dompdf/dompdf` went from
+ * 2.0.8 to 3.1.6: a major version, six open advisories. This file is the net under that upgrade,
+ * and it was written before it and run unchanged after it, bar the SVG skip that 3.1.6 made
+ * pointless -- see testTheSvgBarcodeIsDrawnOntoThePage().
  *
  * getSendPdf() renders "sales/{$type}_email", and $type arrives as 'receipt', 'quote' or
  * 'work_order' -- from receipt.php, quote.php and work_order.php -- or not at all, from invoice.php,
@@ -90,12 +90,16 @@ final class CreatePdfTest extends CIUnitTestCase
 
     /**
      * Diagnostics raised by dompdf while a fixture rendered. Collected rather than let through, and
-     * that is not tidiness: dompdf 2.0.8 destructures getimagesize()'s `false` when it probes an SVG
-     * -- `[$width, $height, $type] = getimagesize($filename)` in Helpers::dompdf_getimagesize() --
-     * which raises E_WARNING "Cannot use bool as array" for every SVG on every PHP up to 8.4.
-     * phpunit.xml.dist sets failOnWarning="true", so without this the barcode tests would fail in CI
-     * on upstream's noise rather than on anything about our helper.
-     * testNothingOfOursIsHiddenByTheScopedErrorHandler() keeps the collection from hiding ours.
+     * that is not tidiness. It was written for a specific piece of upstream noise: dompdf 2.0.8
+     * destructured getimagesize()'s `false` when it probed an SVG -- `[$width, $height, $type] =
+     * getimagesize($filename)` in Helpers::dompdf_getimagesize() -- raising E_WARNING "Cannot use
+     * bool as array" for every SVG on every PHP up to 8.4, and phpunit.xml.dist sets
+     * failOnWarning="true", so the barcode tests would have failed in CI on that rather than on
+     * anything about our helper.
+     *
+     * 3.1.6 guards that call and the warning is gone. The collection stays anyway: it costs
+     * nothing, and it is what keeps the next upstream diagnostic from deciding whether our helper
+     * works. testNothingOfOursIsHiddenByTheScopedErrorHandler() keeps it from hiding ours.
      *
      * @var list<array{level: int, message: string, file: string}>
      */
@@ -279,28 +283,29 @@ final class CreatePdfTest extends CIUnitTestCase
      * look for. What there is: more bars means more operators means a bigger document. A barcode
      * that dompdf dropped produces the same bytes whether it has three bars or sixty.
      *
-     * THE SKIP: dompdf 2.0.8 works out an image's type from getimagesize(), and only falls back to
-     * sniffing for "<svg" when getimagesize() returns false. PHP 8.5 taught getimagesize() to read
-     * SVG, so it now returns dimensions plus IMAGETYPE_SVG -- which 2.0.8's type map does not
-     * contain -- and the fallback never runs. On PHP 8.5 this version of dompdf cannot render an SVG
-     * at all; every barcode on an emailed invoice comes out as "Image not found or type unknown".
-     * CI (8.2, 8.3, 8.4) and the server's image (8.4) are unaffected, which is where this assertion
-     * runs. Delete the guard after the 3.1.6 upgrade and check that it passes: if it does, that is
-     * the upgrade fixing a bug we did not know we had.
+     * THE SKIP THAT USED TO BE HERE, and why it is gone: dompdf 2.0.8 worked out an image's type
+     * from getimagesize(), and only fell back to sniffing for "<svg" when getimagesize() returned
+     * false. PHP 8.5 taught getimagesize() to read SVG, so it returned dimensions plus
+     * IMAGETYPE_SVG -- which 2.0.8's type map did not contain -- and the fallback never ran. On PHP
+     * 8.5, dompdf 2.0.8 could not render an SVG at all, so this test skipped itself there.
+     *
+     * 3.1.6 fixes it at the source: Helpers::dompdf_getimagesize() now guards the call
+     * (`@getimagesize()`, then `if ($parse_result !== false)`) instead of destructuring a `false`,
+     * and adds the constant to its own map -- `if (defined('IMAGETYPE_SVG')) { $types[IMAGETYPE_SVG]
+     * = "svg"; }` (vendor/dompdf/dompdf/src/Helpers.php:822-824). So both paths now answer "svg":
+     * PHP <= 8.4 through the "<svg" sniff, PHP 8.5 through the type map. The guard has no version
+     * left to protect against and was removed with the upgrade; verified reporting 'svg' on 8.5.
+     *
+     * The same fix is why the E_WARNING this file collects in $diagnostics no longer comes from the
+     * SVG path: there is no `[$w, $h, $t] = getimagesize()` left to destructure a false.
      *
      * The assertion itself was checked on the pre-8.5 path before being committed -- the same
      * barcode with its width/height dropped so getimagesize() misses it, which is the path every PHP
-     * up to 8.4 takes: 3 bars rendered to 1645 bytes and 60 bars to 1843.
+     * up to 8.4 takes: 3 bars rendered to 1645 bytes and 60 bars to 1843. On 3.1.6 the same pair
+     * measures 1688 and 1885 bytes.
      */
     public function testTheSvgBarcodeIsDrawnOntoThePage(): void
     {
-        if (! $this->dompdfCanDetectSvg()) {
-            $this->markTestSkipped(
-                'Esta combinación de PHP y dompdf no reconoce un SVG (getimagesize() ya lo entiende y el '
-                . 'mapa de tipos de dompdf 2.x no): el código de barras no se dibuja en ningún caso.'
-            );
-        }
-
         $few  = $this->renderPdf($this->document($this->barcodeMarkup($this->barcodeSvg(3))));
         $many = $this->renderPdf($this->document($this->barcodeMarkup($this->barcodeSvg(60))));
 
@@ -710,33 +715,6 @@ final class CreatePdfTest extends CIUnitTestCase
         }
 
         return false;
-    }
-
-    /**
-     * Whether this PHP and this dompdf, together, can work out that an SVG is an SVG. Asked through
-     * dompdf's own function so the answer is the one dompdf will act on. See
-     * testTheSvgBarcodeIsDrawnOntoThePage().
-     */
-    private function dompdfCanDetectSvg(): bool
-    {
-        // A name nothing else has used: dompdf_getimagesize() memoises by file name for the whole
-        // process.
-        $file = $this->writeTempFile('svg_probe_' . uniqid(), 'svg', $this->barcodeSvg(4));
-
-        $this->diagnostics = [];
-        set_error_handler(function (int $level, string $message, string $file = '', int $line = 0): bool {
-            $this->diagnostics[] = ['level' => $level, 'message' => $message, 'file' => $file];
-
-            return true;
-        });
-
-        try {
-            [, , $type] = DompdfHelpers::dompdf_getimagesize($file);
-        } finally {
-            restore_error_handler();
-        }
-
-        return $type === 'svg';
     }
 
     private function writeTempFile(string $name, string $extension, string $contents): string
