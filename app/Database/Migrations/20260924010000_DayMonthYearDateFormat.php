@@ -46,7 +46,10 @@ class Migration_DayMonthYearDateFormat extends Migration
 
         if ($this->works_in_spanish()) {
             foreach (self::SWAPS as $us => $day_first) {
-                $this->db->table(self::TABLE)->where('key', 'dateformat')->where('value', $us)->update(['value' => $day_first]);
+                // BINARY: app_config's collation ignores case, and 'm/d/Y' would also match 'm/d/y' --
+                // turning a two-digit-year business into a four-digit one. Caught by
+                // DayMonthYearMigrationTest::testTheTwoDigitYearVariantMovesToo.
+                $this->db->table(self::TABLE)->where('key', 'dateformat')->where('BINARY value = ' . $this->db->escape($us), null, false)->update(['value' => $day_first]);
                 $changed += $this->db->affectedRows();
             }
         }
@@ -60,7 +63,7 @@ class Migration_DayMonthYearDateFormat extends Migration
     {
         if ($this->works_in_spanish()) {
             foreach (self::SWAPS as $us => $day_first) {
-                $this->db->table(self::TABLE)->where('key', 'dateformat')->where('value', $day_first)->update(['value' => $us]);
+                $this->db->table(self::TABLE)->where('key', 'dateformat')->where('BINARY value = ' . $this->db->escape($day_first), null, false)->update(['value' => $us]);
             }
         }
 
