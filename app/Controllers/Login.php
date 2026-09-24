@@ -101,8 +101,9 @@ class Login extends BaseController
             }
         }
 
-        // 'home' for everybody but a waiter granted only order tickets. See Employee::landing_route().
-        return redirect()->to($this->employee->landing_route((int) session()->get('person_id')));
+        // 'home', or 'comandas' for a waiter or for a phone login with order tickets. See
+        // Employee::landing_route().
+        return redirect()->to($this->employee->landing_route((int) session()->get('person_id'), $this->from_phone()));
     }
 
     /**
@@ -209,7 +210,7 @@ class Login extends BaseController
 
         // model() and not $this->employee: that property is only assigned inside index(), and this
         // is a different action -- reading it here throws "must not be accessed before initialization".
-        return redirect()->to(model(Employee::class)->landing_route((int) session()->get('person_id')));
+        return redirect()->to(model(Employee::class)->landing_route((int) session()->get('person_id'), $this->from_phone()));
     }
 
     /**
@@ -279,7 +280,7 @@ class Login extends BaseController
         $entrada->openSupportSession($canje['account_id'], (int)$soporte->person_id);
 
         // model() and not $this->employee, for the same reason as in totp().
-        return redirect()->to(model(Employee::class)->landing_route((int)$soporte->person_id));
+        return redirect()->to(model(Employee::class)->landing_route((int)$soporte->person_id, $this->from_phone()));
     }
 
     public function migrate(): ResponseInterface
@@ -305,4 +306,17 @@ class Login extends BaseController
             ])->setStatusCode(500);
         }
     }
+
+    /**
+     * Whether this login comes from a phone, by the browser's user agent (CodeIgniter's UserAgent and
+     * app/Config/UserAgents.php: iPhone, Android and the rest of its mobile list).
+     *
+     * Only ever used to choose the landing page (Employee::landing_route()), never to grant or deny
+     * anything: a user agent is whatever the browser says it is.
+     */
+    private function from_phone(): bool
+    {
+        return $this->request->getUserAgent()->isMobile();
+    }
+
 }

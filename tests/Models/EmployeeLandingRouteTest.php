@@ -5,6 +5,7 @@ namespace Tests\Models;
 use App\Models\Employee;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
+use Config\OSPOS;
 
 /**
  * Where an employee lands after logging in.
@@ -31,6 +32,7 @@ final class EmployeeLandingRouteTest extends CIUnitTestCase
 
     private Employee $employees;
     private int $personId = 0;
+    private ?string $switchBefore = null;
 
     protected function setUp(): void
     {
@@ -39,6 +41,9 @@ final class EmployeeLandingRouteTest extends CIUnitTestCase
         $this->db->resetDataCache();
         $this->employees = model(Employee::class, false);
         $this->personId  = $this->createEmployee();
+
+        $row                = $this->db->table('app_config')->where('key', 'order_tickets_enable')->get()->getRow();
+        $this->switchBefore = $row === null ? null : (string) $row->value;
     }
 
     protected function tearDown(): void
@@ -48,6 +53,15 @@ final class EmployeeLandingRouteTest extends CIUnitTestCase
             $this->db->table('employees')->where('person_id', $this->personId)->delete();
             $this->db->table('people')->where('person_id', $this->personId)->delete();
         }
+
+        // app_config is shared between test files: put the switch back exactly as it was.
+        if ($this->switchBefore === null) {
+            $this->db->table('app_config')->where('key', 'order_tickets_enable')->delete();
+        } else {
+            $this->db->table('app_config')->replace(['key' => 'order_tickets_enable', 'value' => $this->switchBefore]);
+        }
+
+        config(OSPOS::class)->update_settings();
 
         parent::tearDown();
     }
@@ -80,9 +94,64 @@ final class EmployeeLandingRouteTest extends CIUnitTestCase
         $this->assertSame('home', $this->employees->landing_route($this->personId));
     }
 
+    /**
+     * D26: a cashier who also takes orders, logging in from a phone, lands on the order screen. At
+     * Casaletto the cashier walks to the tables; a phone at login means taking orders.
+     */
+    public function testACashierWithOrderTicketsLoggingInFromAPhoneLandsOnTheOrderScreen(): void
+    {
+        $this->switchTo('1');
+        $this->grant('home');
+        $this->grant('order_tickets');
+
+        $this->assertSame('comandas', $this->employees->landing_route($this->personId, true));
+    }
+
+    /**
+     * The same cashier from a computer: home, exactly as before D26.
+     */
+    public function testTheSameCashierFromAComputerStillLandsOnHome(): void
+    {
+        $this->switchTo('1');
+        $this->grant('home');
+        $this->grant('order_tickets');
+
+        $this->assertSame('home', $this->employees->landing_route($this->personId, false));
+    }
+
+    /**
+     * With order tickets switched off, a phone login must reach the menu, not a page saying the
+     * module is off.
+     */
+    public function testAPhoneLoginGoesHomeWhenOrderTicketsAreSwitchedOff(): void
+    {
+        $this->switchTo('0');
+        $this->grant('home');
+        $this->grant('order_tickets');
+
+        $this->assertSame('home', $this->employees->landing_route($this->personId, true));
+    }
+
+    /**
+     * A phone alone changes nothing for somebody who does not take orders.
+     */
+    public function testAPhoneLoginWithoutOrderTicketsGoesHome(): void
+    {
+        $this->switchTo('1');
+        $this->grant('home');
+
+        $this->assertSame('home', $this->employees->landing_route($this->personId, true));
+    }
+
     public function testTheSeededAdministratorLandsOnHome(): void
     {
         $this->assertSame('home', $this->employees->landing_route(1));
+    }
+
+    private function switchTo(string $value): void
+    {
+        $this->db->table('app_config')->replace(['key' => 'order_tickets_enable', 'value' => $value]);
+        config(OSPOS::class)->update_settings();
     }
 
     private function grant(string $permission_id): void

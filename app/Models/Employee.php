@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Config\OSPOS;
 use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\ResultInterface;
 use CodeIgniter\Session\Session;
@@ -458,23 +459,34 @@ class Employee extends Person
     }
 
     /**
-     * Where an employee lands after logging in: 'home' for everybody, except a waiter.
+     * Where an employee lands after logging in: 'home', or 'comandas' in two cases.
      *
-     * Home is a Secure_Controller gated on the `home` grant. A waiter who takes orders from their
-     * phone is granted order_tickets and nothing else (D17), so sending them to home -- which every
-     * login path did unconditionally -- stranded them on no_access with no way forward.
+     * 1. A waiter granted order_tickets and not `home` (D17). Home is a Secure_Controller gated on
+     *    `home`; sending them there -- which every login path did unconditionally -- stranded them on
+     *    no_access with no way forward.
+     * 2. Anybody granted order_tickets who logs in FROM A PHONE while the business has order tickets
+     *    switched on (D26, 2026-09-23). At Casaletto the cashier also walks to the tables; a phone at
+     *    login means taking orders, and the register is not usable on a phone anyway. From a computer
+     *    nothing changes: an employee with `home` still lands on home.
      *
-     * The rule only applies to an employee WITHOUT `home`. Every employee that existed before order
-     * tickets has it, so nothing changes for any of them; this answer can only differ for a new kind
-     * of employee.
+     * The switch is checked only for case 2: with order tickets off, a phone login of a cashier must
+     * reach the menu, not a page saying the module is off. A waiter in case 1 has nowhere else to go.
+     *
+     * @param bool $from_phone what the login request's user agent says (Login::from_phone())
      */
-    public function landing_route(int $person_id): string
+    public function landing_route(int $person_id, bool $from_phone = false): string
     {
-        if (!$this->has_grant('home', $person_id) && $this->has_grant('order_tickets', $person_id)) {
+        if (!$this->has_grant('order_tickets', $person_id)) {
+            return 'home';
+        }
+
+        if (!$this->has_grant('home', $person_id)) {
             return 'comandas';
         }
 
-        return 'home';
+        $switched_on = (string) (config(OSPOS::class)->settings['order_tickets_enable'] ?? '0') === '1';
+
+        return $from_phone && $switched_on ? 'comandas' : 'home';
     }
 
     /**
