@@ -66,6 +66,12 @@ inadvertido. El gasto 14 y el turno 6 de prueba se borraron de staging.
 
 ## 4. Fechas escritas a mano: `parse_typed_datetime()` (`a5e4607cb`)
 
+> **En producción desde el 2026-09-24 ~13:20** (`c4ae458d0`, sin migraciones; imagen de retorno
+> `casaletto-ospos:rollback-20260924-prefechas`, respaldo `/root/backups/prod-20260924-pre-lectura-fechas/`).
+> Ese despliegue se hizo con una sesión de usuario activa en Casaletto (Juan David Nieto, última
+> petición 13:15): la consulta de actividad estaba encadenada al despliegue y no se leyó antes. Sin
+> impacto visible: ninguna venta en la hora y media anterior ni peticiones suyas fallidas después.
+
 `date_create_from_format()` **no falla** con una fecha imposible: la desborda (`09/30/2026` en
 `d/m/Y` → 2028-06-09; `30/02/2026` → 2026-03-02) y solo deja una advertencia en
 `date_get_last_errors()`. Ningún controlador la revisaba. Además Recepciones, editar venta y Clientes
