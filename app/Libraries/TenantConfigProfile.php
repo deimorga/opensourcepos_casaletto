@@ -44,8 +44,18 @@ use CodeIgniter\Database\BaseConnection;
  * `1` cambiaría en silencio cómo se calculan los precios de todo negocio futuro a partir de una
  * recomendación que producción ya desmiente. Queda anotado como pendiente en §5 del funcional.
  *
- * Tampoco toca formatos de fecha, símbolo de moneda ni separador de miles: no están en la lista
- * cerrada de D12 y añadirlos sería decidir por el dueño.
+ * Tampoco toca símbolo de moneda ni separador de miles: no están en la lista cerrada de D12 y
+ * añadirlos sería decidir por el dueño.
+ *
+ * EL FORMATO DE FECHA Y LOS TEXTOS EN ESPAÑOL (2026-09-24)
+ *
+ * Este párrafo decía que el formato de fecha tampoco se tocaba, por la misma razón. El dueño lo
+ * decidió el 2026-09-24 (D27: día/mes/año), y con él tres textos que el sistema imprime o envía
+ * (comentario de cotización, comentario de factura, mensaje del correo). Las migraciones
+ * 20260924000000 y 20260924010000 los cambian en los negocios que ya existían, pero en un negocio
+ * NUEVO corren antes que este perfil, cuando el esquema todavía dice `en`, y no encuentran nada que
+ * cambiar. Por eso van aquí también. TenantConfigProfileTest exige que los valores coincidan con los
+ * de esas migraciones: un negocio nuevo y uno viejo no pueden quedar distintos.
  */
 final class TenantConfigProfile
 {
@@ -100,6 +110,11 @@ final class TenantConfigProfile
         'language'          => 'spanish',
         'timezone'          => 'America/Bogota',
         'country_codes'     => 'co',
+        // D27. Ver la cabecera: en un negocio nuevo las migraciones corren antes que el perfil.
+        'dateformat'               => 'd/m/Y',
+        'quote_default_comments'   => '',
+        'invoice_default_comments' => '',
+        'invoice_email_message'    => 'Estimado(a) {CU}: adjuntamos el documento {ISEQ}.',
     ];
 
     /**

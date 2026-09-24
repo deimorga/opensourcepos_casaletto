@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Tests\Libraries;
 
+use App\Database\Migrations\Migration_DayMonthYearDateFormat;
+use App\Database\Migrations\Migration_QuoteValidityAndSpanishDefaults;
 use App\Libraries\TenantConfigProfile;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -228,6 +230,45 @@ final class TenantConfigProfileTest extends CIUnitTestCase
         $this->profile->applyTo(db_connect(), 'Negocio de prueba', $this->personId);
 
         $this->assertSame('co', $this->setting('country_codes'));
+    }
+
+    /**
+     * D27: día/mes/año. En un negocio nuevo la migración 20260924010000 corre antes que el perfil,
+     * cuando el esquema todavía dice `en`, así que la fecha la pone el perfil.
+     */
+    public function testTheDateIsDayMonthYear(): void
+    {
+        $this->profile->applyTo(db_connect(), 'Negocio de prueba', $this->personId);
+
+        $this->assertSame('d/m/Y', $this->setting('dateformat'));
+    }
+
+    /**
+     * Sin los textos de ejemplo en inglés de upstream, que se imprimen en cotizaciones y facturas.
+     */
+    public function testNoEnglishSampleTextIsLeftOnTheDocuments(): void
+    {
+        $this->profile->applyTo(db_connect(), 'Negocio de prueba', $this->personId);
+
+        $this->assertSame('', $this->setting('quote_default_comments'));
+        $this->assertSame('', $this->setting('invoice_default_comments'));
+        $this->assertStringStartsWith('Estimado(a)', (string) $this->setting('invoice_email_message'));
+    }
+
+    /**
+     * Un negocio nuevo (perfil) y uno que ya existía (migraciones) tienen que quedar iguales. Si
+     * alguien cambia un valor en un solo lado, esta prueba lo dice.
+     */
+    public function testTheProfileAndTheMigrationsAgree(): void
+    {
+        $this->assertSame(
+            Migration_DayMonthYearDateFormat::SWAPS['m/d/Y'],
+            TenantConfigProfile::PREFERENCES['dateformat'],
+        );
+
+        foreach (Migration_QuoteValidityAndSpanishDefaults::SPANISH_REPLACEMENTS as $key => [, $spanish]) {
+            $this->assertSame($spanish, TenantConfigProfile::PREFERENCES[$key], $key);
+        }
     }
 
     public function testTheCompanyNameIsTheOneGiven(): void
