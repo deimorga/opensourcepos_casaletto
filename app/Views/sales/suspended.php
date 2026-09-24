@@ -63,6 +63,10 @@ $this->dinner_table = model(Dinner_table::class);
                 </td>
                 <td><?= esc($suspended_sale['comment']) ?></td>
                 <td>
+                    <?php // A quote can be seen, printed or downloaded again without taking it back into the register. ?>
+                    <?php if ((int) ($suspended_sale['sale_type'] ?? 0) === SALE_TYPE_QUOTE) { ?>
+                        <?= anchor('sales/quote/' . (int) $suspended_sale['sale_id'], lang('Sales.quote_view'), ['class' => 'btn btn-default btn-xs pull-left']) ?>
+                    <?php } ?>
                     <?= form_open('sales/unsuspend') ?>
                     <?= form_hidden('suspended_sale_id', $suspended_sale['sale_id']) ?>
                     <input type="submit" name="submit" value="<?= lang('Sales.unsuspend') ?>" id="submit" class="btn btn-primary btn-xs pull-right">

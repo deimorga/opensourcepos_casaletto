@@ -267,6 +267,8 @@ return [
     "quantity_decimals"                         => "Decimales de Cantidades",
     "quick_cash_enable"                         => "Activar Botones de Efectivo",
     "quote_default_comments"                    => "Comentario inicial de cotizaciones",
+    "quote_validity_days"                       => "Vigencia de la cotización (días)",
+    "quote_validity_days_help"                  => "Se imprime en cada cotización como «Válida hasta». Con 0 no se imprime.",
     "receipt"                                   => "Recibo",
     "receipt_category"                          => "Recibo con categoría",
     "receipt_configuration"                     => "Parámetros de Impresión",

@@ -1289,6 +1289,7 @@ class Config extends Secure_Controller
             'last_used_invoice_number'    => $this->request->getPost('last_used_invoice_number', FILTER_SANITIZE_NUMBER_INT),
             'last_used_quote_number'      => $this->request->getPost('last_used_quote_number', FILTER_SANITIZE_NUMBER_INT),
             'quote_default_comments'      => $this->request->getPost('quote_default_comments'),
+            'quote_validity_days'         => (string) max(0, min(365, (int) $this->request->getPost('quote_validity_days', FILTER_SANITIZE_NUMBER_INT))),
             'work_order_enable'           => $this->request->getPost('work_order_enable') != null,
             'work_order_format'           => $this->request->getPost('work_order_format'),
             'last_used_work_order_number' => $this->request->getPost('last_used_work_order_number', FILTER_SANITIZE_NUMBER_INT),

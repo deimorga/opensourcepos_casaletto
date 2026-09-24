@@ -66,6 +66,7 @@ class Sale extends Model
                 MAX(sales.sale_status) AS sale_status,
                 MAX(sales.invoice_number) AS invoice_number,
                 MAX(sales.quote_number) AS quote_number,
+                MAX(sales.sale_type) AS sale_type,
                 MAX(sales.employee_id) AS employee_id,
                 MAX(sales.customer_id) AS customer_id,
                 MAX(CONCAT(customer_p.first_name, " ", customer_p.last_name)) AS customer_name,
@@ -1318,10 +1319,10 @@ class Sale extends Model
     public function get_all_suspended(?int $customer_id = null): array
     {
         if ($customer_id == NEW_ENTRY) {
-            $query = $this->db->query("SELECT sale_id, case when sale_type = '" . SALE_TYPE_QUOTE . "' THEN quote_number WHEN sale_type = '" . SALE_TYPE_WORK_ORDER . "' THEN work_order_number else sale_id end as doc_id, sale_id as suspended_sale_id, sale_status, sale_time, dinner_table_id, customer_id, employee_id, comment FROM "
+            $query = $this->db->query("SELECT sale_id, case when sale_type = '" . SALE_TYPE_QUOTE . "' THEN quote_number WHEN sale_type = '" . SALE_TYPE_WORK_ORDER . "' THEN work_order_number else sale_id end as doc_id, sale_id as suspended_sale_id, sale_status, sale_type, sale_time, dinner_table_id, customer_id, employee_id, comment FROM "
                 . $this->db->prefixTable('sales') . ' where sale_status = ' . SUSPENDED);
         } else {
-            $query = $this->db->query("SELECT sale_id, case when sale_type = '" . SALE_TYPE_QUOTE . "' THEN quote_number WHEN sale_type = '" . SALE_TYPE_WORK_ORDER . "' THEN work_order_number else sale_id end as doc_id, sale_status, sale_time, dinner_table_id, customer_id, employee_id, comment FROM "
+            $query = $this->db->query("SELECT sale_id, case when sale_type = '" . SALE_TYPE_QUOTE . "' THEN quote_number WHEN sale_type = '" . SALE_TYPE_WORK_ORDER . "' THEN work_order_number else sale_id end as doc_id, sale_status, sale_type, sale_time, dinner_table_id, customer_id, employee_id, comment FROM "
                 . $this->db->prefixTable('sales') . ' where sale_status = ' . SUSPENDED . ' AND customer_id = ' . $customer_id);
         }
 

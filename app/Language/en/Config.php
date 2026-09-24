@@ -267,6 +267,8 @@ return [
     "quantity_decimals"                         => "Quantity Decimals",
     "quick_cash_enable"                         => "",
     "quote_default_comments"                    => "Default Quote Comments",
+    "quote_validity_days"                       => "Quote Validity (days)",
+    "quote_validity_days_help"                  => "Printed on every quote as “Valid until”. 0 prints nothing.",
     "receipt"                                   => "Receipt",
     "receipt_category"                          => "",
     "receipt_configuration"                     => "Receipt Print Settings",

@@ -13,7 +13,10 @@
  * @var array $taxes
  * @var array $payments
  * @var array $config
+ * @var string|null $quote_valid_until "Válida hasta", or null when the business set 0 days
+ * @var bool|null $reprint opened again from the Suspended list (Sales::getQuote()), not just made
  */
+$reprint ??= false;
 ?>
 
 <?= view('partial/header') ?>
@@ -65,12 +68,21 @@ if (isset($error_message)) {
             <div class="btn btn-info btn-sm" id="show_email_button"><?= '<span class="glyphicon glyphicon-envelope">&nbsp;</span>' . lang('Sales.send_quote') ?></div>
         </a>
     <?php endif; ?>
+    <?= anchor('sales/quotePdf/' . (int) $sale_id_num, '<span class="glyphicon glyphicon-download-alt">&nbsp;</span>' . lang('Sales.quote_download_pdf'), ['class' => 'btn btn-info btn-sm', 'id' => 'download_quote_pdf_button']) ?>
     <?= anchor('sales', '<span class="glyphicon glyphicon-shopping-cart">&nbsp;</span>' . lang('Sales.register'), ['class' => 'btn btn-info btn-sm', 'id' => 'show_sales_button']) ?>
-    <?= anchor('sales/discardsuspendedsale', '<span class="glyphicon glyphicon-remove">&nbsp;</span>' . lang('Sales.discard'), ['class' => 'btn btn-danger btn-sm', 'id' => 'discard_quote_button']) ?>
+    <?php
+    // Discard acts on the quote the session just made (sale_lib's suspended id). A quote opened again
+    // from the Suspended list is not that one, so the button is not offered there: discarding is done
+    // from the Suspended list itself.
+    ?>
+    <?php if (!$reprint): ?>
+        <?= anchor('sales/discardsuspendedsale', '<span class="glyphicon glyphicon-remove">&nbsp;</span>' . lang('Sales.discard'), ['class' => 'btn btn-danger btn-sm', 'id' => 'discard_quote_button']) ?>
+    <?php endif; ?>
 </div>
 
 <div id="page-wrap">
-    <div id="header"><?= lang('Sales.quote') ?></div>
+    <?php // Sales.quote is the register's verb ("Cotizar"); the document is a noun. ?>
+    <div id="header"><?= lang('Sales.quote_document') ?></div>
     <div id="block1">
         <div id="customer-title">
             <?php if (isset($customer)) { ?>
@@ -100,8 +112,14 @@ if (isset($error_message)) {
                 <td class="meta-head"><?= lang('Common.date') ?></td>
                 <td><?= esc($transaction_date) ?></td>
             </tr>
+            <?php if (!empty($quote_valid_until)) { ?>
+                <tr>
+                    <td class="meta-head"><?= lang('Sales.quote_valid_until') ?></td>
+                    <td><?= esc($quote_valid_until) ?></td>
+                </tr>
+            <?php } ?>
             <tr>
-                <td class="meta-head"><?= lang('Sales.invoice_total') ?></td>
+                <td class="meta-head"><?= lang('Sales.quote_total') ?></td>
                 <td><?= to_currency($total) ?></td>
             </tr>
         </table>

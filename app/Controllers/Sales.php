@@ -1426,8 +1426,16 @@ class Sales extends Secure_Controller
                 return view('sales/work_order', $data);
             }
         } elseif ($this->sale_lib->is_quote_mode()) {
-            $data['sales_quote'] = lang('Sales.quote');
+            // A quote charges nothing, but Sale::save_value() stores whatever payments are in the
+            // session -- and deducts gift cards and reward points -- whatever the status. Refused
+            // here, before any number is used up, rather than saved and explained afterwards.
+            if ($this->sale_lib->get_payments() !== []) {
+                return $this->_reload(['error' => lang('Sales.quote_no_payments')]);
+            }
+
+            $data['sales_quote'] = lang('Sales.quote_document');
             $data['quote_number_label'] = lang('Sales.quote_number');
+            $data['quote_valid_until'] = $this->quote_valid_until(time());
 
             if ($quote_number == null) {
                 // Generate quote number
@@ -1519,7 +1527,9 @@ class Sales extends Secure_Controller
         if (!empty($sale_data['customer_email'])) {
             $to = $sale_data['customer_email'];
             $number = array_key_exists($type . "_number", $sale_data) ?  $sale_data[$type . "_number"] : "";
-            $subject = lang('Sales.' . $type) . ' ' . $number;
+            // Sales.quote is the verb on the register's button ("Cotizar"); the document is a noun.
+            $document = $type === 'quote' ? lang('Sales.quote_document') : lang('Sales.' . $type);
+            $subject = $document . ' ' . $number;
 
             $text = $this->config['invoice_email_message'];
             $tokens = [
@@ -1539,7 +1549,7 @@ class Sales extends Secure_Controller
 
             // Load PDF helper
             helper(['dompdf', 'file']);
-            $filename = sys_get_temp_dir() . '/' . lang('Sales.' . $type) . '-' . str_replace('/', '-', $number) . '.pdf';
+            $filename = sys_get_temp_dir() . '/' . $document . '-' . str_replace('/', '-', $number) . '.pdf';
             if (file_put_contents($filename, create_pdf($html)) !== false) {
                 $result = $this->email_lib->sendEmail($to, $subject, $text, $filename);
             }
@@ -1713,6 +1723,9 @@ class Sales extends Secure_Controller
         $data['invoice_number'] = $sale_info['invoice_number'];
         $data['quote_number'] = $sale_info['quote_number'];
         $data['sale_status'] = $sale_info['sale_status'];
+        $data['quote_valid_until'] = (int) $sale_info['sale_type'] === SALE_TYPE_QUOTE
+            ? $this->quote_valid_until((int) strtotime($sale_info['sale_time']))
+            : null;
 
         $data['company_info'] = implode("\n", [$this->config['address'], $this->config['phone']]);    // TODO: Duplicated code.
 
@@ -2114,6 +2127,71 @@ class Sales extends Secure_Controller
         $this->sale_lib->clear_all();
 
         return view('sales/' . $data['invoice_view'], $data);
+    }
+
+    /**
+     * A saved quote's document again: the same page the register showed when it was made, with its
+     * print and send buttons. Before this there was no way back to it once the cashier left that page.
+     * Opened from the Suspended list.
+     *
+     * Only a quote: any other id answers with a message, not with somebody's receipt drawn as a quote.
+     */
+    public function getQuote(int $sale_id): string
+    {
+        if (! $this->is_saved_quote($sale_id)) {
+            return view('sales/quote_not_found');
+        }
+
+        $data = $this->_load_sale_data($sale_id);
+        $this->sale_lib->clear_all();
+        $data['reprint'] = true;
+
+        return view('sales/quote', $data);
+    }
+
+    /**
+     * The quote as a PDF file to download -- the same document that is emailed (quote_email.php),
+     * for a business that sends it by WhatsApp or has no mail server configured.
+     */
+    public function getQuotePdf(int $sale_id): ResponseInterface|string
+    {
+        if (! $this->is_saved_quote($sale_id)) {
+            return view('sales/quote_not_found');
+        }
+
+        $data = $this->_load_sale_data($sale_id);
+        $this->sale_lib->clear_all();
+
+        $data['mimetype'] = $this->email_lib->getLogoMimeType();
+        $data['img_tag']  = $this->email_lib->buildLogoImgTag();
+
+        helper('dompdf');
+        $pdf = create_pdf(view('sales/quote_email', $data));
+
+        $name = lang('Sales.quote_document') . '-' . preg_replace('/[^A-Za-z0-9_-]/', '', (string) $data['quote_number']) . '.pdf';
+
+        return $this->response
+            ->setHeader('Content-Type', 'application/pdf')
+            ->setHeader('Content-Disposition', 'attachment; filename="' . $name . '"')
+            ->setBody($pdf);
+    }
+
+    private function is_saved_quote(int $sale_id): bool
+    {
+        $row = $this->sale->get_info($sale_id)->getRowArray();
+
+        return is_array($row) && (int) $row['sale_type'] === SALE_TYPE_QUOTE;
+    }
+
+    /**
+     * "Válida hasta": the quote's date plus quote_validity_days, or null when the business set 0.
+     * Read with a default: a settings cache from before the migration has no key.
+     */
+    private function quote_valid_until(int $quoted_at): ?string
+    {
+        $days = (int) ($this->config['quote_validity_days'] ?? 15);
+
+        return $days > 0 ? to_date(strtotime('+' . $days . ' days', $quoted_at)) : null;
     }
 
     /**

@@ -19,7 +19,7 @@
 
 <head>
     <meta charset="utf-8">
-    <title><?= lang('Sales.send_quote') ?></title>
+    <title><?= lang('Sales.quote_document') ?> <?= esc($quote_number) ?></title>
     <link rel="stylesheet" href="<?= base_url('css/invoice_email.css') ?>">
 </head>
 
@@ -32,7 +32,8 @@
     ?>
 
     <div id="page-wrap">
-        <div id="header"><?= lang('Sales.quote') ?></div>
+        <?php // Sales.quote is the register's verb ("Cotizar"); the document is a noun. ?>
+        <div id="header"><?= lang('Sales.quote_document') ?></div>
         <table id="info">
             <tr>
                 <td id="logo">
@@ -67,12 +68,16 @@
                             <td class="meta-head"><?= lang('Common.date') ?></td>
                             <td><?= esc($transaction_date) ?></td>
                         </tr>
-                        <?php if ($amount_due > 0) { ?>
+                        <?php if (!empty($quote_valid_until)) { ?>
                             <tr>
-                                <td class="meta-head"><?= lang('Sales.amount_due') ?></td>
-                                <td class="due"><?= to_currency($total) ?></td>
+                                <td class="meta-head"><?= lang('Sales.quote_valid_until') ?></td>
+                                <td><?= esc($quote_valid_until) ?></td>
                             </tr>
                         <?php } ?>
+                        <tr>
+                            <td class="meta-head"><?= lang('Sales.quote_total') ?></td>
+                            <td class="due"><?= to_currency($total) ?></td>
+                        </tr>
                     </table>
                 </td>
             </tr>
@@ -144,12 +149,15 @@
             <div id="sale_return_policy">
                 <h5>
                     <span><?= nl2br(esc($config['payment_message'])) ?></span>
-                    <span><?= lang('Sales.comments') . ': ' . (empty($comments) ? esc($config['quote_default_comments']) : esc($comments)) ?></span>
+                    <?php $quote_comment = empty($comments) ? (string) $config['quote_default_comments'] : (string) $comments; ?>
+                    <?php if ($quote_comment !== '') { ?>
+                        <span><?= lang('Sales.comments') . ': ' . esc($quote_comment) ?></span>
+                    <?php } ?>
                 </h5>
                 <?= nl2br(esc($config['return_policy'])) ?>
             </div>
             <div id="barcode">
-                <?= $quote_number ?>
+                <?= esc($quote_number) ?>
             </div>
         </div>
     </div>

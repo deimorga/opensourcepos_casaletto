@@ -148,6 +148,25 @@
             </div>
 
             <div class="form-group form-group-sm">
+                <?= form_label(lang('Config.quote_validity_days'), 'quote_validity_days', ['class' => 'control-label col-xs-2']) ?>
+                <div class="col-xs-2">
+                    <?= form_input([
+                        'type'  => 'number',
+                        'min'   => '0',
+                        'max'   => '365',
+                        'name'  => 'quote_validity_days',
+                        'id'    => 'quote_validity_days',
+                        'class' => 'form-control input-sm',
+                        // Read with a default: a settings cache from before the migration has no key.
+                        'value' => $config['quote_validity_days'] ?? '15'
+                    ]) ?>
+                </div>
+                <div class="col-xs-5">
+                    <span class="help-block"><?= esc(lang('Config.quote_validity_days_help')) ?></span>
+                </div>
+            </div>
+
+            <div class="form-group form-group-sm">
                 <?= form_label(lang('Config.work_order_enable'), 'work_order_enable', ['class' => 'control-label col-xs-2']) ?>
                 <div class="col-xs-1">
                     <?= form_checkbox([
@@ -201,7 +220,7 @@
         var enable_disable_invoice_enable = (function() {
             var invoice_enabled = $("#invoice_enable").is(":checked");
             var work_order_enabled = $("#work_order_enable").is(":checked");
-            $("#sales_invoice_format, #recv_invoice_format, #invoice_default_comments, #invoice_email_message, select[name='invoice_type'], #sales_quote_format, select[name='line_sequence'], #last_used_invoice_number, #last_used_quote_number, #quote_default_comments, #work_order_enable, #work_order_format, #last_used_work_order_number").prop("disabled", !invoice_enabled);
+            $("#sales_invoice_format, #recv_invoice_format, #invoice_default_comments, #invoice_email_message, select[name='invoice_type'], #sales_quote_format, select[name='line_sequence'], #last_used_invoice_number, #last_used_quote_number, #quote_default_comments, #quote_validity_days, #work_order_enable, #work_order_format, #last_used_work_order_number").prop("disabled", !invoice_enabled);
             if (invoice_enabled) {
                 $("#work_order_format, #last_used_work_order_number").prop("disabled", !work_order_enabled);
             } else {
@@ -230,7 +249,7 @@
             submitHandler: function(form) {
                 $(form).ajaxSubmit({
                     beforeSerialize: function(arr, $form, options) {
-                        $("#sales_invoice_format, #sales_quote_format, #recv_invoice_format, #invoice_default_comments, #invoice_email_message, #last_used_invoice_number, #last_used_quote_number, #quote_default_comments, #work_order_enable, #work_order_format, #last_used_work_order_number").prop("disabled", false);
+                        $("#sales_invoice_format, #sales_quote_format, #recv_invoice_format, #invoice_default_comments, #invoice_email_message, #last_used_invoice_number, #last_used_quote_number, #quote_default_comments, #quote_validity_days, #work_order_enable, #work_order_format, #last_used_work_order_number").prop("disabled", false);
                         return true;
                     },
                     success: function(response) {
