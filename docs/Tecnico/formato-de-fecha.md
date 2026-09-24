@@ -38,9 +38,10 @@ Lo que no depende del ajuste:
 `language_code` empieza por `es`. Otro formato se respeta; un negocio en inglés conserva el orden de
 EE. UU. `down()` revierte solo lo que esta migración pudo escribir.
 
-**Hueco conocido:** `TenantProvisioner` no fija el idioma. Un negocio nuevo nace `en` + `m/d/Y`, y
-esta migración (igual que `20260924000000`) ya corrió cuando alguien le pone español a mano. El alta
-de un negocio tiene que incluir poner idioma y formato de fecha en Configuración → Local.
+**Negocios nuevos:** en un alta las migraciones corren antes que `TenantConfigProfile`, con el esquema
+todavía en `en`, así que esta migración no los toca. Por eso el perfil fija `dateformat = d/m/Y`
+(`2d71adff3`) y una prueba exige que perfil y migración usen el mismo valor. (Una versión anterior
+de este párrafo decía que el alta no fijaba el idioma: sí lo fija, en el perfil.)
 
 ## 3. Qué se verificó en staging (2026-09-24, Casaletto, `cert_cajero`, `Accept-Language: es-CO`)
 
@@ -63,12 +64,35 @@ La migración cambió `ospos` y `tenant_panaderia` (es-MX) y dejó `tenant_prueb
 Se usó el 30/09 a propósito: no existe en orden mes/día, así que un cambio de orden no podía pasar
 inadvertido. El gasto 14 y el turno 6 de prueba se borraron de staging.
 
-## 4. Riesgo que queda: fechas imposibles
+## 4. Fechas escritas a mano: `parse_typed_datetime()` (`a5e4607cb`)
 
-`date_create_from_format('d/m/Y …', '09/30/2026 …')` **no devuelve false**: desborda el mes 30 a
-**2028-06-09** y solo deja una advertencia en `date_get_last_errors()`, que ningún controlador
-revisa. Pasaba igual antes con `30/09/2026` en `m/d/Y`. Propuesto: un helper que rechace el valor si
-hay advertencias, usado por los siete puntos de lectura del §1. No se hizo en este cambio.
+`date_create_from_format()` **no falla** con una fecha imposible: la desborda (`09/30/2026` en
+`d/m/Y` → 2028-06-09; `30/02/2026` → 2026-03-02) y solo deja una advertencia en
+`date_get_last_errors()`. Ningún controlador la revisaba. Además Recepciones, editar venta y Clientes
+llamaban `->format()` sobre el resultado sin comprobarlo: una fecha ilegible era un 500.
+
+`parse_typed_datetime(?string $value, bool $with_time = true): DateTime|false` (`locale_helper.php`):
+
+1. formato del negocio, aceptado solo sin advertencias ni errores;
+2. si no, el mismo formato con día y mes invertidos (`swap_day_and_month()`): una fecha que solo es
+   real al revés solo puede significar eso;
+3. si no, `false`, y el formulario responde `typed_date_error()` → `Common.date_invalid` con lo
+   escrito y un ejemplo de hoy.
+
+Lo usan `Cashups` (apertura, cierre, `collected_at`), `Expenses`, `Receivings`, `Sales::postSave`,
+`Customers` y `Attribute` (solo fecha). Una fecha válida en los dos órdenes se lee en el del negocio.
+
+**En pantalla** (`partial/datepicker_locale.php`, que cargan todos esos formularios): bajo cada campo
+`.datetime, #datetime, #open_date, #close_date, #collection_collected_at`, la fecha en palabras con
+`Intl.DateTimeFormat` del navegador («= miércoles, 30 de septiembre de 2026»); misma regla de
+inversión con moment.js estricto, reescribiendo el campo y avisándolo; `has-error` si no existe.
+Delegado con espacio de nombres `.datereadback`: los formularios en modal cargan el parcial cada vez.
+
+Verificado en staging (Chrome sin ventana, formulario de gasto real, y POST directo sin la pantalla):
+`09/30/2026` → campo `30/09/2026` + aviso, guardado `2026-09-30`; `05/09/2026` → «sábado, 5 de
+septiembre»; `31/31/2026` y `30/02/2026` → rechazados, nada guardado; turno y edición de venta con
+fecha imposible → rechazados con mensaje (la venta antes daba 500). Pruebas: `DateFormatDayFirstTest`
+(9) y `ExpensesCashSourceTest` (fecha invertida e imposible por el formulario real).
 
 ## 5. Visto y no tocado
 

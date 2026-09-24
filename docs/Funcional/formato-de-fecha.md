@@ -22,8 +22,7 @@ Con las cotizaciones esto era un riesgo con el cliente: la fecha «Válida hasta
 A los negocios que trabajan en español y seguían con el formato de fábrica: **Casaletto, Paraíso de la
 Canasta y Diverso Soluciones**. Un negocio que ya hubiera elegido otro formato lo conserva.
 
-Un negocio **nuevo** nace en inglés y con el formato de Estados Unidos: al darlo de alta hay que
-ponerle el idioma español y el formato día/mes/año en Configuración → Local (§5).
+Un negocio **nuevo** nace ya con día/mes/año y en español (desde el 2026-09-24: lo pone el alta).
 
 ## 3. Dónde se nota
 
@@ -40,14 +39,21 @@ ponerle el idioma español y el formato día/mes/año en Configuración → Loca
   formato interno propio; solo cambia cómo se muestran.
 - Los reportes y totales dan exactamente lo mismo que antes.
 
-## 5. Cuidado al escribir una fecha a mano
+## 5. Al escribir una fecha a mano (desde el 2026-09-24)
 
-El sistema **no avisa** si una fecha se escribe en el orden viejo (mes/día). Escribir «09/30/2026»
-(la costumbre anterior) no da error: se guarda una fecha absurda, **9 de junio de 2028**, porque no
-existe el mes 30. Esto ya pasaba antes al revés.
+**Debajo de cada campo de fecha aparece la fecha en palabras**, para confirmar que es la que se quiso:
 
-Recomendación al equipo: usar el calendario en lugar de escribir la fecha, y fijarse en que el
-primer número sea el **día**. Quedó propuesto que el sistema rechace una fecha imposible.
+| Se escribe | Qué pasa |
+|---|---|
+| `30/09/2026` | Se lee tal cual: «= miércoles, 30 de septiembre de 2026» |
+| `09/30/2026` (la costumbre vieja) | Solo tiene sentido al revés: **se reacomoda sola** a `30/09/2026` y lo dice: «(se reacomodó al orden día/mes/año)» |
+| `05/09/2026` | Existe en los dos órdenes: se toma como **5 de septiembre** (día/mes). La frase en palabras deja ver cuál entendió el sistema; si era otra, se corrige antes de guardar |
+| `31/31/2026`, `30/02/2026` | No existe: el campo se pone en rojo y el sistema **no guarda**: «La fecha … no es válida. Escríbala como en este ejemplo: 24/09/2026» |
+
+Aplica en turnos (apertura, cierre, recaudo), gastos, recepciones, cambiar la fecha de una venta,
+clientes y atributos de fecha. Antes una fecha imposible se guardaba en silencio como otra (el
+30 de febrero pasaba a ser 2 de marzo; `09/30/2026`, 9 de junio de 2028), y en recepciones, ventas y
+clientes daba un error de pantalla.
 
 ## 6. Cómo se cambia
 
