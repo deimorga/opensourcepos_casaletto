@@ -397,7 +397,7 @@ $error   = session()->getFlashdata('error');
                 }
             });
 
-            <?php if ($term === ''): ?>
+            <?php if (($term ?? '') === ''): ?>
                 // Back from adding a dish, the cursor is where the next one is typed. Not on a phone:
                 // focusing would throw the keyboard over the dishes just added.
                 if (window.matchMedia('(min-width: 768px)').matches) {

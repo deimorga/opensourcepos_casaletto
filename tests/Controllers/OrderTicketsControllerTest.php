@@ -198,6 +198,22 @@ final class OrderTicketsControllerTest extends CIUnitTestCase
     }
 
     /**
+     * The screen with no ticket selected: the bar of tickets and a prompt to pick one. The first
+     * deploy of the new design answered 500 here (a variable only set when a ticket is selected).
+     */
+    public function testTheScreenWithNoTicketSelectedDrawsTheBarAndAPrompt(): void
+    {
+        $this->openLiveTicket('ANDREA');
+
+        $response = $this->getReq('comandas');
+
+        $response->assertStatus(200);
+        $response->assertSee('ANDREA');
+        $response->assertSee(esc(lang('Order_tickets.pick_ticket')));
+        $this->assertStringNotContainsString('id="overall_sale"', $response->getBody(), 'No ticket, no totals panel.');
+    }
+
+    /**
      * The one thing this screen must never do: charge. No payment, no completing the sale -- the
      * register pulls the ticket and charges it there.
      */
