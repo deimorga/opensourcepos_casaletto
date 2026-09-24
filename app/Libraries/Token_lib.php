@@ -5,6 +5,7 @@ namespace App\Libraries;
 use App\Models\Tokens\Token;
 use App\Models\Tokens\Token_scale_weight;
 use Config\OSPOS;
+use Config\Services;
 use IntlDateFormatter;
 use DateTime;
 use Throwable;
@@ -99,10 +100,18 @@ class Token_lib
         return str_replace($tokens_to_replace, $token_values, $tokened_text);
     }
 
+    /**
+     * The locale is the BUSINESS's language (the Language service, set from app_config by
+     * Load_config), never the process default. CodeIgniter negotiates the process default from the
+     * browser's Accept-Language, and App::$supportedLocales starts with ar-EG: a browser that sent no
+     * language, or one the app does not list, printed the year of a quote number in Eastern Arabic
+     * digits -- Q٢٦000001 instead of Q26000001 -- and that string is stored on the sale forever.
+     * Found on staging on 2026-09-24.
+     */
     private function applyDateFormats(string $text): string
     {
         $formatter = new IntlDateFormatter(
-            null,
+            Services::language()->getLocale(),
             IntlDateFormatter::FULL,
             IntlDateFormatter::FULL,
             null,

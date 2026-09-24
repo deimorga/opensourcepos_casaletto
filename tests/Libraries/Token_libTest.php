@@ -4,15 +4,50 @@ namespace Tests\Libraries;
 
 use App\Libraries\Token_lib;
 use CodeIgniter\Test\CIUnitTestCase;
+use Config\Services;
+use Locale;
 
 class Token_libTest extends CIUnitTestCase
 {
     private Token_lib $tokenLib;
+    private string $languageBefore;
+    private string $processLocaleBefore;
 
     protected function setUp(): void
     {
         parent::setUp();
         $this->tokenLib = new Token_lib();
+
+        // Date tokens follow the business language (Token_lib::applyDateFormats()). Pinned here: the
+        // Language service is shared, and another test file may leave it on es-MX, which would turn
+        // an English month abbreviation below into a Spanish one.
+        $this->languageBefore      = Services::language()->getLocale();
+        $this->processLocaleBefore = Locale::getDefault();
+        Services::language()->setLocale('en');
+    }
+
+    protected function tearDown(): void
+    {
+        Services::language()->setLocale($this->languageBefore);
+        Locale::setDefault($this->processLocaleBefore);
+
+        parent::tearDown();
+    }
+
+    /**
+     * The quote number Q%y{QSEQ:6} came out as Q٢٦000001 on staging: the browser sent no language,
+     * CodeIgniter negotiated the first supported locale (ar-EG) as the process default, and the date
+     * formatter used it. The digits must follow the business's language, whatever the browser says.
+     */
+    public function testTheYearTokenUsesTheBusinessLanguageNotTheNegotiatedOne(): void
+    {
+        Locale::setDefault('ar-EG');
+        Services::language()->setLocale('es-MX');
+
+        $result = $this->tokenLib->render('Q%y', [], false);
+
+        $this->assertSame('Q' . date('y'), $result);
+        $this->assertMatchesRegularExpression('/^Q[0-9]{2}$/', $result, 'Western digits only.');
     }
 
     public function testRenderReturnsInputStringWhenNoTokens(): void
