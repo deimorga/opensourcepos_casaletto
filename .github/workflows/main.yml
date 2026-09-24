@@ -5,12 +5,12 @@ on:
     paths:
       - '**.php'
       - 'spark'
-      - '.github/workflows/test-coding-standards.yml'
+      - '.github/workflows/main.yml'
   pull_request:
     paths:
       - '**.php'
       - 'spark'
-      - '.github/workflows/test-coding-standards.yml'
+      - '.github/workflows/main.yml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
