@@ -4,6 +4,14 @@
  * @var array $allowed_modules
  * @var CodeIgniter\HTTP\IncomingRequest $request
  * @var array $config
+ *
+ * Three options, all off by default so every existing screen renders exactly as before. Only the
+ * order-ticket screen sets them (OrderTickets::layout_data()): it is the register's own design, used
+ * from a phone.
+ * @var bool|null        $responsive        emit a mobile viewport; this header declares none otherwise
+ * @var list<string>|null $extra_stylesheets loaded after the theme and the bundle, so they can adapt it
+ * @var string|null      $logout_route      home/logout requires the `home` grant, which a waiter lacks
+ * @var bool|null        $profile_link      the name links to home/changePassword, also behind `home`
  */
 
 use Config\Services;
@@ -16,6 +24,9 @@ $request = Services::request();
 
 <head>
     <meta charset="utf-8">
+    <?php if (!empty($responsive)) : ?>
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <?php endif; ?>
     <base href="<?= base_url() ?>">
     <title><?= esc($config['company']) . ' | ' . lang('Common.powered_by') . ' OSPOS ' . esc(config('App')->application_version) ?></title>
     <meta name="robots" content="noindex, nofollow">
@@ -40,6 +51,10 @@ $request = Services::request();
         <!-- endinject -->
     <?php endif; ?>
 
+    <?php foreach ($extra_stylesheets ?? [] as $stylesheet) : ?>
+        <link rel="stylesheet" href="<?= esc($stylesheet, 'attr') ?>">
+    <?php endforeach; ?>
+
     <?= view('partial/header_js') ?>
     <?= view('partial/lang_lines') ?>
 
@@ -60,9 +75,13 @@ $request = Services::request();
 
                 <div class="navbar-right" style="margin: 0;">
                     <?php // anchor() does not escape its title, so the employee name must be escaped here. ?>
-                    <?= anchor("home/changePassword/$user_info->person_id", esc("$user_info->first_name $user_info->last_name"), ['class' => 'modal-dlg', 'data-btn-submit' => lang('Common.submit'), 'title' => lang('Employees.change_password')]) ?>
+                    <?php if ($profile_link ?? true) : ?>
+                        <?= anchor("home/changePassword/$user_info->person_id", esc("$user_info->first_name $user_info->last_name"), ['class' => 'modal-dlg', 'data-btn-submit' => lang('Common.submit'), 'title' => lang('Employees.change_password')]) ?>
+                    <?php else : ?>
+                        <?= esc("$user_info->first_name $user_info->last_name") ?>
+                    <?php endif; ?>
                     <span>&nbsp;|&nbsp;</span>
-                    <?= anchor('home/logout', lang('Login.logout')) ?>
+                    <?= anchor($logout_route ?? 'home/logout', lang('Login.logout')) ?>
                 </div>
 
                 <div class="navbar-center" style="text-align: center;">
