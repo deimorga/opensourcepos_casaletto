@@ -69,6 +69,24 @@ class Module extends Model
     /**
      * @return ResultInterface
      */
+    /**
+     * What follows the module in a subpermission id: "void" for order_tickets_void, "delete" for
+     * cashups_delete, "sales_taxes" for reports_sales_taxes.
+     *
+     * Cut by the module's own length, never at the first underscore. The Employees screen used to
+     * explode('_', $id, 2), which is right only while module ids have no underscore of their own:
+     * order_tickets_void came out as "tickets_void", its translation (Order_tickets.void) was never
+     * found, and the label showed "Tickets Void" in English.
+     */
+    public static function subpermission_suffix(string $permission_id, string $module_id): string
+    {
+        $prefix = $module_id . '_';
+
+        return str_starts_with($permission_id, $prefix)
+            ? substr($permission_id, strlen($prefix))
+            : $permission_id;
+    }
+
     public function get_all_subpermissions(): ResultInterface
     {
         $builder = $this->db->table('permissions');

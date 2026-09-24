@@ -151,7 +151,7 @@ use App\Libraries\Wiring_lock;
                             <span class="small"><?= lang("Module.$module->module_id" . '_desc') ?></span>
                             <?php
                             foreach ($all_subpermissions as $permission) {
-                                $exploded_permission = explode('_', $permission->permission_id, 2);
+                                $suffix = \App\Models\Module::subpermission_suffix($permission->permission_id, $module->module_id);
                                 if ($permission->module_id == $module->module_id) {
                                     // lang() hands the key straight back when the line does not
                                     // exist (Language::getLine(), "$output ??= $line"), so that is
@@ -163,10 +163,10 @@ use App\Libraries\Wiring_lock;
                                     // suffix and no language file was ever consulted -- including
                                     // Cashups.delete and Cashups.reopen, which have been translated
                                     // in es-MX all along and never appeared on screen.
-                                    $lang_key = ucfirst($module->module_id . '.' . $exploded_permission[1]);
+                                    $lang_key = ucfirst($module->module_id . '.' . $suffix);
                                     $lang_line = lang($lang_key);
                                     $lang_line = (!is_string($lang_line) || $lang_line === $lang_key)
-                                        ? ucwords(str_replace('_', ' ', $exploded_permission[1]))
+                                        ? ucwords(str_replace('_', ' ', $suffix))
                                         : $lang_line;
                                     if (!empty($lang_line)) {
                             ?>

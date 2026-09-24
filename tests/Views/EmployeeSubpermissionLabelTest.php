@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Views;
 
+use App\Models\Module;
 use CodeIgniter\Test\CIUnitTestCase;
 
 /**
@@ -64,12 +65,24 @@ final class EmployeeSubpermissionLabelTest extends CIUnitTestCase
     }
 
     /**
-     * La clave del subpermiso nuevo, construida igual que la construye la vista:
-     * ucfirst("<module_id>.<sufijo>").
+     * El sufijo se corta por el largo del módulo, no en el primer guion bajo. Esta prueba antes
+     * ESCRIBÍA 'void' a mano en vez de pedírselo al código de la vista, y por eso no vio que la vista
+     * sacaba 'tickets_void': en staging la etiqueta salía «Tickets Void» (2026-09-23).
+     */
+    public function testTheSuffixIsCutByTheModuleNotAtTheFirstUnderscore(): void
+    {
+        $this->assertSame('void', Module::subpermission_suffix('order_tickets_void', 'order_tickets'));
+        $this->assertSame('delete', Module::subpermission_suffix('cashups_delete', 'cashups'));
+        $this->assertSame('stock', Module::subpermission_suffix('sales_stock', 'sales'));
+        $this->assertSame('sales_taxes', Module::subpermission_suffix('reports_sales_taxes', 'reports'));
+    }
+
+    /**
+     * La clave del subpermiso nuevo, construida con la MISMA función que usa la vista.
      */
     public function testTheOrderTicketVoidSubpermissionReadsInSpanish(): void
     {
-        $key = ucfirst('order_tickets' . '.' . 'void');
+        $key = ucfirst('order_tickets' . '.' . Module::subpermission_suffix('order_tickets_void', 'order_tickets'));
 
         $this->assertSame('Order_tickets.void', $key);
         $this->assertNotSame($key, lang($key));
@@ -119,8 +132,17 @@ final class EmployeeSubpermissionLabelTest extends CIUnitTestCase
     public function testAnUntranslatedSubpermissionStillFallsBackToItsHumanisedSuffix(): void
     {
         $this->assertStringContainsString(
-            "ucwords(str_replace('_', ' ', \$exploded_permission[1]))",
+            "ucwords(str_replace('_', ' ', \$suffix))",
             $this->view
         );
+    }
+
+    /**
+     * El guardarraíl del segundo defecto: la vista usa la función, no un explode en el primer '_'.
+     */
+    public function testTheViewUsesTheSuffixFunctionAndNotAnExplode(): void
+    {
+        $this->assertStringContainsString('Module::subpermission_suffix(', $this->view);
+        $this->assertStringNotContainsString("explode('_', \$permission->permission_id", $this->view);
     }
 }
