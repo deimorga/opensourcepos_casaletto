@@ -189,7 +189,7 @@ final class OrderTicketsControllerTest extends CIUnitTestCase
 
         $this->assertMatchesRegularExpression('/<meta name="viewport" content="[^"]*width=device-width/', $html);
         $this->assertStringContainsString('resources/bootswatch/', $html, 'The business theme, as on the register.');
-        $this->assertStringContainsString('css/order_tickets.css', $html);
+        $this->assertMatchesRegularExpression('#css/order_tickets\.css\?v=[0-9a-f]{8}"#', $html, 'Fingerprinted: a phone kept the old file once.');
         $this->assertStringNotContainsString('bootswatch5', $html, 'No second design system.');
 
         foreach (['register_wrapper', 'open_tabs_bar', 'add_item_form', 'register', 'overall_sale', 'sale_totals'] as $id) {

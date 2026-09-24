@@ -708,6 +708,21 @@ class OrderTickets extends Secure_Controller
     }
 
     /**
+     * css/order_tickets.css with a fingerprint of its content in the query string.
+     *
+     * Staging and production serve it with no Cache-Control, so each browser guesses how long to keep
+     * it. On 2026-09-23 an iPhone kept the stylesheet of the first, rejected design -- same file name,
+     * rules for a different page -- and the new screen drew with the panels on top of each other.
+     * The bundle gets this from gulp-rev; this file is not in the bundle, so it is done here.
+     */
+    private static function stylesheet_url(): string
+    {
+        $hash = @md5_file(FCPATH . 'css/order_tickets.css');
+
+        return 'css/order_tickets.css' . ($hash === false ? '' : '?v=' . substr($hash, 0, 8));
+    }
+
+    /**
      * What every order-ticket view hands to the shared POS header (partial/header.php): the same
      * theme, menu and bundle as the register, plus the three options only this screen turns on.
      *
@@ -724,7 +739,7 @@ class OrderTickets extends Secure_Controller
 
         return [
             'responsive'        => true,
-            'extra_stylesheets' => ['css/order_tickets.css'],
+            'extra_stylesheets' => [self::stylesheet_url()],
             'logout_route'      => 'comandas/salir',
             'profile_link'      => $has_home,
             // One single-use token per drawn page, carried by every form on it. Submitting any one of
