@@ -1,0 +1,70 @@
+# Dependabot — propuestas automaticas de actualizacion de dependencias.
+#
+# Por que hace falta aqui, y no es cosmetico: a fecha de 2026-09-23 este fork
+# tiene `codeigniter4/framework` 4.7.2 y `dompdf/dompdf` ^2.0.3 en produccion,
+# ambos con advisories de seguridad ABIERTAS. Ademas del riesgo en si, son la
+# causa de que el workflow "Coding Standards" muera en `composer update` sin
+# llegar a comprobar el estandar de codigo
+# (docs/Tecnico/ci-diagnostico-y-estrategia.md, causa 2).
+#
+# Dependabot es quien propone los PR que cierran eso. En un repositorio publico
+# es gratuito. No aplica nada por si solo: abre PR que hay que revisar, y cada
+# uno pasa por "PHPUnit Tests" antes de poder mezclarse.
+#
+# Frecuencia semanal a proposito: diaria, con tres ecosistemas, genera mas PR de
+# los que se pueden revisar, y lo que pasa entonces es que se dejan de leer --el
+# mismo modo de fallo que el CI rojo permanente--.
+#
+# AQUI NO SE DECLARA `target-branch`, y es una decision, no un olvido:
+# GitHub solo crea las actualizaciones DE SEGURIDAD contra la rama por defecto,
+# y declarar `target-branch` en un ecosistema las deshabilita para ese
+# ecosistema. Como el motivo de este fichero son precisamente dos advisories
+# abiertas, apuntarlo a `develop` habria apagado justo la parte que importa.
+#
+# Efecto secundario que hay que conocer: los PR llegaran contra `master`, que es
+# la rama por defecto de este repositorio. AGENTS.md dice que el trabajo nuevo
+# aterriza en `develop`, asi que estos PR **no se mezclan tal cual**: se pasa el
+# cambio a `develop` (retargeting del PR o una rama propia con el mismo bump) y
+# se despliega a staging antes de produccion, como cualquier otro cambio.
+version: 2
+
+updates:
+  # Dependencias PHP. `composer.json` y `composer.lock` viven en la raiz; no hay
+  # ningun otro manifiesto composer en el repositorio.
+  - package-ecosystem: composer
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "build"
+      include: scope
+
+  # Dependencias de construccion de assets (gulp y su cadena). Importan por un
+  # motivo concreto de este proyecto: un build de assets roto no da error --
+  # sirve la pagina con 200 y sin una linea de CSS ni de JavaScript--, asi que
+  # cualquier bump aqui se revisa mirando que el build de la imagen pase.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "build"
+      include: scope
+
+  # Las propias acciones de GitHub Actions: mantiene al dia los `uses:` de
+  # .github/workflows/, incluidas las de terceros. Es la via por la que una
+  # accion fijada a etiqueta o a SHA se actualiza de forma revisable, en lugar de
+  # moverse sola bajo los pies como hace `@master`.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci"
+      include: scope
