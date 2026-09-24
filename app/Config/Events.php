@@ -28,7 +28,20 @@ use App\Events\Method;
 
 Events::on('pre_system', static function (): void {
     if (ENVIRONMENT !== 'testing') {
-        if (ini_get('zlib.output_compression')) {
+        // `ini_get()` devuelve una CADENA, y para esta directiva puede devolver
+        // literalmente "Off" --que en PHP es truthy--. Con la comprobacion a secas,
+        // un hosting que la ponga asi lanza esta excepcion en CADA peticion: la caja
+        // no abre y el motivo no se parece en nada a la causa.
+        //
+        // Aqui vale '0' (comprobado en produccion y staging el 2026-09-24), asi que
+        // hoy no muerde. Se porta igualmente porque el dia que muerda, muerde entero.
+        //
+        // Es el arreglo que CodeIgniter hizo en 4.7.3 en el fichero que envia. Como
+        // `app/Config/` es nuestro, `composer update` NO lo trae: hay que portarlo a
+        // mano, y por eso queda dicho aqui de donde sale.
+        $zlibOutputCompression = ini_get('zlib.output_compression');
+
+        if (filter_var($zlibOutputCompression, FILTER_VALIDATE_BOOLEAN) || (int) $zlibOutputCompression > 0) {
             throw FrameworkException::forEnabledZlibOutputCompression();
         }
 
