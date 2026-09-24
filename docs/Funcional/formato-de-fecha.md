@@ -1,7 +1,8 @@
 # Formato de fecha: día/mes/año
 
-> **Estado (2026-09-24):** decidido por el dueño (D27). Probado en staging; producción en el mismo
-> despliegue que lo documenta.
+> **Estado (2026-09-24):** decidido por el dueño (D27), probado en staging y **en producción desde
+> la mañana del 2026-09-24** en los tres negocios. Verificado a las 12:53: ese mediodía Casaletto ya
+> abrió un turno y registró un gasto con el formato nuevo, ambos con la fecha correcta.
 >
 > Documento hermano: `docs/Tecnico/formato-de-fecha.md`.
 

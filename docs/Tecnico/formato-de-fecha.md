@@ -1,7 +1,11 @@
 # Formato de fecha d/m/Y — por qué es seguro cambiarlo y qué se verificó
 
-> **Estado (2026-09-24):** migración `20260924010000_DayMonthYearDateFormat` (`41fd37b70`). Pruebas:
-> `DayMonthYearMigrationTest`, `DateFormatDayFirstTest`. Verificado en staging (§3).
+> **Estado (2026-09-24):** migración `20260924010000_DayMonthYearDateFormat` (`41fd37b70`, corregida
+> en `d9d1322ef`). Pruebas: `DayMonthYearMigrationTest`, `DateFormatDayFirstTest`. Verificado en
+> staging (§3). **En producción** con `1c2d346c9` (desplegado por otra sesión junto con dompdf 3.1.6;
+> imagen de retorno `casaletto-ospos:rollback-20260924-predompdf`). Revisión de solo lectura a las
+> 12:53: `d/m/Y` en los tres negocios; cero ventas, gastos o turnos con fecha futura; un turno y un
+> gasto de Casaletto registrados ese día con la fecha correcta; sin errores en el registro.
 >
 > Documento hermano: `docs/Funcional/formato-de-fecha.md`.
 
