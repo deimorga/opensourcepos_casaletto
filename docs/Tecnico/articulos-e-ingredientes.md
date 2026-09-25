@@ -1,7 +1,9 @@
 # Artículos e ingredientes de recetas — borrado protegido y registrado
 
-> **Estado (2026-09-24):** corrección de datos aplicada en producción (Casaletto); protección y
-> registro construidos con pruebas (`ItemsDeleteGuardTest`).
+> **Estado (2026-09-24):** corrección de datos aplicada en producción (Casaletto). Protección y
+> registro **en producción desde las 21:10** (`4b702164a`, sin migraciones; imagen de retorno
+> `casaletto-ospos:rollback-20260924-preborrado`, respaldo `/root/backups/prod-20260924-pre-borrado/`),
+> probados en staging y con `ItemsDeleteGuardTest` (4) en CI.
 >
 > Documento hermano: `docs/Funcional/articulos-e-ingredientes.md`.
 

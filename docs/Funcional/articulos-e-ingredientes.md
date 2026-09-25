@@ -1,7 +1,7 @@
 # Artículos que son ingredientes de recetas
 
-> **Estado (2026-09-24):** corrección de datos aplicada en Casaletto; protección contra el borrado y
-> registro de quién borra, construidos (ver §4 para su estado de despliegue).
+> **Estado (2026-09-24, 21:10):** corrección de datos aplicada en Casaletto, y protección contra el
+> borrado y registro de quién borra **en producción** en los tres negocios.
 >
 > Documento hermano: `docs/Tecnico/articulos-e-ingredientes.md`.
 
