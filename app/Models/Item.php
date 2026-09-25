@@ -1040,6 +1040,46 @@ class Item extends Model
     /**
      * Deletes one item
      */
+    /**
+     * The active recipes that use each of these items as an ingredient: item_id => recipe names.
+     *
+     * "Active" is a kit whose own item is not deleted. Items::postDelete() refuses to delete an item
+     * that appears here: on 2026-09-24 thirteen of Casaletto's recipes were found using nine deleted
+     * ingredients -- the team had replaced products by deleting the old one and creating a new one,
+     * nothing warned them, and every sale of those recipes failed to add (and to discount) the
+     * missing ingredient for weeks. See docs/Tecnico/articulos-e-ingredientes.md.
+     *
+     * @param list<int|string> $item_ids
+     *
+     * @return array<int, list<string>>
+     */
+    public function recipes_using(array $item_ids): array
+    {
+        $item_ids = array_values(array_unique(array_map('intval', $item_ids)));
+
+        if ($item_ids === []) {
+            return [];
+        }
+
+        $rows = $this->db->table('item_kit_items AS ki')
+            ->select('ki.item_id, k.name AS recipe')
+            ->join('item_kits AS k', 'k.item_kit_id = ki.item_kit_id')
+            ->join('items AS kit_item', 'kit_item.item_id = k.item_id')
+            ->where('kit_item.deleted', 0)
+            ->whereIn('ki.item_id', $item_ids)
+            ->orderBy('k.name', 'ASC')
+            ->get()
+            ->getResultArray();
+
+        $recipes = [];
+
+        foreach ($rows as $row) {
+            $recipes[(int) $row['item_id']][] = $row['recipe'];
+        }
+
+        return $recipes;
+    }
+
     public function delete($item_id = null, bool $purge = false): bool|int|string
     {
         $this->db->transStart();
@@ -1054,6 +1094,7 @@ class Item extends Model
 
         $inventory = model(Inventory::class);
         $success &= $inventory->reset_quantity($item_id);
+        $success &= $inventory->record_deletion((int) $item_id);
 
         $this->db->transComplete();
 
@@ -1093,6 +1134,7 @@ class Item extends Model
 
         foreach ($item_ids as $item_id) {
             $success &= $inventory->reset_quantity($item_id);
+            $success &= $inventory->record_deletion((int) $item_id);
         }
 
         $this->db->transComplete();

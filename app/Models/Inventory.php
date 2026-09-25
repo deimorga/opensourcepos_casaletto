@@ -108,6 +108,42 @@ class Inventory extends Model
     }
 
     /**
+     * Who deleted an item, and when: one row in the item's own inventory history, even when the
+     * item had no stock to reset.
+     *
+     * reset_quantity() above only writes a row when the stock was positive, so the deletion of an
+     * item at zero or below -- most of Casaletto's ingredients, which run negative -- left no trace
+     * at all. On 2026-09-24 finding who had deleted nine recipe ingredients took reconstructing it
+     * from sales. This row changes no quantity (trans_inventory 0); it only records the act, where
+     * the business already looks: Items -> the item -> inventory details.
+     *
+     * Written only when somebody is logged in: trans_user must be a real employee.
+     */
+    public function record_deletion(int $item_id): bool
+    {
+        $employee = model(Employee::class)->get_logged_in_employee_info();
+
+        if (! is_object($employee)) {
+            return true;
+        }
+
+        $location_id = model(Stock_location::class)->find_first_active_location_id();
+
+        if ($location_id === null) {
+            return true;
+        }
+
+        return $this->insert([
+            'trans_items'     => $item_id,
+            'trans_user'      => (int) $employee->person_id,
+            'trans_date'      => date('Y-m-d H:i:s'),
+            'trans_comment'   => lang('Items.deletion_record'),
+            'trans_location'  => $location_id,
+            'trans_inventory' => 0,
+        ]) !== false;
+    }
+
+    /**
      * True when $reason_code is one this application knows how to report on.
      *
      * Deliberately strict: an unrecognised code is refused rather than stored, because a code

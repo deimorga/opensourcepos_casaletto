@@ -986,6 +986,21 @@ class Items extends Secure_Controller
     {
         $items_to_delete = $this->request->getPost('ids');
 
+        // An ingredient of an active recipe is not deleted: the recipe would keep pointing at it,
+        // and every sale would fail to add it and to discount it (Item::recipes_using()). The
+        // message names the recipes, so the person knows where to replace it first.
+        $in_recipes = $this->item->recipes_using((array) $items_to_delete);
+
+        if ($in_recipes !== []) {
+            $blocked = [];
+
+            foreach ($in_recipes as $item_id => $recipes) {
+                $blocked[] = lang('Items.cannot_delete_ingredient', [$this->item->get_info($item_id)->name, implode(', ', $recipes)]);
+            }
+
+            return $this->response->setJSON(['success' => false, 'message' => implode(' ', $blocked)]);
+        }
+
         if ($this->item->delete_list($items_to_delete)) {
             $message = lang('Items.successful_deleted') . ' ' . count($items_to_delete) . ' ' . lang('Items.one_or_multiple');
             return $this->response->setJSON(['success' => true, 'message' => $message]);
