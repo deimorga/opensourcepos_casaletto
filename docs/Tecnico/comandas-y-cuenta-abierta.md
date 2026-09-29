@@ -121,6 +121,10 @@ ella; ahora dice «Mesas».
 > user agent es lo que el navegador dice. Lo fijan `EmployeeLandingRouteTest` (cuatro casos) y
 > `LoginPhoneDetectionTest` (iPhone y Android sí, Mac y Windows no; los tres caminos pasan el dato).
 > **El dispositivo no se guarda** en ningún lado: `ospos_sessions` solo tiene id, IP, hora y datos.
+> **Menú tras aterrizar en Comandas (`faab7e231`, 2026-09-29):** `menu_group` solo lo fijan
+> `Home` y `Office`; al saltarse Inicio la sesión llegaba sin él y `Secure_Controller` elegía oficina
+> (menú vacío para quien no tiene módulos ahí). Ahora sin valor en sesión vale `home`. Lo fija
+> `MenuGroupWithoutHomeVisitTest`.
 > Lo fijan `OrderTicketsPermissionTest::testTheMenuTileLeadsToTheScreen`,
 > `testACashierWhoAlsoTakesOrdersReachesBothAndCanGoBackToTheTill` y `testAWaiterIsNotOfferedTheTill`.
 

@@ -209,6 +209,11 @@ el cajero también toma pedidos en las mesas: si inicia sesión desde el celular
 no se usa desde un celular. Desde un computador todo sigue igual: entra a Inicio. Si el negocio tiene
 Comandas apagado, el celular también va a Inicio.
 
+El menú de arriba es el mismo de Inicio, aunque se llegue directo a Comandas. **Hasta el 2026-09-29
+no lo era:** quien entraba desde el celular veía el menú de Oficina, y a un mesero sin nada en
+Oficina, como Rodrigo Tovar, le salía vacío. En modo escritorio sí se veía, porque el computador
+pasa primero por Inicio.
+
 > **Qué dispositivo usó cada quien:** hoy el sistema **no lo guarda**. Solo lo mira en el momento de
 > entrar, para decidir la pantalla de llegada. Registrarlo por ingreso (empleado, hora, celular o
 > computador, sistema y navegador) es poco trabajo y quedó propuesto para el piloto.
