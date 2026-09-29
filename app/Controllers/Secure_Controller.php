@@ -54,8 +54,12 @@ class Secure_Controller extends BaseController
 
         // Load up global global_view_data visible to all the loaded views
         $this->session = session();
+        // Sin grupo en la sesión, el de Inicio. El grupo solo lo fijan Home y Office, y antes todo
+        // ingreso pasaba por Home. Desde que un celular con comandas aterriza directo en /comandas
+        // (Employee::landing_route), la sesión llega aquí vacía: `null` caía en la rama de oficina, y
+        // un mesero sin módulos de oficina veía el menú vacío (Rodrigo Tovar, 2026-09-29).
         if ($menu_group == null) {
-            $menu_group = $this->session->get('menu_group');
+            $menu_group = $this->session->get('menu_group') ?? 'home';
         } else {
             $this->session->set('menu_group', $menu_group);
         }
