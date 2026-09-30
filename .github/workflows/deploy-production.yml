@@ -89,19 +89,62 @@ jobs:
     needs: tests
     runs-on: ubuntu-latest
     environment: POS_Casaletto
+    timeout-minutes: 45
     steps:
+      # Sin appleboy/ssh-action: no reintenta, y Hostinger corta de forma intermitente el SSH
+      # que viene de GitHub (visto en agosto y otra vez el 2026-09-29, `dial tcp :22: i/o
+      # timeout`). Aquí se prueba la conexión con reintentos y solo después se despliega. El
+      # despliegue en sí NO se reintenta: si la conexión cae a mitad, se lee /root/deploys.log.
+      - name: Conectar al servidor (con reintentos)
+        env:
+          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USERNAME }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
+          printf 'Host vps\n  HostName %s\n  User %s\n  IdentityFile ~/.ssh/deploy_key\n  StrictHostKeyChecking accept-new\n  ConnectTimeout 20\n  ServerAliveInterval 30\n  ServerAliveCountMax 10\n' \
+            "$SSH_HOST" "$SSH_USER" > ~/.ssh/config
+          for i in $(seq 1 8); do
+            if ssh vps true; then echo "Conectado (intento $i)."; exit 0; fi
+            echo "Sin conexión (intento $i/8); reintento en $((i * 15)) s."; sleep $((i * 15))
+          done
+          echo "::error::No hubo conexión SSH con el servidor en 8 intentos. No se tocó nada."; exit 1
+
+      # El script corre DESACOPLADO en el servidor (setsid + nohup) y escribe su propio
+      # registro. Si la conexión se cae a mitad, el despliegue sigue y termina igual; este paso
+      # solo lo acompaña, reconectándose, y devuelve su código de salida.
       - name: Desplegar con scripts/deploy.sh
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USERNAME }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script_stop: true
-          timeout: 60s
-          command_timeout: 30m
-          script: |
-            set -e
+        env:
+          LOG: /root/deploy-logs/prod-${{ github.run_id }}-${{ github.run_attempt }}.log
+        run: |
+          # shellcheck disable=SC2029  # $LOG y el commit se expanden aquí a propósito.
+          set -uo pipefail
+          ssh vps "set -e
+            mkdir -p /root/deploy-logs
             cd /root/POS_Casaletto
             git fetch --quiet origin master
             git show ${{ github.sha }}:scripts/deploy.sh > /tmp/ospos-deploy-prod.sh
-            ALLOW_BUSINESS_HOURS=${{ inputs.autorizado_en_horario && '1' || '0' }} IGNORE_ACTIVITY=${{ inputs.ignorar_actividad && '1' || '0' }} bash /tmp/ospos-deploy-prod.sh prod ${{ github.sha }}
+            setsid nohup bash -c 'ALLOW_BUSINESS_HOURS=${{ inputs.autorizado_en_horario && '1' || '0' }} IGNORE_ACTIVITY=${{ inputs.ignorar_actividad && '1' || '0' }} bash /tmp/ospos-deploy-prod.sh prod ${{ github.sha }}; echo \$? > $LOG.rc' > $LOG 2>&1 < /dev/null &" \
+            || { echo "::error::No se pudo lanzar el despliegue."; exit 1; }
+
+          off=0
+          for _ in $(seq 1 270); do
+            sleep 10
+            size="$(ssh vps "stat -c %s $LOG 2>/dev/null || echo 0")" || { echo "(sin conexión; el despliegue sigue en el servidor)"; continue; }
+            if [ "$size" -gt "$off" ] && ssh vps "tail -c +$((off + 1)) $LOG | head -c $((size - off))"; then
+              off="$size"
+            fi
+            rc="$(ssh vps "cat $LOG.rc 2>/dev/null")" || continue
+            if [ -n "$rc" ]; then
+              size="$(ssh vps "stat -c %s $LOG")" && [ "$size" -gt "$off" ] && ssh vps "tail -c +$((off + 1)) $LOG"
+              echo "Registro completo en el servidor: $LOG"
+              exit "$rc"
+            fi
+          done
+          echo "::error::El despliegue no terminó en 45 minutos. Registro: $LOG"; exit 1
+
+      - name: Borrar la llave
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
