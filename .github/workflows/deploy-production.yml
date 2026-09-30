@@ -2,7 +2,7 @@ name: Deploy Production (POS_Casaletto)
 
 # Todo el despliegue vive en scripts/deploy.sh (versionado, el mismo para staging y producción,
 # y el único camino admitido también a mano). Este workflow solo:
-#   1. exige que la suite de ese mismo commit haya pasado en CI, y
+#   1. exige que la suite haya pasado en CI para ese código, y
 #   2. lleva el script de ESE commit al servidor y lo ejecuta.
 # Por qué, y qué comprueba el script: docs/Tecnico/despliegue.md.
 
@@ -32,26 +32,57 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Esperar el workflow «PHPUnit Tests» de ${{ github.sha }}
+      - name: Checkout (historia completa)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # PHPUnit solo corre cuando un push toca código (filtros de phpunit.yml). Un commit
+      # de solo documentación o de solo despliegue no tiene corrida propia, y exigirla
+      # dejaría el despliegue esperando algo que nunca llega (pasó el 2026-09-29).
+      #
+      # Regla: se busca, hacia atrás desde este commit, el primero con PHPUnit terminado.
+      # Tiene que estar en verde, y entre él y este commit no puede haber cambios en nada de
+      # lo que dispara PHPUnit. Si lo hay y esa corrida aún no terminó, se espera.
+      - name: PHPUnit en verde para lo que se despliega
         env:
           GH_TOKEN: ${{ github.token }}
           SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
-          for i in $(seq 1 50); do
-            result="$(gh run list -R "$GITHUB_REPOSITORY" --workflow phpunit.yml --commit "$SHA" \
-              --json status,conclusion --jq 'map(select(.status == "completed")) | map(.conclusion) | join(" ")')"
-            pending="$(gh run list -R "$GITHUB_REPOSITORY" --workflow phpunit.yml --commit "$SHA" \
-              --json status --jq 'map(select(.status != "completed")) | length')"
-            if echo " $result " | grep -q ' success '; then
-              echo "PHPUnit en verde para $SHA."; exit 0
-            fi
-            if [ -n "$result" ] && [ "$pending" = 0 ]; then
-              echo "::error::PHPUnit terminó sin éxito para $SHA ($result). No se despliega."; exit 1
-            fi
-            echo "Esperando PHPUnit ($i/50)..."; sleep 30
+          # Mismos filtros que phpunit.yml (on.push.paths). Si cambian allí, cambiarlos aquí.
+          PATHS=(':(glob)**/*.php' 'spark' 'tests' 'app/Database' 'composer.json' 'composer.lock' \
+                 'Dockerfile' 'package.json' 'package-lock.json' 'gulpfile.js' '.github/workflows/phpunit.yml')
+          for attempt in $(seq 1 50); do
+            runs="$(gh run list -R "$GITHUB_REPOSITORY" --workflow phpunit.yml -L 200 \
+              --json headSha,status,conclusion --jq '.[] | "\(.headSha) \(.status) \(.conclusion)"')"
+            verdict=""
+            for c in $(git rev-list --max-count=200 "$SHA"); do
+              line="$(echo "$runs" | grep "^$c " | head -1 || true)"
+              [ -z "$line" ] && continue
+              status="$(echo "$line" | cut -d' ' -f2)"; conclusion="$(echo "$line" | cut -d' ' -f3)"
+              if ! git diff --quiet "$c" "$SHA" -- "${PATHS[@]}"; then
+                # Hay código posterior a esta corrida: no sirve como prueba de $SHA.
+                verdict="sin-corrida"; break
+              fi
+              if [ "$status" != completed ]; then verdict="esperando ${c:0:9}"; break; fi
+              if [ "$conclusion" = success ]; then
+                echo "PHPUnit en verde en ${c:0:9}; sin cambios de código hasta ${SHA:0:9}."; exit 0
+              fi
+              verdict="fallo ${c:0:9} ($conclusion)"; break
+            done
+            case "$verdict" in
+              fallo*) echo "::error::PHPUnit $verdict. No se despliega."; exit 1 ;;
+              esperando*) echo "Esperando PHPUnit ($verdict, $attempt/50)..."; sleep 30 ;;
+              *) if [ "$attempt" -lt 5 ]; then
+                   # Recién hecho el push, la corrida tarda unos segundos en aparecer.
+                   echo "Aún no aparece una corrida de PHPUnit que cubra ${SHA:0:9} ($attempt/5)..."; sleep 30
+                 else
+                   echo "::error::No hay una corrida de PHPUnit que cubra ${SHA:0:9}."; exit 1
+                 fi ;;
+            esac
           done
-          echo "::error::No hay un PHPUnit en verde para $SHA en 25 minutos."; exit 1
+          echo "::error::PHPUnit no terminó en 25 minutos."; exit 1
 
   deploy:
     name: Desplegar master en producción
