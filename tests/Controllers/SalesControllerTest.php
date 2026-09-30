@@ -353,4 +353,93 @@ class SalesControllerTest extends CIUnitTestCase
         $this->assertNotContains(1, $openTableIds, 'Delivery must never hold an open tab.');
         $this->assertNotContains(2, $openTableIds, 'Take Away must never hold an open tab.');
     }
+
+    /**
+     * «Siempre desmarcada» at the till, end to end: the box starts unticked, the cashier ticks it
+     * for a customer who wants the paper, and the receipt has to print itself.
+     *
+     * Broken from 2026-09-18 to 2026-09-30: completing read the configuration instead of the box, so
+     * «Siempre desmarcada» behaved as «never print» and the tick was ignored. Found at Paraíso's till.
+     */
+    public function testATickedBoxPrintsEvenWhenItStartsUnticked(): void
+    {
+        $this->withPrintBehaviour('never', function (): void {
+            $this->openTableWithItem($this->tableA, $this->itemNumberA);
+            $this->postReq('sales/addPayment', ['payment_type' => 'Cash', 'amount_tendered' => '10.00']);
+
+            // What the checkbox's change handler posts, exactly: jQuery sends the boolean as text.
+            $this->postReq('sales/setPrintAfterSale', ['sales_print_after_sale' => 'true']);
+
+            $receipt = $this->postReq('sales/complete', []);
+
+            $receipt->assertStatus(200);
+            $this->assertStringContainsString(
+                "$(window).on('load'",
+                $receipt->getBody(),
+                'The cashier ticked the box: the receipt has to print itself.'
+            );
+        });
+    }
+
+    /**
+     * The other half, and the reason the 2026-09-18 fix existed: a "yes" left in the session by an
+     * earlier sale must not print a sale whose box was drawn unticked. The register re-seeds the
+     * box every time it draws it, and that is what wipes the leftover.
+     */
+    public function testALeftoverYesFromAnotherSaleDoesNotPrint(): void
+    {
+        $this->withPrintBehaviour('never', function (): void {
+            $_SESSION['sales_print_after_sale'] = true;
+
+            $this->openTableWithItem($this->tableA, $this->itemNumberA);
+            $this->postReq('sales/addPayment', ['payment_type' => 'Cash', 'amount_tendered' => '10.00']);
+
+            $receipt = $this->postReq('sales/complete', []);
+
+            $receipt->assertStatus(200);
+            $this->assertStringNotContainsString(
+                "$(window).on('load'",
+                $receipt->getBody(),
+                'Nobody ticked the box in this sale: nothing may print.'
+            );
+        });
+    }
+
+    /**
+     * «Siempre marcada» is the mirror: the box starts ticked, and a cashier who unticks it must not
+     * get paper.
+     */
+    public function testAnUntickedBoxDoesNotPrintEvenWhenItStartsTicked(): void
+    {
+        $this->withPrintBehaviour('always', function (): void {
+            $this->openTableWithItem($this->tableA, $this->itemNumberA);
+            $this->postReq('sales/addPayment', ['payment_type' => 'Cash', 'amount_tendered' => '10.00']);
+            $this->postReq('sales/setPrintAfterSale', ['sales_print_after_sale' => 'false']);
+
+            $receipt = $this->postReq('sales/complete', []);
+
+            $receipt->assertStatus(200);
+            $this->assertStringNotContainsString("$(window).on('load'", $receipt->getBody());
+        });
+    }
+
+    /**
+     * The test database is shared across files: a print_receipt_check_behaviour left behind breaks
+     * tests that never mention it. Always put the old value back.
+     */
+    private function withPrintBehaviour(string $behaviour, callable $test): void
+    {
+        $config = config(OSPOS::class);
+        $before = $config->settings['print_receipt_check_behaviour'] ?? 'last';
+
+        model(Appconfig::class)->save(['print_receipt_check_behaviour' => $behaviour]);
+        $config->update_settings();
+
+        try {
+            $test();
+        } finally {
+            model(Appconfig::class)->save(['print_receipt_check_behaviour' => $before]);
+            $config->update_settings();
+        }
+    }
 }

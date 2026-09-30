@@ -7,13 +7,18 @@ use CodeIgniter\Test\CIUnitTestCase;
 use Config\OSPOS;
 
 /**
- * Whether the receipt prints by itself when a sale is completed.
+ * The «Imprimir recibo» box: how it starts each sale, and what completing the sale does with it.
  *
- * This is the rule the completion screen now asks. It used to read the raw session instead, so the
- * configuration only reached the checkbox: the box rendered unchecked because the register DID ask
- * this method, while completing the sale printed anyway because the session still held the "yes"
- * from the last time somebody ticked it. What the cashier saw and what the printer did came apart
- * -- reproduced in staging before the fix, with the box visibly unchecked and paper coming out.
+ * Two different questions, and mixing them up is how this went wrong twice:
+ *
+ * - is_print_after_sale() -- how the box STARTS a sale. That is all print_receipt_check_behaviour
+ *   decides: ticked, unticked, or as it was left.
+ * - print_after_sale_choice() -- what the box holds NOW. That is what completing the sale obeys.
+ *
+ * Until 2026-09-18 completing read the raw session, and a "yes" from an earlier sale leaked into a
+ * box drawn unticked. That day's fix made completing read the configuration instead -- and then a
+ * cashier who ticked the box got nothing, because «Siempre desmarcada» was being read as «never
+ * print». Found at the till on 2026-09-30.
  *
  * @internal
  */
@@ -36,24 +41,42 @@ final class PrintAfterSaleTest extends CIUnitTestCase
     }
 
     /**
-     * The case the shop asked for: "never" has to mean never, whatever the session remembers.
+     * «Siempre desmarcada»: every sale STARTS unticked, whatever the last one left behind.
      */
-    public function testNeverWinsOverAStaleSession(): void
+    public function testNeverStartsUnticked(): void
     {
-        $this->assertFalse(
-            $this->saleLibWith('never', true)->is_print_after_sale(),
-            '«Siempre desmarcada» no puede imprimir porque la sesión recuerde un sí'
-        );
+        $this->assertFalse($this->saleLibWith('never', true)->is_print_after_sale());
     }
 
-    public function testAlwaysWinsOverAStaleSession(): void
+    public function testAlwaysStartsTicked(): void
     {
         $this->assertTrue($this->saleLibWith('always', false)->is_print_after_sale());
     }
 
-    public function testRememberLastFollowsTheSession(): void
+    public function testRememberLastStartsAsItWasLeft(): void
     {
         $this->assertTrue($this->saleLibWith('last', true)->is_print_after_sale());
         $this->assertFalse($this->saleLibWith('last', false)->is_print_after_sale());
+    }
+
+    /**
+     * Completing obeys the box, not the configuration. With «Siempre desmarcada» a cashier who
+     * ticks it still gets the receipt -- that is what the shop asked for at the till.
+     */
+    public function testTheChoiceIsWhatTheBoxHolds(): void
+    {
+        $this->assertTrue($this->saleLibWith('never', true)->print_after_sale_choice());
+        $this->assertFalse($this->saleLibWith('always', false)->print_after_sale_choice());
+    }
+
+    /**
+     * A session that never went through the register has no answer, and no answer is not a yes.
+     */
+    public function testNoChoiceMeansNoPrint(): void
+    {
+        $lib = new Sale_lib();
+        session()->remove('sales_print_after_sale');
+
+        $this->assertFalse($lib->print_after_sale_choice());
     }
 }

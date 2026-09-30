@@ -900,6 +900,26 @@ class Sale_lib
     }
 
     /**
+     * Whether the cashier asked for THIS sale's receipt: what the «Imprimir recibo» box holds now.
+     *
+     * print_receipt_check_behaviour decides how the box STARTS each sale -- ticked, unticked, or as
+     * it was left -- and nothing else. «Siempre desmarcada» means every sale opens unticked, not that
+     * printing is forbidden: a cashier who ticks it for a customer who wants the paper gets it. The
+     * fix of 2026-09-18 read the configuration here instead, and turned the box into a decoration.
+     *
+     * Reading the session is safe only because the register re-seeds it every time it draws the box
+     * (Sales::_reload()). That is what keeps a "yes" from an earlier sale out of this one -- the bug
+     * the 2026-09-18 fix was about: a box drawn unticked while the session still said yes.
+     */
+    public function print_after_sale_choice(): bool
+    {
+        return in_array($this->session->get('sales_print_after_sale'), [true, 1, '1', 'true'], true);
+    }
+
+    /**
+     * How the «Imprimir recibo» box STARTS a sale. Not whether the sale prints: see
+     * print_after_sale_choice().
+     *
      * @return bool
      */
     public function is_print_after_sale(): bool
