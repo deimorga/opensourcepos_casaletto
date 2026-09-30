@@ -1257,13 +1257,14 @@ class Sales extends Secure_Controller
         $data['invoice_number_enabled'] = $this->sale_lib->is_invoice_mode();
         $data['cur_giftcard_value'] = $this->sale_lib->get_giftcard_remainder();
         $data['cur_rewards_value'] = $this->sale_lib->get_rewards_remainder();
-        // La MISMA regla que dibuja la casilla en la pantalla de venta.
+        // Lo que la casilla «Imprimir recibo» tiene AHORA: su estado inicial para esta venta, o lo que
+        // la cajera marco encima. Nunca la configuracion sola -- «Siempre desmarcada» dice como
+        // arranca la casilla, no que este prohibido imprimir. Leer la configuracion aqui, como se
+        // hizo el 2026-09-18, dejaba la casilla de adorno: la cajera la marcaba y no salia nada.
         //
-        // Antes esto leia la sesion en crudo, y la configuracion quedaba a medias: la casilla salia
-        // desmarcada porque la pantalla si consultaba is_print_after_sale(), pero al completar
-        // mandaba a la impresora igual, porque la sesion conservaba el "si" de la ultima vez que
-        // alguien la marco. Lo que se ve y lo que hace se separaban -- peor que no tener el ajuste.
-        $data['print_after_sale'] = $this->sale_lib->is_print_after_sale();
+        // Leer la sesion es seguro porque _reload() la siembra cada vez que dibuja la casilla, y
+        // eso es lo que impide que un «si» de una venta anterior se cuele en esta.
+        $data['print_after_sale'] = $this->sale_lib->print_after_sale_choice();
 
         $data['price_work_orders'] = $this->sale_lib->is_price_work_orders();
         $data['email_receipt'] = $this->sale_lib->is_email_receipt();
@@ -2062,7 +2063,11 @@ class Sales extends Secure_Controller
 
         $data['invoice_number'] = $temp_invoice_number;
 
+        // Como ARRANCA la casilla, y desde aqui la casilla y la sesion dicen lo mismo: lo que la
+        // cajera marque lo sobreescribe y completar lo lee. Sembrarla en cada dibujo es lo que deja
+        // afuera un «si» sobrante de otra venta -- el defecto que se arreglo el 2026-09-18.
         $data['print_after_sale'] = $this->sale_lib->is_print_after_sale();
+        $this->sale_lib->set_print_after_sale($data['print_after_sale']);
         $data['price_work_orders'] = $this->sale_lib->is_price_work_orders();
 
         $data['pos_mode'] = $data['mode'] == 'sale' || $data['mode'] == 'return';
