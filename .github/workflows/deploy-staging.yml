@@ -1,7 +1,18 @@
 name: Deploy Staging (POS_Casaletto_staging)
 
+# Todo el despliegue vive en scripts/deploy.sh (versionado, el mismo para staging y producción,
+# y el único camino admitido también a mano). Este workflow solo:
+#   1. exige que la suite de ese mismo commit haya pasado en CI, y
+#   2. lleva el script de ESE commit al servidor y lo ejecuta.
+# Por qué, y qué comprueba el script: docs/Tecnico/despliegue.md.
+
 on:
   workflow_dispatch:
+    inputs:
+      probar_vuelta_atras:
+        description: 'Forzar el fallo de la verificación para comprobar que la vuelta atrás funciona'
+        type: boolean
+        default: false
 
 concurrency:
   group: deploy-staging
@@ -9,58 +20,53 @@ concurrency:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
+  tests:
+    name: Pruebas del commit en verde
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Esperar el workflow «PHPUnit Tests» de ${{ github.sha }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 50); do
+            result="$(gh run list -R "$GITHUB_REPOSITORY" --workflow phpunit.yml --commit "$SHA" \
+              --json status,conclusion --jq 'map(select(.status == "completed")) | map(.conclusion) | join(" ")')"
+            pending="$(gh run list -R "$GITHUB_REPOSITORY" --workflow phpunit.yml --commit "$SHA" \
+              --json status --jq 'map(select(.status != "completed")) | length')"
+            if echo " $result " | grep -q ' success '; then
+              echo "PHPUnit en verde para $SHA."; exit 0
+            fi
+            if [ -n "$result" ] && [ "$pending" = 0 ]; then
+              echo "::error::PHPUnit terminó sin éxito para $SHA ($result). No se despliega."; exit 1
+            fi
+            echo "Esperando PHPUnit ($i/50)..."; sleep 30
+          done
+          echo "::error::No hay un PHPUnit en verde para $SHA en 25 minutos."; exit 1
+
   deploy:
-    name: Deploy develop to staging VPS
+    name: Desplegar develop en staging
+    needs: tests
     runs-on: ubuntu-latest
     environment: POS_Casaletto_staging
-
     steps:
-      - name: Deploy via SSH
+      - name: Desplegar con scripts/deploy.sh
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script_stop: true
-          timeout: 300s
+          timeout: 60s
+          command_timeout: 30m
           script: |
             set -e
             cd /root/POS_Casaletto_staging
-
-            echo "Sincronizando codigo (develop)..."
-            git fetch origin develop
-            git reset --hard origin/develop
-            git clean -fd
-
-            # AQUI HABIA un `docker run --rm ... php:8.4-cli` que instalaba
-            # Composer y Node en el servidor y ejecutaba `composer install`,
-            # `npm ci` y `npm run build` sobre el directorio de trabajo, ANTES de
-            # construir la imagen.
-            #
-            # Sobra desde el 2026-09-16: el Dockerfile ya lo hace DENTRO de la
-            # imagen. La etapa `vendor` corre `composer install --no-dev
-            # --optimize-autoloader` y la etapa `assets` corre las tareas de gulp
-            # --mas la comprobacion de que los bloques inject quedaron rellenos y
-            # de que el autoload resuelve `App\`--. El `up -d --build` de abajo
-            # construye el target `ospos`, que es el que depende de esas dos
-            # etapas, asi que ejecutarlo ya compila todo.
-            #
-            # El texto que acompanaba al bloque decia "el Dockerfile solo copia,
-            # no compila". Fue cierto hasta esa fecha; desde entonces es falso, y
-            # dejarlo escrito confundia sobre cual es la fuente real de `vendor/`
-            # y de `public/resources`.
-            #
-            # Y no era solo redundante: compilaba en el directorio de trabajo del
-            # servidor, que es exactamente la dependencia que se quito --un clon
-            # limpio debe producir una imagen completa por si solo, sin ningun
-            # paso previo a mano--.
-
-            echo "Reconstruyendo la imagen (compila vendor y assets dentro) y levantando contenedores..."
-            docker compose -f docker-compose.staging.yml up -d --build
-
-            echo "Limpiando imagenes huerfanas..."
-            docker image prune -f
-
-            echo "Deploy a staging completado."
+            git fetch --quiet origin develop
+            git show ${{ github.sha }}:scripts/deploy.sh > /tmp/ospos-deploy-staging.sh
+            SELFTEST_FAIL_VERIFY=${{ inputs.probar_vuelta_atras && '1' || '0' }} bash /tmp/ospos-deploy-staging.sh staging ${{ github.sha }}

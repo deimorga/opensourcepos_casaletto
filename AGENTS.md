@@ -36,9 +36,14 @@ These are not upstream's rules. Ignoring them has caused real incidents in this 
   database's makes `MY_Migration::is_latest()` false, and `Load_config` destroys the session on every
   request: nobody can log in, with every check green. Roll back image and database backup together,
   or pick a rollback image with the same migrations.
-- **Any manual `docker compose up --build` must be preceded by the asset build.** The Dockerfile only
-  copies the repo; it never runs composer or npm. Skipping the build leaves the page with no CSS or
-  JS behind an HTTP 200 that no smoke test catches.
+- **Deploys go through GitHub Actions, and both workflows run `scripts/deploy.sh`.** Use
+  `gh workflow run deploy-staging.yml --ref develop`, certify on staging, fast-forward `master`, then
+  `gh workflow run deploy-production.yml --ref master`. The script refuses a production commit that
+  staging doesn't run, backs up and restore-tests every schema, builds before stopping anything,
+  verifies every business host and rolls back on its own when it safely can. Never run a bare
+  `docker compose up` on the VPS: on 2026-09-29 one without `-f docker-compose.prod.yml` took
+  production down for 9 minutes. In an emergency, run the same script by hand. See
+  `docs/Tecnico/despliegue.md`.
 - **Production is not touched while the business is selling** — only after 22:00 Colombia time,
   unless the owner authorizes it explicitly in the moment. Verification against production is
   read-only: counts, logs, smoke tests. Never test transactions.
