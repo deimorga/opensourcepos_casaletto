@@ -25,6 +25,19 @@ name: Coding Standards
 # ESTA EJECUCION ES LA PRIMERA QUE DE VERDAD COMPRUEBA EL ESTILO DEL CODIGO.
 # Si sale roja, esta vez SI habla de codigo, y hay que leerla.
 #
+# 2026-09-29: TRINQUETE. Salio roja en todas: 1.417 de 1.539 archivos heredados de
+# upstream no cumplen el estilo. Reformatearlos de golpe no es inocuo --reglas como
+# strict_comparison cambian == por ===, o sea comportamiento--, y un rojo permanente no
+# avisa de nada. Ahora:
+#   - .php-cs-fixer-baseline.txt lista los archivos que YA incumplian ese dia;
+#   - falla si incumple un archivo que NO esta en la lista (uno nuevo, o uno que estaba
+#     limpio y se ensucio);
+#   - avisa de los que estan en la lista y ya cumplen, para sacarlos de ella.
+# Un archivo sale de la lista cuando alguien lo arregla a proposito, con sus pruebas.
+#
+# Y `composer install` en vez de `composer update`: con update la version de PHP CS
+# Fixer flotaba y marcaba 8 archivos mas que la fijada en composer.lock.
+#
 # Los filtros llevan ahora `composer.json` y `composer.lock`: sin ellos, una
 # subida de dependencias no disparaba el unico workflow que las instala. Se vio
 # cuando la subida de CodeIgniter paso por delante sin que este se enterara.
@@ -38,6 +51,7 @@ on:
       - 'composer.json'
       - 'composer.lock'
       - '.github/workflows/main.yml'
+      - '.php-cs-fixer-baseline.txt'
   pull_request:
     paths:
       - '**.php'
@@ -45,6 +59,7 @@ on:
       - 'composer.json'
       - 'composer.lock'
       - '.github/workflows/main.yml'
+      - '.php-cs-fixer-baseline.txt'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
@@ -81,7 +96,7 @@ jobs:
         run: echo "COMPOSER_CACHE_FILES_DIR=$(composer config cache-files-dir)" >> $GITHUB_ENV
 
       - name: Cache dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ${{ env.COMPOSER_CACHE_FILES_DIR }}
           key: ${{ runner.os }}-${{ matrix.php-version }}-${{ hashFiles('**/composer.lock') }}
@@ -90,7 +105,28 @@ jobs:
             ${{ runner.os }}-
 
       - name: Install dependencies
-        run: composer update --ansi --no-interaction
+        run: composer install --ansi --no-interaction
 
-      - name: Run lint on `app/`, `public/`
-        run: vendor/bin/php-cs-fixer fix --verbose --ansi --dry-run --config=.php-cs-fixer.no-header.php --using-cache=no --diff
+      - name: Estilo en `app/` y `public/` (trinquete sobre .php-cs-fixer-baseline.txt)
+        run: |
+          set -uo pipefail
+          vendor/bin/php-cs-fixer fix --dry-run --config=.php-cs-fixer.no-header.php --using-cache=no --format=json > cs.json || true
+          jq -r '.files[].name' cs.json | sort -u > incumplen.txt
+          sort -u .php-cs-fixer-baseline.txt > lista.txt
+          nuevos="$(comm -23 incumplen.txt lista.txt)"
+          limpios="$(comm -13 incumplen.txt lista.txt | while read -r f; do [ -f "$f" ] && echo "$f"; done)"
+          echo "Incumplen $(wc -l < incumplen.txt) archivos; la lista admite $(wc -l < lista.txt)."
+          if [ -n "$limpios" ]; then
+            echo "::notice::Ya cumplen y pueden salir de .php-cs-fixer-baseline.txt:"
+            echo "$limpios"
+          fi
+          if [ -n "$nuevos" ]; then
+            echo "::error::Incumplen el estilo y no estaban en la lista:"
+            echo "$nuevos"
+            echo "Arreglarlos con: vendor/bin/php-cs-fixer fix --config=.php-cs-fixer.no-header.php <archivo>"
+            for f in $nuevos; do
+              vendor/bin/php-cs-fixer fix --dry-run --diff --config=.php-cs-fixer.no-header.php --using-cache=no "$f" || true
+            done
+            exit 1
+          fi
+          echo "Ningún archivo nuevo incumple el estilo."
