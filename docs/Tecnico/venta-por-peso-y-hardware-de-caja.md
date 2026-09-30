@@ -1,13 +1,17 @@
 # Diseño técnico — Venta por peso, hardware de caja e inventario para supermercado
 
-> **Estado a 2026-08-31: TODO EL SOFTWARE ESTÁ EN PRODUCCIÓN.** Staging y producción en `d7daead10`.
+> **Estado a 2026-09-30: la caja de Paraíso está completa y probada en el local.** Producción en
+> `fbd822908`. Báscula (desde 2026-09-02), **cajón al finalizar una venta en efectivo** y **recibo
+> solo a pedido**, maquetado a 58 mm — los tres probados con ventas reales en el terminal ese día.
+> Lo encontrado en la visita está en §7b-bis: el driver abría el cajón en cada impresión, el recibo
+> salía en blanco por no tener papel declarado, «Siempre desmarcada» ignoraba la casilla, y las
+> ventanas de consola del arranque se pueden cerrar y apagan la caja.
 >
-> Desplegadas y verificadas: el entrypoint que migra antes de servir, `unit_of_measure`, los cuatro
-> defectos de precisión, el campo de peso en la caja, la pantalla de configuración de báscula, el
-> registro de merma con causa, y los arreglos de `parse_barcode()`.
->
-> **523 pruebas verdes** contra MariaDB real, y verificación en el navegador con datos de Casaletto:
-> 0,735 + 0,740 = **1,475** y $38.350 exactos (§3.3 del funcional tiene el detalle).
+> Desde el 2026-08-31 están en producción: el entrypoint que migra antes de servir,
+> `unit_of_measure`, los cuatro defectos de precisión, el campo de peso en la caja, la pantalla de
+> configuración de báscula, el registro de merma con causa, y los arreglos de `parse_barcode()`.
+> Verificado en el navegador con datos de Casaletto: 0,735 + 0,740 = **1,475** y $38.350 exactos
+> (§3.3 del funcional tiene el detalle).
 >
 > **Cambio de rumbo desde entonces, léase antes de tocar nada:**
 > - **La libra se agregó y se quitó** (§3.3). `ALLOWED_UNITS_OF_MEASURE` es `['unit','kg']` y así se
@@ -456,7 +460,9 @@ Los tres son de baja gravedad para el camino elegido, pero se arreglan al tocar 
 ### 5.1 Qué es
 
 Un ejecutable propio en el PC de la caja que abre el puerto de la báscula y lo publica por WebSocket
-en `localhost`. Sin ventanas, arranca con el sistema, no pide nada al usuario.
+en `localhost`. Arranca con la sesión y no pide nada al usuario. **Es un programa de consola**
+(subsistema PE 3): lanzado por la tarea de arranque abre una ventana negra, y **cerrarla lo apaga**
+— ver «El arranque en modo caja» en §7b-bis.
 
 **Tecnología: Go.** Compila a un binario estático único, sin runtime que instalar en el equipo del
 cliente — ni JVM, ni .NET, ni Python. Es la diferencia entre un archivo y un procedimiento de
@@ -1171,8 +1177,8 @@ los siguientes.
 | `receiving_calculate_average_price` | `1` | Costo promedio ponderado |
 | `timezone` | `America/Bogota` | El seed ya lo trae correcto |
 | `receipt_paper` | `58mm` | La plantilla se maqueta al ancho **imprimible** (48 mm), no al nominal. Vacío = imprimir como siempre |
-| `print_receipt_check_behaviour` | según decisión | `never` = el recibo solo sale cuando el cajero oprime «Imprimir» |
-| `open_cash_drawer_behaviour` | `cash` | El cajón se abre al terminar la venta, solo si entró efectivo |
+| `print_receipt_check_behaviour` | según decisión | Cómo **arranca** la casilla «Imprimir recibo» en cada venta. `never` = arranca desmarcada; marcarla imprime **esa** venta. Paraíso: `never` |
+| `open_cash_drawer_behaviour` | `cash` | El cajón se abre al terminar la venta, solo si entró efectivo. **Exige apagar la opción de cajón del driver** (§7b-bis) |
 
 Las tres últimas se siembran neutras por migración (`''`, lo que ya hubiera, `never`) y **solo
 cambian algo si el negocio las toca**: un tenant sin cajón o sin impresora térmica no se entera de
@@ -1237,9 +1243,13 @@ una máquina que maneja dinero, esa clase de herramienta modifica servicios del 
 |---|---|
 | Driver **CH341SER** | Instalado como `oem35.inf`, proveedor `wch.cn`, clase *Puertos (COM y LPT)* |
 | `scale-probe.exe` | En el escritorio, **ejecutado de punta a punta** en esta máquina |
-| `POS-58-Setup.exe` | Copiado, **sin instalar** — ver abajo |
-| Acceso a la caja | Modo kiosco, con arranque automático |
-| **`pos-agent.exe` 1.0.0** | En `C:\POS\agente\`, **corriendo**, tarea `AgentePOS` (§5.10e) |
+| Driver **POS-58-Series** | Instalado el 2026-09-02, cola en `USB001`. **Cajón del driver apagado el 2026-09-30** — ver «La impresora» |
+| Acceso a la caja | Modo kiosco con `--kiosk-printing`, tarea `PuntoDeVenta` |
+| **`pos-agent.exe` 1.4.0** | En `C:\POS\agente\`, tarea `AgentePOS` (§5.10e) |
+| `arreglar-puertos.ps1` | Tarea `ArreglarPuertos`: reapunta la cola al `USB00N` presente si la impresora cambió de conector |
+
+*Al 2026-08-31 la tabla decía que el driver de la impresora estaba copiado sin instalar y que el
+agente era la 1.0.0; ambas cosas cambiaron en la visita del 2026-09-02.*
 
 **Por qué la impresora no se instaló.** Es un instalador con ventanas y por SSH no hay escritorio
 donde dibujarlas: arranca y muere. Pero hay una razón mejor: **la impresora no está conectada**.
@@ -1264,6 +1274,38 @@ abre antes de que haya red y se queda en una página de error que un cajero no s
 aparte evita que la caja se mezcle con la navegación personal.
 
 Se sale con `Alt+F4`.
+
+#### Las ventanas de consola se pueden cerrar, y apagan la caja (2026-09-30)
+
+Al iniciar sesión corren tres tareas —`AgentePOS`, `ArreglarPuertos` y `PuntoDeVenta`— en modo
+**«solo interactivo»**, y **las tres abren una ventana de consola**: el agente porque es un
+programa de consola, y las otras dos porque son `powershell` y `cmd`. La de `PuntoDeVenta` se queda
+40 segundos con la cuenta regresiva del `timeout`.
+
+El 2026-09-30 la cajera las cerró al encender. Lo que quedó en el terminal:
+
+```
+pos-agent.log   10:34:11 arrancando · 10:34:25 cerrando      ← 14 s de vida
+ArreglarPuertos resultado 3221225786                        ← 0xC000013A, STATUS_CONTROL_C_EXIT
+PuntoDeVenta    resultado 3221225786                        ← la ventana se cerró antes de lanzar Chrome
+chrome.exe      sin una sola bandera, iniciado 10:35:44     ← abierto a mano desde el escritorio
+```
+
+`0xC000013A` es lo que devuelve un proceso de consola cuando le cierran la ventana, y el «cerrando»
+del agente es su manejador de `SIGTERM`, que en Windows recibe el `CTRL_CLOSE_EVENT`. Sin agente no
+hubo cajón ni báscula; sin lanzador, Chrome no tenía `--kiosk-printing` ni el perfil de la caja.
+**Se veía como el sistema roto y era una ventana cerrada.**
+
+Dos cosas que se descartaron por el camino y conviene no volver a perseguir: **no fue la batería**
+—las tres tareas tienen «detener en batería», pero el terminal no tiene batería— y **no fue un
+reinicio**: el equipo se reanudó de la hibernación del apagado rápido a las 10:34:02.
+
+**El arreglo de fondo está preparado y NO aplicado.** `C:\Users\BTS\ocultar.ps1` lanza las tres
+órdenes por un `wscript` que no abre ventana —misma orden, mismo usuario, mismo disparador—, les
+quita «detener en batería» y el límite de 72 horas, y respalda cada tarea en
+`C:\POS\respaldo-tareas\` antes de tocarla. **Cambiar las tareas de arranque del equipo requiere
+autorización explícita del dueño**, y al cierre de la visita no la había. Hasta entonces, la regla
+para el cajero: **al encender, no cerrar ninguna ventana negra**.
 
 ### El acceso remoto: encendido a demanda, no permanente
 
@@ -1339,6 +1381,34 @@ Con eso, `PrinterStatus: Normal` y `DetectedErrorState: 0`. **Vale la pena mirar
 cualquier impresora POS**: el driver «funciona» y la cola existe, así que se parece a un problema
 de cable.
 
+#### El driver abre el cajón en cada impresión, de fábrica (2026-09-30)
+
+El botón «Imprimir» del recibo **abría el cajón**. La página no lo pide —hay una prueba que vigila
+que el JavaScript no lleve `ESC p`—, y lo que lo confirmó fue el orden de los hechos: con el agente
+caído, «Imprimir» seguía abriendo el cajón. Lo hacía el driver:
+
+```
+Get-PrinterProperty -PrinterName 'POS-58-Series'
+  Config:zjCashDrawer               zjEjectBeforePrint     ← abre el cajón ANTES de cada trabajo
+  Config:BeeperSetting              zjBeepBeforePage
+  Config:zjPrintMode                zjGraphMode
+  Config:zjPaperCutting             zjNoCutting
+Get-PrintConfiguration → PaperSize: (vacío)    formularios: 58x210, 58x297, 58x3276
+```
+
+`POS-58-Series.gpd` declara `*DefaultOption: zjEjectBeforePrint` para `*Feature: zjCashDrawer`:
+**viene así de fábrica**. Las opciones son `zjNoCashDrawer`, `zjEjectBeforePrint` y
+`zjEjectAfterPrint`. Se apagó:
+
+```powershell
+Set-PrinterProperty -PrinterName 'POS-58-Series' -PropertyName 'Config:zjCashDrawer' -Value 'zjNoCashDrawer'
+```
+
+Verificado con la página de prueba de Windows, que pasa por el mismo driver: sale, y el cajón no se
+mueve. **Con `open_cash_drawer_behaviour` encendido esto es obligatorio:** si no, una reimpresión o
+el recibo de un pago con tarjeta abren la caja sin que entre plata. Es parte del montaje de
+cualquier caja con este driver.
+
 #### Cómo se prueba, y por qué hizo falta inventarlo
 
 `pos-agent.exe -probar-impresora` imprime un recibo por el **mismo camino que la caja** —bytes
@@ -1366,9 +1436,25 @@ es el arreglo de fondo. Tres cosas que valen más que el CSS:
   del cliente lo confirma: reporta 480 décimas de milímetro para un papel que llama «58».
 - **Es una lista cerrada detrás de un desplegable**, y lo que no esté en ella cae en «como siempre».
 
-**Pendiente:** imprimir uno de verdad en el local y dejar `receipt_paper = 58mm` en el tenant.
-Verificado el 2026-09-18: está **vacío en los dos negocios de producción**, así que hoy ninguno de
-los dos ha cambiado su forma de imprimir.
+**Declarado en Paraíso el 2026-09-30** (`receipt_paper = 58mm`) e impreso legible en el local.
+Casaletto sigue vacío, e imprime como siempre.
+
+**Sin declararlo, el recibo salía en blanco.** Ese día la impresora sacaba papel sin nada escrito.
+El papel se descartó con la página de prueba de Windows, que salió perfecta. La comparación que
+cerró el caso sale del suceso 307 del spooler (`Microsoft-Windows-PrintService/Operational`):
+
+| Hora | Bytes | Qué | Resultado |
+|---|---:|---|---|
+| 11:15:13 | 267.308 | «Imprimir» desde Chrome | en blanco |
+| 11:26:07 | 6.278.168 | página de prueba de Windows | perfecta |
+
+Mismo driver, 23 veces menos contenido. Con `PaperSize` vacío, Chrome no sabía que el papel era una
+tirilla, maquetaba para una hoja carta, y el driver en `zjGraphMode` apretaba esa hoja entera en
+48 mm: el texto no llegaba a marcar. Declarado el rollo, la regla `@page` le da a Chrome el ancho
+real y el recibo sale bien sin depender de lo que el driver informe.
+
+**Me equivoqué primero con el papel**: la hipótesis del rollo al revés era la más común y la
+página de prueba la desmintió en un minuto. Probar por el driver antes que teorizar.
 
 #### Un defecto propio que destapó la visita
 
@@ -1460,6 +1546,32 @@ Lo que el cajero ve y lo que hace la impresora se separaban, que es peor que no 
 **Reproducido en staging antes de corregirlo:** casilla visiblemente desmarcada, configuración en
 «nunca», y la página del recibo emitiendo igual el disparador de impresión automática.
 
+**La corrección del 2026-09-18 se pasó de estricta, y se ajustó el 2026-09-30** (`fbd822908`).
+Hizo que completar leyera la **configuración** con `is_print_after_sale()`, y con eso «Siempre
+desmarcada» pasó a significar «no imprimir nunca»: **la cajera marcaba la casilla y no salía nada**.
+Se encontró en la caja de Paraíso, y el log del servidor lo mostraba entero — la marca llegó
+(`POST /sales/setPrintAfterSale` 11:36:59) y la venta se completó ignorándola (11:37:19).
+
+`print_receipt_check_behaviour` decide cómo **arranca** la casilla, no si se puede imprimir. Ahora
+son dos preguntas separadas:
+
+| Método | Responde | Lo usa |
+|---|---|---|
+| `is_print_after_sale()` | cómo arranca la casilla: la configuración | `Sales::_reload()`, al dibujarla |
+| `print_after_sale_choice()` | qué tiene la casilla **ahora** | `Sales::postComplete()` |
+
+Leer la sesión vuelve a ser seguro porque **`_reload()` la siembra cada vez que dibuja la casilla**
+(`set_print_after_sale(is_print_after_sale())`). Desde ahí casilla y sesión dicen lo mismo: la
+cajera la cambia con `setPrintAfterSale` y completar obedece. Un «sí» de otra venta no sobrevive al
+siguiente dibujo — que era el defecto original. Con `last` la siembra es la identidad, y Casaletto
+no cambia.
+
+Tres pruebas del controlador lo fijan recorriendo el flujo real, con `print_receipt_check_behaviour`
+devuelto a su valor en un `finally` porque la base de pruebas es compartida: con `never`, marcar
+imprime; con `never`, un `true` sobrante de otra venta no imprime; con `always`, desmarcar no
+imprime. Certificado en staging (POS 15 y 16 de `tenant_panaderia`) y confirmado por el dueño en el
+local.
+
 #### El cajón: `open_cash_drawer_behaviour`, tres estados
 
 El cajón cuelga de la impresora por RJ11, así que abrirlo es mandarle `ESC p` —cinco bytes— y **eso
@@ -1544,8 +1656,12 @@ host en `http://` en vez de `https://` reciben **403 antes del handshake**.
 
 **Lo que este tramo NO deja pendiente en el terminal:** la báscula de Paraíso habla con el agente
 por ese mismo `ws://127.0.0.1:7878` desde ese mismo origen todos los días desde el 2026-09-02. El
-permiso de red local y la lista de orígenes ya están resueltos allí. Lo único que falta es el
-último centímetro: que la impresora ejecute `ESC p` con el cajón conectado.
+permiso de red local y la lista de orígenes ya están resueltos allí.
+
+**El último centímetro quedó el 2026-09-30.** Con el cajón conectado por RJ11, `pos-agent.exe
+-abrir-cajon` lo abrió a la primera con `27,112,0,25,250` —pin 2, sin ajustar nada—, y una venta
+real en efectivo lo abrió por el camino de la página. Windows lo dejó escrito: un trabajo de **5
+bytes** a las 11:14:57, que es exactamente `ESC p 0 25 250`.
 
 #### Un defecto de upstream que esta certificación destapó
 
@@ -1587,7 +1703,9 @@ La ventana medida, de punta a punta:
 **Tres segundos**, y las migraciones corrieron antes de aceptar la primera petición, que es lo que
 impide que alguien entre a un esquema a medio migrar (§7c.1).
 
-Lo que se hizo antes de tocar nada, y que conviene repetir en el próximo despliegue:
+Lo que se hizo antes de tocar nada. **Desde el 2026-09-29 todo esto lo hace `scripts/deploy.sh`**
+por el workflow (`docs/Tecnico/despliegue.md`); el despliegue de `fbd822908` el 2026-09-30 corrió
+así, con autorización de horario del dueño y sin actividad en los 15 minutos previos:
 
 1. **Respaldo fresco de las tres bases**, comprobando la marca de cierre de `mariadb-dump` en cada
    una. Que el `.gz` esté íntegro no dice que el volcado esté completo.
@@ -1629,9 +1747,12 @@ no `127.0.0.1`.
 sobre la general: la primera cubre las peticiones al propio equipo —que es exactamente nuestro
 caso— y la segunda, la red local en general. Ambas son de permitir, así que no se contradicen.
 
-**Falta confirmarlo en `chrome://policy`** desde la pantalla del equipo: ahí se ve si Chrome las
-reconoce o las marca como *Unknown policy*, que es lo que pasaría si alguno de los dos nombres
-cambiara en una versión futura. Son treinta segundos el día del montaje.
+**Confirmado en `chrome://policy` el 2026-09-30, con Chrome 153.0.8010.53:** las dos en **OK**,
+fuente *Platform*, alcance *Machine*, nivel *Mandatory*. Es lo que hay que mirar tras cada
+actualización grande de Chrome: si alguno de los dos nombres cambiara, aparecería como *Unknown
+policy* y el agente dejaría de recibir pedidos sin dar error. En el Chrome de un equipo de
+desarrollo sin la directiva, la petición a `127.0.0.1` **se queda colgada**, sin error y sin
+aparecer en la lista de red.
 
 Esto **sólo se puede hacer en un Windows Pro**. Con la edición Hogar no existen las directivas, y
 no habría salida.
@@ -1775,7 +1896,7 @@ de despliegue, no un commit más.
 | Sufijo de unidad en el recibo | Sí | Solo cuando la unidad no es `unit` |
 | `quantity_decimals = 3` | **No** | Es configuración por tenant. Casaletto conserva su `0` — y hay que **verificarlo explícitamente** después de desplegar |
 | `receipt_paper` / `@page` del recibo | Vista compartida | La regla CSS solo se emite si el tenant configuró un rollo. Vacío en Casaletto = se imprime igual que siempre |
-| **`postComplete()` deja de leer la sesión en crudo** | **Sí, código compartido** | Es la corrección de un defecto. Casaletto está en `last` —recordar la última selección—, que es exactamente lo que el método devuelve: mismo resultado, ahora por el camino correcto |
+| **`postComplete()` obedece la casilla; `_reload()` la siembra** | **Sí, código compartido** | Corrección de un defecto (2026-09-18, ajustada el 2026-09-30). Casaletto está en `last`: la siembra devuelve lo que la sesión ya tenía, así que el resultado es idéntico |
 | `open_cash_drawer_behaviour` + parcial del cajón | Vista compartida | Sembrado en `never`: el parcial **no emite una sola línea** y la página del recibo es byte por byte la de antes |
 | Parcial del cajón en `invoice` y `tax_invoice` | Vistas compartidas | Mismo caso: sin el ajuste encendido no emite nada |
 
@@ -1918,8 +2039,8 @@ bloquea la salida a producción, pero conviene que estén escritos y no en la ca
 - **Venta con lotes**: consumo del que vence primero.
 - **Migración inocua**: que `unit_of_measure` y `tracks_lots` no cambien el comportamiento de los
   artículos existentes de Casaletto.
-- **«Nunca imprimir» significa nunca**: con `print_receipt_check_behaviour = never` y la sesión
-  trayendo un `true` viejo, que la página del recibo **no** emita el disparador de impresión.
+- **La casilla manda al finalizar**: con `never`, un `true` sobrante de otra venta **no** imprime,
+  y marcar la casilla **sí** imprime esa venta; con `always`, desmarcarla no imprime.
 - **El cajón, en sus tres estados**: que `never` no abra nunca; que `cash` abra con efectivo, con el
   ajuste de redondeo y con un pago mixto, y **no** con tarjeta sola; que `always` abra siempre.
 - **El cambio cuenta como efectivo**: una venta cobrada con tarjeta que devuelve vueltas abre el
@@ -1944,7 +2065,7 @@ bloquea la salida a producción, pero conviene que estén escritos y no en la ca
 
 ## 12. Orden de implementación
 
-**Estado a 2026-09-18.** El trabajo se organizó en vías disjuntas en archivos, ejecutadas en
+**Estado a 2026-09-30.** El trabajo se organizó en vías disjuntas en archivos, ejecutadas en
 paralelo y mergeadas en orden fijo. Detalle del análisis de paralelización y del mapa de colisiones
 en el plan (`~/.claude/plans/prancy-puzzling-umbrella.md`).
 
@@ -1956,18 +2077,19 @@ en el plan (`~/.claude/plans/prancy-puzzling-umbrella.md`).
 | **V5a · Intérprete de báscula** | Token `[\d.]`, claves `scale_*`, pantalla de configuración | **Hecha** — `2723a9899` |
 | **V5b · `parse_barcode()`** | `break`, divisor configurable, patrón anclado (§4.4) | **Hecha** — `dc67abaa8`, con la consulta de §7c.4 hecha primero |
 | **V6 · Caja** | Unidad en la línea del carrito, campo de peso, foco, teclado en pantalla | **Hecha** — `00fcb600e` y siguientes |
-| **V4 · Operación** | Provisionar el tenant (§7), inspección del instalador | **Hecha** — el negocio factura desde 2026-09-02 |
+| **V4 · Operación** | Provisionar el tenant (§7), inspección del instalador | **Hecha** — primera venta el 2026-09-08; opera desde el 2026-09-30 |
 | **Agente local** | §5 — báscula, impresión, cajón | **En producción** desde 2026-09-02. Ver §7b-bis |
-| **Papel del recibo** | `receipt_paper` y la regla `@page` con el ancho imprimible | **Hecha** — `695ead599`. Falta declararlo en el negocio |
-| **Impresión y cajón** | «Nunca imprimir» significa nunca; cajón solo con efectivo | **En producción** desde 2026-09-20 (`e8e1ad857`). Paraíso en `cash`, Casaletto en `never` |
+| **Papel del recibo** | `receipt_paper` y la regla `@page` con el ancho imprimible | **Hecha** — `695ead599`. Paraíso en `58mm` desde 2026-09-30 |
+| **Impresión y cajón** | La casilla manda al finalizar; cajón solo con efectivo | **En producción**: `e8e1ad857` (2026-09-20) y `fbd822908` (2026-09-30). Cajón conectado y probado en el local. Paraíso en `cash` + `never`; Casaletto en `never` + `last` |
 | **Inventario** | §6.1, §6.2, §6.3 | Después del corte, por decisión del 2026-08-28 |
 
 **El cliente ya salió a producción** y el agente local, que no estaba en el camino crítico, terminó
 llegando antes que la salida: la báscula vende desde el 2026-09-02.
 
-**Lo que queda abierto de esta lista** es el módulo de inventario y, en la rama de recibo y cajón,
-tres cosas: certificarla en staging, elegir con el cliente el valor de `open_cash_drawer_behaviour`
-—que el negocio ya pidió en `cash`— y conectar el cajón, que es hardware y va último.
+**Lo que queda abierto** es el módulo de inventario y dos cosas del terminal: **que las tareas de
+arranque corran sin ventana** (preparado, espera autorización — §7b-bis) y **abrir el cajón sin
+venta** desde la pantalla, que el agente ya sabe hacer. Lo más urgente del negocio no es técnico:
+**250 de 1.217 artículos sin precio, 27 de ellos por peso**, y un artículo sin precio sale a $0.
 
 **Orden de merge respetado:** V1 → V3 → V2. V3 fue primero entre las de código porque **no trae
 migración**, lo que la hacía la candidata segura para estrenar el pipeline nuevo del entrypoint.

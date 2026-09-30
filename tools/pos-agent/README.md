@@ -111,6 +111,14 @@ cliente. Se genera con `pos-agent.exe -crear-config`.
   `drawer.open` al terminar la venta según el ajuste del negocio (nunca, solo
   con efectivo, o toda venta).
 
+  Probado con un cajón real el 2026-09-30: abrió a la primera con el valor por
+  omisión. **Y el driver de la impresora hay que apagarlo:** el de la
+  XP-58IIT trae de fábrica «abrir cajón antes de imprimir»
+  (`Config:zjCashDrawer = zjEjectBeforePrint`), y así cada impresión —una
+  reimpresión, un recibo pagado con tarjeta— abre la caja. Se apaga con
+  `Set-PrinterProperty -PrinterName 'POS-58-Series' -PropertyName
+  'Config:zjCashDrawer' -Value 'zjNoCashDrawer'`.
+
 Un archivo ausente **no impide arrancar**, y uno roto tampoco: se sigue con los
 valores por omisión y queda en la bitácora. Un agente muerto es invisible para
 el cajero, que sólo ve que no hay peso.
@@ -119,8 +127,16 @@ el cajero, que sólo ve que no hay peso.
 
 `pos-agent.log`, junto al ejecutable. Se trunca al pasar de 2 MB.
 
-Arranca sin ventana, así que **sin este archivo no hay forma de saber por qué no
-funciona**. Es lo primero que hay que mirar.
+Es lo primero que hay que mirar: el cajero no ve nada del agente, así que **sin
+este archivo no hay forma de saber por qué no funciona**.
+
+**No arranca sin ventana, aunque esta nota lo dijo hasta el 2026-09-30.** Es un
+programa de consola (subsistema PE 3): lanzado por la tarea `AgentePOS` abre una
+ventana negra, y **cerrarla lo apaga** — `CTRL_CLOSE_EVENT` llega como
+`SIGTERM` y la bitácora escribe `cerrando`. Así pasó ese día: `arrancando` a
+las 10:34:11, `cerrando` catorce segundos después, y la caja quedó sin cajón
+ni báscula. Un `cerrando` sin que nadie apagara el equipo es casi siempre
+eso.
 
 ## Actualización a distancia
 

@@ -1,30 +1,33 @@
 # Alcance funcional — Venta por peso, hardware de caja e inventario para supermercado
 
-> **Estado a 2026-08-31: el software está EN PRODUCCIÓN. Falta el hardware.**
+> **Estado a 2026-09-30: la caja está completa y el negocio empezó a vender de verdad.**
 >
-> Todo lo que depende de nosotros está desplegado y funcionando: los artículos dicen si se venden
-> por unidad o por kilo, la caja pide el peso y calcula contra el precio por kilo, se corrigieron
-> los cuatro errores que hacían perder decimales en silencio, y está el registro de merma. Probado
-> en el navegador con datos reales de Casaletto —ver §3.1— y con **523 pruebas automáticas**.
+> Visita al local ese día. Quedó funcionando, **probado con ventas reales en la caja**:
 >
-> **Casaletto ya se está beneficiando.** No era solo para el cliente nuevo: tiene 71 artículos que
-> vende al peso, y dos de esos errores le estaban costando plata desde antes de este proyecto.
+> - **La báscula** llena el peso sola (desde el 2026-09-02, §4.3e).
+> - **Al finalizar una venta en efectivo se abre el cajón y no sale papel.** El cajón se conectó ese
+>   día por primera vez (§4.5).
+> - **El recibo solo sale si la cajera lo pide**: marcando la casilla antes de finalizar, o con el
+>   botón «Imprimir» en la pantalla del recibo. Sale legible, maquetado al rollo de 58 mm (§4.3f,
+>   §4.3g).
 >
-> **El segundo negocio ya existe.** *Paraíso de la Canasta* está creado en producción, en
-> `paraisodelacanasta.ospos-saas.micronuba.net`, con sus **1.184 artículos cargados**. Los precios
-> quedaron en **cero por decisión del cliente**: los pone él. Que pueda ponerlos es un requerimiento
-> aparte, `docs/Funcional/carga-masiva-de-articulos.md`, y **lo trabaja otro agente**.
+> Todo lo demás del software lleva un mes en producción: los artículos dicen si se venden por unidad
+> o por kilo, la caja pide el peso y calcula contra el precio por kilo, se corrigieron los cuatro
+> errores que hacían perder decimales en silencio, y está el registro de merma. **Casaletto también
+> se benefició:** tiene 71 artículos que vende al peso, y dos de esos errores le costaban plata.
 >
-> **El terminal táctil ya está listo** (§4.3c), preparado en remoto sin desplazarse: arranca solo en
-> modo caja, tiene el driver de la báscula puesto, y el acceso remoto quedó cerrado con llave y
-> apagado por defecto (§4.3d).
+> **El negocio casi no había vendido.** Hizo 18 ventas entre el 8 y el 18 de septiembre y se detuvo.
+> El 2026-09-30, con la caja por fin completa, **empezó a operar**.
 >
-> **Lo que falta es el hardware físico, y depende de terceros:**
-> - La báscula se presta **una vez y por cinco minutos** — §4.3b explica qué se logra y qué no.
-> - El programa que la lee está **instalado y corriendo en el terminal** (§4.3c-bis). Falta
->   conectarlo con la pantalla de la caja, y probarlo contra la báscula.
-> - La impresora **no se instala hasta tenerla conectada** — instalarla antes crea una impresora
->   fantasma que después hay que rehacer.
+> **Lo más urgente ahora no es técnico: son los precios.** De 1.217 artículos, **250 no tienen
+> precio**, y entre los que se venden pesando son **27 de 66** —el 41 %—. Un artículo sin precio se
+> cobra a **$0**: ese mismo día salió una yuca de 0,930 kg sin cobrar. Los pone el cliente, con la
+> carga masiva (`docs/Funcional/carga-masiva-de-articulos.md`) o desde la ficha del artículo.
+>
+> **Lo que queda abierto:**
+> - **Al encender el equipo salen ventanas negras que no hay que cerrar** (§4.3c-bis). Cerrarlas
+>   el 2026-09-30 dejó la caja sin cajón, sin báscula y sin modo caja. Hacer que no aparezcan está
+>   preparado y espera autorización.
 > - **Windows no está activado**: es una compra del cliente.
 > - **Falta confirmar si habrá pistola lectora.**
 >
@@ -220,8 +223,8 @@ operario presiona transmitir cuando la balanza deja de moverse, que es lo que ya
 | Equipo | Qué hay que hacer | Quién |
 |---|---|---|
 | **Pistola lectora láser** | Programarla con sufijo Enter. Nada más. | Nosotros, en el montaje |
-| **Impresora de recibos** | Instalar su driver y configurar el navegador para que no salga el diálogo de impresión. | Nosotros, en el montaje |
-| **Cajón monedero** | Colgarlo del puerto de la impresora y marcar la casilla del driver. | Nosotros, en el montaje |
+| **Impresora de recibos** | Instalar su driver, configurar el navegador para que no salga el diálogo de impresión, y **declarar el rollo en Configuración → Recibo** (§4.3f). | Nosotros, en el montaje |
+| **Cajón monedero** | Colgarlo del puerto de la impresora y **apagar** la casilla «abrir cajón al imprimir» del driver: el cajón lo abre el sistema al finalizar la venta (§4.5). | Nosotros, en el montaje |
 | **Báscula USB** | Instalar nuestro programa local y configurar el formato que emite la báscula. | Nosotros, en el montaje |
 
 ### 4.1 Por qué la báscula necesita un programa instalado
@@ -239,14 +242,19 @@ instalado en el PC de la caja que abre el puerto y le entrega el peso a la pági
 
 ### 4.2 Qué es ese programa, en términos del negocio
 
-Es un ejecutable nuestro, sin ventanas, que arranca con el computador y se queda esperando. No pide
-nada al usuario y no hay que abrirlo. Se instala una vez por caja durante el montaje.
+Es un ejecutable nuestro que arranca con el computador y se queda esperando. No pide nada al usuario
+y no hay que abrirlo. Se instala una vez por caja durante el montaje. **Sí abre una ventana negra al
+arrancar, y no hay que cerrarla** — ver §4.3c-bis.
 
-Va a hacer tres cosas, no una:
+Lo que hace hoy:
 
-- Leer la báscula.
-- Imprimir el recibo sin que salga el diálogo de impresión.
-- Abrir el cajón monedero, **también cuando no hay venta** — para dar un cambio o cuadrar el turno.
+- **Leer la báscula.**
+- **Abrir el cajón al finalizar una venta en efectivo**, sin imprimir nada.
+
+Se había planeado también que imprimiera el recibo; **se decidió que no** (§4.3f), porque imprimir
+desde el navegador funciona con cualquier impresora. Y **abrir el cajón sin venta** —para dar un
+cambio suelto o cuadrar el turno— el programa ya lo sabe hacer, pero la pantalla todavía no tiene
+cómo pedírselo.
 
 Esa tercera es la única función de esta lista que el sistema no puede hacer hoy de ninguna manera.
 
@@ -335,7 +343,21 @@ la página, porque un navegador no tiene forma de abrir el puerto de una báscul
 
 **Ya está instalado y corriendo en el terminal**, y arranca solo con el equipo — **comprobado
 reiniciándolo**: se encendió, llegó solo a la caja y el programa quedó en marcha sin que nadie
-hiciera nada. No se ve: no tiene ventana, y el cajero no tiene que abrirlo ni saber que existe.
+hiciera nada. El cajero no tiene que abrirlo ni saber que existe.
+
+**Corrección del 2026-09-30: sí tiene ventana, y cerrarla lo apaga.** Esta sección decía que no se
+veía, y no era cierto. Al encender el equipo arrancan tres cosas —este programa, un arreglo de
+puertos de la impresora y el lanzador de la caja— y **cada una abre una ventana negra**. La del
+lanzador se queda **40 segundos** con una cuenta regresiva, esperando que conecte la WiFi.
+
+Esa mañana alguien vio las ventanas y las cerró. Con eso **se apagaron las tres**: sin programa no
+hubo cajón ni báscula, y sin lanzador Chrome no arrancó en modo caja; lo abrieron a mano desde el
+escritorio, sin impresión directa. Parecía que el sistema estaba roto, y era una ventana cerrada.
+
+**Qué hay que decirle al cajero:** al encender, **no cerrar ninguna ventana negra** y esperar un
+minuto a que la caja se abra sola a pantalla completa. **El arreglo de fondo** —que las tres
+arranquen sin ventana, para que no haya nada que cerrar— está preparado en el terminal y **espera
+autorización**, porque cambia cómo arranca el equipo.
 
 **Lo que hace por dentro, que importa aunque no se vea:** no interpreta el peso. Lo entrega tal como
 lo dijo la báscula y es el sistema el que lo traduce. Suena a detalle técnico y es una decisión de
@@ -347,10 +369,8 @@ un programa local. Sin una puerta, un anuncio o un enlace que el cajero abra por
 pedirle a la caja que **abra el cajón del dinero**. El programa solo atiende a la dirección del
 negocio y a ninguna otra; se probó intentando entrar desde otras y quedan rechazadas y anotadas.
 
-**Lo que todavía no hace, y hay que decirlo claro:** la página aún no le pide nada. El programa está
-puesto y probado, pero conectarlo con la pantalla de la caja es el trabajo que sigue. Y aun
-conectado, no daría un peso hasta los cinco minutos con la báscula, porque nadie conoce todavía el
-formato en que ese modelo dice el número.
+*Al escribir esta sección, la página todavía no le pedía nada al programa y el formato de la báscula
+era desconocido. Las dos cosas quedaron resueltas al día siguiente: ver §4.3e.*
 
 ### 4.3e La báscula ya habla con la caja (2026-09-01)
 
@@ -433,8 +453,8 @@ nada en la caja para mover un logo o agregar una línea.
 Lo único que sí depende de la impresora es **abrir el cajón**, porque el cajón cuelga de ella y
 abrirlo es literalmente una orden de impresora. Eso ya está resuelto y es configurable (4.5).
 
-**Que salga solo es ahora una decisión del negocio, no del sistema.** Ver 4.3g: se puede dejar tal
-cual —imprime al terminar cada venta— o que solo salga cuando el cajero oprima «Imprimir».
+**Que salga solo es ahora una decisión del negocio, no del sistema.** Ver 4.3g. Paraíso eligió que
+**no salga solo**: sale si la cajera marca la casilla antes de finalizar, o si oprime «Imprimir».
 
 **El papel del recibo ya se declara (2026-09-03).** El sistema no sabía en qué rollo estaba
 imprimiendo: el navegador le sumaba sus propios márgenes —unos 10 mm por lado— y sobre los 48 mm que
@@ -446,8 +466,16 @@ se maqueta al ancho **imprimible** real, no al que dice la caja del rollo.
 mecanismo no alcanza; maquetar al ancho nominal es la forma clásica de perder la columna de la
 derecha —los totales— por el borde del papel.
 
-**Pendiente:** imprimir uno de verdad en el local y dejar el rollo configurado. Hoy está sin
-declarar, que significa «imprimir como siempre».
+**Declarado e impreso el 2026-09-30.** Paraíso tiene «Papel del recibo = Rollo de 58 mm» y el
+recibo sale legible en la tirilla.
+
+**Y sin declararlo, salía en blanco.** Ese día la impresora sacaba papel sin nada escrito. No era
+el papel: la página de prueba de Windows, por el mismo driver, salió perfecta. Era que la impresora
+**no tenía ningún tamaño de papel elegido**, así que Chrome maquetaba el recibo para una hoja carta
+y el driver lo apretaba entero en 48 mm: el texto quedaba tan pequeño que no marcaba. Con el rollo
+declarado, el recibo se maqueta a su ancho real y ya no depende de lo que el driver diga.
+
+**Para el próximo cliente con tirilla: declarar el rollo es parte del montaje**, no un ajuste fino.
 
 ### 4.3g Quién decide si el recibo se imprime solo (2026-09-18)
 
@@ -461,14 +489,28 @@ El sistema recordaba el «sí» de la última vez que alguien marcó la casilla 
 venta, sin volver a mirar la configuración. Lo que el cajero veía y lo que hacía la impresora se
 habían separado, que es peor que no tener el ajuste.
 
-**Corregido y reproducido antes de corregirlo.** Ahora «siempre desmarcada» significa que no
-imprime hasta que se lo pidan, y esa fue la razón por la que quedó claro que el cajón tenía que
-dejar de depender de la impresión.
+**Corregido el 2026-09-18, y ajustado el 2026-09-30.** La primera corrección se pasó de estricta:
+convirtió «siempre desmarcada» en «no imprimir nunca», y **si la cajera marcaba la casilla, tampoco
+salía el recibo**. Se descubrió en la caja de Paraíso, con un cliente que pedía el papel.
 
-**Certificado el 2026-09-18** sobre ventas reales en el ambiente de pruebas: con «siempre
-desmarcada» el recibo no sale hasta oprimir «Imprimir», y con «siempre marcada» sí sale solo —lo
-segundo importa tanto como lo primero, porque demuestra que el silencio es el ajuste obedeciendo y
-no algo que se rompió.
+**Lo que significa ahora cada opción** es cómo **arranca** la casilla en cada venta; lo que decide
+si se imprime es cómo está la casilla **al finalizar**:
+
+| Opción | La casilla arranca | Si la cajera la cambia |
+|---|---|---|
+| **Siempre desmarcada** | desmarcada, en **cada** venta | marcarla imprime **esa** venta |
+| **Siempre marcada** | marcada, en cada venta | desmarcarla evita **esa** impresión |
+| **Recordar la última selección** | como quedó en la venta anterior | se queda así hasta que la cambien |
+
+Lo que se ve es lo que pasa: la casilla ya no puede decir una cosa y la impresora hacer otra, ni
+arrastrar el «sí» de una venta a la siguiente.
+
+**Paraíso está en «Siempre desmarcada»**, que es lo que pidió: al finalizar en efectivo se abre el
+cajón y no sale papel, salvo que la cajera marque la casilla o use el botón «Imprimir».
+
+**Certificado** sobre la interfaz desplegada, en pruebas, los dos días: sin marcar no imprime,
+marcando imprime, y la venta siguiente vuelve a arrancar desmarcada. El 2026-09-30 **el dueño lo
+confirmó en la caja del local**, con ventas reales.
 
 De paso se tradujo esa pantalla de configuración, que seguía en inglés.
 
@@ -562,8 +604,17 @@ corregido en esta misma entrega.
 **En funcionamiento desde el 2026-09-20**, y ya encendido en «solo en pagos en efectivo» para este
 negocio. Casaletto quedó en «no abrirlo», como corresponde a un mostrador que no tiene cajón.
 
-**Pendiente:** conectarlo físicamente y confirmarlo con `pos-agent.exe -abrir-cajon`. Es el último
-paso y ya no depende de desarrollo: el día que se conecte, funciona sin tocar nada más.
+**Conectado y funcionando desde el 2026-09-30**, probado en la caja con ventas reales. La orden que
+usa el sistema abrió este cajón a la primera, sin ajustar nada — como se esperaba de un solenoide.
+
+**Lo que sí hubo que apagar fue el driver de la impresora.** Viene de fábrica con **«abrir cajón
+antes de imprimir»** activado, así que el botón «Imprimir» también abría el cajón. Eso no puede
+quedar así: una reimpresión de una venta vieja, o el recibo de un pago con tarjeta, abrirían la
+caja sin que entre plata. Se apagó en el driver, y ahora **el cajón solo lo abre el sistema, al
+finalizar una venta en efectivo**. Verificado imprimiendo la página de prueba de Windows: sale, y el
+cajón no se mueve.
+
+**Para el próximo cliente con esta impresora: apagar esa opción del driver es parte del montaje.**
 
 Lo que sigue quedando para más adelante es **abrirlo sin vender** —para dar un cambio suelto o
 cuadrar el turno—. Hasta entonces eso se hace con la llave. Es una molestia conocida y aceptada, no
@@ -699,18 +750,20 @@ Y antes de producción, todo pasa por el ambiente de pruebas con los dos negocio
 
 - **El mapa de IVA.** Qué categorías van excluidas, cuáles exentas y cuáles al 19%. Las verduras
   frescas generalmente van excluidas. **Esto lo confirma el contador del cliente, no nosotros.**
-- ~~El catálogo de productos~~ — **cargado: 1.184 artículos**, sacados del inventario del POS
-  anterior. **Faltan los precios**, y los pone el cliente: para eso hace falta la carga masiva
-  (`docs/Funcional/carga-masiva-de-articulos.md`), que **trabaja otro agente**.
+- ~~El catálogo de productos~~ — **cargado: 1.217 artículos**. **Faltan precios**: al 2026-09-30,
+  **250 sin precio**, y **27 de los 66 que se venden pesando**. Un artículo sin precio se cobra a
+  $0 —ese día salió así una yuca de 0,930 kg—. Los pone el cliente, con la carga masiva
+  (`docs/Funcional/carga-masiva-de-articulos.md`) o desde la ficha del artículo. **Es lo más urgente
+  del negocio ahora que vende.**
 - **La activación de Windows** del terminal. Hoy no está activado.
-- ~~La báscula~~ — **resuelto: ya la tiene y sirve** (ROCHI RC-A01E). Falta prestárnosla unos días,
-  o darnos acceso al equipo, para desarrollar y probar contra hardware real.
+- ~~La báscula~~ — **resuelto: ROCHI RC-A01E, conectada y vendiendo** en la caja desde el
+  2026-09-02.
 - **La decisión sobre los productos de menos de 200 g**, que la báscula no puede pesar.
 - **La aceptación firmada** del riesgo de quedarse sin internet.
 
 ## 8. Orden de entrega
 
-**Estado al 2026-09-18.**
+**Estado al 2026-09-30.**
 
 | Fase | Qué se entrega | Estado |
 |---|---|---|
@@ -720,12 +773,14 @@ Y antes de producción, todo pasa por el ambiente de pruebas con los dos negocio
 | 3 | Merma, toma de inventario y lotes opcionales | Pendiente, después del corte |
 | 4 | El campo de peso en la caja, con digitación manual | **Entregada** |
 | 5 | Catálogo cargado y hardware montado en el local | **Entregada.** Faltan precios en parte del catálogo |
-| 6 | El programa local: báscula, impresión directa y apertura de cajón | **Báscula e impresión funcionando en el local.** El cajón: **en producción desde el 2026-09-20** y encendido en «solo efectivo»; falta conectarlo físicamente |
-| 7 | Acompañamiento de la primera semana | En curso |
+| 6 | El programa local: báscula, impresión directa y apertura de cajón | **Entregada.** Báscula, cajón e impresión **funcionando en el local**, probados con ventas reales el 2026-09-30 |
+| 7 | Acompañamiento de la primera semana | En curso — el negocio empezó a operar el 2026-09-30 |
 
-**El negocio factura desde el 2026-09-02.** El programa local se había planeado deliberadamente
-*después* de la salida a producción, para que un problema de instalación no retrasara la apertura;
-terminó llegando antes, así que el cliente arrancó pesando con la báscula y no con el peso digitado.
+**Cómo arrancó de verdad**, según la base de datos: la primera venta es del **8 de septiembre**;
+hubo 18 hasta el 18 y ahí se detuvo. **El 2026-09-30, con la caja completa, empezó a operar.** El
+programa local se había planeado *después* de la salida a producción, para que un problema de
+instalación no la retrasara; terminó llegando antes, así que el cliente arrancó pesando con la
+báscula y no con el peso digitado.
 
 ## 9. Preguntas abiertas
 
@@ -743,8 +798,8 @@ terminó llegando antes, así que el cliente arrancó pesando con la báscula y 
    de negocio: por unidad, preempacados o con precio mínimo.
 5. **¿Cuántas cajas va a tener?** Define cuántas básculas montar y cómo se hace el cuadre si hay más
    de un cajero por turno.
-6. **¿Cuántos productos tiene el catálogo?** Con decenas de productos la velocidad de la caja
-   alcanza sin tocar nada; con miles hay que revisarla antes de salir.
+6. ~~¿Cuántos productos tiene el catálogo?~~ **Resuelta: 1.217.** La velocidad de la caja con ese
+   tamaño **no se ha medido**; en la visita del 2026-09-30 nadie reportó lentitud.
 
 ## 10. Referencia técnica
 
