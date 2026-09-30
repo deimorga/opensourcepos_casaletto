@@ -27,8 +27,17 @@ Orden: push a `develop` → staging → certificar en staging → `git push orig
 
 Los dos workflows hacen lo mismo:
 
-1. **Esperan el workflow «PHPUnit Tests» de ese mismo commit** y no siguen si no está en verde.
-2. Llevan `scripts/deploy.sh` **de ese commit** al servidor y lo ejecutan.
+1. **Exigen PHPUnit en verde para ese código.** `phpunit.yml` solo corre cuando un push toca
+   código, así que un commit de solo documentación o despliegue no tiene corrida propia. Se busca
+   hacia atrás la primera corrida terminada: tiene que estar en verde y, entre ella y el commit, no
+   puede haber cambios en nada de lo que dispara PHPUnit (mismos filtros, repetidos en el workflow).
+   Si la corrida del commit aún está en curso, se espera.
+2. **Conectan por SSH con reintentos** (8, con espera creciente) antes de tocar nada. No se usa
+   `appleboy/ssh-action`: no reintenta, y Hostinger corta de forma intermitente el SSH que viene de
+   GitHub (pasó otra vez el 2026-09-29).
+3. Llevan `scripts/deploy.sh` **de ese commit** al servidor y lo lanzan **desacoplado** (`setsid
+   nohup`), con registro en `/root/deploy-logs/<ambiente>-<run>-<intento>.log`. El workflow solo lo
+   sigue y se reconecta: un corte de red a mitad ya no deja el despliegue a medias.
 
 Todo lo demás vive en el script, versionado. **A mano, solo en emergencia, y con el mismo script**:
 `cd /root/POS_Casaletto && git fetch origin master && git show <sha>:scripts/deploy.sh > /tmp/d.sh && bash /tmp/d.sh prod <sha>`.
@@ -53,6 +62,9 @@ Todo lo demás vive en el script, versionado. **A mano, solo en emergencia, y co
 
 **Después de cambiar:**
 
+- La aplicación se recrea **siempre** (`--force-recreate --no-deps ospos`; la base solo si su
+  definición cambió): con una imagen idéntica Docker no la reiniciaría y la verificación daría un
+  falso fallo.
 - El arranque tiene que decir `[entrypoint] All schemas current.` en 3 minutos, y el contenedor no
   puede haberse detenido.
 - **Cada negocio activo**, por Traefik y como lo ve un cliente: `/login` con HTTP 200, su propio
@@ -76,14 +88,19 @@ etiqueta. Se conservan las últimas 8 etiquetas y los últimos 15 respaldos por 
 
 - `shellcheck` y `actionlint` sin avisos.
 - Condición de verificación comprobada contra los 9 dominios vivos antes de usarla.
-- Staging con el workflow nuevo, normal y con `probar_vuelta_atras` (fuerza el fallo de la
-  verificación): la vuelta atrás automática tiene que dejar staging verificado en el commit anterior.
+- 2026-09-29, staging con el workflow nuevo: despliegue normal correcto (respaldo de 5 esquemas
+  comprobado, 5 dominios en verde); con `probar_vuelta_atras` la verificación falló a propósito y la
+  vuelta atrás automática dejó staging verificado otra vez.
+- 2026-09-29 23:46, producción con el workflow nuevo (`37ec1803c`): certificado en staging, sin
+  actividad, respaldo de 4 esquemas comprobado (3,1 MB), arranque y 4 dominios en verde.
+- Lo que la prueba destapó y se corrigió antes de producción: la espera de PHPUnit se colgaba en
+  commits sin código; el SSH desde GitHub falló una vez; y un despliegue de imagen idéntica no
+  reiniciaba la aplicación.
 
 ## 5. Lo que no cubre
 
-- **Hostinger bloquea de forma intermitente el SSH desde GitHub** (visto en agosto). Si pasa, el
-  workflow falla al conectar, antes de tocar el servidor; se reintenta. Si hay urgencia, el mismo
-  script a mano (sección 2), nunca un `docker compose` suelto.
+- Si Hostinger bloquea el SSH durante los 8 reintentos, el workflow falla sin tocar el servidor y se
+  relanza. Si hay urgencia, el mismo script a mano (sección 2), nunca un `docker compose` suelto.
 - El respaldo vive en el mismo servidor. Protege de un despliegue malo, no de perder el servidor.
 - `docker-compose.yml` sigue siendo el de upstream (publica el 80). Lo neutraliza `COMPOSE_FILE`
   en cada `.env`, no se cambió el archivo.
