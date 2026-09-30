@@ -272,8 +272,16 @@ verify() {
     [ "$ok" = 1 ]
 }
 
+# La aplicación se recrea SIEMPRE: con una imagen idéntica Docker no la reinicia, el arranque
+# no escribe «All schemas current.» y la verificación daría un falso fallo. La base solo se
+# recrea si su propia definición cambió.
+switch_app() {
+    dc up -d --no-build mysql
+    dc up -d --no-build --no-deps --force-recreate ospos
+}
+
 SWITCHED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-dc up -d --no-build
+switch_app
 
 if verify "$SWITCHED_AT"; then
     RESULT=ok
@@ -290,7 +298,7 @@ else
         docker tag "$ROLLBACK_TAG" "$IMAGE"
         git reset --quiet --hard "$OLD_SHA"
         ROLLED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-        dc up -d --no-build
+        switch_app
         if VERIFY_PASS=2 verify "$ROLLED_AT"; then
             RESULT=vuelta-atras
             say "vuelta atrás verificada: corre otra vez ${OLD_SHA:0:9}."
