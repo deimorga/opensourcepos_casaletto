@@ -18,15 +18,15 @@ use Config\OSPOS;
  *
  * The rules copied from the register:
  *
- * - price_option (Sale_lib::add_item() in PRICE_MODE_KIT): ALL prices every component at its catalogue
- *   price, KIT prices none of them, KIT_STOCK prices only the components that keep stock;
- * - print_option: ALL prints every line, KIT prints only the kit's own line, PRICED prints the lines
- *   that carry a price;
+ * - print_option (Sale_lib::add_item() in PRICE_MODE_KIT): ALL prints every line, KIT prints only the
+ *   kit's own line, PRICED prints the lines that carry a price;
  * - a kit inside a kit is expanded in place, its quantities multiplied, and its own representative
  *   line is NOT added -- the register does not add it either.
  *
- * The one deliberate difference: the kit's representative line carries the CAMPAIGN price, whatever
- * price_option says, because the campaign is where the presale price is agreed (D14).
+ * The deliberate difference (owner's decision of 2026-10-07): the campaign price of a kit is the price
+ * of the WHOLE kit. Its representative line carries it, and every component goes at 0 whatever the
+ * kit's price_option says -- the register would price components under ALL and KIT_STOCK, and the
+ * customer would pay the kit twice.
  *
  * SHARED DATABASE: everything is created here and removed in tearDown by its own ids.
  *
@@ -121,7 +121,11 @@ final class PresaleKitTest extends CIUnitTestCase
         ], $lines);
     }
 
-    public function testPriceOptionAllPricesEveryComponentAtItsCataloguePrice(): void
+    /**
+     * Under ALL the register would price every component at its catalogue price. In a presale the
+     * kit's campaign price is the whole kit: components at 0.
+     */
+    public function testPriceOptionAllStillPutsTheComponentsAtZero(): void
     {
         $kit = $this->makeKit('PRESALEKIT-TEST ancheta', '30000.00', PRICE_OPTION_ALL, PRINT_ALL, [
             [$this->stocked_id, '2'],
@@ -130,12 +134,15 @@ final class PresaleKitTest extends CIUnitTestCase
 
         $this->assertSame([
             [$kit, '2.000', '30000.00', '60000.00', PRINT_YES, ITEM_KIT],
-            [$this->stocked_id, '4.000', '10000.00', '40000.00', PRINT_YES, ITEM],
-            [$this->unstocked_id, '2.000', '5000.00', '10000.00', PRINT_YES, ITEM],
+            [$this->stocked_id, '4.000', '0.00', '0.00', PRINT_YES, ITEM],
+            [$this->unstocked_id, '2.000', '0.00', '0.00', PRINT_YES, ITEM],
         ], $this->priced($kit, '2'));
     }
 
-    public function testPriceOptionKitStockPricesOnlyTheComponentsThatKeepStock(): void
+    /**
+     * Under KIT_STOCK the register would price the components that keep stock. Here: at 0 too.
+     */
+    public function testPriceOptionKitStockStillPutsTheComponentsAtZero(): void
     {
         $kit = $this->makeKit('PRESALEKIT-TEST ancheta', '30000.00', PRICE_OPTION_KIT_STOCK, PRINT_ALL, [
             [$this->stocked_id, '2'],
@@ -144,19 +151,23 @@ final class PresaleKitTest extends CIUnitTestCase
 
         $this->assertSame([
             [$kit, '2.000', '30000.00', '60000.00', PRINT_YES, ITEM_KIT],
-            [$this->stocked_id, '4.000', '10000.00', '40000.00', PRINT_YES, ITEM],
+            [$this->stocked_id, '4.000', '0.00', '0.00', PRINT_YES, ITEM],
             [$this->unstocked_id, '2.000', '0.00', '0.00', PRINT_YES, ITEM],
         ], $this->priced($kit, '2'));
     }
 
-    public function testPrintOptionPricedPrintsOnlyTheLinesWithAPrice(): void
+    /**
+     * PRICED prints the lines that carry a price: with every component at 0, only the kit's own line.
+     * That is what the register prints for a line at 0.
+     */
+    public function testPrintOptionPricedPrintsOnlyTheKitLine(): void
     {
         $kit = $this->makeKit('PRESALEKIT-TEST ancheta', '30000.00', PRICE_OPTION_KIT_STOCK, PRINT_PRICED, [
             [$this->stocked_id, '1'],
             [$this->unstocked_id, '1'],
         ]);
 
-        $this->assertSame([PRINT_YES, PRINT_YES, PRINT_NO], array_column($this->priced($kit, '1'), 4));
+        $this->assertSame([PRINT_YES, PRINT_NO, PRINT_NO], array_column($this->priced($kit, '1'), 4));
     }
 
     public function testPrintOptionKitPrintsOnlyTheKitLine(): void
@@ -222,7 +233,8 @@ final class PresaleKitTest extends CIUnitTestCase
 
     /**
      * Registered, every line is stored with what the delivery needs to rebuild it: the kit line and
-     * each component, with their own price, print option and type.
+     * each component, with their own price, print option and type. The total is the kit's campaign
+     * price and nothing more, even under price_option ALL.
      */
     public function testARegisteredKitStoresEveryLine(): void
     {
@@ -240,12 +252,12 @@ final class PresaleKitTest extends CIUnitTestCase
                 'delivery_date_id' => $date_id,
                 'location_id'      => 1,
                 'lines'            => [['item_id' => $kit, 'quantity' => '1']],
-                'installments'     => [['due_date' => self::TODAY, 'amount' => '50000']],
-                'payment'          => ['payment_type_code' => 'cash', 'amount' => '50000'],
+                'installments'     => [['due_date' => self::TODAY, 'amount' => '30000']],
+                'payment'          => ['payment_type_code' => 'cash', 'amount' => '30000'],
             ], $this->employee_id, self::TODAY);
 
             $this->assertIsInt($id);
-            $this->assertSame('50000.00', $this->presales->get_info($id)['total']);
+            $this->assertSame('30000.00', $this->presales->get_info($id)['total']);
 
             $stored = array_map(static fn (array $line): array => [
                 (int) $line['line'], (int) $line['item_id'], (string) $line['quantity'], (string) $line['unit_price'], (int) $line['print_option'], (int) $line['item_type'],
@@ -253,7 +265,7 @@ final class PresaleKitTest extends CIUnitTestCase
 
             $this->assertSame([
                 [1, $kit, '1.000', '30000.00', PRINT_YES, ITEM_KIT],
-                [2, $this->stocked_id, '2.000', '10000.00', PRINT_NO, ITEM],
+                [2, $this->stocked_id, '2.000', '0.00', PRINT_NO, ITEM],
             ], $stored);
         } finally {
             $ids = array_column($this->db->table('presales')->select('presale_id')->where('campaign_id', $this->campaign_id)->get()->getResultArray(), 'presale_id');

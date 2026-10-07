@@ -208,6 +208,11 @@ class Presales extends Secure_Controller
      * What the form adds up to so far, worked out by the server: amounts are typed in the business's
      * number format and parse_decimals() is the only thing that reads them right, so the screen does
      * no arithmetic of its own. Same approach as the cash-up's closing form.
+     *
+     * The total is the one Presale::create() will store: what the register will charge at delivery,
+     * taxes and rounding included (Presale::register_charge()). It depends on the customer (taxable or
+     * not), so the form asks again when the customer changes; with no customer yet it is worked out
+     * as for a walk-in customer, as the register would.
      */
     public function postPreview(): ResponseInterface
     {
@@ -229,8 +234,8 @@ class Presales extends Secure_Controller
         }
 
         // Each requested line's own amount, kit components included, in the order the form sent them.
+        // For display: the total below is the register's, not the sum of these.
         $amounts = [];
-        $total   = '0.00';
 
         foreach ($lines as $index => $line) {
             $one = $this->presale->price_lines((int) $campaign['campaign_id'], [$line]);
@@ -241,8 +246,16 @@ class Presales extends Secure_Controller
             }
 
             $amounts[$index] = to_currency($sum);
-            $total           = bcadd($total, $sum, 2);
         }
+
+        $customer_id = (int) $this->request->getPost('customer_id');
+        $charge      = $this->presale->register_charge($priced, $customer_id > 0 ? $customer_id : NEW_ENTRY);
+
+        if ($charge === null) {
+            return $this->response->setJSON(['success' => false, 'message' => esc(lang('Presales.total_unavailable'))]);
+        }
+
+        $total = $charge['charge'];
 
         $installments = $this->read_installments();
         $plan         = null;
@@ -273,6 +286,7 @@ class Presales extends Secure_Controller
         return $this->response->setJSON([
             'success' => true,
             'total'   => to_currency($total),
+            'taxes'   => to_currency($charge['taxes']),
             'lines'   => $amounts,
             'plan'    => $plan,
             'minimum' => esc(lang('Presales.minimum_initial', [to_currency(Presale::minimum_initial($total, (string) $campaign['min_initial_percent']))])),

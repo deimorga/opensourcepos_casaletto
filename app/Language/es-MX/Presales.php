@@ -45,6 +45,7 @@ return [
     'refund_exceeds_paid'        => 'No se puede devolver más de lo que el cliente ha pagado.',
     'refund_invalid'             => 'El valor a devolver no es válido.',
     'save_failed'                => 'No se pudo guardar. No se registró nada; intente de nuevo.',
+    'total_unavailable'          => 'No se pudo calcular el total de la preventa con los impuestos del negocio. No se registró nada; intente de nuevo.',
     'state_canceled'             => 'Cancelada',
     'state_delivered'            => 'Entregada',
     'state_late'                 => 'Atrasada',

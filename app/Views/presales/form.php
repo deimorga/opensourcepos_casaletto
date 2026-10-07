@@ -344,6 +344,8 @@ $(document).ready(function() {
         $('#presale_customer_label').text(label);
         $('#presale_customer').val('').prop('hidden', true);
         $('#presale_customer_chosen').prop('hidden', false);
+        // The total depends on the customer: taxable or not, the register charges differently.
+        preview();
     };
 
     $('#presale_customer').autocomplete({
@@ -361,6 +363,7 @@ $(document).ready(function() {
         $('#presale_customer_id').val('');
         $('#presale_customer_chosen').prop('hidden', true);
         $('#presale_customer').prop('hidden', false).focus();
+        preview();
     });
 
     // The Customers dialog reports back through table_support.handle_submit("customers", response),

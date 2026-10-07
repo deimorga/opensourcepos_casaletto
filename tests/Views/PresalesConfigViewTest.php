@@ -71,6 +71,18 @@ final class PresalesConfigViewTest extends CIUnitTestCase
         $this->assertStringContainsString('var presales_open = 7;', $html);
     }
 
+    /**
+     * The weight refund limit (owner's decision of 2026-10-07) is on the tab, at 15 for a tenant whose
+     * settings predate its migration.
+     */
+    public function testTheWeightRefundLimitIsOnTheTab(): void
+    {
+        $html = view('configs/presales_config', ['config' => [], 'presales_open' => 0]);
+
+        $this->assertMatchesRegularExpression('/<input[^>]*name="presales_weight_refund_limit"[^>]*value="15/', $html);
+        $this->assertStringContainsString(esc(lang('Config.presales_weight_refund_limit_help')), $html);
+    }
+
     public function testTheTabIsOnTheConfigurationScreen(): void
     {
         $manage = file_get_contents(APPPATH . 'Views/configs/manage.php');

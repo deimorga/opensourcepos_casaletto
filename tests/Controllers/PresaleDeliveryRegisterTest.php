@@ -37,7 +37,7 @@ final class PresaleDeliveryRegisterTest extends CIUnitTestCase
     use DatabaseTestTrait;
     use FeatureTestTrait;
 
-    private const TOUCHED_KEYS = ['presales_enable', 'dinner_table_enable'];
+    private const TOUCHED_KEYS = ['presales_enable', 'dinner_table_enable', 'presales_weight_refund_limit'];
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -384,6 +384,10 @@ final class PresaleDeliveryRegisterTest extends CIUnitTestCase
 
     public function testALighterWeightGivesCashChangeInTheDeliveryShift(): void
     {
+        // 9.00 back of 41.00 is above the default 15 % limit, which PresaleOwnerDecisionsTest covers.
+        // Here: no limit, so any cashier completes it.
+        $this->setConfig('presales_weight_refund_limit', '0');
+
         $presale = $this->makePaidPresale();
         $this->deliver($presale);
         $this->postReq('sales/editItem/2', ['quantity' => '1.000', 'price' => '18.00', 'discount' => '0', 'description' => '', 'serialnumber' => '']);
@@ -400,7 +404,7 @@ final class PresaleDeliveryRegisterTest extends CIUnitTestCase
         $event = $this->db->table('presale_events')->where(['presale_id' => $presale, 'event_type' => 'quantity_adjusted'])->get()->getRowArray();
         $this->assertNotNull($event);
         $this->assertSame(
-            ['sale_id' => $sale, 'lines' => [['line' => 2, 'item_id' => $this->weightItem, 'agreed' => '1.500', 'delivered' => '1.000']]],
+            ['sale_id' => $sale, 'lines' => [['line' => 2, 'item_id' => $this->weightItem, 'agreed' => '1.500', 'delivered' => '1.000']], 'refund' => '9.00', 'authorized_by' => null],
             json_decode((string) $event['detail'], true),
         );
     }

@@ -9,6 +9,7 @@ use App\Libraries\Presale_register;
 use App\Libraries\Sale_lib;
 use App\Libraries\Tax_lib;
 use App\Libraries\Token_lib;
+use App\Models\Cashup;
 use App\Models\Customer;
 use App\Models\Customer_rewards;
 use App\Models\Dinner_table;
@@ -22,6 +23,7 @@ use App\Models\Item_kit;
 use App\Models\Item_quantity;
 use App\Models\Presale;
 use App\Models\Presale_event;
+use App\Models\Presale_payment;
 use App\Models\Sale;
 use App\Models\Stock_location;
 use App\Models\Tokens\Token_invoice_count;
@@ -1370,6 +1372,9 @@ class Sales extends Secure_Controller
         if ($presale !== null) {
             $refusal = $this->presale_register->completion_refusal($presale, $this->sale_lib->get_mode(), $customer_id, $data['cart'], $data['payments'], (bool) $totals['payments_cover_total']);
 
+            // A lighter weight hands cash back: above the business's limit, only with presales_manage.
+            $refusal ??= $this->presale_register->weight_refund_refusal($presale, $data['cart'], (string) $totals['total'], $this->employee->has_grant('presales_manage', $employee_id));
+
             if ($refusal !== null) {
                 return $this->_reload(['error' => lang($refusal[0], $refusal[1])]);
             }
@@ -1382,6 +1387,12 @@ class Sales extends Secure_Controller
         }
 
         $data['amount_change'] = $data['amount_due'] * -1;
+
+        // A delivery paid by the presale's charge, rounded to the currency, may exceed the register's
+        // unrounded total by less than half a unit: no change to hand over, no drawer to open.
+        if ($presale !== null && Presale_register::is_rounding_remainder((float) $data['amount_change'])) {
+            $data['amount_change'] = 0;
+        }
 
         if ($data['amount_change'] > 0) {
             // Save cash refund to the cash payment transaction if found, if not then add as new Cash transaction
@@ -1972,6 +1983,11 @@ class Sales extends Secure_Controller
             return $this->_presale_refusal(lang('Presale_register.no_grant'));
         }
 
+        // Owner's decision of 2026-10-07: no delivery outside a shift. Completing checks it again.
+        if (model(Cashup::class)->get_open_cashup_id() === null) {
+            return $this->_presale_refusal(lang('Presale_register.no_open_cashup'));
+        }
+
         $presales = model(Presale::class);
         $summary = $presales->get_summary($presale_id, date('Y-m-d'));
 
@@ -2318,8 +2334,23 @@ class Sales extends Secure_Controller
 
             // The real weights, when they differ from the agreed ones, are recorded on the presale: a
             // lighter weight hands cash back across the counter, and that has to be readable later.
+            // What went back and, when it was above the business's limit, who authorised it: the
+            // cashier completing it, who postComplete() checked holds presales_manage.
             $adjusted = $this->presale_register->weight_adjustments($presale_id, $data['cart']);
-            $recorded = $adjusted === [] || model(Presale_event::class)->log($presale_id, 'quantity_adjusted', $employee_id, ['sale_id' => $saved, 'lines' => $adjusted]);
+            $recorded = true;
+
+            if ($adjusted !== []) {
+                $presale = model(Presale::class)->get_info($presale_id);
+                $refund = Presale_register::weight_refund(model(Presale_payment::class)->get_paid($presale_id), (string) $data['total']);
+                $over_limit = Presale_register::weight_refund_over_limit(Presale_register::weight_refund_raw(model(Presale_payment::class)->get_paid($presale_id), (string) $data['total']), (string) ($presale['total'] ?? '0'));
+
+                $recorded = model(Presale_event::class)->log($presale_id, 'quantity_adjusted', $employee_id, [
+                    'sale_id'       => $saved,
+                    'lines'         => $adjusted,
+                    'refund'        => $refund,
+                    'authorized_by' => $over_limit ? $employee_id : null,
+                ]);
+            }
 
             if ($saved <= 0 || !model(Presale::class)->mark_delivered($presale_id, $saved, $employee_id) || !$recorded || !$db->transCommit()) {
                 $db->transRollback();

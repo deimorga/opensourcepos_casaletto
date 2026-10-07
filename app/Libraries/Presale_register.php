@@ -2,8 +2,12 @@
 
 namespace App\Libraries;
 
+use App\Models\Cashup;
 use App\Models\Presale;
+use App\Models\Presale_campaign;
 use App\Models\Presale_payment;
+use Config\OSPOS;
+use ReflectionProperty;
 use Throwable;
 
 /**
@@ -117,6 +121,248 @@ class Presale_register
         }
 
         return false;
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // What the register will charge (owner's decision of 2026-10-07: total parity with the register)
+    // ---------------------------------------------------------------------------------------------
+
+    /**
+     * What the register will charge to deliver these lines to this customer, with the quantities
+     * agreed: the presale's total. Computed here, next to the delivery, so registration and delivery
+     * cannot drift apart.
+     *
+     * THE REGISTER'S RULE, NOT A COPY OF IT
+     *
+     * At completion the register (Sales::postComplete()) asks Tax_lib::get_taxes() for the taxes of
+     * the cart and Sale_lib::get_totals() for the total:
+     *
+     *   total = Σ get_extended_amount(quantity, price, get_item_discount(...))  -- unrounded, per line
+     *         + Σ sale_tax_amount of every tax EXCLUDED from the price           -- tax_included off
+     *
+     * at the bcscale Load_config sets on every request, max(2, currency + tax decimals). Nothing in
+     * there rounds the total; it is accepted as paid when what is left is below half a unit of the
+     * currency (`payments_cover_total`). So the least the register accepts is the total rounded half
+     * up to the currency's decimals -- and that is what a presale charges. A 0-decimal currency with
+     * two lines of 1.255 kg × 9,990 (12,537.45 each) is 25,075, not the 25,074 that rounding each line
+     * gave before.
+     *
+     * Taxes come from Tax_lib itself, fed a cart with the same keys the delivery's cart has (built by
+     * cart_for(), from the same presale lines Presale_register::load() rebuilds), for this customer
+     * and in sale mode: the customer's taxable flag, item tax categories, destination-based tax, tax
+     * included or not, all as the register decides them. Tax_lib reads the customer and the mode from
+     * the register's session; the session is never touched here (the cashier may be in the middle of
+     * a sale) -- Tax_lib is handed a Sale_lib that answers this customer and sale mode instead.
+     *
+     * CASH ROUNDING does not apply: a delivery is paid by the `presale` payment, which is not cash, so
+     * the register never enters cash mode for it (Sale_lib::get_payments_total()).
+     *
+     * @param list<array{item_id: int|string, quantity: string, unit_price: string, discount?: string, discount_type?: int}> $lines
+     *
+     * @return array{total: string, taxes: string, charge: string} the register's unrounded total, the
+     *                                                             taxes added on top of the prices,
+     *                                                             and the charge (scale 2)
+     */
+    public function charge_for(array $lines, int $customer_id): array
+    {
+        $cart = $this->cart_for($lines);
+
+        return $this->register_charge($cart, $customer_id);
+    }
+
+    /**
+     * The register's total for a cart, as Sales::postComplete() computes it, for $customer_id in sale
+     * mode. See charge_for().
+     *
+     * @param array<int|string, array<string, mixed>> $cart
+     *
+     * @return array{total: string, taxes: string, charge: string}
+     */
+    public function register_charge(array $cart, int $customer_id): array
+    {
+        helper('locale');
+
+        $scale = bcscale();
+
+        // What Load_config sets on every request of the application. Set here too so the figure does
+        // not depend on who calls (a command, a test) -- and put back afterwards.
+        bcscale(max(2, totals_decimals() + tax_decimals()));
+
+        try {
+            $sale_lib = self::sale_lib_for($customer_id);
+            $tax_lib  = new Tax_lib();
+
+            // Tax_lib keeps its own Sale_lib, private, to read the customer and the mode.
+            (new ReflectionProperty(Tax_lib::class, 'sale_lib'))->setValue($tax_lib, $sale_lib);
+
+            $taxes = $tax_lib->get_taxes($cart)[0];
+            $total = '0.0';
+
+            // Sale_lib::get_totals(), line by line.
+            foreach ($cart as $item) {
+                $discount = $sale_lib->get_item_discount((string) $item['quantity'], (string) $item['price'], (string) $item['discount'], (int) $item['discount_type']);
+                $total    = bcadd($total, $sale_lib->get_extended_amount((string) $item['quantity'], (string) $item['price'], $discount));
+            }
+
+            $added = '0';
+
+            foreach ($taxes as $tax) {
+                if ($tax['tax_type'] === Tax_lib::TAX_TYPE_EXCLUDED) {
+                    $total = bcadd($total, (string) $tax['sale_tax_amount']);
+                    $added = bcadd($added, (string) $tax['sale_tax_amount']);
+                }
+            }
+
+            return [
+                'total'  => $total,
+                'taxes'  => bcadd($added, '0', self::MONEY_SCALE),
+                'charge' => Presale_campaign::round_money($total),
+            ];
+        } finally {
+            bcscale($scale);
+        }
+    }
+
+    /**
+     * A cart for Tax_lib and the totals, from presale lines: one line per presale line, numbered
+     * from 1, with the keys they read -- the values Presale_register::load() gets from add_item() for
+     * the same line (item, quantity, frozen price and discount, the item's tax category and stock
+     * type).
+     *
+     * @param list<array<string, mixed>> $lines
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function cart_for(array $lines): array
+    {
+        $ids   = array_values(array_unique(array_map(static fn (array $line): int => (int) $line['item_id'], $lines)));
+        $items = [];
+
+        if ($ids !== []) {
+            $rows = db_connect()->table('items')
+                ->select('item_id, tax_category_id, stock_type, item_type')
+                ->whereIn('item_id', $ids)
+                ->get()->getResultArray();
+
+            foreach ($rows as $row) {
+                $items[(int) $row['item_id']] = $row;
+            }
+        }
+
+        $cart = [];
+        $key  = 0;
+
+        foreach ($lines as $line) {
+            $item_id = (int) $line['item_id'];
+            $key++;
+
+            $cart[$key] = [
+                'item_id'         => $item_id,
+                'line'            => $key,
+                'quantity'        => (string) $line['quantity'],
+                'price'           => (string) $line['unit_price'],
+                'discount'        => (string) ($line['discount'] ?? '0'),
+                'discount_type'   => (int) ($line['discount_type'] ?? 0),
+                'tax_category_id' => $items[$item_id]['tax_category_id'] ?? null,
+                'stock_type'      => (int) ($items[$item_id]['stock_type'] ?? HAS_STOCK),
+                'item_type'       => (int) ($line['item_type'] ?? $items[$item_id]['item_type'] ?? ITEM),
+            ];
+        }
+
+        return $cart;
+    }
+
+    /**
+     * A Sale_lib that answers $customer_id and sale mode, whatever the register's session holds.
+     * Everything else is the register's own code.
+     */
+    private static function sale_lib_for(int $customer_id): Sale_lib
+    {
+        return new class ($customer_id) extends Sale_lib {
+            public function __construct(private readonly int $presale_customer_id)
+            {
+                parent::__construct();
+            }
+
+            public function get_customer(): int
+            {
+                return $this->presale_customer_id;
+            }
+
+            public function get_mode(): string
+            {
+                return 'sale';
+            }
+        };
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // A lighter weight than agreed (owner's decision of 2026-10-07)
+    // ---------------------------------------------------------------------------------------------
+
+    /**
+     * The percentage of the presale's total that a lighter weight may hand back without someone
+     * holding presales_manage. '0' means no limit. Read with ?? default, like every presales setting.
+     */
+    public static function weight_refund_limit(): string
+    {
+        $value = trim((string) (config(OSPOS::class)->settings['presales_weight_refund_limit'] ?? '15'));
+
+        return Presale_campaign::is_decimal($value) ? $value : '15';
+    }
+
+    /**
+     * What a lighter weight hands back across the counter: what was paid for the presale minus what
+     * the register charges for the weights on screen, never below zero.
+     */
+    public static function weight_refund(string $paid, string $sale_total): string
+    {
+        $raw = self::weight_refund_raw($paid, $sale_total);
+
+        // At scale 2, half up: what the sale's cash_refund column (decimal(15,2)) keeps of it.
+        return bcadd($raw, '0.005', self::MONEY_SCALE);
+    }
+
+    /**
+     * paid − sale total, unrounded, never below zero. The limit is compared against this and not a
+     * rounded figure: a difference above the limit must not round down onto it.
+     */
+    public static function weight_refund_raw(string $paid, string $sale_total): string
+    {
+        $raw = bcsub($paid, $sale_total, 6);
+
+        return bccomp($raw, '0', 6) > 0 ? $raw : '0';
+    }
+
+    /**
+     * Change below half a unit of the currency: what is left when the register's unrounded total
+     * (25,074.90) is paid by the presale's charge rounded to the currency (25,075). It cannot be
+     * handed over, so a delivery does not record it as cash change nor open the drawer for it. The
+     * same remainder the other way (paid 25,145 for 25,145.12) the register already ignores
+     * (payments_cover_total).
+     */
+    public static function is_rounding_remainder(float $change): bool
+    {
+        helper('locale');
+
+        return $change > 0 && $change < (10 ** -totals_decimals()) / 2;
+    }
+
+    /**
+     * Whether giving back $refund (unrounded, weight_refund_raw()) needs presales_manage: it is above
+     * the configured percentage of the presale's total. Exactly the limit is still allowed.
+     */
+    public static function weight_refund_over_limit(string $refund, string $presale_total): bool
+    {
+        $limit = self::weight_refund_limit();
+
+        if (bccomp($limit, '0', 2) <= 0 || bccomp($refund, '0', 6) <= 0) {
+            return false;
+        }
+
+        $allowed = bcdiv(bcmul($presale_total, $limit, 6), '100', 6);
+
+        return bccomp($refund, $allowed, 6) > 0;
     }
 
     /**
@@ -319,6 +565,12 @@ class Presale_register
             return ['Presale_register.delivery_failed', []];
         }
 
+        // Owner's decision of 2026-10-07: a delivery hands goods over, and with a lighter weight cash
+        // too; both belong to a shift somebody will count.
+        if (model(Cashup::class)->get_open_cashup_id() === null) {
+            return ['Presale_register.no_open_cashup', []];
+        }
+
         if ($mode !== 'sale') {
             return ['Presale_register.mode_sale_only', []];
         }
@@ -339,6 +591,34 @@ class Presale_register
         }
 
         return null;
+    }
+
+    /**
+     * Why a lighter weight cannot be handed back by this cashier (owner's decision of 2026-10-07):
+     * what goes back is above the configured percentage of the presale's total and the cashier does
+     * not hold presales_manage. Null when it can be completed.
+     *
+     * Only when a weight changed: change with the agreed weights (taxes changed since registration,
+     * T20's known limit) is not a weight refund and is not what this limit is about.
+     *
+     * @param array<int|string, array<string, mixed>> $cart
+     *
+     * @return array{0: string, 1: list<string>}|null
+     */
+    public function weight_refund_refusal(array $presale, array $cart, string $sale_total, bool $may_authorise): ?array
+    {
+        if ($may_authorise || $this->weight_adjustments((int) $presale['presale_id'], $cart) === []) {
+            return null;
+        }
+
+        $paid   = model(Presale_payment::class)->get_paid((int) $presale['presale_id']);
+        $refund = self::weight_refund_raw($paid, $sale_total);
+
+        if (! self::weight_refund_over_limit($refund, (string) $presale['total'])) {
+            return null;
+        }
+
+        return ['Presale_register.weight_refund_needs_manager', [self::weight_refund_limit()]];
     }
 
     /**

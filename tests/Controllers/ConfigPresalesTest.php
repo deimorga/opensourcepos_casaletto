@@ -7,11 +7,12 @@ use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
 use CodeIgniter\Test\FeatureTestTrait;
 use Config\OSPOS;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
  * The endpoint behind the presales tab of the configuration screen.
  *
- * SHARED STATE: the test database is shared between files, and this one writes the three presales_*
+ * SHARED STATE: the test database is shared between files, and this one writes the four presales_*
  * rows. setUp() records what each held -- including "no row at all" -- and tearDown() puts exactly
  * that back and rebuilds the settings cache.
  *
@@ -22,7 +23,7 @@ final class ConfigPresalesTest extends CIUnitTestCase
     use DatabaseTestTrait;
     use FeatureTestTrait;
 
-    private const TOUCHED_KEYS = ['presales_enable', 'presales_prefix', 'presales_terms'];
+    private const TOUCHED_KEYS = ['presales_enable', 'presales_prefix', 'presales_terms', 'presales_weight_refund_limit'];
 
     protected $migrate     = true;
     protected $migrateOnce = true;
@@ -141,5 +142,64 @@ final class ConfigPresalesTest extends CIUnitTestCase
         $result = $this->save(['presales_prefix' => 'PV-', 'presales_terms' => str_repeat('a', 4001)]);
 
         $this->assertFalse($result['success']);
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // The weight refund limit (owner's decision of 2026-10-07)
+    // ---------------------------------------------------------------------------------------------
+
+    public function testTheWeightRefundLimitIsSaved(): void
+    {
+        $result = $this->save(['presales_prefix' => 'PV-', 'presales_terms' => '', 'presales_weight_refund_limit' => '20']);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame('20', $this->setting('presales_weight_refund_limit'));
+    }
+
+    public function testAWeightRefundLimitOfZeroMeansNoLimitAndIsSaved(): void
+    {
+        $result = $this->save(['presales_prefix' => 'PV-', 'presales_terms' => '', 'presales_weight_refund_limit' => '0']);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame('0', $this->setting('presales_weight_refund_limit'));
+    }
+
+    #[DataProvider('provideAWeightRefundLimitOutsideZeroToOneHundredIsRefused')]
+    public function testAWeightRefundLimitOutsideZeroToOneHundredIsRefused(string $limit): void
+    {
+        $this->save(['presales_prefix' => 'PV-', 'presales_terms' => '', 'presales_weight_refund_limit' => '15']);
+
+        $result = $this->save(['presales_prefix' => 'PV-', 'presales_terms' => '', 'presales_weight_refund_limit' => $limit]);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Config.presales_weight_refund_limit_invalid'), $result['message']);
+        $this->assertSame('15', $this->setting('presales_weight_refund_limit'), 'A refused save writes nothing.');
+    }
+
+    /**
+     * @return iterable<string, array{0: string}>
+     */
+    public static function provideAWeightRefundLimitOutsideZeroToOneHundredIsRefused(): iterable
+    {
+        yield 'above 100' => ['150'];
+
+        yield 'negative' => ['-5'];
+
+        yield 'not a number' => ['abc'];
+
+        yield 'empty' => [''];
+    }
+
+    /**
+     * A form that does not send the field (an older screen still open) leaves the limit alone.
+     */
+    public function testAFormWithoutTheFieldLeavesTheLimitAlone(): void
+    {
+        $this->save(['presales_prefix' => 'PV-', 'presales_terms' => '', 'presales_weight_refund_limit' => '25']);
+
+        $result = $this->save(['presales_prefix' => 'PV-', 'presales_terms' => '']);
+
+        $this->assertTrue($result['success']);
+        $this->assertSame('25', $this->setting('presales_weight_refund_limit'));
     }
 }

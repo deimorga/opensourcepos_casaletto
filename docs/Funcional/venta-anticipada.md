@@ -5,6 +5,11 @@
 > verificado contra el código (§2). La salida a producción está planeada para **finales de octubre de
 > 2026** (§7); las fechas se pueden ajustar. Nada de esto existe todavía en ningún negocio.
 >
+> **2026-10-07, segunda tanda de decisiones del dueño (D26-D29, §6.4):** el total de la preventa es
+> exactamente lo que cobra la caja, con impuestos; el precio de campaña de una receta armada es el del
+> kit completo; un peso menor que devuelva más del tope configurado necesita a alguien con «Gestionar
+> preventas»; y no se entrega sin turno de caja abierto. Construido, pendiente de certificar en staging.
+>
 > Documento hermano: `docs/Tecnico/venta-anticipada.md`.
 
 ---
@@ -144,6 +149,10 @@ Detalles:
   receta armada se guarda en la preventa con todos sus componentes, como lo haría la caja, y en lo
   comprometido cuenta por sus componentes, que es lo que hay que comprar. Un producto por peso se
   pacta con un peso inicial, por ejemplo 2,5 kg, que puede cambiar en la entrega (§4.8).
+- **El precio de campaña de una receta armada es el del kit completo** *(decidido el 2026-10-07,
+  D27)*. Sus componentes van en el comprobante y en la venta de la entrega con precio cero, sin
+  importar cómo esté configurado el kit en Kits («precio en todos», «solo en el kit»…): el cliente
+  paga el kit una sola vez, al precio que dice la campaña.
 - **No hay cupo**: la campaña no limita cuántas unidades de un producto se venden en preventa.
 
 ### 4.3 Registrar la preventa (el «contrato»)
@@ -165,7 +174,28 @@ Se hace una a una, con el cliente al frente o al teléfono:
    - la cuota inicial no puede ser menor que el mínimo de la campaña, si la campaña tiene uno.
 6. **Cuota inicial.** Se cobra en ese mismo momento, como cualquier pago de la caja (efectivo,
    datáfono o transferencia).
-7. **Comprobante.** Se imprime un comprobante de preventa para el cliente. Lleva la campaña, los
+7. **Total.** *(Decidido el 2026-10-07, D26.)* El total de la preventa es **exactamente lo que la
+   caja va a cobrar** el día de la entrega por esos productos y ese cliente:
+   - si el negocio cobra el impuesto **aparte** del precio, el total ya lo incluye (por ejemplo, 3
+     productos de $10.000 con IVA del 19 % dan un total de $35.700);
+   - si el precio **ya trae** el impuesto, el total es la suma de los productos;
+   - un cliente marcado como **no sujeto a impuestos** no paga impuesto, igual que en la caja;
+   - el redondeo es el de la caja: suma los productos sin redondear y redondea el total una sola
+     vez. Con pesos sin decimales y productos por peso, eso evita que la preventa cobre un peso de
+     más o de menos.
+
+   Así, al entregar sin cambio de peso, lo abonado cubre la venta exacta: no hay diferencia que
+   cobrar ni vuelto que dar. El total que se ve mientras se arma la preventa ya es ese, y se
+   recalcula al elegir el cliente.
+
+   El precio queda pactado, pero **el impuesto lo vuelve a calcular la caja el día de la entrega**:
+   si el negocio cambia sus impuestos entre el registro y la entrega, la caja cobrará la diferencia
+   o dará vuelto, como haría con cualquier venta.
+
+   **Pendiente:** con impuesto aparte, el comprobante y el detalle muestran cada producto sin
+   impuesto y el total con impuesto, pero todavía no un renglón «Impuestos» que explique la
+   diferencia. El recibo de la venta de la entrega sí lo muestra, como cualquier venta.
+8. **Comprobante.** Se imprime un comprobante de preventa para el cliente. Lleva la campaña, los
    productos, el precio pactado, la fecha de entrega, el plan de cuotas, lo abonado, el saldo y las
    **condiciones de la preventa** (§4.14). Es el «contrato» en papel.
 
@@ -263,10 +293,12 @@ Funciona igual en un negocio que usa mesas y en uno que no, con una diferencia d
 - Si se mandó la preventa equivocada o el cliente no llegó, el botón **«Devolver a preventas»** (en
   lugar de Cancelar) saca la entrega de la caja sin cobrar nada; la preventa sigue abierta y pagada y
   se puede volver a entregar. Cancelar y Suspender no existen en una entrega.
-- Si el peso real es distinto del pactado, queda anotado en la historia de la preventa.
-- **Pendiente de decidir (dueño):** hoy no hay un límite a cuánto puede bajar el peso, y lo que baja
-  se devuelve en efectivo. ¿Se pone una tolerancia, o se pide autorización por encima de cierto
-  monto?
+- Si el peso real es distinto del pactado, queda anotado en la historia de la preventa, con lo que
+  se devolvió y, si pasó del tope, quién lo autorizó.
+- **Se necesita un turno de caja abierto** para mandar la preventa a la caja y para completarla
+  *(decidido el 2026-10-07, D29)*. Sin turno, el sistema dice «Abra el turno de caja antes de
+  entregar una preventa.» y no entrega: la entrega mueve inventario y, con un peso menor, efectivo
+  del cajón, y eso tiene que quedar en un turno.
 
 **Productos por peso.** El peso pactado es inicial. En la entrega, **lo único que el cajero puede
 cambiar en esa pestaña es el peso real** de esas líneas, al precio por kilo pactado. Si el total
@@ -275,7 +307,13 @@ cambia:
 - **si pesa más**, la diferencia se cobra en ese momento con cualquier medio de pago de la caja, y
   cuenta en el turno de la entrega;
 - **si pesa menos**, la diferencia se le devuelve al cliente como vuelto, en efectivo, desde el cajón
-  de ese turno.
+  de ese turno. **Hay un tope** *(decidido el 2026-10-07, D28)*: si lo que hay que devolver pasa del
+  porcentaje configurado del total de la preventa (15 % si nadie lo cambia), solo puede completar la
+  entrega quien tenga el permiso «Gestionar preventas». A un cajero sin ese permiso el sistema le dice
+  «La devolución por peso supera el 15 %. Debe autorizarla quien tenga el permiso Gestionar
+  preventas.» y no completa nada. Por debajo del tope, cualquier cajero entrega. El tope se cambia en
+  Configuración (§4.12); en 0 no hay tope. El tope mira solo lo que se devuelve **porque cambió el
+  peso**.
 
 El saldo de la preventa tiene que estar en cero **antes** de entregar; la diferencia por peso se
 arregla en la entrega misma.
@@ -347,7 +385,8 @@ El producto nunca salió del inventario, así que no hay nada que devolver a bod
 Lo hace el **administrador de cada negocio**, cuando lo necesite. No lo hace la plataforma:
 
 1. En **Configuración**, pestaña **Preventas**, encender «Usar preventas». Ahí mismo se escribe el
-   prefijo del número (por defecto `PV-`) y las condiciones que llevan los comprobantes (§4.14).
+   prefijo del número (por defecto `PV-`), el **tope de devolución por peso** (por defecto 15 %; 0 =
+   sin tope; §4.8) y las condiciones que llevan los comprobantes (§4.14).
 2. En **Empleados**, dar el permiso **Preventas** a quien vaya a registrar, abonar y entregar.
 3. Dar el permiso **«Gestionar preventas»** solo a quien vaya a armar campañas y cancelar.
 4. Crear la primera campaña (§4.2).
@@ -440,6 +479,10 @@ El texto sugerido no menciona ningún negocio. Lo que se imprime es lo que cada 
 | **D23** | **Condiciones de la preventa: texto por negocio**, con un texto sugerido de partida (§4.14) | 2026-10-07 |
 | **D24** | **Solo productos del catálogo del negocio.** Si falta uno, se crea en Artículos | 2026-10-07 |
 | **D25** | **Nosotros certificamos en staging antes de entregar** a la certificación del equipo del negocio | 2026-10-07 |
+| **D26** | **El total de la preventa es exactamente lo que cobra la caja** en la entrega, con los impuestos y el redondeo de la configuración de cada negocio (§4.3) | 2026-10-07 |
+| **D27** | **Kit: el precio de campaña es el del kit completo**; los componentes van en cero (§4.2) | 2026-10-07 |
+| **D28** | **Peso menor con tope:** devolver más del porcentaje configurado del total (15 % por defecto, 0 = sin tope) exige el permiso «Gestionar preventas», y queda quién lo autorizó (§4.8) | 2026-10-07 |
+| **D29** | **No se entrega sin turno de caja abierto**, ni al mandar a la caja ni al completar (§4.8) | 2026-10-07 |
 
 ### 6.1 Primera ronda de preguntas, resuelta el 2026-10-07
 
@@ -481,6 +524,17 @@ El texto sugerido no menciona ningún negocio. Lo que se imprime es lo que cada 
 | 24 | ¿Si la fecha aprieta? | Se pueden ajustar las fechas y el plan de despliegue |
 
 No quedan supuestos abiertos.
+
+### 6.4 Cuarta ronda, resuelta el 2026-10-07
+
+Salieron al construir la entrega por la caja.
+
+| # | Pregunta | Respuesta del dueño |
+|---|---|---|
+| 25 | Si el negocio cobra impuestos aparte, ¿el total de la preventa los incluye? | Los impuestos dependen de la configuración de cada negocio y la caja ya los maneja: el total tiene que ser igual al de la caja (D26) |
+| 26 | Un kit con componentes que en la caja llevan precio, ¿cuánto cobra la preventa? | El precio de campaña es el del kit completo; los componentes, en cero (D27) |
+| 27 | ¿Cuánto puede bajar el peso en la entrega? | Un tope configurable; por encima, autoriza quien tenga «Gestionar preventas» (D28) |
+| 28 | ¿Se puede entregar sin turno abierto? | No (D29) |
 
 ---
 
@@ -542,7 +596,12 @@ El recorrido, con el módulo encendido en un negocio de prueba:
    inventario baja ese día. **El cuadre del turno de la entrega no suma otra vez** la plata de los
    abonos. En la pestaña de entrega no se puede tocar nada salvo el peso real del producto por peso.
 8. Entregar otra preventa cambiando el peso real: si pesa más, se cobra la diferencia; si pesa menos,
-   se devuelve como vuelto. Las dos cosas cuentan en el turno de la entrega.
+   se devuelve como vuelto. Las dos cosas cuentan en el turno de la entrega. Con un cajero sin
+   «Gestionar preventas», bajar el peso hasta devolver más del 15 % no deja completar; con el permiso,
+   sí, y la historia de la preventa dice quién lo autorizó.
+8a. En un negocio que cobra el impuesto aparte, registrar una preventa con un producto con impuesto:
+    el total ya lo trae, y al entregar sin cambiar el peso la caja no pide cobrar nada más.
+8b. Con el turno cerrado, «Entregar» no manda la preventa a la caja.
 9. Cerrar el periodo de venta de la campaña: no deja registrar preventas nuevas, pero sí abonar a las
    existentes.
 10. Cancelar otra preventa con devolución parcial en efectivo: el esperado del cajón baja en lo
