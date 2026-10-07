@@ -2,6 +2,7 @@
 
 namespace App\Models\Reports;
 
+use App\Models\Presale_payment;
 use App\Models\Reports\Summary_sales;
 use Config\OSPOS;
 
@@ -175,17 +176,60 @@ class Income_expenses extends Report
      */
     private function paymentsByPeriod(array $inputs, string $granularity): array
     {
+        // 'presale' pays a delivery with money collected earlier, in instalments. It is never money
+        // received on the delivery date, so it never counts here, whatever the filter says; the
+        // instalments count on their own dates below (docs/Tecnico/venta-anticipada.md 7.5).
+        $codes = array_values(array_diff($inputs['payment_codes'], ['presale']));
+
+        if ($codes === []) {
+            return [];
+        }
+
         $builder = $this->db->table('sales_payments AS payments');
         $builder->select('sales.sale_time AS period_date, payments.payment_amount, payments.cash_refund');
         $builder->join('sales AS sales', 'sales.sale_id = payments.sale_id', 'inner');
         $builder->where('sales.sale_status', COMPLETED);
-        $builder->whereIn('payments.payment_type_code', $inputs['payment_codes']);
+        $builder->whereIn('payments.payment_type_code', $codes);
         $this->applyDateRange($builder, 'sales.sale_time', $inputs);
 
         $totals = [];
         foreach ($builder->get()->getResultArray() as $row) {
             $key = $this->periodKey((string) $row['period_date'], $granularity);
             $totals[$key] = ($totals[$key] ?? 0.0) + ((float) $row['payment_amount'] - (float) $row['cash_refund']);
+        }
+
+        foreach ($this->presalePaymentsByPeriod($codes, $inputs, $granularity) as $key => $amount) {
+            $totals[$key] = ($totals[$key] ?? 0.0) + $amount;
+        }
+
+        return $totals;
+    }
+
+    /**
+     * Presale instalments minus refunds, on the date each one was taken, for the selected payment
+     * methods. Read whenever the tables exist: a business that never used presales gets nothing.
+     *
+     * @param list<string> $codes
+     *
+     * @return array<string, float>
+     */
+    private function presalePaymentsByPeriod(array $codes, array $inputs, string $granularity): array
+    {
+        if (! $this->db->tableExists('presale_payments')) {
+            return [];
+        }
+
+        $builder = $this->db->table('presale_payments AS presale_payments');
+        $builder->select('presale_payments.payment_time AS period_date, presale_payments.kind, presale_payments.amount');
+        $builder->whereIn('presale_payments.payment_type_code', $codes);
+        $this->applyDateRange($builder, 'presale_payments.payment_time', $inputs);
+
+        $totals = [];
+        foreach ($builder->get()->getResultArray() as $row) {
+            $key    = $this->periodKey((string) $row['period_date'], $granularity);
+            $amount = (float) $row['amount'];
+
+            $totals[$key] = ($totals[$key] ?? 0.0) + ($row['kind'] === Presale_payment::KIND_REFUND ? -$amount : $amount);
         }
 
         return $totals;
