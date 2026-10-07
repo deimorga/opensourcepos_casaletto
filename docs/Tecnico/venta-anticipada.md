@@ -645,9 +645,12 @@ fija el tope en 0 (devuelve el 22 %) y lee el detalle nuevo del evento.
 
 **Tildes (lo que reportó el carril E).** Revisado: ninguna vista ni controlador de preventas usa
 `htmlentities()` ni lee con `FILTER_SANITIZE_*`; todo sale con `esc()` (`htmlspecialchars`, que deja
-las tildes). Las entidades que vio el carril E salen del analizador DOM de `assertSee()`, que reescribe
-el texto no ASCII; por eso la prueba nueva mira el cuerpo crudo de `presales/view` y
-`presales/receipt`.
+las tildes). Las entidades que vio el carril E salen del marco de pruebas, no de la aplicación:
+`TestResponse::getBody()` no existe como método propio y `__call()` lo manda al analizador DOM de
+`assertSee()`, que convierte todo lo no ASCII en entidades (`José` → `Jos&eacute;`). Comprobado en CI
+el 2026-10-07: con `getBody()` la prueba nueva fallaba con `Mu&ntilde;oz`; con
+`response()->getBody()`, el cuerpo real, sale «Muñoz». Una prueba que mire tildes en una página tiene
+que leer `response()->getBody()`.
 
 **Pendiente.** Con impuesto aparte, el comprobante y el detalle muestran las líneas sin impuesto y el
 total con impuesto, sin un renglón de impuestos (el evento `created` ya guarda `taxes`).

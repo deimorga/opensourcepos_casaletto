@@ -413,8 +413,9 @@ final class PresaleOwnerDecisionsTest extends CIUnitTestCase
     /**
      * The presale screen and its receipt print the customer's name and the conditions with their
      * accents, not as entities: esc() is htmlspecialchars, which leaves them alone. Checked on the raw
-     * body -- the DOM parser behind assertSee() re-encodes non-ASCII text, which is where entities
-     * showed up in a test before.
+     * body, response()->getBody(): TestResponse::getBody() is forwarded by __call() to the DOM parser
+     * behind assertSee(), which re-encodes non-ASCII text as entities -- that is where entities showed
+     * up in a presales test before, not in the application.
      */
     public function testTheScreenAndTheReceiptKeepTheAccents(): void
     {
@@ -426,14 +427,14 @@ final class PresaleOwnerDecisionsTest extends CIUnitTestCase
 
         foreach (['presales/view/' . $presale, 'presales/receipt/' . $presale] as $path) {
             $_SESSION = ['person_id' => 1, 'menu_group' => 'home'];
-            $body     = (string) $this->getReq($path)->getBody();
+            $body     = (string) $this->getReq($path)->response()->getBody();
 
             $this->assertStringContainsString('Muñoz PRDEC-TEST', $body, $path);
             $this->assertStringNotContainsString('&ntilde;', $body, $path);
             $this->assertStringNotContainsString('&eacute;', $body, $path);
         }
 
-        $this->assertStringContainsString('Señor José', (string) $this->getReq('presales/receipt/' . $presale)->getBody());
+        $this->assertStringContainsString('Señor José', (string) $this->getReq('presales/receipt/' . $presale)->response()->getBody());
     }
 
     // ---------------------------------------------------------------------------------------------
