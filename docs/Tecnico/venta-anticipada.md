@@ -335,7 +335,155 @@ hoy.
   abono en efectivo sí.
 - **Mesas apagadas:** la pestaña de entrega tiene que funcionar con `dinner_table_enable = 0`. La
   mecánica de pestañas depende hoy de las mesas, así que el carril D debe comprobarlo primero y, si
-  hace falta, dar a la entrega su propio camino de pestaña.
+  hace falta, dar a la entrega su propio camino de pestaña. **Resuelto en §7.6.**
+
+### 7.6 Lo construido (carril D, 2026-10-07, rama `feat/presales-delivery`)
+
+**Piezas.** `Sales::postDeliverPresale($presale_id)` (ruta automática `sales/deliverPresale/{id}`,
+POST con CSRF; es el contrato con el carril B), la librería `app/Libraries/Presale_register.php`, la
+marca de sesión `Sale_lib::get/set/clear_presale_id()` (clave `sales_presale_id`, que `clear_all()`
+borra), los textos `Presale_register.*` en es-MX, es-ES y en, y cambios en `views/sales/register.php`.
+Pruebas: `tests/Controllers/PresaleDeliveryRegisterTest.php` (18, contra la caja real) y
+`tests/Libraries/PresaleRegisterTest.php` (6).
+
+**El endpoint** exige, en este orden: `presales_enable = '1'`, el permiso `presales` (además del
+acceso a Ventas que ya pide el controlador), la preventa abierta y en estado `paid` según
+`get_summary()` (D11 en el servidor), y que el carrito actual se pueda dejar sin perder nada: vacío, o
+una pestaña de mesa ya autoguardada. **Una venta en curso que no está guardada en ninguna parte (sin
+Mesas, o en las seudomesas Domicilio/Para llevar) nunca se bota por una entrega**: se rechaza con
+«La caja tiene una venta en curso». Si la preventa ya tiene su pestaña abierta, el endpoint lleva a
+ella en vez de abrir otra.
+
+**Mesas apagadas — comprobado en el código, no supuesto.** Con `dinner_table_enable = 0` la mecánica
+de pestañas no existe: la barra solo se dibuja con Mesas (`register.php`, `#open_tabs_bar`),
+`postChangeMode()` solo cambia de carrito con Mesas, `Sale_lib::get_dinner_table()` devuelve null y
+`_autosave_open_tab()` no guarda nada. Una venta OPENED creada igual sería una pestaña a la que nadie
+puede llegar. **Decisión:** con Mesas apagadas la entrega **es el carrito de la caja**, como cualquier
+venta de ese negocio: vive en la sesión hasta completar y no se escribe nada antes. Perder la sesión
+cuesta el carrito y nada más; la preventa sigue abierta y pagada y «Entregar» la vuelve a cargar. Lo
+fija `testWithTablesOffTheDeliveryIsTheCartAndCompletes`, `testWithTablesOffCompletingTwiceProducesOneSale`
+y `testWithTablesOffTheGuardsHold`.
+
+**Con Mesas: la marca vive en `presales.sale_id`.** Al abrir la pestaña, en una transacción (como
+`OrderTickets::postCreate()`): mesa desechable con el número de la preventa (`create_at`, ocupada),
+venta OPENED (`create_open_sale`) y `UPDATE presales SET sale_id = <venta abierta> WHERE presale_id = ?
+AND status = 'open' AND sale_id IS NULL` (o `= <enlace viejo>`), comprobando una fila afectada.
+Por qué esa columna y no otra:
+
+- `save_value()` completa la pestaña **en el mismo `sale_id`**, así que la venta abierta y la venta de
+  la entrega son la misma fila: `mark_delivered()` vuelve a escribir el mismo valor.
+- Es `UNIQUE`: dos preventas no pueden apuntar a la misma pestaña, y dos cajas que pulsan «Entregar»
+  a la vez producen una pestaña y un rechazo.
+- Sobrevive a todo lo que la sesión no: cambiar de pestaña (`clear_all()` + `copy_entire_sale()`),
+  recargar, cerrar sesión y volver, otra caja. Lo fija
+  `testTheDeliveryTabSurvivesSwitchingTabsAndANewSession`.
+- Descartado: una columna nueva en `sales` (migración en la tabla más caliente para un caso raro), el
+  comentario de la venta (lo ve y lo edita el cajero) y solo la sesión (una pestaña autoguardada con su
+  pago `presale` y sin marca sería editable y cobrable: plata contada dos veces).
+
+**Cómo sabe la caja que el carrito es una entrega** (`Presale_register::presale_for()`): primero la
+marca de sesión; si no hay, `Presale::get_by_sale(sale_id actual)` cuando hay una venta guardada.
+Sigue los **datos, no el interruptor**, como `Order_ticket_register`: una pestaña abierta con el módulo
+encendido conserva sus guardas si después se apaga. Un negocio que nunca usó preventas paga un
+`tableExists()` en caché y, solo con una venta guardada en pantalla, una consulta por índice único.
+**Nunca lanza**: si la consulta falla devuelve null, y el respaldo es `postComplete()`, que rechaza
+cualquier carrito con un pago `presale` que no sea una entrega reconocida.
+
+**El carrito** (`Presale_register::load()`): cada línea se arma con `add_item()` sobre un carrito
+vacío (así no hay fusión) y luego se juntan con `set_cart()`; `print_option` se copia de
+`presale_items`. Cliente con `set_customer()`, sin `apply_customer_discount()`. Modo venta y
+`SALE_TYPE_POS`. Un único pago con la etiqueta `lang('Sales.presale')` por `Presale_payment::get_paid()`.
+`ensure_delivery_state()` lo repone en cada `_reload()` (después de `_sync_order_ticket()`), siempre
+desde la base. Si el carrito ya no coincide con la preventa (`cart_matches()`: mismas líneas, artículo,
+precio y descuento; cantidad igual salvo las líneas por peso, que solo tienen que ser > 0) se
+reconstruye con `restore()`, conservando los pesos ya tecleados. Eso cubre la trampa de
+`copy_entire_sale()`, que al volver a la pestaña fusionaría dos líneas del mismo artículo.
+
+**Guardas** (todas con prueba en `testEveryGuardRefusesOnADeliveryTab`, y `testTheGuardsLeaveEveryOtherCartAlone`
+fija que un carrito normal no se entera): rechazan en una entrega `postAdd`, `postAddWeight`,
+`getDeleteItem`, `postChangeItemNumber/Name/Description` (JSON `success: false`), `postSelectCustomer`,
+`getRemoveCustomer`, `postSuspend`, `postCancel` y `getDeletePayment` del pago `presale`.
+`postAddPayment` rechaza la etiqueta `presale` **en cualquier carrito** (ningún desplegable la ofrece;
+esto cierra el post forjado). `postChangeMode` deja el modo en venta (salir de la pestaña sí se
+permite) y la vista solo ofrece «Venta». `postEditItem` en una entrega solo cambia la cantidad de las
+líneas por peso, leída con `_parse_weight_quantity()` y > 0, al precio y descuento pactados; cualquier
+otra línea se rechaza. Los pagos normales se admiten.
+
+**Completar** (`postComplete`): antes de guardar, `completion_refusal()` relee la preventa (abierta y
+`paid`), exige modo venta, que el carrito coincida, **un** pago `presale` igual a lo abonado y que los
+pagos cubran el total. Luego `_save_presale_delivery()`: `transBegin()` → `save_value()` →
+`Presale::mark_delivered()` → `transCommit()`, o `transRollback()` si `save_value` devolvió ≤ 0,
+`mark_delivered` devolvió false o algo lanzó. El borrado de la mesa desechable, `_apply_pending_reprices`
+y `mark_charged` van después, como siempre. Probado: venta COMPLETED con precios pactados, inventario
+descontado de la ubicación de la preventa, un pago `presale` = 41,00, `cashup_id` del turno abierto y
+la preventa `delivered` con ese `sale_id`; completar dos veces deja una venta y el inventario bajado una
+vez (con y sin Mesas). Peso mayor: se rechaza hasta cobrar la diferencia; peso menor: la vía de
+siempre agrega la línea de efectivo con `cash_refund` en el turno de la entrega.
+
+**«Devolver a preventas»** (`Sales::postReleasePresale`, botón en lugar de Cancelar en una entrega):
+saca la entrega de la caja sin cobrar nada. Con Mesas anula la venta OPENED, borra la mesa desechable
+y desenlaza `presales.sale_id`; sin Mesas solo vacía el carrito. La preventa no se toca: sigue abierta
+y pagada y se puede volver a entregar. Es la salida de la entrega equivocada o del cliente que no
+llegó; sin ella, con Mesas apagadas, la caja quedaba bloqueada para cualquier otra venta (hallazgo de
+la revisión adversarial). `postCancel` sigue rechazado en una entrega porque borra la venta que esté
+en pantalla, y `postSuspend` porque una suspendida reescribe sus pagos (§8.1).
+
+**Peso real, registrado:** al completar, si alguna cantidad difiere de la pactada se escribe en la
+misma transacción un `presale_events` de tipo `quantity_adjusted` con `{sale_id, lines: [{line,
+item_id, agreed, delivered}]}`. Un peso menor devuelve efectivo por el mostrador, y eso tiene que
+poder leerse después.
+
+**Preventa cancelada con la pestaña abierta:** en el siguiente `_reload()` la venta OPENED se anula
+(`Sale::delete`), la mesa desechable se borra, `presales.sale_id` se desenlaza (solo si no está
+entregada) y el carrito se vacía con un aviso. Si la entregó otra caja, esta solo olvida la pestaña.
+
+**Vista:** franja «Entrega de preventa PV-xxxxxx — solo se puede ajustar el peso de los productos por
+peso» (`#presale_delivery_banner`, alerta informativa de Bootstrap como los demás avisos de la caja);
+se ocultan la búsqueda de artículos, los iconos de borrar línea, precio y descuento editables, el botón
+de quitar cliente, la papelera del pago `presale`, Suspender y Cancelar. La cantidad solo es editable
+en líneas por peso.
+
+**Revisión adversarial (2026-10-07), lo que se corrigió y lo que no.** Se corrigieron: la salida de
+una entrega («Devolver a preventas»), el registro del peso real, la comprobación del cliente al
+completar, la segunda caja que pierde la carrera al abrir la pestaña (ahora va a la pestaña de la
+otra en vez de decir «intente de nuevo») y el retorno de `transBegin()`. Lo que no es de este carril
+va en la lista siguiente.
+
+**Quedan abiertos** (para la integración):
+
+1. La escritura de `presales.sale_id` al abrir y al desenlazar está en `Presale_register::attach()` y
+   `detach()` con el constructor de consultas del modelo, porque el carril D no podía tocar los
+   modelos de preventa. Lo correcto es moverla a `Presale::attach_delivery_sale()` /
+   `detach_delivery_sale()`.
+2. **Peso menor sin tope (decisión del dueño).** D22 deja devolver la diferencia en efectivo, pero
+   nada limita cuánto: un peso tecleado como 0,001 kg devuelve casi todo lo abonado por el cajón. Hoy
+   queda registrado (`quantity_adjusted`), no impedido. Opciones: una tolerancia (±X % de lo pactado)
+   o pedir el permiso de cambiar precios para devolver más de un umbral. Además, «se vende por peso»
+   se lee de la unidad **actual** del artículo; guardarla en `presale_items` al registrar lo fijaría.
+3. **Impuestos y redondeo (carril B).** Si el negocio cobra impuestos aparte del precio, el total de
+   la venta supera lo abonado y la caja pide cobrar la diferencia. Y `Presale::price_lines()` redondea
+   cada línea a `totals_decimals()` mientras la caja no redondea por línea: con COP y líneas por peso
+   (1,255 kg × 9.990) el total de la caja puede quedar unos centavos por encima de lo abonado y pedir
+   «cobre la diferencia» sin que nadie cambiara el peso. El total del módulo tiene que calcularse con
+   la misma regla que la caja (§9).
+5. **Cuadre (carril C).** Esta es la primera vez que se escriben filas `sales_payments` con código
+   `presale`. Hasta que el carril C las saque de `income_total` (§6.1), el turno de la entrega las
+   muestra como ingreso (el efectivo esperado no cambia: no es `cash`). Si no hay turno abierto, la
+   venta queda con `cashup_id` nulo, como cualquier venta; falta decidir si una entrega exige turno.
+6. **Editar o anular la venta entregada (carril C, §8.3-8.4)**: hasta que se bloquee en
+   `postSave`/`postDelete`, se puede.
+7. **Cancelar una preventa con su pestaña abierta (carril E):** la pestaña sigue en la barra hasta
+   que una caja la abre (ahí desaparece con aviso). Lo limpio es que `Presale::cancel()` anule la venta
+   OPENED enlazada y ponga `sale_id` en nulo en su misma transacción.
+8. **El pago se reconoce por su etiqueta traducida** (`lang('Sales.presale')`), como todos los pagos
+   del carrito. Si el idioma de la aplicación cambia con una pestaña de entrega abierta, la etiqueta
+   vieja no se reconoce. Riesgo bajo; el arreglo de fondo es llevar el código en el carrito.
+9. **Sin Mesas, `sales.location_id`** sale de la ubicación de la sesión (`save_value`), no de la
+   preventa; el inventario sí sale de la ubicación de la preventa (por línea). Solo importa con varias
+   sedes.
+4. Con Mesas, un pago normal tecleado en la pestaña de entrega (por un peso mayor) vive en la sesión
+   como en cualquier pestaña: si se cambia de pestaña antes de completar, se pierde y hay que volver a
+   cobrarlo. Es el comportamiento de siempre de las pestañas.
 
 ---
 

@@ -239,7 +239,30 @@ Se muestra cuántos días lleva atrasada y cuánto falta para ponerse al día.
      de la entrega;
    - se imprime el recibo normal de venta y la preventa queda **Entregada**.
 
-Funciona igual en un negocio que usa mesas y en uno que no.
+Funciona igual en un negocio que usa mesas y en uno que no, con una diferencia de forma
+(construido el 2026-10-07, pendiente de certificar en staging):
+
+- **Con mesas**, la entrega aparece como una pestaña más de la barra, con el número de la preventa
+  (por ejemplo `PV-000123`). El cajero puede atender otra mesa y volver a ella, recargar la página o
+  abrirla desde otra caja: sigue siendo la entrega, con su pago «Preventa».
+- **Sin mesas**, la entrega se carga directamente en la venta que está en pantalla, como cualquier
+  venta de ese negocio.
+- En los dos casos, **si la caja tiene una venta a medias que no está guardada**, el sistema no la
+  borra: pide completarla o suspenderla antes de entregar.
+- En pantalla se ve una franja azul: «Entrega de preventa PV-000123 — solo se puede ajustar el peso
+  de los productos por peso». Los botones que no aplican (buscar productos, borrar líneas, quitar el
+  cliente, Suspender, Cancelar) no aparecen.
+- Pulsar «Entregar» dos veces no abre dos entregas, y si dos cajas completan la misma entrega a la
+  vez, solo una venta queda registrada.
+- Si la preventa se cancela mientras su entrega está abierta en la caja, la entrega desaparece de la
+  caja con un aviso.
+- Si se mandó la preventa equivocada o el cliente no llegó, el botón **«Devolver a preventas»** (en
+  lugar de Cancelar) saca la entrega de la caja sin cobrar nada; la preventa sigue abierta y pagada y
+  se puede volver a entregar. Cancelar y Suspender no existen en una entrega.
+- Si el peso real es distinto del pactado, queda anotado en la historia de la preventa.
+- **Pendiente de decidir (dueño):** hoy no hay un límite a cuánto puede bajar el peso, y lo que baja
+  se devuelve en efectivo. ¿Se pone una tolerancia, o se pide autorización por encima de cierto
+  monto?
 
 **Productos por peso.** El peso pactado es inicial. En la entrega, **lo único que el cajero puede
 cambiar en esa pestaña es el peso real** de esas líneas, al precio por kilo pactado. Si el total
