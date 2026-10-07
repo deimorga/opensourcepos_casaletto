@@ -443,6 +443,23 @@ final class PresaleTest extends CIUnitTestCase
         $this->assertSame(0, $this->db->table('presales')->where('campaign_id', $this->campaign_id)->countAllResults());
     }
 
+    /**
+     * A caller pricing several times in one request hands over the campaign's products, read once:
+     * price_lines() then reads nothing of the campaign itself (campaign 0 does not exist).
+     */
+    public function testPricingUsesTheCampaignsProductsWhenTheyAreHandedOver(): void
+    {
+        $items = $this->campaigns->get_items_by_id($this->campaign_id);
+
+        $this->assertSame([$this->turkey_id, $this->ham_id], array_keys($items), 'Keyed by item, in the order get_items() lists them.');
+
+        $lines = $this->presales->price_lines(0, [['item_id' => $this->turkey_id, 'quantity' => '1']], $items);
+
+        $this->assertIsArray($lines);
+        $this->assertSame('90000.00', $lines[0]['unit_price']);
+        $this->assertSame('Presales.item_not_in_campaign', $this->presales->price_lines(0, [['item_id' => $this->turkey_id, 'quantity' => '1']]));
+    }
+
     public function testAProductMissingFromTheCatalogueCannotJoinACampaign(): void
     {
         $this->assertSame('Presales.item_not_in_catalogue', $this->campaigns->add_item($this->campaign_id, 999_999_999));

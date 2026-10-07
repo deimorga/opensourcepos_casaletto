@@ -227,7 +227,9 @@ class Presales extends Secure_Controller
             return $this->response->setJSON(['success' => true, 'total' => to_currency('0'), 'lines' => [], 'plan' => null, 'minimum' => null]);
         }
 
-        $priced = $this->presale->price_lines((int) $campaign['campaign_id'], $lines);
+        // The campaign's products, read once for every pricing below.
+        $campaign_items = model(Presale_campaign::class)->get_items_by_id((int) $campaign['campaign_id']);
+        $priced         = $this->presale->price_lines((int) $campaign['campaign_id'], $lines, $campaign_items);
 
         if (is_string($priced)) {
             return $this->response->setJSON(['success' => false, 'message' => esc(lang($priced))]);
@@ -238,7 +240,7 @@ class Presales extends Secure_Controller
         $amounts = [];
 
         foreach ($lines as $index => $line) {
-            $one = $this->presale->price_lines((int) $campaign['campaign_id'], [$line]);
+            $one = $this->presale->price_lines((int) $campaign['campaign_id'], [$line], $campaign_items);
             $sum = '0.00';
 
             foreach (is_array($one) ? $one : [] as $part) {
@@ -833,15 +835,16 @@ class Presales extends Secure_Controller
         $result    = [];
 
         foreach ($campaigns->get_selling($today) as $campaign) {
-            $campaign_id = (int) $campaign['campaign_id'];
-            $items       = [];
+            $campaign_id    = (int) $campaign['campaign_id'];
+            $campaign_items = $campaigns->get_items_by_id($campaign_id);
+            $items          = [];
 
-            foreach ($campaigns->get_items($campaign_id) as $item) {
+            foreach ($campaign_items as $item) {
                 if ((int) $item['item_deleted'] === 1) {
                     continue;
                 }
 
-                $unit = $this->presale->price_lines($campaign_id, [['item_id' => (int) $item['item_id'], 'quantity' => '1']]);
+                $unit = $this->presale->price_lines($campaign_id, [['item_id' => (int) $item['item_id'], 'quantity' => '1']], $campaign_items);
 
                 // A kit that cannot be expanded is not offered: registering it would be refused anyway.
                 if (is_string($unit)) {

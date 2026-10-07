@@ -265,17 +265,29 @@ class Presale_campaign extends Model
     }
 
     /**
+     * The campaign's products as get_items() returns them, keyed by item_id. Loaded once by a
+     * caller that prices several lines (Presale::price_lines(), the registration form), instead of
+     * once per line.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function get_items_by_id(int $campaign_id): array
+    {
+        $indexed = [];
+
+        foreach ($this->get_items($campaign_id) as $row) {
+            $indexed[(int) $row['item_id']] = $row;
+        }
+
+        return $indexed;
+    }
+
+    /**
      * One product of the campaign with its effective price, or null when it is not in the campaign.
      */
     public function get_item(int $campaign_id, int $item_id): ?array
     {
-        foreach ($this->get_items($campaign_id) as $row) {
-            if ((int) $row['item_id'] === $item_id) {
-                return $row;
-            }
-        }
-
-        return null;
+        return $this->get_items_by_id($campaign_id)[$item_id] ?? null;
     }
 
     /**

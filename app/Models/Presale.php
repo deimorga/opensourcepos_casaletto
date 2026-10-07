@@ -284,16 +284,21 @@ class Presale extends Model
      *
      * Each line's `amount` is for display: the presale's total is NOT their sum (see create()).
      *
+     * $campaign_items is the campaign's products as Presale_campaign::get_items_by_id() returns them,
+     * for a caller that prices several times in one request; read here, once, when not given.
+     *
+     * @param array<int, array<string, mixed>>|null $campaign_items
+     *
      * @return list<array{item_id: int, quantity: string, unit_price: string, amount: string, print_option: int, item_type: int}>|string
      */
-    public function price_lines(int $campaign_id, array $requested): array|string
+    public function price_lines(int $campaign_id, array $requested, ?array $campaign_items = null): array|string
     {
         if ($requested === []) {
             return 'Presales.lines_required';
         }
 
-        $campaigns = model(Presale_campaign::class);
-        $lines     = [];
+        $campaign_items ??= model(Presale_campaign::class)->get_items_by_id($campaign_id);
+        $lines = [];
 
         foreach ($requested as $request) {
             $item_id  = (int) ($request['item_id'] ?? 0);
@@ -303,7 +308,7 @@ class Presale extends Model
                 return 'Presales.quantity_invalid';
             }
 
-            $item = $campaigns->get_item($campaign_id, $item_id);
+            $item = $campaign_items[$item_id] ?? null;
 
             if ($item === null || (int) $item['item_deleted'] === 1) {
                 return 'Presales.item_not_in_campaign';
