@@ -207,6 +207,60 @@ final class PresaleReportsTest extends CIUnitTestCase
         $this->assertStringNotContainsString("\n=COMMITTED-TEST", $csv);
     }
 
+    /**
+     * With quantity_decimals = 0, three quarters of a kilo used to read "1".
+     */
+    public function testAWeightQuantityKeepsItsDecimalsWithoutTrailingZeros(): void
+    {
+        $this->grant();
+        $this->switchTo('1');
+
+        $before = [];
+
+        foreach (['quantity_decimals' => '0', 'number_locale' => 'en_US', 'thousands_separator' => '0'] as $key => $value) {
+            $row          = $this->db->table('app_config')->where('key', $key)->get()->getRow();
+            $before[$key] = $row === null ? null : (string) $row->value;
+            $this->db->table('app_config')->replace(['key' => $key, 'value' => $value]);
+        }
+
+        config(OSPOS::class)->update_settings();
+
+        try {
+            $this->db->table('items')->insert([
+                'name'               => 'COMMITTED-TEST pernil', 'category' => 'Test', 'item_number' => null, 'description' => '',
+                'cost_price'         => '0.00', 'unit_price' => '1.00', 'unit_of_measure' => 'kg', 'reorder_level' => '0',
+                'receiving_quantity' => '1', 'allow_alt_description' => 0, 'is_serialized' => 0,
+            ]);
+            $kg_id = (int) $this->db->insertID();
+            $this->db->table('presale_items')->insert([
+                'presale_id' => $this->presale_id, 'line' => 2, 'item_id' => $kg_id, 'quantity' => '0.750', 'unit_price' => '1.00',
+            ]);
+
+            $body = (string) $this->getAs('/presales/committed?campaign_id=' . $this->campaign_id)->getBody();
+
+            $this->assertStringContainsString('0.75 kg', $body);
+            $this->assertStringNotContainsString('0.750', $body);
+
+            $response = $this->getAs('/presales/committed/csv?campaign_id=' . $this->campaign_id);
+            ob_start();
+            $response->response()->sendBody();
+            $csv = (string) ob_get_clean();
+
+            $this->assertStringContainsString('0.75,0.75,0,0.75', $csv);
+        } finally {
+            foreach ($before as $key => $value) {
+                if ($value === null) {
+                    $this->db->table('app_config')->where('key', $key)->delete();
+                } else {
+                    $this->db->table('app_config')->replace(['key' => $key, 'value' => $value]);
+                }
+            }
+
+            $this->db->table('items')->where('name', 'COMMITTED-TEST pernil')->delete();
+            config(OSPOS::class)->update_settings();
+        }
+    }
+
     public function testSafeCellPrefixesFormulaStarters(): void
     {
         foreach (['=1+1', '+1', '-1', '@x'] as $text) {
