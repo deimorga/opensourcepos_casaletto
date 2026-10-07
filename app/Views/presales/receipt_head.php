@@ -38,7 +38,7 @@ $width = Sale_lib::receipt_printable_width_mm($config['receipt_paper'] ?? '') ??
         .presale-doc-actions a, .presale-doc-actions button { font: inherit; margin: 0 2mm; }
         @media print { body { padding: 0; } .print_hide { display: none !important; } }
     </style>
-    <?= view('partial/receipt_paper', ['config' => $config]) ?>
+    <?= view('partial/receipt_paper', ['config' => $config], ['saveData' => false]) ?>
 </head>
 <body>
 <div class="presale-doc-actions print_hide">

@@ -14,11 +14,11 @@
  */
 ?>
 
-<?= view('partial/header') ?>
+<?= view('partial/header', [], ['saveData' => false]) ?>
 
 <script type="text/javascript">
     $(document).ready(function() {
-        <?= view('partial/bootstrap_tables_locale') ?>
+        <?= view('partial/bootstrap_tables_locale', [], ['saveData' => false]) ?>
 
         table_support.init({
             resource: 'presales',
@@ -80,4 +80,4 @@
     <table id="table"></table>
 </div>
 
-<?= view('partial/footer') ?>
+<?= view('partial/footer', [], ['saveData' => false]) ?>

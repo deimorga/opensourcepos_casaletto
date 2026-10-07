@@ -137,7 +137,7 @@ final class PresalesControllerTest extends CIUnitTestCase
     public function testRegisteringTakesThePriceFromTheCampaignNeverFromTheForm(): void
     {
         $result = $this->postJson('presales/save', $this->form([
-            'lines' => [['item_id' => $this->item_id, 'quantity' => '2', 'unit_price' => '1']],
+            'lines' => [['item_id' => (string) $this->item_id, 'quantity' => '2', 'unit_price' => '1']],
         ]));
 
         $this->assertTrue($result['success'], $result['message'] ?? '');
@@ -278,11 +278,11 @@ final class PresalesControllerTest extends CIUnitTestCase
 
         $paidBody = (string) $this->getReq('presales/view/' . $paid)->getBody();
         $this->assertStringContainsString('sales/deliverPresale/' . $paid, $paidBody);
-        $this->assertStringNotContainsString('presale_take_payment', $paidBody);
+        $this->assertStringNotContainsString('id="presale_take_payment"', $paidBody);
 
         $pendingBody = (string) $this->getReq('presales/view/' . $pending)->getBody();
         $this->assertStringNotContainsString('sales/deliverPresale/', $pendingBody);
-        $this->assertStringContainsString('presale_take_payment', $pendingBody);
+        $this->assertStringContainsString('id="presale_take_payment"', $pendingBody);
     }
 
     public function testTheDetailEscapesTheCustomersName(): void

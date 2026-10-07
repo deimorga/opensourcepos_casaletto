@@ -22,7 +22,7 @@
 $json_flags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE;
 ?>
 
-<?= view('partial/header') ?>
+<?= view('partial/header', [], ['saveData' => false]) ?>
 
 <div id="title_bar" class="print_hide btn-toolbar">
     <a class="btn btn-default btn-sm pull-right" href="<?= site_url('presales') ?>">
@@ -184,7 +184,7 @@ $(document).ready(function() {
         'amount'              => lang('Presales.amount'),
     ], $json_flags) ?>;
 
-    <?= view('partial/datepicker_locale', ['format' => dateformat_bootstrap($config['dateformat'])]) ?>
+    <?= view('partial/datepicker_locale', ['format' => dateformat_bootstrap($config['dateformat'])], ['saveData' => false]) ?>
 
     var current = function() {
         var id = parseInt($('#presale_campaign').val(), 10);
@@ -407,4 +407,4 @@ $(document).ready(function() {
 
 <?php endif; ?>
 
-<?= view('partial/footer') ?>
+<?= view('partial/footer', [], ['saveData' => false]) ?>

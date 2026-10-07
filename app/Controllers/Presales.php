@@ -35,6 +35,11 @@ use Config\OSPOS;
  * Messages that go back as JSON are escaped here: the screens show them with $.notify(), which renders
  * HTML, and some of them repeat what the cashier typed.
  *
+ * Every view here, and every partial they include, is rendered with saveData => false. CodeIgniter's
+ * renderer keeps view data for the rest of the request by default, and a nested partial saves its
+ * parent's data too: a `customer` left behind by the detail made the register's view, rendered later
+ * in the same test process, believe a customer was selected and fail on an undefined $customer_id.
+ *
  * See docs/Funcional/venta-anticipada.md and docs/Tecnico/venta-anticipada.md.
  */
 class Presales extends Secure_Controller
@@ -70,7 +75,7 @@ class Presales extends Secure_Controller
             'campaigns'     => model(Presale_campaign::class)->get_all(),
             'dates'         => $this->delivery_dates(),
             'states'        => self::state_options(),
-        ]);
+        ], ['saveData' => false]);
     }
 
     /**
@@ -154,7 +159,7 @@ class Presales extends Secure_Controller
             'can_add_customer' => $this->employee->has_grant('customers', $person_id),
             'has_open_shift'   => model(Cashup::class)->get_open_cashup_id() !== null,
             'today'            => date(config(OSPOS::class)->settings['dateformat']),
-        ]);
+        ], ['saveData' => false]);
     }
 
     /**
@@ -377,7 +382,7 @@ class Presales extends Secure_Controller
             'payment_types'  => self::payment_options(),
             'has_open_shift' => model(Cashup::class)->get_open_cashup_id() !== null,
             'can_manage'     => $this->can_manage(),
-        ]);
+        ], ['saveData' => false]);
     }
 
     /**
@@ -454,7 +459,7 @@ class Presales extends Secure_Controller
             'installments'  => $this->presale->get_installments($presale_id),
             'print'         => $this->request->getGet('print') === '1',
             'open_drawer'   => $this->take_drawer($presale_id, null),
-        ]);
+        ], ['saveData' => false]);
     }
 
     /**
@@ -503,7 +508,7 @@ class Presales extends Secure_Controller
             'balance'       => bcsub((string) $presale['total'], $accumulated, 2),
             'print'         => $this->request->getGet('print') === '1',
             'open_drawer'   => $this->take_drawer($presale_id, $payment_id),
-        ]);
+        ], ['saveData' => false]);
     }
 
     // ---------------------------------------------------------------------------------------------

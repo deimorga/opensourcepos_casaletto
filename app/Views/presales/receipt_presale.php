@@ -19,7 +19,7 @@
 $customer_name = trim(($customer->first_name ?? '') . ' ' . ($customer->last_name ?? ''));
 $terms         = trim((string) ($config['presales_terms'] ?? ''));
 ?>
-<?= view('presales/receipt_head', ['title' => lang('Presales.receipt_presale'), 'config' => $config]) ?>
+<?= view('presales/receipt_head', ['title' => lang('Presales.receipt_presale'), 'config' => $config], ['saveData' => false]) ?>
 
     <table>
         <tr><th><?= esc(lang('Presales.number')) ?></th><td class="r"><strong><?= esc($presale['number']) ?></strong></td></tr>
@@ -60,7 +60,7 @@ $terms         = trim((string) ($config['presales_terms'] ?? ''));
     <?php endif; ?>
 </div>
 
-<?= view('partial/open_cash_drawer', ['open_cash_drawer' => $open_drawer]) ?>
+<?= view('partial/open_cash_drawer', ['open_cash_drawer' => $open_drawer], ['saveData' => false]) ?>
 
 <?php if ($print): ?>
     <script>window.addEventListener('load', function () { window.print(); });</script>
