@@ -2269,6 +2269,15 @@ class Sales extends Secure_Controller
         } else {
             $sale_ids = $sale_id == NEW_ENTRY ? $this->request->getPost('ids', FILTER_SANITIZE_NUMBER_INT) : [$sale_id];
 
+            // Cancelling the sale that delivered a presale would hand the stock back and leave the
+            // presale delivered and paid. All or nothing, like the grid shows it. Goods coming back
+            // go through the register's Return mode (docs/Tecnico/venta-anticipada.md 8.4).
+            $presale_block = $this->_presale_delivery_block((array)$sale_ids);
+
+            if ($presale_block !== null) {
+                return $this->response->setJSON(['success' => false, 'message' => $presale_block]);
+            }
+
             if ($this->sale->delete_list($sale_ids, $employee_id, $update_inventory)) {
                 return $this->response->setJSON([
                     'success' => true,
@@ -2296,6 +2305,15 @@ class Sales extends Secure_Controller
         } else {
             $sale_ids = $sale_id == NEW_ENTRY ? $this->request->getPost('ids', FILTER_SANITIZE_NUMBER_INT) : [$sale_id];
 
+            // Restoring puts a sale back as SUSPENDED, and completing a suspended sale rewrites its
+            // payments into the shift open at that moment: the 'presale' payment would land again
+            // in a shift that never took that money. Same guard as postDelete().
+            $presale_block = $this->_presale_delivery_block((array)$sale_ids);
+
+            if ($presale_block !== null) {
+                return $this->response->setJSON(['success' => false, 'message' => $presale_block]);
+            }
+
             if ($this->sale->restore_list($sale_ids, $employee_id, $update_inventory)) {
                 return $this->response->setJSON([
                     'success' => true,
@@ -2306,6 +2324,32 @@ class Sales extends Secure_Controller
                 return $this->response->setJSON(['success' => false, 'message' => lang('Sales.unsuccessfully_restored')]);
             }
         }
+    }
+
+    /**
+     * The refusal for a selection that holds a sale which delivered a presale, or null when none
+     * does. Only asked when the presale tables exist; without them no sale can have delivered one.
+     */
+    private function _presale_delivery_block(array $sale_ids): ?string
+    {
+        if ($sale_ids === [] || !db_connect()->tableExists('presales')) {
+            return null;
+        }
+
+        $presale = model(\App\Models\Presale::class);
+
+        foreach ($sale_ids as $id) {
+            $delivered = $presale->get_by_sale((int)$id);
+
+            if ($delivered !== null) {
+                return lang('Sales.presale_sale_cannot_delete', [
+                    'POS ' . (int)$id,
+                    esc($presale->number((int)$delivered['presale_id']))
+                ]);
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -2337,6 +2381,18 @@ class Sales extends Secure_Controller
             'invoice_number' => $this->request->getPost('invoice_number') != '' ? $this->request->getPost('invoice_number') : null
         ];
 
+        // A sale that delivered a presale is paid with code 'presale' for what the customer paid in
+        // instalments, money each instalment's shift already counted. Turning that row into cash
+        // would count it twice, and turning any other row into 'presale' would take real money out
+        // of a shift's income. The stored rows decide, not the form: a 'presale' row is written back
+        // exactly as it is, and a payment id that is not this sale's is refused, because
+        // Sale::update() writes by payment id alone. See docs/Tecnico/venta-anticipada.md 8.3.
+        $stored_payments = [];
+
+        foreach ($this->sale->get_sale_payments($sale_id)->getResultArray() as $stored_payment) {
+            $stored_payments[(int)$stored_payment['payment_id']] = $stored_payment;
+        }
+
         // In order to maintain tradition the only element that can change on prior payments is the payment type
         $amount_tendered = 0;
         $number_of_payments = $this->request->getPost('number_of_payments', FILTER_SANITIZE_NUMBER_INT);
@@ -2351,6 +2407,43 @@ class Sales extends Secure_Controller
             $payment_amount = parse_decimals($this->request->getPost("payment_amount_$i"));
             $refund_type = $this->request->getPost("refund_type_$i", FILTER_SANITIZE_FULL_SPECIAL_CHARS);
             $cash_refund = parse_decimals($this->request->getPost("refund_amount_$i"));
+
+            $stored_payment = $stored_payments[(int)$payment_id] ?? null;
+
+            if ($stored_payment === null) {
+                return $this->response->setJSON(['success' => false, 'message' => lang('Sales.unsuccessfully_updated'), 'id' => $sale_id]);
+            }
+
+            // A row kept as stored is counted below but not written back. Sale::update() works the
+            // code out again from the label in the editor's language, so even an unchanged 'presale'
+            // row would lose its code for an employee working in another language, and it deletes
+            // every row whose amount is zero -- which is the change handed back on a sale paid by
+            // card or by presale, the cash row with no tender and only a refund. Deleting it would
+            // put that change back into the shift's expected cash.
+            $keep_stored = false;
+
+            if ($stored_payment['payment_type_code'] === 'presale') {
+                if ($payment_type !== $stored_payment['payment_type'] && payment_type_code_from_label($payment_type) !== 'presale') {
+                    return $this->response->setJSON(['success' => false, 'message' => lang('Sales.presale_payment_locked'), 'id' => $sale_id]);
+                }
+
+                $keep_stored = true;
+            } elseif (bccomp((string)$stored_payment['payment_amount'], '0', 2) === 0 && bccomp((string)$stored_payment['cash_refund'], '0', 2) !== 0) {
+                $keep_stored = true;
+            } elseif (
+                payment_type_code_from_label($payment_type) === 'presale'
+                || ($cash_refund > 0 && payment_type_code_from_label($refund_type) === 'presale')
+            ) {
+                return $this->response->setJSON(['success' => false, 'message' => lang('Sales.presale_payment_not_allowed'), 'id' => $sale_id]);
+            }
+
+            if ($keep_stored) {
+                if (!$stored_payment['cash_adjustment']) {
+                    $amount_tendered += $stored_payment['payment_amount'] - $stored_payment['cash_refund'];
+                }
+
+                continue;
+            }
 
             $cash_adjustment = $payment_type == lang('Sales.cash_adjustment') ? CASH_ADJUSTMENT_TRUE : CASH_ADJUSTMENT_FALSE;
 
@@ -2384,6 +2477,10 @@ class Sales extends Secure_Controller
         // "Tarjeta de d&eacute;bito" and stopped matching the grid filters. Escaping belongs to the
         // output, which now handles it. See docs/Tecnico/errores-produccion-upstream.md section 5.
         $payment_type = $this->request->getPost('payment_type_new');
+
+        if ($payment_type != PAYMENT_TYPE_UNASSIGNED && !empty($payment_amount_new) && payment_type_code_from_label($payment_type) === 'presale') {
+            return $this->response->setJSON(['success' => false, 'message' => lang('Sales.presale_payment_not_allowed'), 'id' => $sale_id]);
+        }
 
         if ($payment_type != PAYMENT_TYPE_UNASSIGNED && !empty($payment_amount_new)) {
             $payment_amount = parse_decimals($payment_amount_new);

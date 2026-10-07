@@ -255,6 +255,50 @@ final class SalesPresaleGuardTest extends CIUnitTestCase
         $this->assertSame('after', $this->db->table('sales')->where('sale_id', self::DELIVERY_SALE)->get()->getRow()->comment);
     }
 
+    /**
+     * A lighter real weight leaves the change on a cash row with no tender. Sale::update() deletes
+     * every row whose amount is zero, so a plain edit used to erase it, and the shift's expected
+     * cash went up by the change already handed back.
+     */
+    public function testEditingTheSaleKeepsTheChangeHandedBack(): void
+    {
+        $this->deliverySale();
+        $this->db->table('sales_payments')->where('sale_id', self::DELIVERY_SALE)->where('payment_type_code', 'cash')
+            ->update(['payment_amount' => 0, 'cash_refund' => 3_000]);
+        $before = $this->payments(self::DELIVERY_SALE);
+
+        $result = $this->save(self::DELIVERY_SALE, [
+            (int) $before['presale']['payment_id'] => lang('Sales.presale'),
+            (int) $before['cash']['payment_id']    => lang('Sales.cash'),
+        ]);
+
+        $this->assertTrue($result['success'], (string) ($result['message'] ?? ''));
+
+        $after = $this->payments(self::DELIVERY_SALE);
+        $this->assertArrayHasKey('cash', $after);
+        $this->assertSame('3000.00', (string) $after['cash']['cash_refund']);
+    }
+
+    /**
+     * Sale::update() works the code out again from the label, in the editor's language. A 'presale'
+     * row stored with a label of another language must keep its code all the same.
+     */
+    public function testThePresaleCodeSurvivesALabelInAnotherLanguage(): void
+    {
+        $this->deliverySale();
+        $this->db->table('sales_payments')->where('sale_id', self::DELIVERY_SALE)->where('payment_type_code', 'presale')
+            ->update(['payment_type' => 'Preventa-otro-idioma']);
+        $before = $this->payments(self::DELIVERY_SALE);
+
+        $result = $this->save(self::DELIVERY_SALE, [
+            (int) $before['presale']['payment_id'] => 'Preventa-otro-idioma',
+            (int) $before['cash']['payment_id']    => lang('Sales.cash'),
+        ]);
+
+        $this->assertTrue($result['success'], (string) ($result['message'] ?? ''));
+        $this->assertArrayHasKey('presale', $this->payments(self::DELIVERY_SALE));
+    }
+
     public function testAnotherPaymentCannotBeTurnedIntoPresale(): void
     {
         $this->sale(self::PLAIN_SALE, [[lang('Sales.cash'), 'cash', 50_000.00]]);

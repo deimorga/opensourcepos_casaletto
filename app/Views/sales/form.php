@@ -72,13 +72,17 @@
         <?php
         $i = 0;
         foreach ($payments as $row) {
+            // Gift cards are complex to change. A 'presale' payment is what the customer paid in
+            // instalments, already counted in those shifts: changing its type would count it twice.
+            // Sales::postSave() enforces the same on the server.
+            $locked_payment = !empty(strstr($row->payment_type, lang('Sales.giftcard'))) || ($row->payment_type_code ?? null) === 'presale';
         ?>
             <div class="form-group form-group-sm">
                 <?= form_label(lang('Sales.payment'), "payment_$i", ['class' => 'control-label col-xs-3']) ?>
                 <div class="col-xs-4">
                     <?php // No editing of Gift Card payments as it's a complex change ?>
                     <?= form_hidden("payment_id_$i", $row->payment_id) ?>
-                    <?php if (!empty(strstr($row->payment_type, lang('Sales.giftcard')))): ?>
+                    <?php if ($locked_payment): ?>
                         <?= form_input(['name' => "payment_type_$i", 'value' => $row->payment_type, 'id' => "payment_type_$i", 'class' => 'form-control input-sm', 'readonly' => 'true']) ?>
                     <?php else: ?>
                         <?= form_dropdown("payment_type_$i", $payment_options, $row->payment_type, ['id' => "payment_types_$i", 'class' => 'form-control']) ?>
@@ -101,7 +105,7 @@
                 <?= form_label(lang('Sales.refund'), "refund_$i", ['class' => 'control-label col-xs-3']) ?>
                 <div class="col-xs-4">
                     <?php // No editing of Gift Card payments as it's a complex change ?>
-                    <?php if (!empty(strstr($row->payment_type, lang('Sales.giftcard')))): ?>
+                    <?php if ($locked_payment): ?>
                         <?= form_input(['name' => "refund_type_$i", 'value' => lang('Sales.cash'), 'id' => "refund_type_$i", 'class' => 'form-control input-sm', 'readonly' => 'true']) ?>
                     <?php else: ?>
                         <?= form_dropdown("refund_type_$i", $payment_options, lang('Sales.cash'), ['id' => "refund_types_$i", 'class' => 'form-control']) ?>

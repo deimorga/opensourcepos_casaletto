@@ -274,4 +274,7 @@ return [
     "download_ubl"                     => "Descargar Factura UBL",
     "ubl_generation_failed"            => "Error al generar la factura UBL",
     "selected_customer"                => "Cliente seleccionado",
+    "presale_payment_locked"             => "El pago «Preventa» es lo que el cliente abonó a su preventa y no se puede cambiar por otro medio de pago.",
+    "presale_payment_not_allowed"        => "«Preventa» no se puede elegir aquí: ese pago solo lo registra la entrega de una preventa.",
+    "presale_sale_cannot_delete"         => "La venta {0} entregó la preventa {1} y no se puede anular. Si el cliente devuelve producto, use el modo Devolución de la caja.",
 ];
