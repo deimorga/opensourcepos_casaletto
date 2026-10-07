@@ -87,4 +87,7 @@ return [
     "transfer_amount_cash_minus" => "",
     "update"                     => "Update Cashup",
     "warning"                    => "",
+    "reconciliation_presale_payments" => "Presale instalments",
+    "reconciliation_presale_deliveries" => "Presale deliveries (paid earlier)",
+    "reconciliation_presale_deliveries_hint" => "These sales were paid with the presale instalments, already counted in the shift that took each one. They add nothing to the income or the cash of this shift.",
 ];

@@ -221,7 +221,7 @@ Dar de alta un cliente en línea sigue exigiendo el permiso `customers`, como en
 **Con el interruptor apagado:**
 - el controlador muestra la vista `disabled`;
 - el menú no aparece aunque haya permisos;
-- el cuadre no consulta `presale_payments`;
+- el cuadre sigue leyendo `presale_payments` (vacío en un negocio que nunca lo usó; ver §6.3);
 - «Entregar» no existe en la caja.
 
 **Apagarlo con preventas abiertas:** la pantalla de Configuración muestra cuántas hay y pide
@@ -253,10 +253,22 @@ Se le suman los abonos netos del mismo rango leídos de `presale_payments`, para
 «Datáfono» y «Banco» se llenen con lo que de verdad entró. El código `presale` ya cae fuera de los
 `if` existentes.
 
-### 6.3 Con el interruptor apagado
+### 6.3 Con el interruptor apagado *(corregido el 2026-10-07, carril C)*
 
-**El cuadre es idéntico al de hoy**, y ni siquiera se consulta `presale_payments`. Lo fija una
-prueba (§11).
+**Un negocio que nunca usó preventas ve el cuadre idéntico al de hoy**, con el interruptor apagado o
+encendido. Lo fija `tests/Models/PresaleCashupReconciliationTest.php`.
+
+Lo que cambió respecto de la primera versión de este apartado: **`presale_payments` se consulta
+siempre que la tabla exista, no solo con el interruptor encendido.** El interruptor dice si el
+negocio puede usar preventas, no si la plata ya cobrada existe. Si un negocio toma un abono en
+efectivo y apaga el módulo antes de cerrar el turno, ese efectivo está en el cajón: ocultarlo haría
+que el turno diera sobrante, y reabrir un turno viejo daría cifras distintas según cómo esté el
+interruptor ese día. Sin abonos, la consulta (indexada por `cashup_id`) devuelve vacío y el cuadre
+sale igual que antes. Lo mismo vale para el pago `presale` de la venta de entrega (§6.1, paso 3) y
+para el autollenado (§6.2).
+
+En el autollenado con la configuración de solo-fecha, la ventana de los abonos se ensancha a días
+completos igual que la de las ventas (`docs/Tecnico/cuadre-de-caja-y-origen-del-efectivo.md` §6.3).
 
 ---
 
@@ -348,6 +360,15 @@ hoy.
 3. **Editar una venta deja cambiar el tipo de pago.** Un `presale` cambiado a «Efectivo» desde
    `Sales::getEdit` contaría esa plata dos veces. Hay que bloquearlo como la tarjeta de regalo
    (`form.php:79-82`, `Sales.php:2240`), en la vista y en `postSave`.
+   **Hecho el 2026-10-07 (carril C)**, con dos hallazgos de `Sale::update()` que obligaron a ir más
+   allá de forzar los valores: recalcula `payment_type_code` desde la etiqueta en el idioma de quien
+   edita (un empleado en `en` dejaba el pago «Preventa» con código nulo) y **borra toda fila con
+   monto cero**, que es justo la fila de vueltas (efectivo 0, `cash_refund` > 0) de una venta pagada
+   con tarjeta o con preventa: una edición cualquiera la borraba y el esperado del turno subía en el
+   valor de las vueltas. `postSave` ahora **no reenvía** la fila `presale` ni las filas de solo
+   vueltas: quedan como están. Además rechaza un `payment_id` que no sea de esa venta
+   (`Sale::update()` escribe por id sin mirar la venta), y ninguna otra fila ni pago nuevo puede
+   volverse `presale`. Pruebas: `tests/Controllers/SalesPresaleGuardTest.php`.
 4. **Anular la venta de una entrega** (`Sales::postDelete`) devolvería el inventario dejando la
    preventa entregada. Se bloquea; la devolución de mercancía va por el modo Devolución.
 5. **Borrar** un artículo que está en una campaña o en una preventa abierta, o un cliente con

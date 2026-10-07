@@ -124,4 +124,5 @@ return [
     "upc_database"                       => "Base de datos UPC",
     "update"                             => "Actualizar Artículo",
     "use_inventory_menu"                 => "Usar Menú de Inventario",
+    "cannot_delete_presale"              => "No se puede borrar «{0}»: está en una campaña de preventa o en una preventa abierta.",
 ];

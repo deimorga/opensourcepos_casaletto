@@ -162,4 +162,5 @@ return [
     "csv_row_id_unknown"           => "There is no item with Id {0}.",
     "csv_row_missing_required"     => "{0} is missing, and it is required to create an item.",
     "csv_row_boolean_unclear"      => "“{0}” is not valid for column {1}. Use 0 or 1.",
+    "cannot_delete_presale"              => "«{0}» cannot be deleted: it is in a presale campaign or in an open presale.",
 ];

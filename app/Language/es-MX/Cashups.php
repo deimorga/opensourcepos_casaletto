@@ -87,4 +87,7 @@ return [
     "transfer_amount_cash_minus" => "",
     "update"                     => "Actualizar Turno",
     "warning"                    => "",
+    "reconciliation_presale_payments" => "Abonos de preventa",
+    "reconciliation_presale_deliveries" => "Entregas de preventa (cobradas antes)",
+    "reconciliation_presale_deliveries_hint" => "Estas ventas se pagaron con los abonos de la preventa, que ya se contaron en el turno en que se recibió cada abono. No suman a los ingresos ni al efectivo de este turno.",
 ];

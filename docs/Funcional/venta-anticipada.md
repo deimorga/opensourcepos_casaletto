@@ -263,6 +263,12 @@ La venta que nace de una entrega **no se puede anular** como una venta común, p
 preventa entregada con la plata cobrada y el inventario devuelto. Si el cliente devuelve producto ya
 entregado, se usa el modo **Devolución** normal de la caja.
 
+Al editar esa venta desde Ventas *(2026-10-07)*, el pago «Preventa» se ve pero no se puede cambiar
+por otro medio, y ningún otro pago se puede convertir en «Preventa». De paso quedó corregido algo
+que afectaba a todas las ventas: editar una venta que dio vueltas (por ejemplo, pagada con tarjeta y
+con cambio en efectivo) borraba el registro de esas vueltas, y el cuadre del turno quedaba esperando
+ese efectivo de más. Ya no lo borra.
+
 ### 4.10 Cancelar: lo que se acuerde con el cliente
 
 La devolución del dinero **no tiene una regla fija**: se negocia con cada cliente. El sistema no la
@@ -301,6 +307,10 @@ Lo hace el **administrador de cada negocio**, cuando lo necesite. No lo hace la 
 Apagarlo **no borra nada**: las campañas y las preventas quedan guardadas y reaparecen al encenderlo
 otra vez. **Mientras haya preventas abiertas no se debe apagar**, porque nadie podría abonar ni
 entregar. La pantalla avisa cuántas hay abiertas antes de dejar apagarlo.
+
+Apagarlo tampoco cambia el cuadre de caja *(decidido el 2026-10-07)*: los abonos que ya se cobraron
+siguen apareciendo en el cierre del turno que los recibió, porque esa plata está en el cajón o en el
+banco aunque el módulo ya no se use.
 
 ### 4.13 Permisos
 
