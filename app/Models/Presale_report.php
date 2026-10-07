@@ -39,6 +39,10 @@ class Presale_report extends Model
             ->join('presales AS p', "p.presale_id = pi.presale_id AND p.status = 'open'", 'inner')
             ->join('items AS i', 'i.item_id = pi.item_id', 'inner')
             ->where('p.campaign_id', $campaign_id)
+            // A kit is stored as its own line followed by its components (Presale::price_lines()).
+            // What has to be bought is the components; counting the kit's line too would ask for a
+            // product that is only a recipe.
+            ->where('pi.item_type !=', ITEM_KIT)
             ->groupBy('pi.item_id, i.name, i.item_number, i.unit_of_measure, p.delivery_date')
             ->orderBy('i.name', 'asc')
             ->orderBy('pi.item_id', 'asc')

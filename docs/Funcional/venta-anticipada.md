@@ -140,8 +140,10 @@ Detalles:
   **no cambia solo**. Si se quiere, se actualiza a mano en la campaña.
 - **Un negocio puede tener varias campañas a la vez**, por ejemplo Navidad y Año Nuevo. Cada
   preventa pertenece a una sola.
-- Los productos pueden ser de cualquier tipo: normales, recetas armadas (kits) o **por peso**. Uno
-  por peso se pacta con un peso inicial, por ejemplo 2,5 kg, que puede cambiar en la entrega (§4.8).
+- Los productos pueden ser de cualquier tipo: normales, recetas armadas (kits) o **por peso**. Una
+  receta armada se guarda en la preventa con todos sus componentes, como lo haría la caja, y en lo
+  comprometido cuenta por sus componentes, que es lo que hay que comprar. Un producto por peso se
+  pacta con un peso inicial, por ejemplo 2,5 kg, que puede cambiar en la entrega (§4.8).
 - **No hay cupo**: la campaña no limita cuántas unidades de un producto se venden en preventa.
 
 ### 4.3 Registrar la preventa (el «contrato»)

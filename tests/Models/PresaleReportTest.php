@@ -135,6 +135,21 @@ final class PresaleReportTest extends CIUnitTestCase
         $this->assertSame('3.000', $row['shortfall']);
     }
 
+    /**
+     * A kit is stored as its own line followed by its components. What has to be bought is the
+     * components, so the kit's own line is not counted.
+     */
+    public function testAKitCountsByItsComponentsNotByItsOwnLine(): void
+    {
+        $this->presale($this->campaign_id, 'open', '2026-12-20', [[$this->apple_id, '1', ITEM_KIT], [$this->pear_id, '2.500']]);
+
+        $rows = $this->report->committed($this->campaign_id)['rows'];
+
+        $this->assertCount(1, $rows);
+        $this->assertSame($this->pear_id, $rows[0]['item_id']);
+        $this->assertSame('2.500', $rows[0]['total']);
+    }
+
     public function testACampaignWithoutOpenPresalesIsEmpty(): void
     {
         $this->presale($this->campaign_id, 'canceled', '2026-12-20', [[$this->apple_id, '3']]);
@@ -143,7 +158,7 @@ final class PresaleReportTest extends CIUnitTestCase
     }
 
     /**
-     * @param list<array{0: int, 1: string}> $lines item_id, quantity
+     * @param list<array{0: int, 1: string, 2?: int}> $lines item_id, quantity, item_type (ITEM by default)
      */
     private function presale(int $campaign_id, string $status, string $date, array $lines): int
     {
@@ -163,13 +178,14 @@ final class PresaleReportTest extends CIUnitTestCase
         $this->presale_ids[] = $id;
         $line                = 0;
 
-        foreach ($lines as [$item_id, $quantity]) {
+        foreach ($lines as $spec) {
             $this->db->table('presale_items')->insert([
                 'presale_id' => $id,
                 'line'       => ++$line,
-                'item_id'    => $item_id,
-                'quantity'   => $quantity,
+                'item_id'    => $spec[0],
+                'quantity'   => $spec[1],
                 'unit_price' => '1.00',
+                'item_type'  => $spec[2] ?? ITEM,
             ]);
         }
 

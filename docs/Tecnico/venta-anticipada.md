@@ -373,13 +373,21 @@ hoy.
    preventa entregada. Se bloquea; la devolución de mercancía va por el modo Devolución.
 5. **Borrar** un artículo que está en una campaña o en una preventa abierta, o un cliente con
    preventas abiertas: se rechaza. Hay que extender la guarda de `ItemsDeleteGuardTest`.
-6. **Kits.** Estado al 2026-10-07: `Presale::price_lines()` **rechaza** los kits
-   (`Presales.kits_not_supported`) hasta que se construya la expansión; es mejor rechazar que guardar
-   un kit como una línea simple y descontar mal el inventario en la entrega. `add_item_kit()` (`Sale_lib.php:1829-1865`) expande kits anidados de forma recursiva y
-   reparte el precio según `price_option` (`:1466-1478`). Al registrar la preventa, un kit de la
-   campaña se expande igual que en la caja y se guarda línea por línea con su `print_option`. El
-   precio de campaña se asigna a la línea representativa del kit, y los componentes quedan como los
-   dejaría la caja. Hay que probarlo con los tres `price_option`.
+6. **Kits.** Implementado el 2026-10-07 (carril B, `Presale::price_lines()` con `kit_lines()` y
+   `kit_components()`). Al registrar, un kit de la campaña se expande como lo hace la caja
+   (`Sale_lib::add_item_kit()`, `Sale_lib.php:1829-1865`): primero la línea del kit (`item_type =
+   ITEM_KIT`) con el **precio de campaña**, después cada componente con la cantidad multiplicada, el
+   precio que le daría la caja según `price_option` (ALL: todos con precio; KIT: componentes en 0;
+   KIT_STOCK: solo los que llevan existencias) y su `print_option`. Un kit anidado se expande en su
+   lugar; una referencia circular, un kit sin componentes o un componente borrado se rechazan. Un
+   kit se vende por unidades enteras. Diferencias deliberadas con la caja: no se aplica
+   `kit_discount` (los descuentos de una preventa son los de la campaña) y la línea del kit lleva
+   siempre el precio de campaña. Pruebas: `tests/Models/PresaleKitTest.php`.
+   **Pregunta abierta:** con `price_option` ALL o KIT_STOCK el total es el precio de campaña del kit
+   **más** los componentes a precio de catálogo, y el descuento de campaña no les llega. El caso KIT
+   (componentes en 0), que es el habitual, no tiene esa ambigüedad.
+   **Para la entrega:** los componentes repiten `item_id` y `add_item()` los fusionaría; la caja se
+   arma con `set_cart()` (§7.2).
 7. **Tildes.** `Customers::postSave` lee `first_name` y `last_name` sin filtro
    (`Customers.php:242-243`), pero la memoria del arreglo de tildes lista Clientes como pendiente.
    **Hay que verificarlo en staging** guardando y buscando «José Muñoz». La regla de la memoria
@@ -435,7 +443,8 @@ GROUP BY p.campaign_id, pi.item_id, i.name, p.delivery_date
 ```
 
 Se cruza con `item_quantities` de la ubicación para mostrar lo que hay hoy y lo que falta. Las líneas
-de kit cuentan por sus componentes, que es lo que hay que comprar. Con cientos de preventas la
+de kit cuentan por sus componentes, que es lo que hay que comprar: la línea propia del kit
+(`item_type = ITEM_KIT`) se excluye (`Presale_report::committed()`, 2026-10-07). Con cientos de preventas la
 consulta es trivial.
 
 ---
