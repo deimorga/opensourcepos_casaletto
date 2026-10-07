@@ -194,7 +194,7 @@ final class PresaleCampaignsControllerTest extends CIUnitTestCase
             $this->assertStringContainsString($needle, $html);
         }
 
-        $this->assertStringNotContainsString('<html', $html, 'A fragment for the dialog, not a page.');
+        $this->assertStringNotContainsString('resources/bootswatch/', $html, 'A fragment for the dialog, not a page with the shared header.');
     }
 
     // ---------------------------------------------------------------------------------------------
