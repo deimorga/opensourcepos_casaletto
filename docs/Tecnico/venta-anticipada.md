@@ -6,6 +6,11 @@
 > documento dejaba abiertas quedaron resueltas el 2026-10-07: la entrega va por la pantalla de caja y
 > D7 está confirmada. Antes de codificar solo quedan dos verificaciones (§12). Plan de construcción
 > en §13.
+>
+> **2026-10-07, carril G (rama `feat/presales-owner-decisions`):** las cuatro decisiones del dueño
+> que salieron al construir la entrega (D26-D29 del funcional) están construidas: paridad del total
+> con la caja (T20), kit a precio completo (T21), tope de devolución por peso (T22) y turno abierto
+> para entregar (T23). Detalle en §7.8.
 
 ---
 
@@ -79,6 +84,10 @@ Constantes (`app/Config/Constants.php:136-145`): `COMPLETED=0`, `SUSPENDED=1`, `
 | **T16** | **El periodo de venta se valida en el servidor** al registrar: `sale_starts ≤ hoy ≤ sale_ends` y campaña activa. Abonar, entregar y cancelar **no** dependen del periodo | D16 | — |
 | **T17** | **Cuota inicial mínima** = `presale_campaigns.min_initial_percent` (0-100, 0 = sin mínimo). Se valida en el servidor contra la primera cuota **y** contra el abono que se cobra al registrar, redondeando hacia arriba a `totals_decimals()` | D21 | Un monto fijo |
 | **T18** | **Peso variable en la entrega**: en la pestaña de entrega solo se puede editar la cantidad de las líneas de artículos por peso, al precio congelado. El pago `presale` = **lo abonado** (no el total de la venta); la diferencia se cobra con pagos normales de la caja o sale como vuelto en efectivo, y cuenta en el turno de la entrega | D22 | Bloquear el peso y ajustar después con una devolución |
+| **T20** | **El total de la preventa lo calcula el código de la caja** (`Presale_register::charge_for()`): `Tax_lib::get_taxes()` y las primitivas de `Sale_lib::get_totals()` sobre un carrito con las claves del de la entrega, para el cliente de la preventa y en modo venta; se guarda redondeado a medias hacia arriba a los decimales de la moneda, que es el mínimo que la caja acepta como pagado (§7.8) | D26: «los impuestos dependen de la configuración de cada negocio y la caja ya los maneja» | Sumar líneas redondeadas (lo que había: no cuadraba con pesos ni con impuesto aparte); reimplementar las reglas de impuestos en el modelo |
+| **T21** | **Kit: precio de campaña = kit completo; componentes en 0** sea cual sea `price_option`; `print_option` el que la caja da a una línea en 0 | D27 | Componentes al precio que les da la caja (cobraba el kit dos veces con ALL o KIT_STOCK) |
+| **T22** | **Tope de devolución por peso** `presales_weight_refund_limit` (porcentaje del total, `'15'`, `'0'` = sin tope); por encima, completar exige `presales_manage`; quién autorizó va en el evento `quantity_adjusted` | D28 | Una tolerancia que impida pesar menos; pedir `sales_change_price` |
+| **T23** | **Entregar exige turno abierto**, en `postDeliverPresale` y al completar (`completion_refusal`) | D29; T3 ya lo exigía para abonar y devolver | Tolerar `cashup_id` nulo en la venta de la entrega |
 | **T19** | **Condiciones: `presales_terms` por negocio**, sembrada vacía. El texto sugerido vive en los archivos de idioma (`Presales.terms_template`), y el botón «Usar texto sugerido» lo copia al campo | D23. Un texto sembrado en `app_config` quedaría en un solo idioma y en todos los negocios | Sembrarlo en la migración |
 
 ---
@@ -469,21 +478,17 @@ va en la lista siguiente.
 1. ~~La escritura de `presales.sale_id` al abrir y al desenlazar está en `Presale_register::attach()` y
    `detach()`.~~ **Cerrado el 2026-10-07 (carril E):** vive en `Presale::attach_delivery_sale()` /
    `detach_delivery_sale()`, con la misma semántica; `Presale_register` solo los llama (§7.7).
-2. **Peso menor sin tope (decisión del dueño).** D22 deja devolver la diferencia en efectivo, pero
-   nada limita cuánto: un peso tecleado como 0,001 kg devuelve casi todo lo abonado por el cajón. Hoy
-   queda registrado (`quantity_adjusted`), no impedido. Opciones: una tolerancia (±X % de lo pactado)
-   o pedir el permiso de cambiar precios para devolver más de un umbral. Además, «se vende por peso»
-   se lee de la unidad **actual** del artículo; guardarla en `presale_items` al registrar lo fijaría.
-3. **Impuestos y redondeo (carril B).** Si el negocio cobra impuestos aparte del precio, el total de
-   la venta supera lo abonado y la caja pide cobrar la diferencia. Y `Presale::price_lines()` redondea
-   cada línea a `totals_decimals()` mientras la caja no redondea por línea: con COP y líneas por peso
-   (1,255 kg × 9.990) el total de la caja puede quedar unos centavos por encima de lo abonado y pedir
-   «cobre la diferencia» sin que nadie cambiara el peso. El total del módulo tiene que calcularse con
-   la misma regla que la caja (§9).
+2. ~~**Peso menor sin tope (decisión del dueño).**~~ **Cerrado el 2026-10-07 (carril G, T22, §7.8):**
+   tope configurable; por encima, solo con `presales_manage`. Sigue abierto lo de la unidad: «se vende
+   por peso» se lee de la unidad **actual** del artículo; guardarla en `presale_items` al registrar lo
+   fijaría.
+3. ~~**Impuestos y redondeo (carril B).**~~ **Cerrado el 2026-10-07 (carril G, T20, §7.8):** el total se
+   calcula con el código de la caja, impuestos y redondeo incluidos.
 5. **Cuadre (carril C).** Esta es la primera vez que se escriben filas `sales_payments` con código
    `presale`. Hasta que el carril C las saque de `income_total` (§6.1), el turno de la entrega las
-   muestra como ingreso (el efectivo esperado no cambia: no es `cash`). Si no hay turno abierto, la
-   venta queda con `cashup_id` nulo, como cualquier venta; falta decidir si una entrega exige turno.
+   muestra como ingreso (el efectivo esperado no cambia: no es `cash`). ~~Si no hay turno abierto, la
+   venta queda con `cashup_id` nulo; falta decidir si una entrega exige turno.~~ **Decidido el
+   2026-10-07 (D29, T23): la exige**, al mandarla a la caja y al completarla (§7.8).
 6. **Editar o anular la venta entregada (carril C, §8.3-8.4)**: hasta que se bloquee en
    `postSave`/`postDelete`, se puede.
 7. ~~**Cancelar una preventa con su pestaña abierta.**~~ **Cerrado el 2026-10-07 (carril E)**, de otra
@@ -557,6 +562,96 @@ turno baja exactamente en lo devuelto.
 **Pendiente:** certificar en staging (cancelar con devolución parcial en efectivo y ver el cierre del
 turno, §8 del funcional, punto 10).
 
+### 7.8 Decisiones del dueño (carril G, 2026-10-07, rama `feat/presales-owner-decisions`)
+
+**Paridad del total con la caja (T20).** Lo que cobra la caja al completar
+(`Sales::postComplete()`), leído en el código y no supuesto:
+
+1. `Tax_lib::get_taxes($cart)` con el cliente y el modo **de la sesión** (`Sale_lib::get_customer()`,
+   `get_mode()`): sin impuestos si el cliente no es `taxable`; impuesto por línea con
+   `get_tax_for_amount()` (HALF_UP a `tax_decimals`) o `get_included_tax()`; con impuesto por
+   destino, `apply_destination_tax()` con `default_tax_code` en modo venta; al final `round_taxes()` a
+   `totals_decimals` (impuesto aparte) o `tax_decimals` (incluido).
+2. `Sale_lib::get_totals($taxes)`: `Σ get_extended_amount(cantidad, precio, get_item_discount(...))`
+   **sin redondear por línea**, más el `sale_tax_amount` de cada impuesto `TAX_TYPE_EXCLUDED`. Todo
+   con `bcmath` a la escala por defecto, que `Load_config` fija en cada petición en
+   `max(2, totals_decimals + tax_decimals)` (más allá de esa escala trunca, no redondea).
+3. El total **no se redondea**. Se da por pagado cuando lo que falta es menor que media unidad de la
+   moneda (`payments_cover_total`, umbral `10^-totals_decimals / 2`). El mínimo que cubre es el total
+   redondeado a medias hacia arriba a `totals_decimals`; si se paga más, la diferencia sale como vuelto
+   (`amount_change`).
+4. **Redondeo de efectivo:** no aplica a la entrega. El pago `presale` no es efectivo, así que la caja
+   no entra en modo efectivo (`Sale_lib::get_payments_total()`; `_reload()` lo reinicia con
+   `reset_cash_rounding()`).
+
+`Presale_register::charge_for($lines, $customer_id)` hace eso **llamando al mismo código**: arma con
+`cart_for()` un carrito con las claves que leen `Tax_lib` y los totales (línea, artículo, cantidad,
+precio y descuento pactados, `tax_category_id` y `stock_type` del artículo: los mismos valores que
+`load()` obtiene de `add_item()` para esa línea), y en `register_charge()` llama a
+`Tax_lib::get_taxes()` y a `Sale_lib::get_item_discount()` / `get_extended_amount()`. Fija la escala
+de `bcmath` con la fórmula de `Load_config` y la deja como estaba. Devuelve el total sin redondear, los
+impuestos agregados y el **cargo** = `Presale_campaign::round_money(total)` (medio hacia arriba a
+`totals_decimals`), que es lo que guarda `Presale::create()` como `total` y lo que muestra
+`presales/preview` (que ahora también devuelve `taxes`; el formulario lo vuelve a pedir al elegir o
+quitar el cliente, y sin cliente lo calcula como para un cliente de mostrador, como la caja).
+
+**El cliente, sin tocar la sesión.** `Tax_lib` guarda su propio `Sale_lib` en una propiedad privada, y
+el cajero puede tener una venta a medias en la caja. Se le pasa (con `ReflectionProperty`) un
+`Sale_lib` anónimo que responde el cliente de la preventa y el modo venta; todo lo demás es el código
+de la caja. Si `Tax_lib` cambia el nombre de esa propiedad, `Presale::register_charge()` lo captura, lo
+deja en el log como crítico y la preventa se rechaza con `Presales.total_unavailable` (nunca un total
+equivocado), y las pruebas fallan de inmediato. **Descartado:** cambiar el cliente de la sesión y
+restaurarlo (un error a mitad dejaría la venta en curso con otro cliente) y agregar parámetros a
+`Tax_lib::get_taxes()` (archivo heredado, fuera de este carril).
+
+`Presale::price_lines()` sigue devolviendo `amount` por línea, **solo para mostrar**; el total no es su
+suma.
+
+**Límites conocidos.** El impuesto queda congelado en el total al registrar, pero la caja lo recalcula
+al entregar con la configuración de ese día: si el negocio cambia impuestos o la categoría de un
+artículo entre una cosa y la otra, la caja pedirá la diferencia (o dará vuelto). Con
+`currency_decimals` mayor que 2, `round_money()` se queda en 2 (las columnas son `decimal(15,2)`). Si
+el total de la caja tiene una fracción de media unidad o más (25.074,90 en pesos), el cargo es 25.075
+y la caja da 0,10 de vuelto, exactamente como en cualquier venta pagada con ese monto.
+
+**Kits (T21).** `kit_components()` ya no recibe `price_option`: todo componente va en `0.00`, con el
+`print_option` que la caja da a una línea en cero (`kit_print_option()`: PRICED no la imprime) y su
+`item_type`. La línea del kit lleva el precio de campaña. Ver §8.6.
+
+**Tope de devolución por peso (T22).** `presales_weight_refund_limit` (migración
+`20261008030000_AddPresalesWeightRefundLimit`, sembrada en `'15'`, nunca sobrescribe; se lee con
+`?? '15'`). Campo en Configuración > Preventas; `Config::postSavePresales` lo lee con
+`parse_decimals(..., tax_decimals())`, exige 0-100 y, si el campo no viene en el POST, lo deja como
+está. Al completar (`postComplete`, después de `completion_refusal()`),
+`Presale_register::weight_refund_refusal($presale, $totals['total'], has_grant('presales_manage'))`
+calcula lo devuelto = abonado − total de la caja con los pesos en pantalla (redondeado a la moneda,
+nunca negativo) y rechaza con `Presale_register.weight_refund_needs_manager` si pasa de
+`total × tope / 100` (estrictamente mayor) y el cajero no tiene el permiso. El evento
+`quantity_adjusted` lleva ahora `{sale_id, lines, refund, authorized_by}`: `authorized_by` es el
+empleado que completó cuando pasó del tope (tiene el permiso, porque si no, no habría completado) y
+`null` si no pasó.
+
+**Turno abierto (T23).** `postDeliverPresale` rechaza con `Presale_register.no_open_cashup` antes de
+tocar nada, y `completion_refusal()` lo vuelve a mirar al completar (el turno pudo cerrarse con la
+entrega en pantalla).
+
+**Pruebas.** `tests/Controllers/PresaleOwnerDecisionsTest.php` (contra la caja real: impuesto aparte
+e incluido, cliente exento, dos líneas por peso en moneda sin decimales, vista previa, tope con y sin
+permiso y en 0, turno al mandar y al completar, tildes en pantalla y comprobante);
+`tests/Models/PresaleKitTest.php` (componentes en 0 con los tres `price_option`);
+`tests/Controllers/ConfigPresalesTest.php` (el tope); `tests/Database/PresalesWeightRefundLimitMigrationTest.php`;
+`tests/Views/PresalesConfigViewTest.php`. `PresaleDeliveryRegisterTest::testALighterWeightGivesCashChangeInTheDeliveryShift`
+fija el tope en 0 (devuelve el 22 %) y lee el detalle nuevo del evento.
+
+**Tildes (lo que reportó el carril E).** Revisado: ninguna vista ni controlador de preventas usa
+`htmlentities()` ni lee con `FILTER_SANITIZE_*`; todo sale con `esc()` (`htmlspecialchars`, que deja
+las tildes). Las entidades que vio el carril E salen del analizador DOM de `assertSee()`, que reescribe
+el texto no ASCII; por eso la prueba nueva mira el cuerpo crudo de `presales/view` y
+`presales/receipt`.
+
+**Pendiente.** Con impuesto aparte, el comprobante y el detalle muestran las líneas sin impuesto y el
+total con impuesto, sin un renglón de impuestos (el evento `created` ya guarda `taxes`).
+
 ---
 
 ## 8. Trampas conocidas
@@ -584,16 +679,16 @@ turno, §8 del funcional, punto 10).
 6. **Kits.** Implementado el 2026-10-07 (carril B, `Presale::price_lines()` con `kit_lines()` y
    `kit_components()`). Al registrar, un kit de la campaña se expande como lo hace la caja
    (`Sale_lib::add_item_kit()`, `Sale_lib.php:1829-1865`): primero la línea del kit (`item_type =
-   ITEM_KIT`) con el **precio de campaña**, después cada componente con la cantidad multiplicada, el
-   precio que le daría la caja según `price_option` (ALL: todos con precio; KIT: componentes en 0;
-   KIT_STOCK: solo los que llevan existencias) y su `print_option`. Un kit anidado se expande en su
+   ITEM_KIT`) con el **precio de campaña**, después cada componente con la cantidad multiplicada, en
+   **cero**, y el `print_option` que la caja da a una línea en cero. Un kit anidado se expande en su
    lugar; una referencia circular, un kit sin componentes o un componente borrado se rechazan. Un
    kit se vende por unidades enteras. Diferencias deliberadas con la caja: no se aplica
-   `kit_discount` (los descuentos de una preventa son los de la campaña) y la línea del kit lleva
-   siempre el precio de campaña. Pruebas: `tests/Models/PresaleKitTest.php`.
-   **Pregunta abierta:** con `price_option` ALL o KIT_STOCK el total es el precio de campaña del kit
-   **más** los componentes a precio de catálogo, y el descuento de campaña no les llega. El caso KIT
-   (componentes en 0), que es el habitual, no tiene esa ambigüedad.
+   `kit_discount` (los descuentos de una preventa son los de la campaña), la línea del kit lleva
+   siempre el precio de campaña y **los componentes van en 0 sea cual sea `price_option`**. Pruebas:
+   `tests/Models/PresaleKitTest.php`.
+   **Decidido el 2026-10-07 (dueño, D27/T21):** el precio de campaña de un kit es el del **kit
+   completo**. La pregunta que había aquí (con ALL o KIT_STOCK el total era el kit **más** los
+   componentes a precio de catálogo) quedó cerrada así: componentes siempre en 0.
    **Para la entrega:** los componentes repiten `item_id` y `add_item()` los fusionaría; la caja se
    arma con `set_cart()` (§7.2).
 7. **Tildes.** `Customers::postSave` lee `first_name` y `last_name` sin filtro
@@ -625,8 +720,9 @@ El módulo es de la plataforma (D2). Reglas que aplican a todo el código:
   (`docs/Tecnico/carga-masiva-de-articulos.md`). Las cantidades por peso usan la misma normalización
   que la caja (`Sale_lib::normalize_weight_input()`).
 - **Impuesto incluido o no:** la preventa guarda precios como la caja (`unit_price`), y el impuesto
-  se calcula en la entrega con el mismo `Tax_lib` de siempre. Los totales que muestra el módulo
-  tienen que coincidir con los de la caja; hay que probarlo en las dos configuraciones.
+  se calcula en la entrega con el mismo `Tax_lib` de siempre. El total del módulo **es** el de la
+  caja porque sale del mismo código (T20, §7.8); probado con impuesto aparte, incluido y cliente
+  exento (2026-10-07).
 - **Ubicación de inventario:** `presales.location_id` sale de la ubicación activa al registrar, y la
   entrega descuenta de esa ubicación.
 - **Papel del recibo:** los comprobantes usan `partial/receipt_paper` (58 u 80 mm).
@@ -689,6 +785,10 @@ Ubicación: `tests/Database/PresalesMigrationTest.php`, `tests/Models/Presale*Te
 | Con el interruptor apagado: vista `disabled`, sin menú, y una conciliación idéntica a la de hoy | §6.3, §9 |
 | Permisos: sin `presales_manage` no se crean campañas ni se cancela; ningún permiso concedido por la migración | T11 |
 | Borrar un artículo de campaña o un cliente con preventa abierta es rechazado | §8.5 |
+| Total = lo que cobra la caja: impuesto aparte, incluido, cliente exento, líneas por peso en moneda sin decimales; la entrega se completa solo con el pago `presale` | T20 |
+| Kit: componentes en 0 con ALL, KIT y KIT_STOCK | T21 |
+| Peso menor: bajo el tope cualquiera completa; sobre el tope sin `presales_manage` se rechaza; con el permiso completa y queda quién autorizó; tope 0 = sin tope | T22 |
+| Sin turno abierto no se manda a la caja ni se completa | T23 |
 
 ---
 

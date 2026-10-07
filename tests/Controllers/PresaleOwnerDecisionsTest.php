@@ -48,6 +48,7 @@ final class PresaleOwnerDecisionsTest extends CIUnitTestCase
         'tax_decimals',
         'use_destination_based_tax',
         'presales_weight_refund_limit',
+        'presales_terms',
     ];
 
     protected $migrate     = true;
@@ -403,6 +404,36 @@ final class PresaleOwnerDecisionsTest extends CIUnitTestCase
 
         $this->assertSame(Presale::STATUS_OPEN, model(Presale::class)->get_info($presale)['status']);
         $this->assertSame(0, $this->db->table('sales')->where(['customer_id' => $this->customerId, 'sale_status' => COMPLETED])->countAllResults());
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Accents (lane E's report of entities in a presales test)
+    // ---------------------------------------------------------------------------------------------
+
+    /**
+     * The presale screen and its receipt print the customer's name and the conditions with their
+     * accents, not as entities: esc() is htmlspecialchars, which leaves them alone. Checked on the raw
+     * body -- the DOM parser behind assertSee() re-encodes non-ASCII text, which is where entities
+     * showed up in a test before.
+     */
+    public function testTheScreenAndTheReceiptKeepTheAccents(): void
+    {
+        $this->setConfig(['presales_terms' => 'Señor José: se entrega con el pago completo.']);
+
+        $item = $this->makeItem('PRDEC-TEST pavo', '10.00', Item::UNIT_OF_MEASURE_UNIT);
+        $this->makeCampaign([$item]);
+        $presale = $this->registerPaid([[$item, '1']], '10.00');
+
+        foreach (['presales/view/' . $presale, 'presales/receipt/' . $presale] as $path) {
+            $_SESSION = ['person_id' => 1, 'menu_group' => 'home'];
+            $body     = (string) $this->getReq($path)->getBody();
+
+            $this->assertStringContainsString('Muñoz PRDEC-TEST', $body, $path);
+            $this->assertStringNotContainsString('&ntilde;', $body, $path);
+            $this->assertStringNotContainsString('&eacute;', $body, $path);
+        }
+
+        $this->assertStringContainsString('Señor José', (string) $this->getReq('presales/receipt/' . $presale)->getBody());
     }
 
     // ---------------------------------------------------------------------------------------------
