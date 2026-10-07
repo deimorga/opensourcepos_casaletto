@@ -37,6 +37,7 @@ final class SalesPresaleGuardTest extends CIUnitTestCase
     private const DELIVERY_SALE = 932_001;
     private const PLAIN_SALE    = 932_002;
     private const PRESALE       = 932_500;
+    private const CASHUP        = 932_900;
 
     private int $employee_id;
 
@@ -277,6 +278,122 @@ final class SalesPresaleGuardTest extends CIUnitTestCase
         $after = $this->payments(self::DELIVERY_SALE);
         $this->assertArrayHasKey('cash', $after);
         $this->assertSame('3000.00', (string) $after['cash']['cash_refund']);
+    }
+
+    /**
+     * Any business, no presale involved: a sale paid by card with the change handed back in cash.
+     * Its cash row has no tender and only the change.
+     */
+    private function cardSaleWithChange(): void
+    {
+        $this->sale(self::PLAIN_SALE, [
+            [lang('Sales.debit'), 'debit', 50_000.00],
+            [lang('Sales.cash'), 'cash', 0.00],
+        ]);
+        $this->db->table('sales_payments')->where('sale_id', self::PLAIN_SALE)->where('payment_type_code', 'cash')
+            ->update(['cash_refund' => 3_000]);
+        $this->db->table('sales')->where('sale_id', self::PLAIN_SALE)->update(['cashup_id' => self::CASHUP]);
+    }
+
+    /**
+     * What the shift's cash-up counts for that sale, per payment code.
+     *
+     * @return array<string, string>
+     */
+    private function shiftTotals(): array
+    {
+        $totals = [];
+
+        foreach (model(\App\Models\Sale::class)->get_payments_by_cashup(self::CASHUP) as $row) {
+            $totals[(string) $row['payment_type_code']] = bcadd((string) $row['trans_amount'], '0', 2);
+        }
+
+        return $totals;
+    }
+
+    /**
+     * Before lane C the edit form could say the change was handed back by card: the cash row became
+     * a negative debit row and the change left the shift's expected cash. Lane C kept every
+     * change-only row as stored and answered success while ignoring that choice. The choice is
+     * applied again, and the row is rewritten, not deleted.
+     */
+    public function testTheChangeRowCanBeSaidToHaveGoneBackByCard(): void
+    {
+        $this->cardSaleWithChange();
+        $before = $this->payments(self::PLAIN_SALE);
+        $this->assertSame(['cash' => '-3000.00', 'debit' => '50000.00'], $this->shiftTotals());
+
+        $result = $this->save(self::PLAIN_SALE, [
+            (int) $before['debit']['payment_id'] => lang('Sales.debit'),
+            (int) $before['cash']['payment_id']  => lang('Sales.cash'),
+        ], ['refund_type_1' => lang('Sales.debit')]);
+
+        $this->assertTrue($result['success'], (string) ($result['message'] ?? ''));
+
+        $row = $this->db->table('sales_payments')->where('payment_id', $before['cash']['payment_id'])->get()->getRowArray();
+        $this->assertNotNull($row, 'The row is rewritten, never deleted.');
+        $this->assertSame('debit', $row['payment_type_code']);
+        $this->assertSame('-3000.00', (string) $row['payment_amount']);
+        $this->assertSame('0.00', (string) $row['cash_refund']);
+
+        // The drawer never gave that change: the shift's cash no longer goes down by it.
+        $this->assertSame(['debit' => '47000.00'], $this->shiftTotals());
+    }
+
+    /**
+     * Unchanged, the change-only row of any sale survives an edit, as lane C fixed.
+     */
+    public function testAnUnchangedChangeRowOfAnySaleSurvivesAnEdit(): void
+    {
+        $this->cardSaleWithChange();
+        $before = $this->payments(self::PLAIN_SALE);
+
+        $result = $this->save(self::PLAIN_SALE, [
+            (int) $before['debit']['payment_id'] => lang('Sales.debit'),
+            (int) $before['cash']['payment_id']  => lang('Sales.cash'),
+        ]);
+
+        $this->assertTrue($result['success'], (string) ($result['message'] ?? ''));
+        $this->assertSame(['cash' => '-3000.00', 'debit' => '50000.00'], $this->shiftTotals());
+    }
+
+    /**
+     * Retyping the row while the change stays cash cannot be stored (Sale::update() deletes a row
+     * with no tender), so it is refused out loud instead of answering success and doing nothing.
+     */
+    public function testRetypingAChangeRowThatStaysCashIsRefused(): void
+    {
+        $this->cardSaleWithChange();
+        $before = $this->payments(self::PLAIN_SALE);
+
+        $result = $this->save(self::PLAIN_SALE, [
+            (int) $before['debit']['payment_id'] => lang('Sales.debit'),
+            (int) $before['cash']['payment_id']  => lang('Sales.credit'),
+        ]);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Sales.change_only_payment_type_locked'), $result['message']);
+        $this->assertSame(['cash' => '-3000.00', 'debit' => '50000.00'], $this->shiftTotals());
+    }
+
+    /**
+     * The change handed back on a delivery cannot be said to have gone back as 'presale'.
+     */
+    public function testTheChangeRowCannotBeRefundedAsPresale(): void
+    {
+        $this->deliverySale();
+        $this->db->table('sales_payments')->where('sale_id', self::DELIVERY_SALE)->where('payment_type_code', 'cash')
+            ->update(['payment_amount' => 0, 'cash_refund' => 3_000]);
+        $before = $this->payments(self::DELIVERY_SALE);
+
+        $result = $this->save(self::DELIVERY_SALE, [
+            (int) $before['presale']['payment_id'] => lang('Sales.presale'),
+            (int) $before['cash']['payment_id']    => lang('Sales.cash'),
+        ], ['refund_type_1' => lang('Sales.presale')]);
+
+        $this->assertFalse($result['success']);
+        $this->assertSame(lang('Sales.presale_payment_not_allowed'), $result['message']);
+        $this->assertSame('3000.00', (string) $this->payments(self::DELIVERY_SALE)['cash']['cash_refund']);
     }
 
     /**

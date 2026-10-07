@@ -2950,13 +2950,30 @@ class Sales extends Secure_Controller
                 }
 
                 $keep_stored = true;
-            } elseif (bccomp((string)$stored_payment['payment_amount'], '0', 2) === 0 && bccomp((string)$stored_payment['cash_refund'], '0', 2) !== 0) {
-                $keep_stored = true;
             } elseif (
                 payment_type_code_from_label($payment_type) === 'presale'
                 || ($cash_refund > 0 && payment_type_code_from_label($refund_type) === 'presale')
             ) {
                 return $this->response->setJSON(['success' => false, 'message' => lang('Sales.presale_payment_not_allowed'), 'id' => $sale_id]);
+            } elseif (bccomp((string)$stored_payment['payment_amount'], '0', 2) === 0 && bccomp((string)$stored_payment['cash_refund'], '0', 2) !== 0) {
+                // A change-only row: no tender, only the change handed back. Read from the stored
+                // row, not the form. The one thing the form can change is how that change was given
+                // (the refund type); see docs/Tecnico/venta-anticipada.md 8.3.
+                $payment_amount = (float)$stored_payment['payment_amount'];
+                $cash_refund = (float)$stored_payment['cash_refund'];
+
+                if (empty(strstr($refund_type, lang('Sales.cash'))) && $cash_refund > 0) {
+                    // Given by another means: becomes a non-cash refund below, a negative row of
+                    // that type, as it always did. Its amount is not zero, so Sale::update() writes
+                    // it instead of deleting it, and the change leaves the shift's expected cash.
+                } elseif ($payment_type !== $stored_payment['payment_type']
+                    && (payment_type_code_from_label($payment_type) ?? '') !== (string)$stored_payment['payment_type_code']) {
+                    // Retyping a row with no tender while the change stays cash means nothing, and
+                    // Sale::update() would delete the row. Said, not swallowed.
+                    return $this->response->setJSON(['success' => false, 'message' => lang('Sales.change_only_payment_type_locked'), 'id' => $sale_id]);
+                } else {
+                    $keep_stored = true;
+                }
             }
 
             if ($keep_stored) {

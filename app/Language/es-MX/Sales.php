@@ -271,7 +271,8 @@ return [
     "work_order_number_duplicate"      => "El número de orden de trabajo debe ser único.",
     "work_order_sent"                  => "Orden de trabajo enviada a",
     "work_order_unsent"                => "Falló la Orden de Trabajo al enviar a",
-    "presale_payment_locked"             => "El pago «Preventa» es lo que el cliente abonó a su preventa y no se puede cambiar por otro medio de pago.",
+    "change_only_payment_type_locked"    => "Esa fila solo registra el cambio entregado y no tiene medio de pago que cambiar. Si el cambio no se dio en efectivo, cambie el medio de la devolución.",
+    "presale_payment_locked"           => "El pago «Preventa» es lo que el cliente abonó a su preventa y no se puede cambiar por otro medio de pago.",
     "presale_payment_not_allowed"        => "«Preventa» no se puede elegir aquí: ese pago solo lo registra la entrega de una preventa.",
     "presale_sale_cannot_delete"         => "La venta {0} entregó la preventa {1} y no se puede anular. Si el cliente devuelve producto, use el modo Devolución de la caja.",
 ];

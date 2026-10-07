@@ -270,7 +270,8 @@ return [
     "work_order_number_duplicate"      => "Work Order Number must be unique.",
     "work_order_sent"                  => "Work Order sent to",
     "work_order_unsent"                => "Work Order failed to be sent to",
-    "presale_payment_locked"             => "The «Presale» payment is what the customer paid towards the presale and cannot be changed to another payment type.",
+    "change_only_payment_type_locked"    => "That row only records the change handed back and has no payment type to change. If the change was not given in cash, change the refund type instead.",
+    "presale_payment_locked"           => "The «Presale» payment is what the customer paid towards the presale and cannot be changed to another payment type.",
     "presale_payment_not_allowed"        => "«Presale» cannot be chosen here: only a presale delivery records that payment.",
     "presale_sale_cannot_delete"         => "Sale {0} delivered presale {1} and cannot be cancelled. If the customer returns goods, use Return mode in the register.",
 ];
