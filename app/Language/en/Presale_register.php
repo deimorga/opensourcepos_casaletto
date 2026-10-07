@@ -24,6 +24,9 @@ return [
     'payment_mismatch'        => 'The Presale payment does not match what was paid ({0}). Reopen the register before completing.',
     'payment_without_presale' => 'This sale has a Presale payment but is not the delivery of any open presale. Remove that payment.',
     'presale_payment_refused' => 'The Presale payment is only added by the system when a presale is delivered.',
-    'register_busy'           => 'The register has a sale in progress. Complete or suspend it before delivering the presale.',
+    'register_busy'           => 'The register has a sale in progress. Complete, suspend or cancel it before delivering the presale; if it is another delivery, use Back to presales.',
+    'release'                 => 'Back to presales',
+    'release_confirm'         => 'The delivery leaves the register without charging anything. The presale stays open and paid and can be delivered again. Continue?',
+    'released'                => 'The delivery of presale {0} left the register. The presale stays open and paid.',
     'weight_only'             => 'In a presale delivery only the weight of products sold by weight can be changed.',
 ];

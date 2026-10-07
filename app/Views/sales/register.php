@@ -840,6 +840,12 @@ if (!empty($order_ticket_changes['lines'])) { ?>
 
                 <?php if (!$is_presale_delivery) { ?>
                 <div class="btn btn-sm btn-danger pull-right" id="cancel_sale_button"><span class="glyphicon glyphicon-remove">&nbsp;</span><?= lang(ucfirst($controller_name) . '.cancel_sale') ?></div>
+                <?php } else { ?>
+                <button type="submit" class="btn btn-sm btn-warning pull-right" id="release_presale_button"
+                    formaction="<?= esc(site_url("$controller_name/releasePresale")) ?>"
+                    onclick="return confirm(<?= esc(json_encode(lang('Presale_register.release_confirm')), 'attr') ?>);">
+                    <span class="glyphicon glyphicon-share-alt">&nbsp;</span><?= esc(lang('Presale_register.release')) ?>
+                </button>
                 <?php } ?>
             </div>
             <?= form_close() ?>

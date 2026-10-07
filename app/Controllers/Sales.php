@@ -21,6 +21,7 @@ use App\Models\Item_price_history;
 use App\Models\Item_kit;
 use App\Models\Item_quantity;
 use App\Models\Presale;
+use App\Models\Presale_event;
 use App\Models\Sale;
 use App\Models\Stock_location;
 use App\Models\Tokens\Token_invoice_count;
@@ -1367,7 +1368,7 @@ class Sales extends Secure_Controller
         // The delivery, re-read from the database: still open and paid, still the agreed lines, one
         // presale payment for exactly what was paid, and the weight difference covered (§7.3).
         if ($presale !== null) {
-            $refusal = $this->presale_register->completion_refusal($presale, $this->sale_lib->get_mode(), $data['cart'], $data['payments'], (bool) $totals['payments_cover_total']);
+            $refusal = $this->presale_register->completion_refusal($presale, $this->sale_lib->get_mode(), $customer_id, $data['cart'], $data['payments'], (bool) $totals['payments_cover_total']);
 
             if ($refusal !== null) {
                 return $this->_reload(['error' => lang($refusal[0], $refusal[1])]);
@@ -2060,11 +2061,7 @@ class Sales extends Secure_Controller
 
         // Pressed twice, or from another till: the tab already exists. Go to it as the tab bar does;
         // _reload() puts the delivery back exactly as agreed if what was saved is not.
-        if ($linked !== null && $this->sale->exists($linked) && $this->sale->get_sale_status($linked) === OPENED) {
-            $this->sale_lib->clear_all();
-            $this->sale_lib->copy_entire_sale($linked);
-            $this->sale_lib->set_presale_id($presale_id);
-
+        if ($this->_go_to_presale_tab($presale_id, $linked)) {
             return true;
         }
 
@@ -2081,7 +2078,11 @@ class Sales extends Secure_Controller
         $location_id = (int) $presale['location_id'];
         $db = db_connect();
 
-        $db->transBegin();
+        if (!$db->transBegin()) {
+            $this->sale_lib->clear_all();
+
+            return 'Presale_register.open_failed';
+        }
 
         try {
             $table_id = $this->dinner_table->create_at(mb_substr($number, 0, 30), $location_id, true);
@@ -2095,6 +2096,13 @@ class Sales extends Secure_Controller
             if (!$attached || !$db->transCommit()) {
                 $db->transRollback();
                 $this->sale_lib->clear_all();
+
+                // The usual loser of the race: another till linked its tab a moment ago. Go there.
+                $now = model(Presale::class)->get_info($presale_id);
+
+                if ($now !== null && $now['sale_id'] !== null && $this->_go_to_presale_tab($presale_id, (int) $now['sale_id'])) {
+                    return true;
+                }
 
                 return 'Presale_register.open_failed';
             }
@@ -2111,6 +2119,45 @@ class Sales extends Secure_Controller
         $this->_autosave_open_tab();
 
         return true;
+    }
+
+    /**
+     * Loads the delivery's existing tab, when $sale_id is one: an OPENED sale. False otherwise.
+     */
+    private function _go_to_presale_tab(int $presale_id, ?int $sale_id): bool
+    {
+        if ($sale_id === null || !$this->sale->exists($sale_id) || $this->sale->get_sale_status($sale_id) !== OPENED) {
+            return false;
+        }
+
+        $this->sale_lib->clear_all();
+        $this->sale_lib->copy_entire_sale($sale_id);
+        $this->sale_lib->set_presale_id($presale_id);
+
+        return true;
+    }
+
+    /**
+     * «Devolver a preventas»: takes the delivery off the register without delivering it -- the wrong
+     * presale was sent, or the customer did not come. Its open tab, if it has one, is cancelled and
+     * unlinked; the presale itself is not touched and stays open and paid, ready to be sent again.
+     *
+     * This is the delivery's own way out. postCancel() stays refused on a delivery because it deletes
+     * whatever sale is on screen, and postSuspend() because a suspended sale rewrites its payments.
+     *
+     * @noinspection PhpUnused
+     */
+    public function postReleasePresale(): ResponseInterface|string
+    {
+        $presale = $this->presale_register->presale_for($this->sale_lib);
+
+        if ($presale === null) {
+            return $this->_reload();
+        }
+
+        $this->_drop_presale_delivery($presale, true);
+
+        return $this->_reload(['success' => lang('Presale_register.released', [$this->presale_register->number((int) $presale['presale_id'])])]);
     }
 
     /**
@@ -2216,15 +2263,16 @@ class Sales extends Secure_Controller
     }
 
     /**
-     * Takes a delivery that can no longer happen off this register. Its open sale is cancelled and
-     * unlinked only when the presale was cancelled; a presale delivered from another till owns that
-     * sale -- completed -- and this register just forgets it.
+     * Takes a delivery off this register. Its open sale is cancelled and unlinked only when the
+     * presale was cancelled, or when the cashier releases a still open one ($release); a presale
+     * delivered from another till owns that sale -- completed -- and this register just forgets it.
      */
-    private function _drop_presale_delivery(array $presale): void
+    private function _drop_presale_delivery(array $presale, bool $release = false): void
     {
         $sale_id = $this->sale_lib->get_sale_id();
+        $undelivered = $presale['status'] === Presale::STATUS_CANCELED || ($release && $presale['status'] === Presale::STATUS_OPEN);
 
-        if ($presale['status'] === Presale::STATUS_CANCELED && $sale_id > 0 && (int) ($presale['sale_id'] ?? 0) === $sale_id) {
+        if ($undelivered && $sale_id > 0 && (int) ($presale['sale_id'] ?? 0) === $sale_id) {
             try {
                 if ($this->sale->get_sale_status($sale_id) === OPENED) {
                     $dinner_table = $this->sale->get_dinner_table($sale_id);
@@ -2259,12 +2307,21 @@ class Sales extends Secure_Controller
     {
         $db = db_connect();
 
-        $db->transBegin();
+        if (!$db->transBegin()) {
+            $data['error'] = lang('Presale_register.delivery_failed');
+
+            return NEW_ENTRY;
+        }
 
         try {
             $saved = $this->sale->save_value($sale_id, $data['sale_status'], $data['cart'], $customer_id, $employee_id, $data['comments'], $invoice_number, $work_order_number, $quote_number, $sale_type, $data['payments'], $data['dinner_table'], $tax_details);
 
-            if ($saved <= 0 || !model(Presale::class)->mark_delivered($presale_id, $saved, $employee_id) || !$db->transCommit()) {
+            // The real weights, when they differ from the agreed ones, are recorded on the presale: a
+            // lighter weight hands cash back across the counter, and that has to be readable later.
+            $adjusted = $this->presale_register->weight_adjustments($presale_id, $data['cart']);
+            $recorded = $adjusted === [] || model(Presale_event::class)->log($presale_id, 'quantity_adjusted', $employee_id, ['sale_id' => $saved, 'lines' => $adjusted]);
+
+            if ($saved <= 0 || !model(Presale::class)->mark_delivered($presale_id, $saved, $employee_id) || !$recorded || !$db->transCommit()) {
                 $db->transRollback();
                 $data['error'] = lang('Presale_register.delivery_failed');
 

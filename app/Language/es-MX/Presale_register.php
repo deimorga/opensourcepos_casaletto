@@ -24,6 +24,9 @@ return [
     'payment_mismatch'        => 'El pago «Preventa» no coincide con lo abonado ({0}). Vuelva a abrir la caja antes de completar.',
     'payment_without_presale' => 'Esta venta tiene un pago «Preventa» pero no es la entrega de ninguna preventa abierta. Quite ese pago.',
     'presale_payment_refused' => 'El pago «Preventa» solo lo pone el sistema al entregar una preventa.',
-    'register_busy'           => 'La caja tiene una venta en curso. Complétela o suspéndala antes de entregar la preventa.',
+    'register_busy'           => 'La caja tiene una venta en curso. Complétela, suspéndala o cancélela antes de entregar la preventa; si es otra entrega, use «Devolver a preventas».',
+    'release'                 => 'Devolver a preventas',
+    'release_confirm'         => 'La entrega sale de la caja sin cobrar nada. La preventa sigue abierta y pagada, y se puede volver a entregar. ¿Continuar?',
+    'released'                => 'La entrega de la preventa {0} salió de la caja. La preventa sigue abierta y pagada.',
     'weight_only'             => 'En la entrega de una preventa solo se puede cambiar el peso de los productos por peso.',
 ];

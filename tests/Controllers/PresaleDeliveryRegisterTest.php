@@ -169,7 +169,7 @@ final class PresaleDeliveryRegisterTest extends CIUnitTestCase
         $this->postReq('sales/deliverPresale/' . $presale, [])->assertRedirectTo(site_url('sales'));
         $page = $this->getReq('sales');
 
-        $page->assertSee(esc(lang('Presale_register.banner', [model(Presale::class)->number($presale)])));
+        $this->assertDeliveryBanner($page, $presale);
 
         $sale = (int) model(Presale::class)->get_info($presale)['sale_id'];
         $this->assertGreaterThan(0, $sale, 'The presale is linked to its tab.');
@@ -296,7 +296,7 @@ final class PresaleDeliveryRegisterTest extends CIUnitTestCase
         $presale = $this->makePaidPresale();
 
         $this->postReq('sales/deliverPresale/' . $presale, [])->assertRedirectTo(site_url('sales'));
-        $this->getReq('sales')->assertSee(esc(lang('Presale_register.banner', [model(Presale::class)->number($presale)])));
+        $this->assertDeliveryBanner($this->getReq('sales'), $presale);
 
         $this->assertNull(model(Presale::class)->get_info($presale)['sale_id'], 'Nothing is written before completion.');
         $this->assertCount(2, $this->cartSignature());
@@ -395,6 +395,77 @@ final class PresaleDeliveryRegisterTest extends CIUnitTestCase
         $this->assertSame(COMPLETED, $this->saleStatus($sale));
         $this->assertSame([['cash', '0.00', '9.00'], ['presale', '41.00', '0.00']], $this->salePayments($sale));
         $this->assertSame($this->cashupId, (int) $this->db->table('sales')->where('sale_id', $sale)->get()->getRow()->cashup_id);
+
+        // Cash went back across the counter: the real weight is on the presale's record.
+        $event = $this->db->table('presale_events')->where(['presale_id' => $presale, 'event_type' => 'quantity_adjusted'])->get()->getRowArray();
+        $this->assertNotNull($event);
+        $this->assertSame(
+            ['sale_id' => $sale, 'lines' => [['line' => 2, 'item_id' => $this->weightItem, 'agreed' => '1.500', 'delivered' => '1.000']]],
+            json_decode((string) $event['detail'], true),
+        );
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Getting a delivery off the register without delivering it
+    // ---------------------------------------------------------------------------------------------
+
+    /**
+     * The wrong presale was sent, or the customer did not come: «Devolver a preventas» takes the
+     * delivery off the register and leaves the presale open and paid, ready to be sent again.
+     */
+    public function testReleasingADeliveryTabLeavesThePresaleOpenAndPaid(): void
+    {
+        $presale = $this->makePaidPresale();
+        $this->deliver($presale);
+        $sale = (int) model(Presale::class)->get_info($presale)['sale_id'];
+
+        $this->postReq('sales/releasePresale', [])
+            ->assertSee(esc(lang('Presale_register.released', [model(Presale::class)->number($presale)])));
+
+        $row = model(Presale::class)->get_info($presale);
+        $this->assertSame(Presale::STATUS_OPEN, $row['status']);
+        $this->assertNull($row['sale_id'], 'Unlinked from the tab.');
+        $this->assertSame(CANCELED, $this->saleStatus($sale), 'The open tab is gone.');
+        $this->assertSame([], $this->cartSignature());
+        $this->assertSame('100.000', $this->stock($this->unitItem));
+
+        // And it can be sent again.
+        $this->deliver($presale);
+        $this->assertNotSame($sale, (int) model(Presale::class)->get_info($presale)['sale_id']);
+    }
+
+    public function testWithTablesOffReleasingADeliveryFreesTheRegister(): void
+    {
+        $this->setConfig('dinner_table_enable', '0');
+        $this->loginAsCashier();
+        $presale = $this->makePaidPresale();
+        $this->deliver($presale);
+
+        $this->postReq('sales/releasePresale', []);
+
+        $this->assertSame([], $this->cartSignature());
+        $this->assertSame(0, (int) ($_SESSION['sales_presale_id'] ?? 0));
+        $this->assertSame(Presale::STATUS_OPEN, model(Presale::class)->get_info($presale)['status']);
+        $this->assertSame(0, $this->db->table('sales')->where('customer_id', $this->customerId)->countAllResults(), 'Nothing was ever written.');
+
+        // The register is free again for an ordinary sale.
+        $this->postReq('sales/add', ['item' => 'ID ' . $this->otherItemForCart()]);
+        $this->assertCount(1, $this->cartSignature());
+    }
+
+    /**
+     * On a cart that is not a delivery, releasing does nothing at all.
+     */
+    public function testReleasingOutsideADeliveryChangesNothing(): void
+    {
+        $this->setConfig('dinner_table_enable', '0');
+        $this->loginAsCashier();
+        $this->postReq('sales/add', ['item' => 'ID ' . $this->otherItemForCart()]);
+        $before = $this->cartSignature();
+
+        $this->postReq('sales/releasePresale', []);
+
+        $this->assertSame($before, $this->cartSignature());
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -480,8 +551,7 @@ final class PresaleDeliveryRegisterTest extends CIUnitTestCase
         $this->assertSame([], $this->cartSignature());
         $this->assertSame(0, (int) ($_SESSION['sales_presale_id'] ?? 0));
 
-        $this->postReq('sales/changeMode', ['mode' => 'sale', 'dinner_table' => (string) $deliveryTable])
-            ->assertSee(esc(lang('Presale_register.banner', [model(Presale::class)->number($presale)])));
+        $this->assertDeliveryBanner($this->postReq('sales/changeMode', ['mode' => 'sale', 'dinner_table' => (string) $deliveryTable]), $presale);
         $this->assertSame([lang('Sales.presale') => '41.00'], $this->sessionPayments());
 
         $this->loginAsCashier();
@@ -582,7 +652,17 @@ final class PresaleDeliveryRegisterTest extends CIUnitTestCase
     private function deliver(int $presale): void
     {
         $this->postReq('sales/deliverPresale/' . $presale, [])->assertRedirectTo(site_url('sales'));
-        $this->getReq('sales')->assertSee(esc(lang('Presale_register.banner', [model(Presale::class)->number($presale)])));
+        $this->assertDeliveryBanner($this->getReq('sales'), $presale);
+    }
+
+    /**
+     * The banner is looked for by its element and the presale number, not by its full text: the
+     * sentence carries a dash that the DOM parser of the test response re-encodes.
+     */
+    private function assertDeliveryBanner(TestResponse $response, int $presale): void
+    {
+        $response->assertSeeElement('#presale_delivery_banner');
+        $response->assertSee(model(Presale::class)->number($presale), 'strong');
     }
 
     private function otherItemForCart(): int

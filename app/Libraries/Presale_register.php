@@ -310,7 +310,7 @@ class Presale_register
      *
      * @return array{0: string, 1: list<string>}|null
      */
-    public function completion_refusal(array $presale, string $mode, array $cart, array $payments, bool $payments_cover_total): ?array
+    public function completion_refusal(array $presale, string $mode, int $customer_id, array $cart, array $payments, bool $payments_cover_total): ?array
     {
         $presale_id = (int) $presale['presale_id'];
         $summary    = model(Presale::class)->get_summary($presale_id, date('Y-m-d'));
@@ -323,7 +323,7 @@ class Presale_register
             return ['Presale_register.mode_sale_only', []];
         }
 
-        if (! $this->cart_matches($presale_id, $cart)) {
+        if ($customer_id !== (int) $summary['customer_id'] || ! $this->cart_matches($presale_id, $cart)) {
             return ['Presale_register.cart_changed', []];
         }
 
@@ -339,6 +339,39 @@ class Presale_register
         }
 
         return null;
+    }
+
+    /**
+     * The lines whose delivered quantity differs from the agreed one -- in practice the real weight
+     * of a line sold by weight (T18) -- as [line, item_id, agreed, delivered]. Recorded on the
+     * presale when it is delivered, because a lighter weight hands cash back across the counter.
+     *
+     * @param array<int|string, array<string, mixed>> $cart
+     *
+     * @return list<array{line: int, item_id: int, agreed: string, delivered: string}>
+     */
+    public function weight_adjustments(int $presale_id, array $cart): array
+    {
+        $lines = model(Presale::class)->get_lines($presale_id);
+
+        ksort($cart);
+
+        $adjusted = [];
+
+        foreach (array_values($cart) as $index => $cart_line) {
+            $agreed = (string) ($lines[$index]['quantity'] ?? '0');
+
+            if (bccomp((string) $cart_line['quantity'], $agreed, 3) !== 0) {
+                $adjusted[] = [
+                    'line'      => $index + 1,
+                    'item_id'   => (int) $cart_line['item_id'],
+                    'agreed'    => bcadd($agreed, '0', 3),
+                    'delivered' => bcadd((string) $cart_line['quantity'], '0', 3),
+                ];
+            }
+        }
+
+        return $adjusted;
     }
 
     /**
