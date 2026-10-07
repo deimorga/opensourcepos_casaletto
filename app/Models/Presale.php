@@ -952,11 +952,25 @@ class Presale extends Model
     }
 
     /**
-     * Whether an item is in an open presale or in any campaign, so deleting it can be refused.
+     * Whether deleting an item has to be refused: it is in an OPEN presale (that presale would be
+     * left with a product nobody can deliver), or in a campaign that can still sell it -- not
+     * deleted and with sale_ends on or after $today (default: today).
+     *
+     * A campaign that ended or was deleted does not count. Before 2026-10-07 any campaign row did,
+     * so a product that was ever in a campaign could never be deleted again.
      */
-    public function item_in_use(int $item_id): bool
+    public function item_in_use(int $item_id, ?string $today = null): bool
     {
-        if ($this->db->table('presale_campaign_items')->where('item_id', $item_id)->countAllResults() > 0) {
+        $today ??= date('Y-m-d');
+
+        $in_live_campaign = $this->db->table('presale_campaign_items AS ci')
+            ->join('presale_campaigns AS c', 'c.campaign_id = ci.campaign_id')
+            ->where('ci.item_id', $item_id)
+            ->where('c.deleted', 0)
+            ->where('c.sale_ends >=', $today)
+            ->countAllResults() > 0;
+
+        if ($in_live_campaign) {
             return true;
         }
 

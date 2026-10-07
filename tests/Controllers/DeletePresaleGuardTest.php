@@ -57,6 +57,7 @@ final class DeletePresaleGuardTest extends CIUnitTestCase
         $this->db->table('presale_items')->where('presale_id', self::PRESALE)->delete();
         $this->db->table('presales')->where('presale_id', self::PRESALE)->delete();
         $this->db->table('presale_campaign_items')->where('campaign_id', self::CAMPAIGN)->delete();
+        $this->db->table('presale_campaigns')->where('campaign_id', self::CAMPAIGN)->delete();
 
         if ($this->items !== []) {
             $this->db->table('inventory')->whereIn('trans_items', $this->items)->delete();
@@ -75,6 +76,7 @@ final class DeletePresaleGuardTest extends CIUnitTestCase
     public function testAnItemInACampaignIsNotDeleted(): void
     {
         $item = $this->createItem('TEST-PV-CAMPANA', 'Pavo de campaña de prueba');
+        $this->campaign('2099-12-31');
         $this->db->table('presale_campaign_items')->insert(['campaign_id' => self::CAMPAIGN, 'item_id' => $item, 'base_price' => '10.00']);
 
         $result = $this->post_as('items/delete', ['ids' => [(string) $item]]);
@@ -82,6 +84,52 @@ final class DeletePresaleGuardTest extends CIUnitTestCase
         $this->assertFalse($result['success']);
         $this->assertStringContainsString('Pavo de campaña de prueba', $result['message']);
         $this->assertSame(0, (int) $this->db->table('items')->where('item_id', $item)->get()->getRow()->deleted);
+    }
+
+    /**
+     * A campaign that stopped selling, or was deleted, no longer holds its products: before
+     * 2026-10-07 a product that was ever in a campaign could never be deleted again.
+     */
+    public function testAnItemOfAnEndedCampaignCanBeDeleted(): void
+    {
+        $item = $this->createItem('TEST-PV-TERMINADA', 'Pavo de campaña terminada');
+        $this->campaign(date('Y-m-d', strtotime('-1 day')));
+        $this->db->table('presale_campaign_items')->insert(['campaign_id' => self::CAMPAIGN, 'item_id' => $item, 'base_price' => '10.00']);
+
+        $result = $this->post_as('items/delete', ['ids' => [(string) $item]]);
+
+        $this->assertTrue($result['success'], (string) ($result['message'] ?? ''));
+        $this->assertSame(1, (int) $this->db->table('items')->where('item_id', $item)->get()->getRow()->deleted);
+    }
+
+    public function testAnItemOfADeletedCampaignCanBeDeleted(): void
+    {
+        $item = $this->createItem('TEST-PV-BORRADA', 'Pavo de campaña borrada');
+        $this->campaign('2099-12-31', 1);
+        $this->db->table('presale_campaign_items')->insert(['campaign_id' => self::CAMPAIGN, 'item_id' => $item, 'base_price' => '10.00']);
+
+        $result = $this->post_as('items/delete', ['ids' => [(string) $item]]);
+
+        $this->assertTrue($result['success'], (string) ($result['message'] ?? ''));
+    }
+
+    /**
+     * The campaign the products of these tests sit in, selling until $sale_ends.
+     */
+    private function campaign(string $sale_ends, int $deleted = 0): void
+    {
+        $this->db->table('presale_campaigns')->insert([
+            'campaign_id'         => self::CAMPAIGN,
+            'name'                => 'DeletePresaleGuardTest',
+            'sale_starts'         => '2001-01-01',
+            'sale_ends'           => $sale_ends,
+            'discount_percent'    => '0',
+            'min_initial_percent' => '0',
+            'active'              => 1,
+            'deleted'             => $deleted,
+            'created_by'          => $this->employee_id,
+            'created_at'          => '2001-01-01 00:00:00',
+        ]);
     }
 
     public function testAnItemInAnOpenPresaleIsNotDeleted(): void
@@ -103,6 +151,7 @@ final class DeletePresaleGuardTest extends CIUnitTestCase
     {
         $blocked = $this->createItem('TEST-PV-BLOQ', 'Bloqueado de prueba');
         $free    = $this->createItem('TEST-PV-LIBRE', 'Libre de prueba');
+        $this->campaign('2099-12-31');
         $this->db->table('presale_campaign_items')->insert(['campaign_id' => self::CAMPAIGN, 'item_id' => $blocked, 'base_price' => '10.00']);
 
         $result = $this->post_as('items/delete', ['ids' => [(string) $free, (string) $blocked]]);

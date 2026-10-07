@@ -164,6 +164,11 @@ class Presale_campaign extends Model
 
     /**
      * Removes a campaign, logically. Refused while it has presales: they point at it.
+     *
+     * With no presale pointing at it, its products and delivery dates go with it, in the same
+     * transaction: nothing reads them again, and a product row left behind would keep saying the
+     * product is in a campaign (Presale::item_in_use() also ignores deleted campaigns, for the ones
+     * deleted before this was done).
      */
     public function delete_campaign(int $campaign_id): bool
     {
@@ -171,7 +176,13 @@ class Presale_campaign extends Model
             return false;
         }
 
-        return $this->db->table($this->table)->where('campaign_id', $campaign_id)->update(['deleted' => 1]);
+        $this->db->transStart();
+        $this->db->table($this->table)->where('campaign_id', $campaign_id)->update(['deleted' => 1]);
+        $this->db->table('presale_campaign_items')->where('campaign_id', $campaign_id)->delete();
+        $this->db->table('presale_campaign_dates')->where('campaign_id', $campaign_id)->delete();
+        $this->db->transComplete();
+
+        return $this->db->transStatus();
     }
 
     // ---------------------------------------------------------------------------------------------
