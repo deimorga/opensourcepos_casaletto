@@ -5,6 +5,7 @@ namespace App\Controllers;
 use App\Models\Cash_collection;
 use App\Models\Cashup;
 use App\Models\Expense;
+use App\Models\Presale_payment;
 use App\Models\Sale;
 use App\Models\Reports\Summary_payments;
 use CodeIgniter\HTTP\ResponseInterface;
@@ -16,6 +17,7 @@ class Cashups extends Secure_Controller
     private Cash_collection $cash_collection;
     private Cashup $cashup;
     private Expense $expense;
+    private Presale_payment $presale_payment;
     private Sale $sale;
     private Summary_payments $summary_payments;
     private array $config;
@@ -27,6 +29,7 @@ class Cashups extends Secure_Controller
         $this->cash_collection = model(Cash_collection::class);
         $this->cashup = model(Cashup::class);
         $this->expense = model(Expense::class);
+        $this->presale_payment = model(Presale_payment::class);
         $this->sale = model(Sale::class);
         $this->summary_payments = model(Summary_payments::class);
         $this->config = config(OSPOS::class)->settings;
@@ -168,6 +171,29 @@ class Cashups extends Secure_Controller
                 }
             }
 
+            // Presale instalments and refunds of the same window, so Efectivo, Datafono and Banco
+            // are prefilled with what really came in (docs/Tecnico/venta-anticipada.md 6.2). The
+            // delivery sale's 'presale' payment never matches the labels above, which is right:
+            // that money is these instalments, already added here on the day they were taken. Same
+            // window as the sales above, so with the date-only setting it widens to whole days and,
+            // on a day with two shifts, prefills each with the other's instalments too -- the
+            // reconciliation below reads by shift id and shows the difference, as it does for sales.
+            if ($cash_ups_info->open_date !== null && $this->_presales_installed()) {
+                $presale_window = empty($this->config['date_or_time_format'])
+                    ? [$start_date . ' 00:00:00', $end_date . ' 23:59:59']
+                    : [$cash_ups_info->open_date, $cash_ups_info->close_date];
+
+                foreach ($this->presale_payment->get_net_between($presale_window[0], $presale_window[1]) as $row) {
+                    if ($row['payment_type_code'] === 'cash') {
+                        $cash_ups_info->closed_amount_cash += (float)$row['trans_amount'];
+                    } elseif ($row['payment_type_code'] === 'debit' || $row['payment_type_code'] === 'credit') {
+                        $cash_ups_info->closed_amount_card += (float)$row['trans_amount'];
+                    } elseif ($row['payment_type_code'] === 'bank_transfer') {
+                        $cash_ups_info->closed_amount_check += (float)$row['trans_amount'];
+                    }
+                }
+            }
+
             // Expenses paid out of the drawer. Narrowed to cash_source 'register' because money
             // paid from cash already collected never sat in this drawer, so subtracting it here
             // would report the shift short by that much. Every one of the 55 cash expenses on
@@ -236,11 +262,46 @@ class Cashups extends Secure_Controller
      */
     private function _build_reconciliation(object $cash_ups_info): array
     {
-        $income = $this->sale->get_payments_by_cashup((int)$cash_ups_info->cashup_id);
+        $sealed_income = $this->sale->get_payments_by_cashup((int)$cash_ups_info->cashup_id);
+        $income = [];
         $income_cash = 0.0;
         $income_total = 0.0;
 
-        foreach ($income as $row) {
+        // A sale that delivered a presale is paid with code 'presale' for what the customer had
+        // already paid in instalments. That money was counted in the shift of each instalment, so
+        // counting it again here would inflate this shift by exactly that much (T5 in
+        // docs/Tecnico/venta-anticipada.md). It is shown apart, and it never reaches the expected
+        // cash: only 'cash' does.
+        $presale_deliveries = [];
+        $presale_deliveries_total = 0.0;
+
+        foreach ($sealed_income as $row) {
+            if ($row['payment_type_code'] === 'presale') {
+                $presale_deliveries[] = $row;
+                $presale_deliveries_total += (float)$row['trans_amount'];
+
+                continue;
+            }
+
+            $income[] = $row;
+            $income_total += (float)$row['trans_amount'];
+
+            if ($row['payment_type_code'] === 'cash') {
+                $income_cash += (float)$row['trans_amount'];
+            }
+        }
+
+        // Presale instalments and refunds this shift handled, by the shift id each one carries.
+        // Read whenever the tables exist, not only while the module is switched on: the switch
+        // decides whether presales can be used, not whether money already taken is in the drawer.
+        // A business that never used them gets an empty list and the close it always had.
+        $presale_payments = $this->_presales_installed()
+            ? $this->presale_payment->get_by_cashup((int)$cash_ups_info->cashup_id)
+            : [];
+        $presale_payments_total = 0.0;
+
+        foreach ($presale_payments as $row) {
+            $presale_payments_total += (float)$row['trans_amount'];
             $income_total += (float)$row['trans_amount'];
 
             if ($row['payment_type_code'] === 'cash') {
@@ -289,10 +350,26 @@ class Cashups extends Secure_Controller
             'discrepancy'       => $counted - $expected,
             // A shift whose only sealed sales were cancelled still has sales attached to it, so it
             // is not the "nothing is linked here" case the unsealed notice describes.
-            'sealed_sales'      => $income !== [] || $voided !== [],
+            // An instalment carries the shift id too, so a shift that only took instalments has
+            // something linked to it.
+            'sealed_sales'      => $sealed_income !== [] || $voided !== [] || $presale_payments !== [],
             'voided'            => $voided,
-            'voided_total'      => $voided_total
+            'voided_total'      => $voided_total,
+            'presale_payments'         => $presale_payments,
+            'presale_payments_total'   => $presale_payments_total,
+            'presale_deliveries'       => $presale_deliveries,
+            'presale_deliveries_total' => $presale_deliveries_total
         ];
+    }
+
+    /**
+     * Whether this business's schema has the presale tables. The container migrates every schema
+     * when it starts, so in production this is always true; the check keeps the close working on a
+     * schema the presales migration has not reached yet instead of failing on a missing table.
+     */
+    private function _presales_installed(): bool
+    {
+        return db_connect()->tableExists('presale_payments');
     }
 
     /**

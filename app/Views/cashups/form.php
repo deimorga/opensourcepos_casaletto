@@ -410,6 +410,27 @@ $close_field_attrs = $is_closed ? ['disabled' => 'disabled'] : [];
                                     <td style="text-align: right;"><?= to_currency($row['trans_amount']) ?></td>
                                 </tr>
                             <?php endforeach; ?>
+                            <?php if ($reconciliation['presale_payments'] !== []): ?>
+                                <tr>
+                                    <td style="padding-left: 2em;"><?= lang('Cashups.reconciliation_presale_payments') ?></td>
+                                    <td style="text-align: right;"><?= to_currency($reconciliation['presale_payments_total']) ?></td>
+                                </tr>
+                                <?php foreach ($reconciliation['presale_payments'] as $row): ?>
+                                    <tr>
+                                        <td style="padding-left: 4em;"><?= esc($row['payment_type']) ?></td>
+                                        <td style="text-align: right;"><?= to_currency($row['trans_amount']) ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        <?php endif; ?>
+                        <?php if ($reconciliation['presale_deliveries'] !== []): ?>
+                            <tr>
+                                <td><?= lang('Cashups.reconciliation_presale_deliveries') ?></td>
+                                <td style="text-align: right;"><?= to_currency($reconciliation['presale_deliveries_total']) ?></td>
+                            </tr>
+                            <tr>
+                                <td colspan="2"><em class="small"><?= lang('Cashups.reconciliation_presale_deliveries_hint') ?></em></td>
+                            </tr>
                         <?php endif; ?>
                         <?php if ($reconciliation['voided'] !== []): ?>
                             <tr>
