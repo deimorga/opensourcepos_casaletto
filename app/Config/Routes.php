@@ -59,6 +59,24 @@ $routes->post('comandas/(:num)/cancelar', 'OrderTickets::postCancel/$1');
 $routes->get('presales', 'Presales::getIndex');
 $routes->get('presales/campaigns', 'PresaleCampaigns::getIndex');
 
+// presales: campaigns (lane A) BEGIN
+// Fixed addresses first; the ones with ids follow. view/save take (:segment) because a new campaign
+// is NEW_ENTRY, which is -1 and does not match (:num).
+$routes->get('presales/campaigns/search', 'PresaleCampaigns::getSearch');
+$routes->get('presales/campaigns/suggest', 'PresaleCampaigns::getSuggest');
+$routes->post('presales/campaigns/delete', 'PresaleCampaigns::postDelete');
+$routes->get('presales/campaigns/row/(:num)', 'PresaleCampaigns::getRow/$1');
+$routes->get('presales/campaigns/view/(:segment)', 'PresaleCampaigns::getView/$1');
+$routes->post('presales/campaigns/save/(:segment)', 'PresaleCampaigns::postSave/$1');
+$routes->get('presales/campaigns/detail/(:num)', 'PresaleCampaigns::getDetail/$1');
+$routes->get('presales/campaigns/data/(:num)', 'PresaleCampaigns::getData/$1');
+$routes->post('presales/campaigns/(:num)/add_item', 'PresaleCampaigns::postAddItem/$1');
+$routes->post('presales/campaigns/(:num)/update_item/(:num)', 'PresaleCampaigns::postUpdateItem/$1/$2');
+$routes->post('presales/campaigns/(:num)/remove_item/(:num)', 'PresaleCampaigns::postRemoveItem/$1/$2');
+$routes->post('presales/campaigns/(:num)/add_date', 'PresaleCampaigns::postAddDate/$1');
+$routes->post('presales/campaigns/(:num)/remove_date/(:num)', 'PresaleCampaigns::postRemoveDate/$1/$2');
+// presales: campaigns (lane A) END
+
 $routes->get('/', 'Login::index');
 $routes->get('login', 'Login::index');
 $routes->post('login', 'Login::index');
