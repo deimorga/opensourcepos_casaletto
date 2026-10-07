@@ -160,7 +160,7 @@ class PresaleCampaigns extends Secure_Controller
     /**
      * The create / edit form, for the modal dialog.
      */
-    public function getView(string $campaign_id = '-1'): ResponseInterface|string
+    public function getView(int $campaign_id = NEW_ENTRY): ResponseInterface|string
     {
         if ($denied = $this->deny()) {
             return $denied;
@@ -179,7 +179,7 @@ class PresaleCampaigns extends Secure_Controller
         ]);
     }
 
-    public function postSave(string $campaign_id = '-1'): ResponseInterface
+    public function postSave(int $campaign_id = NEW_ENTRY): ResponseInterface
     {
         if ($denied = $this->deny()) {
             return $denied;
