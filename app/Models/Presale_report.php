@@ -36,7 +36,7 @@ class Presale_report extends Model
     {
         $lines = $this->db->table('presale_items AS pi')
             ->select('pi.item_id, i.name, i.item_number, i.unit_of_measure, p.delivery_date, SUM(pi.quantity) AS committed', false)
-            ->join('presales AS p', "p.presale_id = pi.presale_id AND p.status = 'open'", 'inner', false)
+            ->join('presales AS p', "p.presale_id = pi.presale_id AND p.status = 'open'", 'inner')
             ->join('items AS i', 'i.item_id = pi.item_id', 'inner')
             ->where('p.campaign_id', $campaign_id)
             ->groupBy('pi.item_id, i.name, i.item_number, i.unit_of_measure, p.delivery_date')

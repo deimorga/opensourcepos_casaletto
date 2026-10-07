@@ -3,9 +3,9 @@
  * What a campaign has committed: units promised in open presales, by product and delivery date,
  * against current stock. The season's shopping list.
  *
- * @var list<array<string, mixed>>     $campaigns
- * @var int|null                       $campaign_id
- * @var array<string, mixed>|null      $table      dates (formatted) and rows (formatted)
+ * @var list<array<string, mixed>> $campaigns
+ * @var int|null                   $campaign_id
+ * @var array<string, mixed>|null  $table      dates (formatted) and rows (formatted)
  */
 ?>
 
