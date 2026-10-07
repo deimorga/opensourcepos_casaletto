@@ -595,14 +595,15 @@ impuestos agregados y el **cargo** = `Presale_campaign::round_money(total)` (med
 `presales/preview` (que ahora también devuelve `taxes`; el formulario lo vuelve a pedir al elegir o
 quitar el cliente, y sin cliente lo calcula como para un cliente de mostrador, como la caja).
 
-**El cliente, sin tocar la sesión.** `Tax_lib` guarda su propio `Sale_lib` en una propiedad privada, y
-el cajero puede tener una venta a medias en la caja. Se le pasa (con `ReflectionProperty`) un
-`Sale_lib` anónimo que responde el cliente de la preventa y el modo venta; todo lo demás es el código
-de la caja. Si `Tax_lib` cambia el nombre de esa propiedad, `Presale::register_charge()` lo captura, lo
-deja en el log como crítico y la preventa se rechaza con `Presales.total_unavailable` (nunca un total
-equivocado), y las pruebas fallan de inmediato. **Descartado:** cambiar el cliente de la sesión y
-restaurarlo (un error a mitad dejaría la venta en curso con otro cliente) y agregar parámetros a
-`Tax_lib::get_taxes()` (archivo heredado, fuera de este carril).
+**El cliente, sin tocar la sesión.** El cajero puede tener una venta a medias en la caja, así que el
+cálculo no puede cambiar el cliente de la sesión. `Tax_lib` recibe en su constructor el `Sale_lib` del
+que lee el cliente y el modo (parámetro opcional agregado el 2026-10-07; sin él usa el de la sesión, como
+siempre), y la preventa le pasa uno anónimo que responde el cliente de la preventa y el modo venta.
+Todo lo demás es el código de la caja. Si el cálculo falla, `Presale::register_charge()` lo deja en el
+log como crítico y la preventa se rechaza con `Presales.total_unavailable` (nunca un total equivocado).
+**Descartado:** cambiar el cliente de la sesión y restaurarlo (un error a mitad dejaría la venta en curso
+con otro cliente); inyectarlo por reflexión sobre la propiedad privada, que fue la primera versión del
+carril G y se rompería en silencio con un renombre.
 
 `Presale::price_lines()` sigue devolviendo `amount` por línea, **solo para mostrar**; el total no es su
 suma.

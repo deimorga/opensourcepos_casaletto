@@ -7,7 +7,6 @@ use App\Models\Presale;
 use App\Models\Presale_campaign;
 use App\Models\Presale_payment;
 use Config\OSPOS;
-use ReflectionProperty;
 use Throwable;
 
 /**
@@ -190,10 +189,8 @@ class Presale_register
 
         try {
             $sale_lib = self::sale_lib_for($customer_id);
-            $tax_lib  = new Tax_lib();
-
-            // Tax_lib keeps its own Sale_lib, private, to read the customer and the mode.
-            (new ReflectionProperty(Tax_lib::class, 'sale_lib'))->setValue($tax_lib, $sale_lib);
+            // Tax_lib reads the customer and the mode from the Sale_lib it is given.
+            $tax_lib = new Tax_lib($sale_lib);
 
             $taxes = $tax_lib->get_taxes($cart)[0];
             $total = '0.0';

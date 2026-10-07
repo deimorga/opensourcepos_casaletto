@@ -32,9 +32,15 @@ class Tax_lib
     private Tax_jurisdiction $tax_jurisdiction;
     private array $config;
 
-    public function __construct()
+    /**
+     * @param Sale_lib|null $sale_lib Where the customer and the register mode are read from. The
+     *                                register's own session cart by default. Presales pass one that
+     *                                answers for the presale's customer, so the total of a presale is
+     *                                worked out without touching a sale the cashier may have half done.
+     */
+    public function __construct(?Sale_lib $sale_lib = null)
     {
-        $this->sale_lib = new Sale_lib();
+        $this->sale_lib = $sale_lib ?? new Sale_lib();
 
         $this->customer = model(Customer::class);
         $this->item_taxes = model(Item_taxes::class);
