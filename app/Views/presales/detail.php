@@ -323,9 +323,9 @@ $customer_name = trim(($customer->first_name ?? '') . ' ' . ($customer->last_nam
     });
 
     // Cancelling. The figures are the server's: amounts are typed in the business's number format.
-    var $cancelBlock = $('#presale_cancel_block');
+    var $cancel_block = $('#presale_cancel_block');
 
-    if ($cancelBlock.length) {
+    if ($cancel_block.length) {
         var previewTimer = null;
         var previewSeq = 0;
 
@@ -359,9 +359,9 @@ $customer_name = trim(($customer->first_name ?? '') . ' ' . ($customer->last_nam
         };
 
         $('#presale_cancel').on('click', function() {
-            var opening = !$cancelBlock.is(':visible');
+            var opening = !$cancel_block.is(':visible');
 
-            $cancelBlock.toggle(opening);
+            $cancel_block.toggle(opening);
             $(this).attr('aria-expanded', opening ? 'true' : 'false');
 
             if (opening) {
@@ -370,7 +370,7 @@ $customer_name = trim(($customer->first_name ?? '') . ' ' . ($customer->last_nam
         });
 
         $('#presale_cancel_back').on('click', function() {
-            $cancelBlock.hide();
+            $cancel_block.hide();
             $('#presale_cancel').attr('aria-expanded', 'false').trigger('focus');
         });
 

@@ -39,7 +39,7 @@ class PresaleReports extends Secure_Controller
         }
 
         $campaigns   = $this->campaigns->get_all();
-        $campaign_id = $this->chosenCampaign($campaigns);
+        $campaign_id = $this->chosen_campaign($campaigns);
 
         return view('presales/committed', [
             'campaigns'   => $campaigns,
@@ -57,7 +57,7 @@ class PresaleReports extends Secure_Controller
             return redirect()->to('presales');
         }
 
-        $campaign_id = $this->chosenCampaign($this->campaigns->get_all());
+        $campaign_id = $this->chosen_campaign($this->campaigns->get_all());
 
         if ($campaign_id === null) {
             return redirect()->to('presales/committed');
@@ -82,7 +82,7 @@ class PresaleReports extends Secure_Controller
         fwrite($handle, "\xEF\xBB\xBF");
 
         foreach ($lines as $line) {
-            fputcsv($handle, array_map([self::class, 'safeCell'], $line), ',', '"', '\\');
+            fputcsv($handle, array_map([self::class, 'safe_cell'], $line), ',', '"', '\\');
         }
 
         rewind($handle);
@@ -95,7 +95,7 @@ class PresaleReports extends Secure_Controller
     /**
      * A cell a spreadsheet will not run as a formula.
      */
-    public static function safeCell(mixed $value): string
+    public static function safe_cell(mixed $value): string
     {
         $text = (string) $value;
 
@@ -107,7 +107,7 @@ class PresaleReports extends Secure_Controller
      *
      * @param list<array<string, mixed>> $campaigns
      */
-    private function chosenCampaign(array $campaigns): ?int
+    private function chosen_campaign(array $campaigns): ?int
     {
         $asked = (int) $this->request->getGet('campaign_id');
 
@@ -145,7 +145,7 @@ class PresaleReports extends Secure_Controller
             $rows[] = [
                 'name'        => $row['name'],
                 'item_number' => $row['item_number'],
-                'unit'        => $this->unitLabel($row['unit_of_measure']),
+                'unit'        => $this->unit_label($row['unit_of_measure']),
                 'cells'       => $cells,
                 'total'       => $fmt($row['total']),
                 'stock'       => $fmt($row['stock']),
@@ -195,7 +195,7 @@ class PresaleReports extends Secure_Controller
         return $symbol === '' ? $text : $text . ' ' . $symbol;
     }
 
-    private function unitLabel(string $code): string
+    private function unit_label(string $code): string
     {
         return Item::units_of_measure_options()[Item::normalize_unit_of_measure($code)] ?? '';
     }

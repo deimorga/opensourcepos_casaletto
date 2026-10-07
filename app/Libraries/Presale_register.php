@@ -50,7 +50,7 @@ class Presale_register
 {
     private const MONEY_SCALE = 2;
 
-    private ?bool $tablesPresent = null;
+    private ?bool $has_tables = null;
 
     /**
      * presale_for()'s last answer and the cart it was for: [session mark, sale id]. A request asks
@@ -837,14 +837,14 @@ class Presale_register
 
     private function tables_present(): bool
     {
-        if ($this->tablesPresent === null) {
+        if ($this->has_tables === null) {
             try {
-                $this->tablesPresent = db_connect()->tableExists('presales');
+                $this->has_tables = db_connect()->tableExists('presales');
             } catch (Throwable $e) {
-                $this->tablesPresent = false;
+                $this->has_tables = false;
             }
         }
 
-        return $this->tablesPresent;
+        return $this->has_tables;
     }
 }

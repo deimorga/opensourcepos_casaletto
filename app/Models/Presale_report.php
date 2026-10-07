@@ -75,7 +75,7 @@ class Presale_report extends Model
             $rows[$id]['total']          = bcadd($rows[$id]['total'], $quantity, self::SCALE);
         }
 
-        $stock = $this->stockOf(array_keys($rows), $this->locationsOf($campaign_id));
+        $stock = $this->stock_of(array_keys($rows), $this->locations_of($campaign_id));
 
         foreach ($rows as $id => &$row) {
             $row['stock']     = $stock[$id] ?? $zero;
@@ -93,7 +93,7 @@ class Presale_report extends Model
     /**
      * @return list<int>
      */
-    private function locationsOf(int $campaign_id): array
+    private function locations_of(int $campaign_id): array
     {
         $rows = $this->db->table('presales')
             ->select('location_id')
@@ -111,7 +111,7 @@ class Presale_report extends Model
      *
      * @return array<int, string> item_id => quantity
      */
-    private function stockOf(array $item_ids, array $location_ids): array
+    private function stock_of(array $item_ids, array $location_ids): array
     {
         if ($item_ids === [] || $location_ids === []) {
             return [];

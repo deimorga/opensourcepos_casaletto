@@ -183,13 +183,13 @@ class PresaleCampaigns extends Secure_Controller
 
         $id = (int) $campaign_id;
 
-        $starts = $this->readDate('sale_starts', $error);
+        $starts = $this->read_date('sale_starts', $error);
 
         if ($starts === null) {
             return $this->fail($error);
         }
 
-        $ends = $this->readDate('sale_ends', $error);
+        $ends = $this->read_date('sale_ends', $error);
 
         if ($ends === null) {
             return $this->fail($error);
@@ -211,7 +211,7 @@ class PresaleCampaigns extends Secure_Controller
             'discount_percent'    => $discount,
             'min_initial_percent' => $minimum,
             'active'              => $this->request->getPost('active') !== null,
-        ], $id, $this->currentPersonId());
+        ], $id, $this->current_person_id());
 
         if (is_string($result)) {
             return $this->fail(lang($result));
@@ -412,7 +412,7 @@ class PresaleCampaigns extends Secure_Controller
             return $denied;
         }
 
-        $date = $this->readDate('delivery_date', $error);
+        $date = $this->read_date('delivery_date', $error);
 
         if ($date === null) {
             return $this->fail($error);
@@ -442,7 +442,7 @@ class PresaleCampaigns extends Secure_Controller
     // Plumbing
     // ---------------------------------------------------------------------------------------------
 
-    private function currentPersonId(): int
+    private function current_person_id(): int
     {
         return (int) $this->employee->get_logged_in_employee_info()->person_id;
     }
@@ -491,7 +491,7 @@ class PresaleCampaigns extends Secure_Controller
      * A date typed in the business's format, as Y-m-d; null when it is not a real date, with the
      * refusal (escaped: it echoes what was typed and ends in $.notify) in $error.
      */
-    private function readDate(string $field, ?string &$error = null): ?string
+    private function read_date(string $field, ?string &$error = null): ?string
     {
         $typed = (string) $this->request->getPost($field);
         $date  = parse_typed_datetime($typed, false);

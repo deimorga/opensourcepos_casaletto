@@ -264,10 +264,10 @@ final class PresaleReportsTest extends CIUnitTestCase
     public function testSafeCellPrefixesFormulaStarters(): void
     {
         foreach (['=1+1', '+1', '-1', '@x'] as $text) {
-            $this->assertSame("'" . $text, PresaleReports::safeCell($text));
+            $this->assertSame("'" . $text, PresaleReports::safe_cell($text));
         }
 
-        $this->assertSame('Pera', PresaleReports::safeCell('Pera'));
-        $this->assertSame('', PresaleReports::safeCell(''));
+        $this->assertSame('Pera', PresaleReports::safe_cell('Pera'));
+        $this->assertSame('', PresaleReports::safe_cell(''));
     }
 }
