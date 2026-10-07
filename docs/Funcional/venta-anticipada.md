@@ -461,6 +461,21 @@ El texto sugerido no menciona ningún negocio. Lo que se imprime es lo que cada 
 
 ---
 
+### 4.15 Lo que corrigió la primera certificación en staging (2026-10-07)
+
+Recorrimos el módulo completo en un negocio de prueba de staging, sin mesas, con números en formato
+colombiano y papel de 58 mm. La plata, el cuadre de caja, el inventario y el historial cuadraron en todos
+los pasos. Se corrigieron cuatro cosas antes de seguir:
+
+- Una campaña nueva **ya viene activa**; antes había que acordarse de marcarla o no aparecía para vender.
+- El buscador de productos de la campaña **ahora encuentra las recetas armadas** (canastas, combos).
+- El cierre de turno **propone solo los abonos de ese turno**; con dos turnos el mismo día proponía
+  también los del otro.
+- La lista de preventas tiene botones para **Lo comprometido** y, para quien gestiona, **Campañas**.
+
+Además, un producto por peso se muestra siempre con sus decimales y su unidad (2,5 kg) en el detalle y
+en el comprobante.
+
 ## 5. Lo que este requerimiento NO hace
 
 - **No es fiado.** El producto no sale antes de estar pagado. El crédito con entrega inmediata

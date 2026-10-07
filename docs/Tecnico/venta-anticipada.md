@@ -261,9 +261,11 @@ Es la parte delicada. La conciliación actual está en producción desde 2026-09
 
 ### 6.2 Autollenado del cierre (`Cashups.php:150-169`)
 
-Se le suman los abonos netos del mismo rango leídos de `presale_payments`, para que «Efectivo»,
-«Datáfono» y «Banco» se llenen con lo que de verdad entró. El código `presale` ya cae fuera de los
-`if` existentes.
+Se le suman los abonos netos **del turno** (`Presale_payment::get_by_cashup()`, por el `cashup_id` que
+trae cada abono), para que «Efectivo», «Datáfono» y «Banco» se llenen con lo que de verdad entró. El
+código `presale` ya cae fuera de los `if` existentes. *Corregido el 2026-10-07 (§7.10): la primera
+versión los leía por la misma ventana de fechas que las ventas y, con dos turnos el mismo día, le daba a
+uno los abonos del otro.*
 
 ### 6.3 Con el interruptor apagado *(corregido el 2026-10-07, carril C)*
 
@@ -755,6 +757,32 @@ los dos controladores. Los métodos y variables de preventas quedaron en `snake_
 pruebas conservan sus ayudantes en camelCase.
 
 ---
+
+### 7.10 Certificación en staging (2026-10-07, rama `fix/presales-certificacion`)
+
+Primera vuelta de nuestra certificación en staging, en Panadería La Espiga (`tenant_panaderia`: sin
+Mesas, `es_CO`, 0 decimales, 58 mm, impuesto aparte) con el usuario `cert_preventas`. Recorrido: encender
+el módulo, abrir turno, crear campaña, registrar con cuota mínima rechazada y aceptada, abono por
+transferencia en otro turno, atraso simulado, entrega por la caja con peso mayor, cancelación con
+devolución parcial. El dinero, el cuadre, el inventario y el historial cuadraron en todos los pasos.
+Encontró cuatro cosas, corregidas aquí con su prueba (`tests/Controllers/PresaleCertificationFixesTest.php`
+y un caso nuevo en `tests/Models/PresaleCashupReconciliationTest.php`):
+
+1. **Una campaña nueva nacía inactiva:** el formulario traía la casilla «Activa» desmarcada
+   (`campaign_form.php`), y la campaña no aparecía al registrar. Ahora una campaña nueva viene activa.
+2. **El buscador de productos de la campaña no ofrecía recetas armadas:** `Item::get_search_suggestions()`
+   las excluye a propósito (la caja las busca aparte). `PresaleCampaigns::getSuggest()` suma ahora
+   `Item::get_kit_search_suggestions()`. Sin esto no se podía vender una canasta en preventa.
+3. **El autollenado del cierre tomaba los abonos por ventana de fechas** y, con dos turnos el mismo día
+   (o con el ajuste de solo fecha), le daba a un turno los abonos del otro: el turno 2 proponía $21.107 con
+   $11.107 en el cajón. Cada abono trae su turno, así que el autollenado los lee con
+   `Presale_payment::get_by_cashup()` (§6.2 queda así). Las ventas siguen como estaban.
+4. **No había cómo llegar a Campañas ni a Lo comprometido** desde la lista: se agregaron los dos botones
+   (Campañas solo con `presales_manage`).
+
+De paso: `presale_quantity()` (`app/Helpers/presales_helper.php`) muestra un producto por peso con hasta
+tres decimales y su unidad en el detalle y el comprobante, sin depender de `quantity_decimals` (con 0, 2,5
+kg salía «3»); y `Config.saved_successfully` estaba en inglés en es-MX.
 
 ## 8. Trampas conocidas
 
