@@ -332,7 +332,7 @@ final class PresalesCancelTest extends CIUnitTestCase
 
         $id = $this->register('30000');
         $this->assertTrue($this->postJson('presales/cancel/' . $id, [
-            'reason'            => "<i>Se mudó</i>\nde ciudad",
+            'reason'            => "<i>Se mudo</i>\nde ciudad",
             'refund_amount'     => '10000',
             'payment_type_code' => 'bank_transfer',
             'reference_code'    => 'TRX-9',
@@ -348,8 +348,8 @@ final class PresalesCancelTest extends CIUnitTestCase
         $this->assertMatchesRegularExpression('#id="presale_cancel_kept">' . preg_quote(esc(to_currency('20000')), '#') . '<#', $body);
         $this->assertStringContainsString(esc(to_currency('30000')), $body);
         $this->assertStringContainsString('TRX-9', $body);
-        $this->assertStringContainsString('&lt;i&gt;Se mudó&lt;/i&gt;<br', $body);
-        $this->assertStringNotContainsString('<i>Se mudó</i>', $body);
+        $this->assertStringContainsString('&lt;i&gt;Se mudo&lt;/i&gt;<br', $body);
+        $this->assertStringNotContainsString('<i>Se mudo</i>', $body);
         $this->assertStringContainsString('&lt;b&gt;Uno&lt;/b&gt;<br', $body);
         $this->assertStringNotContainsString('<b>Uno</b>', $body);
     }
