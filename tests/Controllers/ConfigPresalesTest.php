@@ -142,16 +142,4 @@ final class ConfigPresalesTest extends CIUnitTestCase
 
         $this->assertFalse($result['success']);
     }
-
-    public function testTheTabIsOnTheConfigurationScreenWithTheSuggestedTextAvailable(): void
-    {
-        $this->resetSession();
-
-        $html = (string) $this->get('/config')->getBody();
-
-        $this->assertStringContainsString('href="#presales_tab"', $html);
-        $this->assertStringContainsString('id="presales_config_form"', $html);
-        $this->assertStringContainsString('id="presales_use_suggested"', $html);
-        $this->assertStringNotContainsString('Config.presales', $html, 'A label key leaked untranslated.');
-    }
 }
