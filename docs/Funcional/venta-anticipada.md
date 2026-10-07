@@ -1,14 +1,9 @@
 # Alcance funcional — Venta anticipada (Preventas): se paga por cuotas, se entrega al final
 
-> **Estado (2026-10-07):** **alcance cerrado, en construcción.** Todas las preguntas al dueño están
-> respondidas en tres rondas (§6) y no quedan supuestos abiertos. Lo que hay hoy en el sistema está
-> verificado contra el código (§2). La salida a producción está planeada para **finales de octubre de
-> 2026** (§7); las fechas se pueden ajustar. Nada de esto existe todavía en ningún negocio.
->
-> **2026-10-07, segunda tanda de decisiones del dueño (D26-D29, §6.4):** el total de la preventa es
-> exactamente lo que cobra la caja, con impuestos; el precio de campaña de una receta armada es el del
-> kit completo; un peso menor que devuelva más del tope configurado necesita a alguien con «Gestionar
-> preventas»; y no se entrega sin turno de caja abierto. Construido, pendiente de certificar en staging.
+> **Estado (2026-10-07, 18:30):** **construido y certificado por nosotros en staging**, en dos negocios con
+> configuración distinta (informe: `venta-anticipada-certificacion-staging.md`). Encendido en Casaletto
+> staging y Panadería La Espiga; apagado en todos los demás negocios. **Pendiente: la certificación del
+> equipo del negocio y la salida a producción.** No está en producción.
 >
 > Documento hermano: `docs/Tecnico/venta-anticipada.md`.
 

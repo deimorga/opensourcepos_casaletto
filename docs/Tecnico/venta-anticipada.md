@@ -1,17 +1,8 @@
 # Venta anticipada (Preventas) — diseño técnico
 
-> **Estado (2026-10-07):** **diseño cerrado, en construcción (Fase 0).** El mapa de lo que existe (§2) está
-> verificado contra `develop` en `f2f489c19`. Las decisiones de negocio están en el documento hermano
-> `docs/Funcional/venta-anticipada.md` §6 (D1-D25). Las técnicas, en §3 (T1-T19). Las dos que este
-> documento dejaba abiertas quedaron resueltas el 2026-10-07: la entrega va por la pantalla de caja y
-> D7 está confirmada. Antes de codificar solo quedan dos verificaciones (§12). Plan de construcción
-> en §13.
->
-> **2026-10-07, carril G (rama `feat/presales-owner-decisions`):** las cuatro decisiones del dueño
-> que salieron al construir la entrega (D26-D29 del funcional) están construidas: paridad del total
-> con la caja (T20), kit a precio completo (T21), tope de devolución por peso (T22) y turno abierto
-> para entregar (T23). Detalle en §7.8.
-
+> **Estado (2026-10-07, 18:30):** construido, en `develop` y **certificado por nosotros en staging**
+> (`4e17cb62d`, §7.10). Pendiente: certificación del equipo del negocio y producción. Decisiones de
+> negocio en `docs/Funcional/venta-anticipada.md` §6 (D1-D29); técnicas en §3.
 ---
 
 ## 1. Qué se pide, en términos de datos
@@ -758,7 +749,9 @@ pruebas conservan sus ayudantes en camelCase.
 
 ---
 
-### 7.10 Certificación en staging (2026-10-07, rama `fix/presales-certificacion`)
+### 7.10 Certificación en staging (2026-10-07, ramas `fix/presales-certificacion` y `fix/presales-kit-weight`)
+
+Informe para el negocio: `docs/Funcional/venta-anticipada-certificacion-staging.md` (22 pruebas, staging en `4e17cb62d`).
 
 Primera vuelta de nuestra certificación en staging, en Panadería La Espiga (`tenant_panaderia`: sin
 Mesas, `es_CO`, 0 decimales, 58 mm, impuesto aparte) con el usuario `cert_preventas`. Recorrido: encender
