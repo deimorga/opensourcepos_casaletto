@@ -165,6 +165,25 @@ final class PresaleCampaignsControllerTest extends CIUnitTestCase
         $this->assertStringContainsString("presales/campaigns/view/{$id}", $row['edit']);
     }
 
+    /**
+     * The counts come from one grouped query; a campaign with nothing yet counts zero, not null.
+     */
+    public function testACampaignWithNoProductsNorDatesCountsZero(): void
+    {
+        $id = $this->makeCampaign(self::NAME_PREFIX . 'Vacía');
+
+        $body = $this->json($this->getReq('presales/campaigns/search?search=' . rawurlencode('PRUEBA-CAMP Vacía')));
+
+        $this->assertSame(1, $body['total']);
+        $this->assertSame($id, $body['rows'][0]['campaign_id']);
+        $this->assertSame(0, $body['rows'][0]['products']);
+        $this->assertSame(0, $body['rows'][0]['dates']);
+
+        $row = $this->json($this->getReq("presales/campaigns/row/{$id}"));
+        $this->assertSame(0, $row['products']);
+        $this->assertSame(0, $row['dates']);
+    }
+
     public function testASearchThatMatchesNothingAnswersAnEmptyList(): void
     {
         $this->makeCampaign();

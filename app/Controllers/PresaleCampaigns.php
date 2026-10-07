@@ -96,16 +96,16 @@ class PresaleCampaigns extends Secure_Controller
 
         $rows = [];
 
-        foreach ($this->campaigns->get_all() as $campaign) {
+        // One query with the counts, not two more per campaign.
+        foreach ($this->campaigns->get_with_counts() as $campaign) {
             if ($search !== '' && ! str_contains(mb_strtolower((string) $campaign['name']), $search)) {
                 continue;
             }
 
-            $id     = (int) $campaign['campaign_id'];
             $rows[] = [
                 'campaign' => $campaign,
-                'products' => count($this->campaigns->get_items($id)),
-                'dates'    => count($this->campaigns->get_dates($id)),
+                'products' => $campaign['products'],
+                'dates'    => $campaign['dates'],
             ];
         }
 
@@ -144,17 +144,13 @@ class PresaleCampaigns extends Secure_Controller
             return $denied;
         }
 
-        $campaign = $this->campaigns->get_info($campaign_id);
+        $campaign = $this->campaigns->get_with_counts($campaign_id)[0] ?? null;
 
         if ($campaign === null) {
             return $this->fail(lang('Presale_campaigns.not_found'), 404);
         }
 
-        return $this->response->setJSON(get_presale_campaign_data_row(
-            $campaign,
-            count($this->campaigns->get_items($campaign_id)),
-            count($this->campaigns->get_dates($campaign_id)),
-        ));
+        return $this->response->setJSON(get_presale_campaign_data_row($campaign, $campaign['products'], $campaign['dates']));
     }
 
     /**

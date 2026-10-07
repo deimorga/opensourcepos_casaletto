@@ -79,6 +79,54 @@ class Presale_campaign extends Model
     }
 
     /**
+     * Campaigns that were not deleted, the newest first, each with how many products and delivery
+     * dates it has (`products`, `dates`): the list's rows in one query, instead of reading every
+     * campaign's products and dates to count them. One campaign when $campaign_id is given.
+     *
+     * Products are counted as get_items() lists them: rows whose item still exists in `items`.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function get_with_counts(?int $campaign_id = null): array
+    {
+        // Raw SQL, bound, like Presales::search_sql(): the query builder would try to track the
+        // aliases of the grouped subqueries and prefix their columns.
+        $campaigns = $this->db->prefixTable($this->table);
+        $items     = $this->db->prefixTable('presale_campaign_items');
+        $catalogue = $this->db->prefixTable('items');
+        $dates     = $this->db->prefixTable('presale_campaign_dates');
+
+        $where = 'c.deleted = 0';
+        $binds = [];
+
+        if ($campaign_id !== null) {
+            $where .= ' AND c.campaign_id = ?';
+            $binds[] = $campaign_id;
+        }
+
+        $rows = $this->db->query(
+            "SELECT c.*, COALESCE(p.products, 0) AS products, COALESCE(d.dates, 0) AS dates
+                FROM {$campaigns} AS c
+                LEFT JOIN (SELECT ci.campaign_id, COUNT(*) AS products
+                        FROM {$items} AS ci JOIN {$catalogue} AS i ON i.item_id = ci.item_id
+                        GROUP BY ci.campaign_id) AS p ON p.campaign_id = c.campaign_id
+                LEFT JOIN (SELECT cd.campaign_id, COUNT(*) AS dates
+                        FROM {$dates} AS cd
+                        GROUP BY cd.campaign_id) AS d ON d.campaign_id = c.campaign_id
+                WHERE {$where}
+                ORDER BY c.sale_starts DESC, c.campaign_id DESC",
+            $binds,
+        )->getResultArray();
+
+        foreach ($rows as &$row) {
+            $row['products'] = (int) $row['products'];
+            $row['dates']    = (int) $row['dates'];
+        }
+
+        return $rows;
+    }
+
+    /**
      * The campaigns a presale can be registered in on $today (Y-m-d): active, not deleted, and inside
      * their selling window, both ends included.
      */
