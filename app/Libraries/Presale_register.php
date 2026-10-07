@@ -585,18 +585,40 @@ class Presale_register
     }
 
     /**
-     * Why the delivery on screen cannot be completed as it stands, as a language key with its
-     * arguments, or null when it can. Re-read from the database: the screen may be minutes old.
+     * What completing a delivery needs to know about its presale, read from the database once per
+     * completion (Sales::postComplete()) and handed to every check and to the save: the summary
+     * (status, derived state, customer, total, paid) and the agreed lines. The screen may be minutes
+     * old, so it is read at completion; it is not read again before the transaction, whose
+     * Presale::mark_delivered() locks the row and checks status and paid once more.
      *
-     * @param array<string, array<string, mixed>>     $payments
-     * @param array<int|string, array<string, mixed>> $cart
+     * @return array{summary: array<string, mixed>|null, lines: list<array<string, mixed>>}
+     */
+    public function delivery_facts(int $presale_id): array
+    {
+        $presales = model(Presale::class);
+
+        return [
+            'summary' => $presales->get_summary($presale_id, date('Y-m-d')),
+            'lines'   => $presales->get_lines($presale_id),
+        ];
+    }
+
+    /**
+     * Why the delivery on screen cannot be completed as it stands, as a language key with its
+     * arguments, or null when it can. Re-read from the database (delivery_facts(), read here when
+     * not given): the screen may be minutes old.
+     *
+     * @param array<string, array<string, mixed>>                                               $payments
+     * @param array<int|string, array<string, mixed>>                                           $cart
+     * @param array{summary: array<string, mixed>|null, lines: list<array<string, mixed>>}|null $facts
      *
      * @return array{0: string, 1: list<string>}|null
      */
-    public function completion_refusal(array $presale, string $mode, int $customer_id, array $cart, array $payments, bool $payments_cover_total): ?array
+    public function completion_refusal(array $presale, string $mode, int $customer_id, array $cart, array $payments, bool $payments_cover_total, ?array $facts = null): ?array
     {
         $presale_id = (int) $presale['presale_id'];
-        $summary    = model(Presale::class)->get_summary($presale_id, date('Y-m-d'));
+        $facts ??= $this->delivery_facts($presale_id);
+        $summary = $facts['summary'];
 
         if ($summary === null || $summary['status'] !== Presale::STATUS_OPEN || $summary['state'] !== Presale::STATE_PAID) {
             return ['Presale_register.delivery_failed', []];
@@ -612,7 +634,7 @@ class Presale_register
             return ['Presale_register.mode_sale_only', []];
         }
 
-        if ($customer_id !== (int) $summary['customer_id'] || ! $this->cart_matches($presale_id, $cart)) {
+        if ($customer_id !== (int) $summary['customer_id'] || ! $this->cart_matches($presale_id, $cart, $facts['lines'])) {
             return ['Presale_register.cart_changed', []];
         }
 
@@ -640,17 +662,18 @@ class Presale_register
      * Only when a weight changed: change with the agreed weights (taxes changed since registration,
      * T20's known limit) is not a weight refund and is not what this limit is about.
      *
-     * @param array<int|string, array<string, mixed>> $cart
+     * @param array<int|string, array<string, mixed>>                                           $cart
+     * @param array{summary: array<string, mixed>|null, lines: list<array<string, mixed>>}|null $facts as delivery_facts() returns them
      *
      * @return array{0: string, 1: list<string>}|null
      */
-    public function weight_refund_refusal(array $presale, array $cart, string $sale_total, bool $may_authorise): ?array
+    public function weight_refund_refusal(array $presale, array $cart, string $sale_total, bool $may_authorise, ?array $facts = null): ?array
     {
-        if ($may_authorise || $this->weight_adjustments((int) $presale['presale_id'], $cart) === []) {
+        if ($may_authorise || $this->weight_adjustments((int) $presale['presale_id'], $cart, $facts['lines'] ?? null) === []) {
             return null;
         }
 
-        $paid   = model(Presale_payment::class)->get_paid((int) $presale['presale_id']);
+        $paid   = isset($facts['summary']['paid']) ? (string) $facts['summary']['paid'] : model(Presale_payment::class)->get_paid((int) $presale['presale_id']);
         $refund = self::weight_refund_raw($paid, $sale_total);
 
         if (! self::weight_refund_over_limit($refund, (string) $presale['total'])) {
@@ -666,12 +689,13 @@ class Presale_register
      * presale when it is delivered, because a lighter weight hands cash back across the counter.
      *
      * @param array<int|string, array<string, mixed>> $cart
+     * @param list<array<string, mixed>>|null         $lines the presale's lines, when already read
      *
      * @return list<array{line: int, item_id: int, agreed: string, delivered: string}>
      */
-    public function weight_adjustments(int $presale_id, array $cart): array
+    public function weight_adjustments(int $presale_id, array $cart, ?array $lines = null): array
     {
-        $lines = model(Presale::class)->get_lines($presale_id);
+        $lines ??= model(Presale::class)->get_lines($presale_id);
 
         ksort($cart);
 
@@ -702,10 +726,11 @@ class Presale_register
      * last line behind them, for a path nobody thought of.
      *
      * @param array<int|string, array<string, mixed>> $cart
+     * @param list<array<string, mixed>>|null         $lines the presale's lines, when already read
      */
-    public function cart_matches(int $presale_id, array $cart): bool
+    public function cart_matches(int $presale_id, array $cart, ?array $lines = null): bool
     {
-        $lines = model(Presale::class)->get_lines($presale_id);
+        $lines ??= model(Presale::class)->get_lines($presale_id);
 
         if (count($lines) !== count($cart)) {
             return false;

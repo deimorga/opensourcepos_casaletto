@@ -23,7 +23,6 @@ use App\Models\Item_kit;
 use App\Models\Item_quantity;
 use App\Models\Presale;
 use App\Models\Presale_event;
-use App\Models\Presale_payment;
 use App\Models\Sale;
 use App\Models\Stock_location;
 use App\Models\Tokens\Token_invoice_count;
@@ -1371,11 +1370,15 @@ class Sales extends Secure_Controller
 
         // The delivery, re-read from the database: still open and paid, still the agreed lines, one
         // presale payment for exactly what was paid, and the weight difference covered (§7.3).
+        // Read once (summary and agreed lines) and handed to every check and to the save below.
+        $presale_facts = null;
+
         if ($presale !== null) {
-            $refusal = $this->presale_register->completion_refusal($presale, $this->sale_lib->get_mode(), $customer_id, $data['cart'], $data['payments'], (bool) $totals['payments_cover_total']);
+            $presale_facts = $this->presale_register->delivery_facts((int) $presale['presale_id']);
+            $refusal = $this->presale_register->completion_refusal($presale, $this->sale_lib->get_mode(), $customer_id, $data['cart'], $data['payments'], (bool) $totals['payments_cover_total'], $presale_facts);
 
             // A lighter weight hands cash back: above the business's limit, only with presales_manage.
-            $refusal ??= $this->presale_register->weight_refund_refusal($presale, $data['cart'], (string) $totals['total'], $this->employee->has_grant('presales_manage', $employee_id));
+            $refusal ??= $this->presale_register->weight_refund_refusal($presale, $data['cart'], (string) $totals['total'], $this->employee->has_grant('presales_manage', $employee_id), $presale_facts);
 
             if ($refusal !== null) {
                 return $this->_reload(['error' => lang($refusal[0], $refusal[1])]);
@@ -1554,7 +1557,7 @@ class Sales extends Secure_Controller
 
             if ($presale !== null) {
                 // The sale and the delivery, both or neither (§7.4).
-                $data['sale_id_num'] = $this->_save_presale_delivery((int) $presale['presale_id'], $sale_id, $data, $customer_id, $employee_id, $invoice_number, $work_order_number, $quote_number, $sale_type, $tax_details);
+                $data['sale_id_num'] = $this->_save_presale_delivery((int) $presale['presale_id'], $presale_facts, $sale_id, $data, $customer_id, $employee_id, $invoice_number, $work_order_number, $quote_number, $sale_type, $tax_details);
             } else {
                 $data['sale_id_num'] = $this->sale->save_value($sale_id, $data['sale_status'], $data['cart'], $customer_id, $employee_id, $data['comments'], $invoice_number, $work_order_number, $quote_number, $sale_type, $data['payments'], $data['dinner_table'], $tax_details);
             }
@@ -2319,9 +2322,12 @@ class Sales extends Secure_Controller
      * refuses one that is no longer open and fully paid: two tills completing the same delivery at
      * once produce one sale, and the second rolls back everything it wrote, stock included.
      *
+     * $facts is what postComplete() already read (Presale_register::delivery_facts()): nothing about
+     * the presale is read again here except by mark_delivered(), under the row lock.
+     *
      * @return int the sale id, or NEW_ENTRY when nothing was written
      */
-    private function _save_presale_delivery(int $presale_id, int $sale_id, array &$data, int $customer_id, int $employee_id, ?string $invoice_number, ?string $work_order_number, ?string $quote_number, int $sale_type, array &$tax_details): int
+    private function _save_presale_delivery(int $presale_id, array $facts, int $sale_id, array &$data, int $customer_id, int $employee_id, ?string $invoice_number, ?string $work_order_number, ?string $quote_number, int $sale_type, array &$tax_details): int
     {
         $db = db_connect();
 
@@ -2338,13 +2344,13 @@ class Sales extends Secure_Controller
             // lighter weight hands cash back across the counter, and that has to be readable later.
             // What went back and, when it was above the business's limit, who authorised it: the
             // cashier completing it, who postComplete() checked holds presales_manage.
-            $adjusted = $this->presale_register->weight_adjustments($presale_id, $data['cart']);
+            $adjusted = $this->presale_register->weight_adjustments($presale_id, $data['cart'], $facts['lines']);
             $recorded = true;
 
             if ($adjusted !== []) {
-                $presale = model(Presale::class)->get_info($presale_id);
-                $refund = Presale_register::weight_refund(model(Presale_payment::class)->get_paid($presale_id), (string) $data['total']);
-                $over_limit = Presale_register::weight_refund_over_limit(Presale_register::weight_refund_raw(model(Presale_payment::class)->get_paid($presale_id), (string) $data['total']), (string) ($presale['total'] ?? '0'));
+                $paid = (string) ($facts['summary']['paid'] ?? '0');
+                $refund = Presale_register::weight_refund($paid, (string) $data['total']);
+                $over_limit = Presale_register::weight_refund_over_limit(Presale_register::weight_refund_raw($paid, (string) $data['total']), (string) ($facts['summary']['total'] ?? '0'));
 
                 $recorded = model(Presale_event::class)->log($presale_id, 'quantity_adjusted', $employee_id, [
                     'sale_id'       => $saved,

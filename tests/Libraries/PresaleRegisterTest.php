@@ -146,6 +146,29 @@ final class PresaleRegisterTest extends CIUnitTestCase
         $this->assertFalse($this->register->cart_matches($this->presaleId, $missing));
     }
 
+    /**
+     * Completion reads the presale once (delivery_facts()) and every check works from what it is
+     * handed, not from a fresh read: a summary saying "canceled" refuses whatever the database says,
+     * and the lines handed over are the ones the cart is compared with.
+     */
+    public function testTheCompletionChecksWorkFromTheFactsTheyAreHanded(): void
+    {
+        $this->register->load($this->saleLib, $this->presale());
+        $facts = $this->register->delivery_facts($this->presaleId);
+
+        $this->assertSame(Presale::STATUS_OPEN, $facts['summary']['status']);
+        $this->assertCount(3, $facts['lines']);
+
+        $canceled = ['summary' => ['status' => Presale::STATUS_CANCELED] + $facts['summary'], 'lines' => $facts['lines']];
+        $this->assertSame(
+            ['Presale_register.delivery_failed', []],
+            $this->register->completion_refusal($this->presale(), 'sale', $this->customerId, $this->saleLib->get_cart(), $this->saleLib->get_payments(), true, $canceled),
+        );
+
+        $this->assertFalse($this->register->cart_matches($this->presaleId, $this->saleLib->get_cart(), [$facts['lines'][0]]));
+        $this->assertSame([], $this->register->weight_adjustments($this->presaleId, $this->saleLib->get_cart(), $facts['lines']));
+    }
+
     public function testRestoringKeepsTheWeightAlreadyEntered(): void
     {
         $this->register->load($this->saleLib, $this->presale());
