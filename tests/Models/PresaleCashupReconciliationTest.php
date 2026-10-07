@@ -386,6 +386,26 @@ final class PresaleCashupReconciliationTest extends CIUnitTestCase
         $this->assertEqualsWithDelta(2_000.0, $after['closed_amount_check'] - $before['closed_amount_check'], 0.001);
     }
 
+    /**
+     * Found in the staging certification of 2026-10-07: with two shifts on the same day, the closing
+     * autocomplete of the second prefilled the first one's cash instalment, because it read
+     * instalments by date window. Instalments carry their shift, so the autocomplete reads by shift.
+     */
+    public function testTheClosingAutocompleteIgnoresAnotherShiftsInstalmentsOfTheSameDay(): void
+    {
+        $this->switchTo('1');
+        $shift = $this->openShift(self::SHIFT_C);
+        $other = $this->openShift(self::SHIFT_B);
+
+        $before = $this->closingFields($this->viewShift($shift));
+
+        $this->instalment($other, 'cash', '10000.00', 'payment', date('Y-m-d H:i:s', time() - 60));
+
+        $after = $this->closingFields($this->viewShift($shift));
+
+        $this->assertEqualsWithDelta(0.0, $after['closed_amount_cash'] - $before['closed_amount_cash'], 0.001);
+    }
+
     private function closedShift(int $cashup_id): int
     {
         return $this->insertShift($cashup_id, 'closed', self::OPEN_DATE, self::CLOSE_DATE);

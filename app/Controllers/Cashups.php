@@ -171,19 +171,16 @@ class Cashups extends Secure_Controller
                 }
             }
 
-            // Presale instalments and refunds of the same window, so Efectivo, Datafono and Banco
-            // are prefilled with what really came in (docs/Tecnico/venta-anticipada.md 6.2). The
-            // delivery sale's 'presale' payment never matches the labels above, which is right:
-            // that money is these instalments, already added here on the day they were taken. Same
-            // window as the sales above, so with the date-only setting it widens to whole days and,
-            // on a day with two shifts, prefills each with the other's instalments too -- the
-            // reconciliation below reads by shift id and shows the difference, as it does for sales.
-            if ($cash_ups_info->open_date !== null && $this->_presales_installed()) {
-                $presale_window = empty($this->config['date_or_time_format'])
-                    ? [$start_date . ' 00:00:00', $end_date . ' 23:59:59']
-                    : [$cash_ups_info->open_date, $cash_ups_info->close_date];
-
-                foreach ($this->presale_payment->get_net_between($presale_window[0], $presale_window[1]) as $row) {
+            // Presale instalments and refunds this shift took, read by the shift id each one carries
+            // (docs/Tecnico/venta-anticipada.md 6.2), so Efectivo, Datafono and Banco are prefilled with
+            // what really came in. Not by date window like the sales above: on a day with two shifts,
+            // or with the date-only setting that widens the window to whole days, a window hands this
+            // shift the other shift's instalments too -- the staging certification of 2026-10-07 saw a
+            // second shift prefilled with the first shift's 10,000 in cash. The delivery sale's
+            // 'presale' payment never matches the labels above, which is right: that money is these
+            // instalments, already counted in the shift that took each one.
+            if (!empty($cash_ups_info->cashup_id) && $this->_presales_installed()) {
+                foreach ($this->presale_payment->get_by_cashup((int)$cash_ups_info->cashup_id) as $row) {
                     if ($row['payment_type_code'] === 'cash') {
                         $cash_ups_info->closed_amount_cash += (float)$row['trans_amount'];
                     } elseif ($row['payment_type_code'] === 'debit' || $row['payment_type_code'] === 'credit') {
