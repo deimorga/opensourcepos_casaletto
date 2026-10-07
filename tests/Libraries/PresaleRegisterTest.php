@@ -83,6 +83,19 @@ final class PresaleRegisterTest extends CIUnitTestCase
         parent::tearDown();
     }
 
+    /**
+     * Staging certification of 2026-10-07: on a delivery with a cheese board, the kit's components sold
+     * by weight were editable too. Only a priced line sold by weight -- what the customer agreed to --
+     * may change; a kit component always carries price 0.
+     */
+    public function testOnlyAPricedLineSoldByWeightIsAdjustableOnADelivery(): void
+    {
+        $this->assertTrue(Presale_register::is_adjustable_weight_line(['unit_of_measure' => Item::UNIT_OF_MEASURE_KG, 'price' => '78000.00']));
+        $this->assertFalse(Presale_register::is_adjustable_weight_line(['unit_of_measure' => Item::UNIT_OF_MEASURE_KG, 'price' => '0.00']), 'A kit component sold by weight is part of the recipe.');
+        $this->assertFalse(Presale_register::is_adjustable_weight_line(['unit_of_measure' => Item::UNIT_OF_MEASURE_UNIT, 'price' => '216000.00']));
+        $this->assertFalse(Presale_register::is_adjustable_weight_line(['price' => '5000.00']), 'A line from before the unit key existed reads as sold by the unit.');
+    }
+
     public function testTwoLinesOfTheSameProductKeepTheirOwnPrices(): void
     {
         $this->assertTrue($this->register->load($this->saleLib, $this->presale()));

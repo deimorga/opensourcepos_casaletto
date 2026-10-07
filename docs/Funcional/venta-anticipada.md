@@ -472,6 +472,8 @@ los pasos. Se corrigieron cuatro cosas antes de seguir:
 - El cierre de turno **propone solo los abonos de ese turno**; con dos turnos el mismo día proponía
   también los del otro.
 - La lista de preventas tiene botones para **Lo comprometido** y, para quien gestiona, **Campañas**.
+- En la entrega de una receta armada, **solo se puede ajustar el peso de lo que el cliente compró por
+  peso**; los ingredientes de la receta ya no se pueden tocar desde la caja.
 
 Además, un producto por peso se muestra siempre con sus decimales y su unidad (2,5 kg) en el detalle y
 en el comprobante.

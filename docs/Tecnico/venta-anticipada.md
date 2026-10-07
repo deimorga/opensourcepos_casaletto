@@ -780,6 +780,13 @@ y un caso nuevo en `tests/Models/PresaleCashupReconciliationTest.php`):
 4. **No había cómo llegar a Campañas ni a Lo comprometido** desde la lista: se agregaron los dos botones
    (Campañas solo con `presales_manage`).
 
+5. **(segunda vuelta, Casaletto staging, con Mesas)** En la entrega de una receta armada quedaban
+   editables también los **componentes por peso** de la receta (8 campos con una tabla de quesos). No
+   movía dinero —los componentes van en $0— pero sí lo que sale del inventario. La regla es ahora
+   `Presale_register::is_adjustable_weight_line()`: se vende por peso **y tiene precio**; la usan la
+   vista de la caja, `Sales::_edit_presale_delivery_line()`, la restauración de pesos y
+   `cart_matches()`. Prueba en `tests/Libraries/PresaleRegisterTest.php`.
+
 De paso: `presale_quantity()` (`app/Helpers/presales_helper.php`) muestra un producto por peso con hasta
 tres decimales y su unidad en el detalle y el comprobante, sin depender de `quantity_decimals` (con 0, 2,5
 kg salía «3»); y `Config.saved_successfully` estaba en inglés en es-MX.

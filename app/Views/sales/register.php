@@ -391,7 +391,7 @@ if (!empty($order_ticket_changes['lines'])) { ?>
                     $is_kit_ingredient = $item['print_option'] == PRINT_NO;
                     // On a presale delivery only the weight of a line sold by weight is editable (T18).
                     $line_locked = $is_presale_delivery;
-                    $weight_editable = !$is_presale_delivery || Sale_lib::line_sells_by_weight($item);
+                    $weight_editable = !$is_presale_delivery || \App\Libraries\Presale_register::is_adjustable_weight_line($item);
                     ob_start();
             ?>
                     <?= form_open("$controller_name/editItem/$line", ['class' => 'form-horizontal', 'id' => "cart_$line"]) ?>

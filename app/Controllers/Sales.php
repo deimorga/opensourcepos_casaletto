@@ -2247,7 +2247,7 @@ class Sales extends Secure_Controller
 
         $cart = $this->sale_lib->get_cart();
 
-        if ($presale['status'] !== Presale::STATUS_OPEN || !isset($cart[$line]) || !Sale_lib::line_sells_by_weight($cart[$line])) {
+        if ($presale['status'] !== Presale::STATUS_OPEN || !isset($cart[$line]) || !Presale_register::is_adjustable_weight_line($cart[$line])) {
             return $this->_reload(['error' => lang('Presale_register.weight_only')]);
         }
 

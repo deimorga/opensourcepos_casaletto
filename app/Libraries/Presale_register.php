@@ -64,6 +64,21 @@ class Presale_register
     private ?array $memo = null;
 
     /**
+     * Whether the cashier may change this delivery line's quantity: a product sold by weight that the
+     * customer agreed a price for (T18, D22).
+     *
+     * A kit's components are excluded even when they are sold by weight: they always carry price 0
+     * (owner's decision of 2026-10-07, the kit line carries the full price), so changing one moves no
+     * money and only changes what leaves the stock -- the recipe, not the customer's order. The staging
+     * certification of 2026-10-07 found eight such fields editable on a delivery with a cheese board.
+     */
+    public static function is_adjustable_weight_line(array $cart_line): bool
+    {
+        return Sale_lib::line_sells_by_weight($cart_line)
+            && bccomp((string) ($cart_line['price'] ?? '0'), '0', self::MONEY_SCALE) > 0;
+    }
+
+    /**
      * The presale whose delivery is the register's current cart, in whatever status it is now, or
      * null when the cart is not a delivery -- which is nearly always.
      *
@@ -563,7 +578,7 @@ class Presale_register
         foreach ($cart as $key => $line) {
             $weight = $weights[(int) $key] ?? null;
 
-            if ($weight === null || ! Sale_lib::line_sells_by_weight($line) || bccomp($weight, '0', 3) <= 0) {
+            if ($weight === null || ! self::is_adjustable_weight_line($line) || bccomp($weight, '0', 3) <= 0) {
                 continue;
             }
 
@@ -792,7 +807,7 @@ class Presale_register
 
             $quantity = (string) $cart_line['quantity'];
 
-            if (Sale_lib::line_sells_by_weight($cart_line)) {
+            if (self::is_adjustable_weight_line($cart_line)) {
                 if (bccomp($quantity, '0', 3) <= 0) {
                     return false;
                 }
