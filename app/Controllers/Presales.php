@@ -5,6 +5,7 @@ namespace App\Controllers;
 use App\Libraries\Sale_lib;
 use App\Models\Cashup;
 use App\Models\Customer;
+use App\Models\Employee;
 use App\Models\Item;
 use App\Models\Presale;
 use App\Models\Presale_campaign;
@@ -319,7 +320,7 @@ class Presales extends Secure_Controller
             return $this->refuse($installments);
         }
 
-        $amount = $this->read_money((string) $this->request->getPost('payment_amount'));
+        $amount = self::read_decimal((string) $this->request->getPost('payment_amount'));
 
         if ($amount === false) {
             return $this->refuse(lang('Presales.amount_invalid', [(string) $this->request->getPost('payment_amount')]));
@@ -402,7 +403,7 @@ class Presales extends Secure_Controller
             'people'         => $people,
             'payment_types'  => self::payment_options(),
             'has_open_shift' => model(Cashup::class)->get_open_cashup_id() !== null,
-            'can_manage'     => $this->can_manage(),
+            'can_manage'     => self::can_manage($this->employee),
         ], ['saveData' => false]);
     }
 
@@ -417,7 +418,7 @@ class Presales extends Secure_Controller
         }
 
         $raw    = (string) $this->request->getPost('amount');
-        $amount = $this->read_money($raw);
+        $amount = self::read_decimal($raw);
 
         if ($amount === false || $amount === '') {
             return $this->refuse(lang($amount === '' ? 'Presales.payment_amount_invalid' : 'Presales.amount_invalid', [$raw]));
@@ -471,7 +472,7 @@ class Presales extends Secure_Controller
 
         $paid   = model(Presale_payment::class)->get_paid($presale_id);
         $raw    = (string) $this->request->getPost('refund_amount');
-        $refund = $this->read_money($raw);
+        $refund = self::read_decimal($raw);
 
         if ($refund === false) {
             return $this->refuse(lang('Presales.amount_invalid', [$raw]));
@@ -511,7 +512,7 @@ class Presales extends Secure_Controller
         }
 
         $raw    = (string) $this->request->getPost('refund_amount');
-        $refund = $this->read_money($raw);
+        $refund = self::read_decimal($raw);
 
         if ($refund === false) {
             return $this->refuse(lang('Presales.amount_invalid', [$raw]));
@@ -555,7 +556,7 @@ class Presales extends Secure_Controller
             return $this->refuse(lang('Presales.disabled'))->setStatusCode(403);
         }
 
-        if (! $this->can_manage()) {
+        if (! self::can_manage($this->employee)) {
             return $this->refuse(lang('Presales.cancel_forbidden'))->setStatusCode(403);
         }
 
@@ -708,13 +709,40 @@ class Presales extends Secure_Controller
     }
 
     /**
-     * Whether the logged-in employee holds presales_manage: campaigns and cancellations.
+     * Whether the logged-in employee holds presales_manage: campaigns and cancellations. Static so
+     * Presales and PresaleCampaigns ask it the same way.
      */
-    protected function can_manage(): bool
+    public static function can_manage(Employee $employee): bool
     {
-        $employee = $this->employee->get_logged_in_employee_info();
+        $info = $employee->get_logged_in_employee_info();
 
-        return is_object($employee) && $this->employee->has_grant('presales_manage', (int) $employee->person_id);
+        return is_object($info) && $employee->has_grant('presales_manage', (int) $info->person_id);
+    }
+
+    /**
+     * A number typed in the business's number format, as a plain decimal string at scale 2; '' when
+     * nothing was typed, false when it is not a number. Never hands a model a locale-formatted
+     * string. The one reader of typed amounts for Presales and PresaleCampaigns.
+     *
+     * $decimals goes to parse_decimals(): null reads with the currency's decimals.
+     */
+    public static function read_decimal(string $typed, ?int $decimals = null): false|string
+    {
+        $typed = trim($typed);
+
+        if ($typed === '') {
+            return '';
+        }
+
+        helper('locale');
+
+        $value = parse_decimals($typed, $decimals);
+
+        if ($value === false || ! is_numeric($value)) {
+            return false;
+        }
+
+        return self::decimal_string((float) $value, 2);
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -777,7 +805,7 @@ class Presales extends Secure_Controller
                 return typed_date_error($typed_date);
             }
 
-            $amount = $this->read_money($typed_amount);
+            $amount = self::read_decimal($typed_amount);
 
             if ($amount === false || $amount === '') {
                 return lang('Presales.amount_invalid', [$typed_amount]);
@@ -787,27 +815,6 @@ class Presales extends Secure_Controller
         }
 
         return $plan;
-    }
-
-    /**
-     * An amount typed in the business's number format, as a plain decimal string; '' when nothing was
-     * typed, false when it is not a number.
-     */
-    private function read_money(string $typed): false|string
-    {
-        $typed = trim($typed);
-
-        if ($typed === '') {
-            return '';
-        }
-
-        $value = parse_decimals($typed);
-
-        if ($value === false || ! is_numeric($value)) {
-            return false;
-        }
-
-        return self::decimal_string((float) $value, 2);
     }
 
     /**
@@ -1025,7 +1032,7 @@ class Presales extends Secure_Controller
         $campaigns    = $db->prefixTable('presale_campaigns');
         $people       = $db->prefixTable('people');
 
-        $refund = Presale_payment::KIND_REFUND;
+        $paid = Presale_payment::net_sql('pp');
 
         $where = ['1 = 1'];
         $binds = [$today];
@@ -1062,7 +1069,7 @@ class Presales extends Secure_Controller
 
         $inner = "SELECT p.presale_id, p.campaign_id, p.customer_id, p.delivery_date, p.status, p.total, p.created_at,
                 c.name AS campaign_name, pe.first_name, pe.last_name, pe.phone_number,
-                (SELECT COALESCE(SUM(CASE WHEN pp.kind = '{$refund}' THEN -pp.amount ELSE pp.amount END), 0)
+                (SELECT COALESCE({$paid}, 0)
                     FROM {$payments} AS pp WHERE pp.presale_id = p.presale_id) AS paid,
                 (SELECT COALESCE(SUM(pi.amount), 0)
                     FROM {$installments} AS pi WHERE pi.presale_id = p.presale_id AND pi.due_date < ?) AS due_to_date

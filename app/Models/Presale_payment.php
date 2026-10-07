@@ -46,6 +46,18 @@ class Presale_payment extends Model
     ];
 
     /**
+     * The net of a set of movements as SQL: instalments add, refunds subtract. The one place this is
+     * written; the presales list (Presales::search_sql()) uses it too.
+     *
+     * $column is the qualified prefix of the movement's columns -- the prefixed table name, or the
+     * alias of a subquery.
+     */
+    public static function net_sql(string $column): string
+    {
+        return "SUM(CASE WHEN {$column}.kind = '" . self::KIND_REFUND . "' THEN -{$column}.amount ELSE {$column}.amount END)";
+    }
+
+    /**
      * The net a shift took for presales, per payment type: instalments minus refunds.
      *
      * Same shape as Sale::get_payments_by_cashup() -- payment_type_code, payment_type, trans_amount --
@@ -59,7 +71,7 @@ class Presale_payment extends Model
 
         $rows = $this->db->table($this->table)
             ->select('payment_type_code')
-            ->select("SUM(CASE WHEN {$table}.kind = '" . self::KIND_REFUND . "' THEN -{$table}.amount ELSE {$table}.amount END) AS trans_amount", false)
+            ->select(self::net_sql($table) . ' AS trans_amount', false)
             ->where('cashup_id', $cashup_id)
             ->groupBy('payment_type_code')
             ->orderBy('payment_type_code', 'asc')
@@ -80,7 +92,7 @@ class Presale_payment extends Model
 
         $rows = $this->db->table($this->table)
             ->select('payment_type_code')
-            ->select("SUM(CASE WHEN {$table}.kind = '" . self::KIND_REFUND . "' THEN -{$table}.amount ELSE {$table}.amount END) AS trans_amount", false)
+            ->select(self::net_sql($table) . ' AS trans_amount', false)
             ->where('payment_time >=', $start)
             ->where('payment_time <=', $end)
             ->groupBy('payment_type_code')
@@ -110,7 +122,7 @@ class Presale_payment extends Model
         $table = $this->db->prefixTable($this->table);
 
         $row = $this->db->table($this->table)
-            ->select("COALESCE(SUM(CASE WHEN {$table}.kind = '" . self::KIND_REFUND . "' THEN -{$table}.amount ELSE {$table}.amount END), 0) AS paid", false)
+            ->select('COALESCE(' . self::net_sql($table) . ', 0) AS paid', false)
             ->where('presale_id', $presale_id)
             ->get()->getRowArray();
 

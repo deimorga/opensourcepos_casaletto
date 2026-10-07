@@ -236,6 +236,17 @@ final class PresalesControllerTest extends CIUnitTestCase
     // The list
     // ---------------------------------------------------------------------------------------------
 
+    /**
+     * The one reader of typed amounts, shared by Presales and PresaleCampaigns.
+     */
+    public function testTypedAmountsAreReadOneWay(): void
+    {
+        $this->assertSame('', \App\Controllers\Presales::read_decimal('   '));
+        $this->assertFalse(\App\Controllers\Presales::read_decimal('abc'));
+        $this->assertSame('12.00', \App\Controllers\Presales::read_decimal('12', 2));
+        $this->assertSame('0.00', \App\Controllers\Presales::read_decimal('0'));
+    }
+
     public function testTheListFiltersByTheDerivedState(): void
     {
         $paid = $this->register('180000');

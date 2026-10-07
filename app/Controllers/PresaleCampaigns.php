@@ -44,7 +44,7 @@ class PresaleCampaigns extends Secure_Controller
             return view('presales/disabled');
         }
 
-        if (! $this->can_manage()) {
+        if (! Presales::can_manage($this->employee)) {
             return redirect()->to('no_access/presales/presales_manage');
         }
 
@@ -62,7 +62,7 @@ class PresaleCampaigns extends Secure_Controller
             return view('presales/disabled');
         }
 
-        if (! $this->can_manage()) {
+        if (! Presales::can_manage($this->employee)) {
             return redirect()->to('no_access/presales/presales_manage');
         }
 
@@ -195,8 +195,8 @@ class PresaleCampaigns extends Secure_Controller
             return $this->fail($error);
         }
 
-        $discount = $this->readNumber('discount_percent');
-        $minimum  = $this->readNumber('min_initial_percent');
+        $discount = $this->read_number('discount_percent');
+        $minimum  = $this->read_number('min_initial_percent');
 
         if ($discount === false || $minimum === false) {
             return $this->fail(lang('Presales.percent_invalid'));
@@ -367,8 +367,8 @@ class PresaleCampaigns extends Secure_Controller
             return $denied;
         }
 
-        $price    = $this->readNumber('campaign_price');
-        $discount = $this->readNumber('discount_percent');
+        $price    = $this->read_number('campaign_price');
+        $discount = $this->read_number('discount_percent');
 
         if ($price === false) {
             return $this->fail(lang('Presales.price_invalid'));
@@ -442,13 +442,6 @@ class PresaleCampaigns extends Secure_Controller
     // Plumbing
     // ---------------------------------------------------------------------------------------------
 
-    protected function can_manage(): bool
-    {
-        $employee = $this->employee->get_logged_in_employee_info();
-
-        return is_object($employee) && $this->employee->has_grant('presales_manage', (int) $employee->person_id);
-    }
-
     private function currentPersonId(): int
     {
         return (int) $this->employee->get_logged_in_employee_info()->person_id;
@@ -465,7 +458,7 @@ class PresaleCampaigns extends Secure_Controller
             return $this->fail(lang('Presales.disabled'), 403);
         }
 
-        if (! $this->can_manage()) {
+        if (! Presales::can_manage($this->employee)) {
             return $this->fail(lang('Presale_campaigns.forbidden'), 403);
         }
 
@@ -513,23 +506,10 @@ class PresaleCampaigns extends Secure_Controller
     }
 
     /**
-     * A number typed in the business's format, as a plain "12.50"; '' when left blank; false when it
-     * cannot be read. Never hands the model a locale-formatted string.
+     * A number typed in the business's format in a posted field (Presales::read_decimal()).
      */
-    private function readNumber(string $field): false|string
+    private function read_number(string $field): false|string
     {
-        $raw = trim((string) $this->request->getPost($field));
-
-        if ($raw === '') {
-            return '';
-        }
-
-        $number = parse_decimals($raw, 2);
-
-        if ($number === false || ! is_numeric($number)) {
-            return false;
-        }
-
-        return number_format((float) $number, 2, '.', '');
+        return Presales::read_decimal((string) $this->request->getPost($field), 2);
     }
 }
