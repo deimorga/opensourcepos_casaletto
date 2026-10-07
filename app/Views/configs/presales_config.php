@@ -56,6 +56,22 @@ $presales_enabled = ($config['presales_enable'] ?? '0') === '1';
             </div>
 
             <div class="form-group form-group-sm">
+                <?= form_label(lang('Config.presales_weight_refund_limit'), 'presales_weight_refund_limit', ['class' => 'control-label col-xs-2']) ?>
+                <div class="col-xs-2">
+                    <?= form_input([
+                        'name'      => 'presales_weight_refund_limit',
+                        'id'        => 'presales_weight_refund_limit',
+                        'class'     => 'form-control input-sm',
+                        'maxlength' => 6,
+                        'value'     => to_tax_decimals($config['presales_weight_refund_limit'] ?? '15'),
+                    ]) ?>
+                </div>
+                <div class="col-xs-6">
+                    <span class="help-block"><?= esc(lang('Config.presales_weight_refund_limit_help')) ?></span>
+                </div>
+            </div>
+
+            <div class="form-group form-group-sm">
                 <?= form_label(lang('Config.presales_terms'), 'presales_terms', ['class' => 'control-label col-xs-2']) ?>
                 <div class="col-xs-8">
                     <?= form_textarea([

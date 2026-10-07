@@ -2,9 +2,11 @@
 
 namespace App\Models;
 
+use App\Libraries\Presale_register;
 use CodeIgniter\Model;
 use Config\OSPOS;
 use DateTime;
+use Throwable;
 
 /**
  * A presale: an agreement with a registered customer, inside a campaign, to deliver some products on
@@ -120,11 +122,16 @@ class Presale extends Model
             return $lines;
         }
 
-        $total = '0.00';
+        // The total is what the register will charge at delivery for these lines and this customer --
+        // taxes and rounding included, by the register's own rule (owner's decision of 2026-10-07).
+        // Not the sum of the lines' amounts: the register does not round line by line.
+        $charge = $this->register_charge($lines, $customer_id);
 
-        foreach ($lines as $line) {
-            $total = bcadd($total, $line['amount'], self::MONEY_SCALE);
+        if ($charge === null) {
+            return 'Presales.total_unavailable';
         }
+
+        $total = $charge['charge'];
 
         if (bccomp($total, '0', self::MONEY_SCALE) <= 0) {
             return 'Presales.total_must_be_positive';
@@ -218,7 +225,7 @@ class Presale extends Model
         ]);
 
         $events = model(Presale_event::class);
-        $events->log($presale_id, Presale_event::CREATED, $employee_id, ['total' => $total, 'lines' => count($lines), 'installments' => count($installments)]);
+        $events->log($presale_id, Presale_event::CREATED, $employee_id, ['total' => $total, 'taxes' => $charge['taxes'], 'lines' => count($lines), 'installments' => count($installments)]);
         $events->log($presale_id, Presale_event::PAYMENT, $employee_id, ['amount' => $amount, 'payment_type_code' => $code, 'cashup_id' => $cashup_id]);
 
         if ($this->db->transStatus() === false) {
@@ -233,6 +240,25 @@ class Presale extends Model
     }
 
     /**
+     * What the register will charge for priced lines sold to $customer_id (Presale_register::charge_for()),
+     * or null when it cannot be worked out -- then nothing is registered.
+     *
+     * @param list<array<string, mixed>> $lines as price_lines() returns them
+     *
+     * @return array{total: string, taxes: string, charge: string}|null
+     */
+    public function register_charge(array $lines, int $customer_id): ?array
+    {
+        try {
+            return (new Presale_register())->charge_for($lines, $customer_id);
+        } catch (Throwable $e) {
+            log_message('critical', 'Presale::register_charge: ' . $e->getMessage());
+
+            return null;
+        }
+    }
+
+    /**
      * Prices each requested line from the campaign and refuses anything the campaign does not sell.
      *
      * A kit is expanded into its components the way the register expands it (Sale_lib::add_item_kit(),
@@ -240,15 +266,18 @@ class Presale extends Model
      * the components' (technical doc §8.6). Storing a kit as one plain line would deliver the wrong
      * stock.
      *
-     * - The kit's own line comes first and carries the CAMPAIGN price. That is the one deliberate
-     *   difference with the register, which prices that line by price_option: the campaign is where a
-     *   presale price is agreed (D14).
-     * - Each component follows, its quantity multiplied, priced as the register prices it (price_option,
-     *   Sale_lib.php:1466-1478) at its catalogue price of today, and frozen like any other line.
+     * - The kit's own line comes first and carries the CAMPAIGN price, which is the price of the WHOLE
+     *   kit (owner's decision of 2026-10-07).
+     * - Each component follows, its quantity multiplied, at 0 whatever the kit's price_option says:
+     *   the kit's price already pays for it. That is the deliberate difference with the register,
+     *   which prices components by price_option (Sale_lib::add_item() in PRICE_MODE_KIT).
      * - A kit inside a kit is expanded in place and its own line is not added, as in the register.
-     * - Every line carries the print_option the register would give it, and its item_type.
+     * - Every line carries the print_option the register would give a line at its price (a component
+     *   at 0 is not "priced"), and its item_type.
      * - The kit's own discount (item_kits.kit_discount) is not applied: discounts in a presale are the
      *   campaign's (D19).
+     *
+     * Each line's `amount` is for display: the presale's total is NOT their sum (see create()).
      *
      * @return list<array{item_id: int, quantity: string, unit_price: string, amount: string, print_option: int, item_type: int}>|string
      */
@@ -308,7 +337,7 @@ class Presale extends Model
     private function kit_lines(int $kit_item_id, string $quantity, string $campaign_price): array|string
     {
         $kit = $this->db->table('item_kits')
-            ->select('item_kit_id, price_option, print_option')
+            ->select('item_kit_id, print_option')
             ->where('item_id', $kit_item_id)
             ->get()->getRowArray();
 
@@ -317,10 +346,9 @@ class Presale extends Model
         }
 
         $item_kit_id  = (int) $kit['item_kit_id'];
-        $price_option = (int) $kit['price_option'];
         $print_option = (int) $kit['print_option'];
 
-        $components = $this->kit_components($item_kit_id, $quantity, $price_option, $print_option, [$item_kit_id]);
+        $components = $this->kit_components($item_kit_id, $quantity, $print_option, [$item_kit_id]);
 
         if (is_string($components)) {
             return $components;
@@ -332,18 +360,19 @@ class Presale extends Model
     }
 
     /**
-     * The components of a kit, recursively, as Sale_lib::add_item_kit() adds them: a nested kit passes
-     * on the OUTER kit's price and print options, exactly as the register does, and a kit already being
-     * expanded higher up the chain is refused instead of looping.
+     * The components of a kit, recursively, as Sale_lib::add_item_kit() adds them, every one at 0 (the
+     * kit's campaign price pays for them): a nested kit passes on the OUTER kit's print option, exactly
+     * as the register does, and a kit already being expanded higher up the chain is refused instead of
+     * looping.
      *
      * @param list<int> $ancestors item_kit_ids being expanded in this chain
      *
      * @return list<array{item_id: int, quantity: string, unit_price: string, amount: string, print_option: int, item_type: int}>|string
      */
-    private function kit_components(int $item_kit_id, string $multiplier, int $price_option, int $print_option, array $ancestors): array|string
+    private function kit_components(int $item_kit_id, string $multiplier, int $print_option, array $ancestors): array|string
     {
         $components = $this->db->table('item_kit_items AS kit_items')
-            ->select('kit_items.item_id, kit_items.quantity, items.unit_price, items.item_type, items.stock_type, items.deleted')
+            ->select('kit_items.item_id, kit_items.quantity, items.unit_price, items.item_type, items.deleted')
             ->join('items', 'items.item_id = kit_items.item_id', 'left')
             ->where('kit_items.item_kit_id', $item_kit_id)
             ->orderBy('kit_items.kit_sequence', 'asc')
@@ -373,7 +402,7 @@ class Presale extends Model
                         return 'Presales.kit_not_found';
                     }
 
-                    $nested_lines = $this->kit_components($nested_id, $quantity, $price_option, $print_option, [...$ancestors, $nested_id]);
+                    $nested_lines = $this->kit_components($nested_id, $quantity, $print_option, [...$ancestors, $nested_id]);
 
                     if (is_string($nested_lines)) {
                         return $nested_lines;
@@ -385,11 +414,7 @@ class Presale extends Model
                 }
             }
 
-            $priced = $price_option === PRICE_OPTION_ALL
-                || ($price_option === PRICE_OPTION_KIT && $item_type === ITEM_KIT)
-                || ($price_option === PRICE_OPTION_KIT_STOCK && (int) $component['stock_type'] === HAS_STOCK);
-
-            $price = $priced ? bcadd((string) $component['unit_price'], '0', self::MONEY_SCALE) : '0.00';
+            $price = '0.00';
 
             $lines[] = self::line((int) $component['item_id'], $quantity, $price, self::kit_print_option($print_option, $item_type, $price), $item_type);
         }

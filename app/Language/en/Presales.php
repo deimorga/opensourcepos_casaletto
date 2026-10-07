@@ -45,6 +45,7 @@ return [
     'refund_exceeds_paid'        => 'You cannot give back more than the customer has paid.',
     'refund_invalid'             => 'The refund amount is not valid.',
     'save_failed'                => 'It could not be saved. Nothing was recorded; try again.',
+    'total_unavailable'          => 'The presale total could not be worked out with the business taxes. Nothing was recorded; try again.',
     'state_canceled'             => 'Cancelled',
     'state_delivered'            => 'Delivered',
     'state_late'                 => 'Late',

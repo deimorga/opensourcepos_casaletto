@@ -964,11 +964,28 @@ class Config extends Secure_Controller
             return $this->response->setJSON(['success' => false, 'message' => lang('Config.presales_terms_too_long')]);
         }
 
-        $success = $this->appconfig->batch_save([
+        $settings = [
             'presales_enable' => $this->request->getPost('presales_enable') != null ? '1' : '0',
             'presales_prefix' => $prefix,
             'presales_terms'  => $terms,
-        ]);
+        ];
+
+        // The weight refund limit (owner's decision of 2026-10-07): a percentage, 0 = no limit. Typed in
+        // the business's number format, so read with parse_decimals(). Absent from the POST, it is left
+        // as it is.
+        $limit = $this->request->getPost('presales_weight_refund_limit');
+
+        if ($limit !== null) {
+            $parsed = parse_decimals(trim((string) $limit), tax_decimals());
+
+            if ($parsed === false || $parsed === '' || !is_numeric($parsed) || (float) $parsed < 0 || (float) $parsed > 100) {
+                return $this->response->setJSON(['success' => false, 'message' => lang('Config.presales_weight_refund_limit_invalid')]);
+            }
+
+            $settings['presales_weight_refund_limit'] = rtrim(rtrim(number_format((float) $parsed, 2, '.', ''), '0'), '.');
+        }
+
+        $success = $this->appconfig->batch_save($settings);
 
         return $this->response->setJSON(['success' => $success, 'message' => lang('Config.saved_' . ($success ? '' : 'un') . 'successfully')]);
     }
