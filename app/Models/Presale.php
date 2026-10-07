@@ -116,6 +116,11 @@ class Presale extends Model
             return 'Presales.date_not_in_campaign';
         }
 
+        // A delivery cannot be agreed for a day that has gone. Today is still a day to deliver on.
+        if ($date['delivery_date'] < $today) {
+            return 'Presales.delivery_date_past';
+        }
+
         $lines = $this->price_lines((int) $campaign['campaign_id'], $input['lines'] ?? []);
 
         if (is_string($lines)) {
@@ -137,7 +142,7 @@ class Presale extends Model
             return 'Presales.total_must_be_positive';
         }
 
-        $installments = $this->check_plan($input['installments'] ?? [], $total, $date['delivery_date'], $campaign);
+        $installments = $this->check_plan($input['installments'] ?? [], $total, $date['delivery_date'], $campaign, $today);
 
         if (is_string($installments)) {
             return $installments;
@@ -457,12 +462,13 @@ class Presale extends Model
      *
      * - at least one instalment, every date valid and every amount positive;
      * - the amounts add up exactly to the total;
-     * - none falls after the delivery date;
+     * - none falls before $today (today is allowed: the first instalment is taken now) nor after the
+     *   delivery date;
      * - the first one is not below the campaign's minimum.
      *
      * @return list<array{due_date: string, amount: string}>|string
      */
-    private function check_plan(array $requested, string $total, string $delivery_date, array $campaign): array|string
+    private function check_plan(array $requested, string $total, string $delivery_date, array $campaign, string $today): array|string
     {
         if ($requested === []) {
             return 'Presales.installments_required';
@@ -481,6 +487,10 @@ class Presale extends Model
 
             if ($amount === null || bccomp($amount, '0', self::MONEY_SCALE) <= 0) {
                 return 'Presales.installment_amount_invalid';
+            }
+
+            if ($due_date < $today) {
+                return 'Presales.installment_in_past';
             }
 
             if ($due_date > $delivery_date) {

@@ -24,6 +24,8 @@ return [
     'initial_below_minimum'      => 'The initial instalment is below the minimum the campaign requires.',
     'initial_payment_required'   => 'Record the payment of the initial instalment.',
     'installment_after_delivery' => 'No instalment can fall after the delivery date.',
+    'installment_in_past'        => 'No instalment can fall before today.',
+    'delivery_date_past'         => 'That delivery date has passed. Choose one from today on.',
     'installment_amount_invalid' => 'Every instalment must be greater than zero.',
     'installments_must_add_up'   => 'The instalments must add up exactly to the presale total.',
     'installments_required'      => 'Enter the payment plan agreed with the customer.',

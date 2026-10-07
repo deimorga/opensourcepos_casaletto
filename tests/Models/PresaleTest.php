@@ -354,6 +354,95 @@ final class PresaleTest extends CIUnitTestCase
         $this->assertTrue($this->presales->customer_has_open($this->customer_id));
     }
 
+    /**
+     * A campaign that stopped selling no longer holds its products: they can be deleted from the
+     * catalogue. Before, any campaign row blocked the product forever.
+     */
+    public function testAProductOfACampaignThatEndedCanBeDeleted(): void
+    {
+        // The campaign sells until 2026-12-15, both ends included.
+        $this->assertTrue($this->presales->item_in_use($this->turkey_id, '2026-12-15'));
+        $this->assertFalse($this->presales->item_in_use($this->turkey_id, '2026-12-16'));
+    }
+
+    /**
+     * A deleted campaign takes its products and dates with it and blocks nothing.
+     */
+    public function testADeletedCampaignBlocksNothing(): void
+    {
+        $this->assertTrue($this->campaigns->delete_campaign($this->campaign_id));
+
+        $this->assertFalse($this->presales->item_in_use($this->turkey_id, self::TODAY));
+        $this->assertSame(0, $this->db->table('presale_campaign_items')->where('campaign_id', $this->campaign_id)->countAllResults());
+        $this->assertSame(0, $this->db->table('presale_campaign_dates')->where('campaign_id', $this->campaign_id)->countAllResults());
+    }
+
+    /**
+     * Campaigns deleted before delete_campaign() took its products along still have their rows; the
+     * deleted flag alone has to be enough.
+     */
+    public function testAProductRowLeftByAnOldDeletedCampaignBlocksNothing(): void
+    {
+        $this->db->table('presale_campaigns')->where('campaign_id', $this->campaign_id)->update(['deleted' => 1]);
+
+        $this->assertFalse($this->presales->item_in_use($this->turkey_id, self::TODAY));
+    }
+
+    /**
+     * An open presale holds its products whatever happened to its campaign; once it is closed, it
+     * does not.
+     */
+    public function testAnOpenPresaleHoldsItsProductsAfterItsCampaignEnded(): void
+    {
+        $id = $this->register();
+        $this->assertIsInt($id);
+
+        $this->assertTrue($this->presales->item_in_use($this->turkey_id, '2027-01-15'));
+        $this->assertFalse($this->presales->item_in_use($this->outside_id, '2027-01-15'));
+
+        $this->assertTrue($this->presales->cancel($id, $this->employee_id, 'El cliente desistió'));
+        $this->assertFalse($this->presales->item_in_use($this->turkey_id, '2027-01-15'));
+    }
+
+    public function testADeliveryDateThatHasPassedIsRefused(): void
+    {
+        $this->assertTrue($this->campaigns->add_date($this->campaign_id, '2026-11-09'));
+        $past = (int) $this->db->table('presale_campaign_dates')->where('campaign_id', $this->campaign_id)->where('delivery_date', '2026-11-09')->get()->getRow()->date_id;
+
+        $this->assertSame('Presales.delivery_date_past', $this->register([
+            'delivery_date_id' => $past,
+            'installments'     => [['due_date' => '2026-11-09', 'amount' => '180000']],
+            'payment'          => ['payment_type_code' => 'cash', 'amount' => '180000'],
+        ]));
+        $this->assertSame(0, $this->db->table('presales')->where('campaign_id', $this->campaign_id)->countAllResults());
+    }
+
+    /**
+     * Delivering today is allowed: today has not passed.
+     */
+    public function testADeliveryToday(): void
+    {
+        $this->assertTrue($this->campaigns->add_date($this->campaign_id, self::TODAY));
+        $today = (int) $this->db->table('presale_campaign_dates')->where('campaign_id', $this->campaign_id)->where('delivery_date', self::TODAY)->get()->getRow()->date_id;
+
+        $this->assertIsInt($this->register([
+            'delivery_date_id' => $today,
+            'installments'     => [['due_date' => self::TODAY, 'amount' => '180000']],
+            'payment'          => ['payment_type_code' => 'cash', 'amount' => '180000'],
+        ]));
+    }
+
+    public function testAnInstalmentBeforeTodayIsRefused(): void
+    {
+        $this->assertSame('Presales.installment_in_past', $this->register([
+            'installments' => [
+                ['due_date' => '2026-11-09', 'amount' => '54000'],
+                ['due_date' => '2026-12-01', 'amount' => '126000'],
+            ],
+        ]));
+        $this->assertSame(0, $this->db->table('presales')->where('campaign_id', $this->campaign_id)->countAllResults());
+    }
+
     public function testAProductMissingFromTheCatalogueCannotJoinACampaign(): void
     {
         $this->assertSame('Presales.item_not_in_catalogue', $this->campaigns->add_item($this->campaign_id, 999_999_999));

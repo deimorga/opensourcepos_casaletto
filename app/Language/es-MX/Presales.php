@@ -24,6 +24,8 @@ return [
     'initial_below_minimum'      => 'La cuota inicial es menor que el mínimo que pide la campaña.',
     'initial_payment_required'   => 'Registre el pago de la cuota inicial.',
     'installment_after_delivery' => 'Ninguna cuota puede quedar después de la fecha de entrega.',
+    'installment_in_past'        => 'Ninguna cuota puede quedar antes de hoy.',
+    'delivery_date_past'         => 'Esa fecha de entrega ya pasó. Elija una de hoy en adelante.',
     'installment_amount_invalid' => 'Cada cuota debe tener un valor mayor que cero.',
     'installments_must_add_up'   => 'Las cuotas tienen que sumar exactamente el total de la preventa.',
     'installments_required'      => 'Escriba el plan de cuotas acordado con el cliente.',

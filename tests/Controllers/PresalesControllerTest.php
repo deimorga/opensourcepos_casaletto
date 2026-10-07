@@ -240,10 +240,14 @@ final class PresalesControllerTest extends CIUnitTestCase
     {
         $paid = $this->register('180000');
         $late = $this->register('60000', [
-            ['due_date' => $this->day(-10), 'amount' => '60000'],
-            ['due_date' => $this->day(-5), 'amount' => '60000'],
+            ['due_date' => $this->day(0), 'amount' => '60000'],
+            ['due_date' => $this->day(1), 'amount' => '60000'],
             ['due_date' => $this->day(30), 'amount' => '60000'],
         ]);
+
+        // A plan cannot be agreed in the past; time passing is what makes a presale late.
+        $this->db->table('presale_installments')->where('presale_id', $late)->where('due_date', $this->day(0))->update(['due_date' => $this->day(-10)]);
+        $this->db->table('presale_installments')->where('presale_id', $late)->where('due_date', $this->day(1))->update(['due_date' => $this->day(-5)]);
         $current = $this->register('60000');
 
         $this->assertSame([$paid], $this->listedIds(['states' => ['paid']]));

@@ -867,6 +867,11 @@ class Presales extends Secure_Controller
             $dates = [];
 
             foreach ($campaigns->get_dates($campaign_id) as $date) {
+                // A day that has gone is not offered: Presale::create() refuses it.
+                if ((string) $date['delivery_date'] < $today) {
+                    continue;
+                }
+
                 $dates[] = ['date_id' => (int) $date['date_id'], 'label' => to_date(strtotime((string) $date['delivery_date']))];
             }
 
