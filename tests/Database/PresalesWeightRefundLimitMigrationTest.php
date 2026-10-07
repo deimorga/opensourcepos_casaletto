@@ -33,6 +33,10 @@ final class PresalesWeightRefundLimitMigrationTest extends CIUnitTestCase
     {
         parent::setUp();
 
+        // Composer excludes app/Database/Migrations from the classmap: required by hand, as in
+        // BarcodeWeightDivisorConfigTest.
+        require_once APPPATH . 'Database/Migrations/20261008030000_AddPresalesWeightRefundLimit.php';
+
         $this->before = $this->setting();
     }
 

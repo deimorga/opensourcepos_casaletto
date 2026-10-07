@@ -1373,7 +1373,7 @@ class Sales extends Secure_Controller
             $refusal = $this->presale_register->completion_refusal($presale, $this->sale_lib->get_mode(), $customer_id, $data['cart'], $data['payments'], (bool) $totals['payments_cover_total']);
 
             // A lighter weight hands cash back: above the business's limit, only with presales_manage.
-            $refusal ??= $this->presale_register->weight_refund_refusal($presale, (string) $totals['total'], $this->employee->has_grant('presales_manage', $employee_id));
+            $refusal ??= $this->presale_register->weight_refund_refusal($presale, $data['cart'], (string) $totals['total'], $this->employee->has_grant('presales_manage', $employee_id));
 
             if ($refusal !== null) {
                 return $this->_reload(['error' => lang($refusal[0], $refusal[1])]);
@@ -1387,6 +1387,12 @@ class Sales extends Secure_Controller
         }
 
         $data['amount_change'] = $data['amount_due'] * -1;
+
+        // A delivery paid by the presale's charge, rounded to the currency, may exceed the register's
+        // unrounded total by less than half a unit: no change to hand over, no drawer to open.
+        if ($presale !== null && Presale_register::is_rounding_remainder((float) $data['amount_change'])) {
+            $data['amount_change'] = 0;
+        }
 
         if ($data['amount_change'] > 0) {
             // Save cash refund to the cash payment transaction if found, if not then add as new Cash transaction
@@ -2336,7 +2342,7 @@ class Sales extends Secure_Controller
             if ($adjusted !== []) {
                 $presale = model(Presale::class)->get_info($presale_id);
                 $refund = Presale_register::weight_refund(model(Presale_payment::class)->get_paid($presale_id), (string) $data['total']);
-                $over_limit = Presale_register::weight_refund_over_limit($refund, (string) ($presale['total'] ?? '0'));
+                $over_limit = Presale_register::weight_refund_over_limit(Presale_register::weight_refund_raw(model(Presale_payment::class)->get_paid($presale_id), (string) $data['total']), (string) ($presale['total'] ?? '0'));
 
                 $recorded = model(Presale_event::class)->log($presale_id, 'quantity_adjusted', $employee_id, [
                     'sale_id'       => $saved,

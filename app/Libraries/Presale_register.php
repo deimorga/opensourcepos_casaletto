@@ -317,20 +317,46 @@ class Presale_register
      */
     public static function weight_refund(string $paid, string $sale_total): string
     {
-        $refund = Presale_campaign::round_money(bcsub($paid, $sale_total, 6));
+        $raw = self::weight_refund_raw($paid, $sale_total);
 
-        return bccomp($refund, '0', self::MONEY_SCALE) > 0 ? $refund : '0.00';
+        // At scale 2, half up: what the sale's cash_refund column (decimal(15,2)) keeps of it.
+        return bcadd($raw, '0.005', self::MONEY_SCALE);
     }
 
     /**
-     * Whether giving back $refund needs presales_manage: it is above the configured percentage of
-     * the presale's total. Exactly the limit is still allowed.
+     * paid − sale total, unrounded, never below zero. The limit is compared against this and not a
+     * rounded figure: a difference above the limit must not round down onto it.
+     */
+    public static function weight_refund_raw(string $paid, string $sale_total): string
+    {
+        $raw = bcsub($paid, $sale_total, 6);
+
+        return bccomp($raw, '0', 6) > 0 ? $raw : '0';
+    }
+
+    /**
+     * Change below half a unit of the currency: what is left when the register's unrounded total
+     * (25,074.90) is paid by the presale's charge rounded to the currency (25,075). It cannot be
+     * handed over, so a delivery does not record it as cash change nor open the drawer for it. The
+     * same remainder the other way (paid 25,145 for 25,145.12) the register already ignores
+     * (payments_cover_total).
+     */
+    public static function is_rounding_remainder(float $change): bool
+    {
+        helper('locale');
+
+        return $change > 0 && $change < (10 ** -totals_decimals()) / 2;
+    }
+
+    /**
+     * Whether giving back $refund (unrounded, weight_refund_raw()) needs presales_manage: it is above
+     * the configured percentage of the presale's total. Exactly the limit is still allowed.
      */
     public static function weight_refund_over_limit(string $refund, string $presale_total): bool
     {
         $limit = self::weight_refund_limit();
 
-        if (bccomp($limit, '0', 2) <= 0 || bccomp($refund, '0', self::MONEY_SCALE) <= 0) {
+        if (bccomp($limit, '0', 2) <= 0 || bccomp($refund, '0', 6) <= 0) {
             return false;
         }
 
@@ -572,16 +598,21 @@ class Presale_register
      * what goes back is above the configured percentage of the presale's total and the cashier does
      * not hold presales_manage. Null when it can be completed.
      *
+     * Only when a weight changed: change with the agreed weights (taxes changed since registration,
+     * T20's known limit) is not a weight refund and is not what this limit is about.
+     *
+     * @param array<int|string, array<string, mixed>> $cart
+     *
      * @return array{0: string, 1: list<string>}|null
      */
-    public function weight_refund_refusal(array $presale, string $sale_total, bool $may_authorise): ?array
+    public function weight_refund_refusal(array $presale, array $cart, string $sale_total, bool $may_authorise): ?array
     {
-        if ($may_authorise) {
+        if ($may_authorise || $this->weight_adjustments((int) $presale['presale_id'], $cart) === []) {
             return null;
         }
 
         $paid   = model(Presale_payment::class)->get_paid((int) $presale['presale_id']);
-        $refund = self::weight_refund($paid, $sale_total);
+        $refund = self::weight_refund_raw($paid, $sale_total);
 
         if (! self::weight_refund_over_limit($refund, (string) $presale['total'])) {
             return null;

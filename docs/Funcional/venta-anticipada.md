@@ -188,6 +188,10 @@ Se hace una a una, con el cliente al frente o al teléfono:
    cobrar ni vuelto que dar. El total que se ve mientras se arma la preventa ya es ese, y se
    recalcula al elegir el cliente.
 
+   El precio queda pactado, pero **el impuesto lo vuelve a calcular la caja el día de la entrega**:
+   si el negocio cambia sus impuestos entre el registro y la entrega, la caja cobrará la diferencia
+   o dará vuelto, como haría con cualquier venta.
+
    **Pendiente:** con impuesto aparte, el comprobante y el detalle muestran cada producto sin
    impuesto y el total con impuesto, pero todavía no un renglón «Impuestos» que explique la
    diferencia. El recibo de la venta de la entrega sí lo muestra, como cualquier venta.
@@ -308,7 +312,8 @@ cambia:
   entrega quien tenga el permiso «Gestionar preventas». A un cajero sin ese permiso el sistema le dice
   «La devolución por peso supera el 15 %. Debe autorizarla quien tenga el permiso Gestionar
   preventas.» y no completa nada. Por debajo del tope, cualquier cajero entrega. El tope se cambia en
-  Configuración (§4.12); en 0 no hay tope.
+  Configuración (§4.12); en 0 no hay tope. El tope mira solo lo que se devuelve **porque cambió el
+  peso**.
 
 El saldo de la preventa tiene que estar en cero **antes** de entregar; la diferencia por peso se
 arregla en la entrega misma.

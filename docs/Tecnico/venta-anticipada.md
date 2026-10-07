@@ -610,9 +610,24 @@ suma.
 **Límites conocidos.** El impuesto queda congelado en el total al registrar, pero la caja lo recalcula
 al entregar con la configuración de ese día: si el negocio cambia impuestos o la categoría de un
 artículo entre una cosa y la otra, la caja pedirá la diferencia (o dará vuelto). Con
-`currency_decimals` mayor que 2, `round_money()` se queda en 2 (las columnas son `decimal(15,2)`). Si
-el total de la caja tiene una fracción de media unidad o más (25.074,90 en pesos), el cargo es 25.075
-y la caja da 0,10 de vuelto, exactamente como en cualquier venta pagada con ese monto.
+`currency_decimals` mayor que 2, `round_money()` se queda en 2 (las columnas son `decimal(15,2)`).
+
+**El residuo del redondeo hacia arriba.** Si el total de la caja tiene una fracción de media unidad o
+más (25.074,90 en pesos), el cargo es 25.075 y la caja, por su regla de vueltas (`amount_change =
+−amount_due`, cualquier valor positivo), anotaría 0,10 de vuelto en efectivo y abriría el cajón por
+él. Hallazgo de la revisión adversarial. En una entrega, `postComplete` descarta un vuelto menor que
+media unidad de la moneda (`Presale_register::is_rounding_remainder()`): la venta queda con el pago
+`presale` solo. Es el simétrico de lo que la caja ya hace hacia abajo (25.145 pagados por 25.145,12
+cuentan como pagado). Solo en entregas; la caja normal no cambia.
+
+**Otras suposiciones, escritas.** El impuesto de un kit sale solo de las filas de impuesto del
+artículo kit (los componentes van en 0): un kit sin impuestos propios se vende sin impuesto, en la
+preventa y en su entrega por igual. Con impuesto por destino, un cliente sin `sales_tax_code_id` hace
+fallar `Tax_lib::apply_destination_tax()` (tipo `int` con un `NULL`); la caja tiene el mismo fallo, y
+la preventa lo muestra como `Presales.total_unavailable`. Las preventas registradas antes de este
+cambio (solo en staging; el módulo no está en producción) guardaron la suma redondeada por línea sin
+impuestos: si tienen impuestos o pesos con decimales, la caja pedirá la diferencia; se cancelan y se
+registran de nuevo.
 
 **Kits (T21).** `kit_components()` ya no recibe `price_option`: todo componente va en `0.00`, con el
 `print_option` que la caja da a una línea en cero (`kit_print_option()`: PRICED no la imprime) y su
@@ -624,9 +639,12 @@ y la caja da 0,10 de vuelto, exactamente como en cualquier venta pagada con ese 
 `parse_decimals(..., tax_decimals())`, exige 0-100 y, si el campo no viene en el POST, lo deja como
 está. Al completar (`postComplete`, después de `completion_refusal()`),
 `Presale_register::weight_refund_refusal($presale, $totals['total'], has_grant('presales_manage'))`
-calcula lo devuelto = abonado − total de la caja con los pesos en pantalla (redondeado a la moneda,
-nunca negativo) y rechaza con `Presale_register.weight_refund_needs_manager` si pasa de
-`total × tope / 100` (estrictamente mayor) y el cajero no tiene el permiso. El evento
+calcula lo devuelto = abonado − total de la caja con los pesos en pantalla, **sin redondear** (una
+diferencia por encima del tope no puede redondearse hasta quedar en él), y rechaza con
+`Presale_register.weight_refund_needs_manager` si pasa de `total × tope / 100` (estrictamente mayor)
+y el cajero no tiene el permiso. **Solo cuando cambió un peso**: un vuelto con los pesos pactados
+(impuestos que cambiaron después de registrar) no es una devolución por peso y no lo frena el tope.
+En el evento, `refund` va a 2 decimales, como la columna `cash_refund` de la venta. El evento
 `quantity_adjusted` lleva ahora `{sale_id, lines, refund, authorized_by}`: `authorized_by` es el
 empleado que completó cuando pasó del tope (tiene el permiso, porque si no, no habría completado) y
 `null` si no pasó.
@@ -636,7 +654,8 @@ tocar nada, y `completion_refusal()` lo vuelve a mirar al completar (el turno pu
 entrega en pantalla).
 
 **Pruebas.** `tests/Controllers/PresaleOwnerDecisionsTest.php` (contra la caja real: impuesto aparte
-e incluido, cliente exento, dos líneas por peso en moneda sin decimales, vista previa, tope con y sin
+e incluido, cliente exento, líneas por peso en moneda sin decimales redondeando hacia abajo y hacia
+arriba, vuelto que no viene del peso, vista previa, tope con y sin
 permiso y en 0, turno al mandar y al completar, tildes en pantalla y comprobante);
 `tests/Models/PresaleKitTest.php` (componentes en 0 con los tres `price_option`);
 `tests/Controllers/ConfigPresalesTest.php` (el tope); `tests/Database/PresalesWeightRefundLimitMigrationTest.php`;

@@ -268,6 +268,50 @@ final class PresaleOwnerDecisionsTest extends CIUnitTestCase
     }
 
     /**
+     * The other side of the same rule: 1.255 kg × 9,990 twice is 25,074.90, and the least the register
+     * takes is 25,075. Paid exactly that, the register would record 0.10 of cash change (and open the
+     * drawer for it) -- a remainder below half a peso that nobody can hand over. A delivery ignores
+     * it: the presale payment alone, no cash line.
+     */
+    public function testARoundedUpTotalLeavesNoCashRemainderAtDelivery(): void
+    {
+        $this->setConfig(['currency_decimals' => '0']);
+
+        $first  = $this->makeItem('PRDEC-TEST pernil', '9990.00', Item::UNIT_OF_MEASURE_KG);
+        $second = $this->makeItem('PRDEC-TEST lomo', '9990.00', Item::UNIT_OF_MEASURE_KG);
+        $this->makeCampaign([$first, $second]);
+
+        $presale = $this->registerPaid([[$first, '1.255'], [$second, '1.255']], '25075');
+
+        $this->assertSame('25075.00', model(Presale::class)->get_info($presale)['total']);
+
+        $sale = $this->deliverAndComplete($presale);
+
+        $this->assertSame([['presale', '25075.00', '0.00']], $this->salePayments($sale));
+    }
+
+    /**
+     * Change that does not come from a weight -- here the business switched to prices with tax
+     * included after registering, so the register now charges 30.00 for a presale of 35.70 -- is not
+     * a weight refund: the limit does not stop it, and it goes back as change like in any sale. It is
+     * the known limit of T20: taxes are recomputed at delivery.
+     */
+    public function testChangeThatIsNotFromAWeightIsNotHeldByTheWeightLimit(): void
+    {
+        $this->revoke('presales_manage');
+
+        $item = $this->makeItem('PRDEC-TEST pavo', '10.00', Item::UNIT_OF_MEASURE_UNIT, '19');
+        $this->makeCampaign([$item]);
+        $presale = $this->registerPaid([[$item, '3']], '35.70');
+
+        $this->setConfig(['tax_included' => '1']);
+
+        $sale = $this->deliverAndComplete($presale);
+
+        $this->assertSame([['cash', '0.00', '5.70'], ['presale', '35.70', '0.00']], $this->salePayments($sale));
+    }
+
+    /**
      * The registration form shows the total the presale will store, taxes included.
      */
     public function testThePreviewShowsTheTotalThePresaleWillStore(): void
