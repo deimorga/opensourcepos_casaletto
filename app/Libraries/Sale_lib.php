@@ -998,8 +998,11 @@ class Sale_lib
      * @param string $payment_id
      * @param string $payment_amount
      * @param int $cash_adjustment
+     * @param string|null $payment_type_code the stored code, when the payment comes back from the
+     *        database (copy_entire_sale()). The label is in the language of whoever saved it; the
+     *        code is what Presale_register recognises a 'presale' payment by.
      */
-    public function add_payment(string $payment_id, string $payment_amount, int $cash_adjustment = CASH_ADJUSTMENT_FALSE): void
+    public function add_payment(string $payment_id, string $payment_amount, int $cash_adjustment = CASH_ADJUSTMENT_FALSE, ?string $payment_type_code = null): void
     {
         $payments = $this->get_payments();
         if (isset($payments[$payment_id])) {
@@ -1015,6 +1018,10 @@ class Sale_lib
                     'cash_adjustment' => $cash_adjustment
                 ]
             ];
+
+            if ($payment_type_code !== null) {
+                $payment[$payment_id]['payment_type_code'] = $payment_type_code;
+            }
 
             $payments += $payment;
         }
@@ -1906,7 +1913,7 @@ class Sale_lib
 
         // Now load payments
         foreach ($this->sale->get_sale_payments($sale_id)->getResult() as $row) {
-            $this->add_payment($row->payment_type, $row->payment_amount, $row->cash_adjustment);
+            $this->add_payment($row->payment_type, $row->payment_amount, $row->cash_adjustment, $row->payment_type_code ?? null);
         }
 
         $this->set_customer($this->sale->get_customer($sale_id)->person_id);

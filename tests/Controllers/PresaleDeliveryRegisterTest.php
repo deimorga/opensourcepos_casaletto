@@ -605,6 +605,46 @@ final class PresaleDeliveryRegisterTest extends CIUnitTestCase
         $this->assertSame(1, $this->db->table('sales')->where('customer_id', $this->customerId)->countAllResults());
     }
 
+    /**
+     * A tab saved by a cashier working in Spanish ("Preventa") and reopened by one working in English
+     * ("Presale"): exactly one presale payment, and completing it hands nothing back. Recognised by
+     * the label of the active language, the stored row stayed as an ordinary payment next to the new
+     * one and the whole presale came back across the counter as cash change.
+     */
+    public function testATabSavedInSpanishAndReopenedInEnglishKeepsOnePresalePayment(): void
+    {
+        $locale   = service('language')->getLocale();
+        $employee = $this->db->table('employees')->select('language_code, language')->where('person_id', 1)->get()->getRowArray();
+
+        try {
+            $this->db->table('employees')->where('person_id', 1)->update(['language_code' => 'es-MX', 'language' => 'spanish']);
+            $this->loginAsCashier();
+
+            $presale = $this->makePaidPresale();
+            $this->deliver($presale);
+            $sale = (int) model(Presale::class)->get_info($presale)['sale_id'];
+
+            $stored = $this->db->table('sales_payments')->select('payment_type, payment_type_code')->where('sale_id', $sale)->get()->getResultArray();
+            $this->assertSame([['payment_type' => 'Preventa', 'payment_type_code' => 'presale']], $stored, 'The tab was saved in Spanish.');
+
+            $this->db->table('employees')->where('person_id', 1)->update(['language_code' => 'en', 'language' => 'english']);
+            $this->loginAsCashier();
+            $this->postReq('sales/deliverPresale/' . $presale, [])->assertRedirectTo(site_url('sales'));
+            $this->getReq('sales');
+
+            $this->assertSame($sale, (int) $_SESSION['sale_id']);
+            $this->assertSame(['Presale' => '41.00'], $this->sessionPayments());
+
+            $this->postReq('sales/complete', [])->assertStatus(200);
+
+            $this->assertSame(Presale::STATUS_DELIVERED, model(Presale::class)->get_info($presale)['status']);
+            $this->assertSame([['presale', '41.00', '0.00']], $this->salePayments($sale), 'One presale payment and no change.');
+        } finally {
+            $this->db->table('employees')->where('person_id', 1)->update($employee);
+            service('language')->setLocale($locale);
+        }
+    }
+
     // ---------------------------------------------------------------------------------------------
     // Fixtures
     // ---------------------------------------------------------------------------------------------

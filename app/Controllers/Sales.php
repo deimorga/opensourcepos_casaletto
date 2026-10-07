@@ -596,7 +596,9 @@ class Sales extends Secure_Controller
     {
         helper('url');
 
-        if (Presale_register::is_presale_payment((string) base64url_decode($payment_id))
+        $payment_key = (string) base64url_decode($payment_id);
+
+        if (Presale_register::is_presale_entry($payment_key, $this->sale_lib->get_payments()[$payment_key] ?? [])
             && ($refused = $this->_refuse_on_presale_delivery()) !== null) {
             return $refused;
         }

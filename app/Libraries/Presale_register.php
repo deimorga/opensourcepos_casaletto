@@ -99,7 +99,9 @@ class Presale_register
     }
 
     /**
-     * Whether a cart payment, keyed by its label as Sale_lib keys them, is a presale payment.
+     * Whether a label, in the language that is active now, is the presale payment's. Only for what
+     * a cashier types or posts (a forged payment type); a payment already in the cart is recognised
+     * by is_presale_entry(), never by its label alone.
      */
     public static function is_presale_payment(string $label): bool
     {
@@ -109,17 +111,53 @@ class Presale_register
     }
 
     /**
+     * Whether a cart payment is a presale payment.
+     *
+     * By the code it carries first: ensure_payment() puts 'presale' on the delivery's payment, and a
+     * tab reloaded from the database (Sale_lib::copy_entire_sale()) brings each row's stored code.
+     * The label is in the language of whoever saved the tab -- "Preventa" for a Spanish-speaking
+     * cashier, "Presale" for an English-speaking one -- so recognising the payment by its label in
+     * the language active NOW turned the stored one into an ordinary payment on top of the new one,
+     * and completing handed the whole presale back as cash change. Only an entry without a code
+     * (one typed in this session) falls back to its label.
+     *
+     * @param array<string, mixed> $payment the entry, as Sale_lib::get_payments() holds it
+     */
+    public static function is_presale_entry(string $key, array $payment): bool
+    {
+        if (isset($payment['payment_type_code'])) {
+            return $payment['payment_type_code'] === 'presale';
+        }
+
+        return self::is_presale_payment($key);
+    }
+
+    /**
      * @param array<string, array<string, mixed>> $payments as Sale_lib::get_payments() returns them
      */
     public static function has_presale_payment(array $payments): bool
     {
-        foreach (array_keys($payments) as $label) {
-            if (self::is_presale_payment((string) $label)) {
-                return true;
+        return self::presale_entries($payments) !== [];
+    }
+
+    /**
+     * The presale payments of a cart, by key.
+     *
+     * @param array<string, array<string, mixed>> $payments as Sale_lib::get_payments() returns them
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    public static function presale_entries(array $payments): array
+    {
+        $found = [];
+
+        foreach ($payments as $key => $payment) {
+            if (self::is_presale_entry((string) $key, is_array($payment) ? $payment : [])) {
+                $found[(string) $key] = $payment;
             }
         }
 
-        return false;
+        return $found;
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -529,14 +567,16 @@ class Presale_register
         $paid     = model(Presale_payment::class)->get_paid($presale_id);
         $label    = self::payment_label();
         $payments = [$label => [
-            'payment_type'    => $label,
-            'payment_amount'  => $paid,
-            'cash_refund'     => 0,
-            'cash_adjustment' => CASH_ADJUSTMENT_FALSE,
+            'payment_type'      => $label,
+            'payment_amount'    => $paid,
+            'cash_refund'       => 0,
+            'cash_adjustment'   => CASH_ADJUSTMENT_FALSE,
+            'payment_type_code' => 'presale',
         ]];
 
+        // Every presale payment already there goes, whatever language its label is in: by its code.
         foreach ($sale_lib->get_payments() as $key => $payment) {
-            if (! self::is_presale_payment((string) $key)) {
+            if (! self::is_presale_entry((string) $key, $payment)) {
                 $payments[$key] = $payment;
             }
         }
@@ -576,7 +616,9 @@ class Presale_register
             return ['Presale_register.cart_changed', []];
         }
 
-        $presale_payments = array_filter($payments, static fn ($key): bool => self::is_presale_payment((string) $key), ARRAY_FILTER_USE_KEY);
+        // Counted by code (is_presale_entry()): two presale payments, whatever their labels, are
+        // refused -- the second would come back as cash change.
+        $presale_payments = self::presale_entries($payments);
 
         if (count($presale_payments) !== 1
             || bccomp((string) reset($presale_payments)['payment_amount'], (string) $summary['paid'], self::MONEY_SCALE) !== 0) {

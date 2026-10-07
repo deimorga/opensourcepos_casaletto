@@ -171,6 +171,26 @@ final class PresaleRegisterTest extends CIUnitTestCase
         $this->assertFalse(Presale_register::has_presale_payment([lang('Sales.cash') => []]));
     }
 
+    /**
+     * A payment reloaded from a tab saved in another language keeps its stored code, and the code
+     * decides: "Preventa" under an English register is still the presale payment, and is replaced,
+     * not kept next to the new one.
+     */
+    public function testAPresalePaymentLabelledInAnotherLanguageIsReplacedByItsCode(): void
+    {
+        $this->saleLib->add_payment('Preventa-otro-idioma', '41.00', CASH_ADJUSTMENT_FALSE, 'presale');
+        $this->saleLib->add_payment(lang('Sales.debit'), '5.00', CASH_ADJUSTMENT_FALSE, 'debit');
+
+        $this->assertTrue(Presale_register::is_presale_entry('Preventa-otro-idioma', $this->saleLib->get_payments()['Preventa-otro-idioma']));
+        $this->assertFalse(Presale_register::is_presale_entry(lang('Sales.presale'), ['payment_type_code' => 'cash']), 'The code wins over the label.');
+
+        $this->register->ensure_payment($this->saleLib, $this->presaleId);
+
+        $payments = $this->saleLib->get_payments();
+        $this->assertSame([lang('Sales.presale'), lang('Sales.debit')], array_keys($payments));
+        $this->assertCount(1, Presale_register::presale_entries($payments));
+    }
+
     private function presale(): array
     {
         return model(Presale::class)->get_info($this->presaleId);
