@@ -193,8 +193,8 @@ class Presale extends Model
                 'unit_price'    => $line['unit_price'],
                 'discount'      => 0,
                 'discount_type' => 0,
-                'print_option'  => PRINT_YES,
-                'item_type'     => ITEM,
+                'print_option'  => $line['print_option'],
+                'item_type'     => $line['item_type'],
             ]);
         }
 
@@ -235,11 +235,22 @@ class Presale extends Model
     /**
      * Prices each requested line from the campaign and refuses anything the campaign does not sell.
      *
-     * Item kits are refused for now: a kit has to be expanded into its components the way the register
-     * does it (Sale_lib::add_item_kit()), and that expansion is its own piece of work (technical doc
-     * §8.6). Refusing is honest; storing a kit as one plain line would deliver the wrong stock.
+     * A kit is expanded into its components the way the register expands it (Sale_lib::add_item_kit(),
+     * Sales::postAdd()), so the delivery can rebuild the cart line by line and the stock that leaves is
+     * the components' (technical doc §8.6). Storing a kit as one plain line would deliver the wrong
+     * stock.
      *
-     * @return list<array{item_id: int, quantity: string, unit_price: string, amount: string}>|string
+     * - The kit's own line comes first and carries the CAMPAIGN price. That is the one deliberate
+     *   difference with the register, which prices that line by price_option: the campaign is where a
+     *   presale price is agreed (D14).
+     * - Each component follows, its quantity multiplied, priced as the register prices it (price_option,
+     *   Sale_lib.php:1466-1478) at its catalogue price of today, and frozen like any other line.
+     * - A kit inside a kit is expanded in place and its own line is not added, as in the register.
+     * - Every line carries the print_option the register would give it, and its item_type.
+     * - The kit's own discount (item_kits.kit_discount) is not applied: discounts in a presale are the
+     *   campaign's (D19).
+     *
+     * @return list<array{item_id: int, quantity: string, unit_price: string, amount: string, print_option: int, item_type: int}>|string
      */
     public function price_lines(int $campaign_id, array $requested): array|string
     {
@@ -264,10 +275,6 @@ class Presale extends Model
                 return 'Presales.item_not_in_campaign';
             }
 
-            if ((int) $item['item_type'] === ITEM_KIT) {
-                return 'Presales.kits_not_supported';
-            }
-
             $quantity = bcadd($quantity, '0', 3);
 
             // A product that is not sold by weight is sold in whole units.
@@ -275,15 +282,148 @@ class Presale extends Model
                 return 'Presales.quantity_must_be_whole';
             }
 
-            $lines[] = [
-                'item_id'    => $item_id,
-                'quantity'   => $quantity,
-                'unit_price' => $item['effective_price'],
-                'amount'     => Presale_campaign::round_money(bcmul($quantity, $item['effective_price'], 6)),
-            ];
+            if ((int) $item['item_type'] === ITEM_KIT) {
+                $kit_lines = $this->kit_lines($item_id, $quantity, $item['effective_price']);
+
+                if (is_string($kit_lines)) {
+                    return $kit_lines;
+                }
+
+                array_push($lines, ...$kit_lines);
+
+                continue;
+            }
+
+            $lines[] = self::line($item_id, $quantity, $item['effective_price'], PRINT_YES, ITEM);
         }
 
         return $lines;
+    }
+
+    /**
+     * The lines of one kit: its own line at the campaign price, then its components.
+     *
+     * @return list<array{item_id: int, quantity: string, unit_price: string, amount: string, print_option: int, item_type: int}>|string
+     */
+    private function kit_lines(int $kit_item_id, string $quantity, string $campaign_price): array|string
+    {
+        $kit = $this->db->table('item_kits')
+            ->select('item_kit_id, price_option, print_option')
+            ->where('item_id', $kit_item_id)
+            ->get()->getRowArray();
+
+        if ($kit === null) {
+            return 'Presales.kit_not_found';
+        }
+
+        $item_kit_id  = (int) $kit['item_kit_id'];
+        $price_option = (int) $kit['price_option'];
+        $print_option = (int) $kit['print_option'];
+
+        $components = $this->kit_components($item_kit_id, $quantity, $price_option, $print_option, [$item_kit_id]);
+
+        if (is_string($components)) {
+            return $components;
+        }
+
+        $own = self::line($kit_item_id, $quantity, $campaign_price, self::kit_print_option($print_option, ITEM_KIT, $campaign_price), ITEM_KIT);
+
+        return [$own, ...$components];
+    }
+
+    /**
+     * The components of a kit, recursively, as Sale_lib::add_item_kit() adds them: a nested kit passes
+     * on the OUTER kit's price and print options, exactly as the register does, and a kit already being
+     * expanded higher up the chain is refused instead of looping.
+     *
+     * @param list<int> $ancestors item_kit_ids being expanded in this chain
+     *
+     * @return list<array{item_id: int, quantity: string, unit_price: string, amount: string, print_option: int, item_type: int}>|string
+     */
+    private function kit_components(int $item_kit_id, string $multiplier, int $price_option, int $print_option, array $ancestors): array|string
+    {
+        $components = $this->db->table('item_kit_items AS kit_items')
+            ->select('kit_items.item_id, kit_items.quantity, items.unit_price, items.item_type, items.stock_type, items.deleted')
+            ->join('items', 'items.item_id = kit_items.item_id', 'left')
+            ->where('kit_items.item_kit_id', $item_kit_id)
+            ->orderBy('kit_items.kit_sequence', 'asc')
+            ->get()->getResultArray();
+
+        if ($components === []) {
+            return 'Presales.kit_not_found';
+        }
+
+        $lines = [];
+
+        foreach ($components as $component) {
+            if ($component['unit_price'] === null || (int) $component['deleted'] === 1) {
+                return 'Presales.kit_component_missing';
+            }
+
+            $quantity  = bcmul((string) $component['quantity'], $multiplier, 3);
+            $item_type = (int) $component['item_type'];
+
+            if ($item_type === ITEM_KIT) {
+                $nested = $this->db->table('item_kits')->select('item_kit_id')->where('item_id', (int) $component['item_id'])->get()->getRowArray();
+
+                if ($nested !== null) {
+                    $nested_id = (int) $nested['item_kit_id'];
+
+                    if (in_array($nested_id, $ancestors, true)) {
+                        return 'Presales.kit_not_found';
+                    }
+
+                    $nested_lines = $this->kit_components($nested_id, $quantity, $price_option, $print_option, [...$ancestors, $nested_id]);
+
+                    if (is_string($nested_lines)) {
+                        return $nested_lines;
+                    }
+
+                    array_push($lines, ...$nested_lines);
+
+                    continue;
+                }
+            }
+
+            $priced = $price_option === PRICE_OPTION_ALL
+                || ($price_option === PRICE_OPTION_KIT && $item_type === ITEM_KIT)
+                || ($price_option === PRICE_OPTION_KIT_STOCK && (int) $component['stock_type'] === HAS_STOCK);
+
+            $price = $priced ? bcadd((string) $component['unit_price'], '0', self::MONEY_SCALE) : '0.00';
+
+            $lines[] = self::line((int) $component['item_id'], $quantity, $price, self::kit_print_option($print_option, $item_type, $price), $item_type);
+        }
+
+        return $lines;
+    }
+
+    /**
+     * Whether a kit line is printed, by the register's rule (Sale_lib::add_item() in PRICE_MODE_KIT).
+     */
+    private static function kit_print_option(int $kit_print_option, int $item_type, string $price): int
+    {
+        $printed = $kit_print_option === PRINT_ALL
+            || ($kit_print_option === PRINT_KIT && $item_type === ITEM_KIT)
+            || ($kit_print_option === PRINT_PRICED && bccomp($price, '0', self::MONEY_SCALE) > 0);
+
+        return $printed ? PRINT_YES : PRINT_NO;
+    }
+
+    /**
+     * One priced line, ready to store.
+     *
+     * @return array{item_id: int, quantity: string, unit_price: string, amount: string, print_option: int, item_type: int}
+     */
+    private static function line(int $item_id, string $quantity, string $unit_price, int $print_option, int $item_type): array
+    {
+        return [
+            'item_id'      => $item_id,
+            'quantity'     => $quantity,
+            'unit_price'   => $unit_price,
+            'amount'       => Presale_campaign::round_money(bcmul($quantity, $unit_price, 6)),
+            'print_option' => $print_option,
+            'item_type'    => $item_type,
+        ];
     }
 
     /**
