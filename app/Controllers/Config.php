@@ -15,6 +15,7 @@ use App\Models\Customer_rewards;
 use App\Models\Dinner_table;
 use App\Models\Item;
 use App\Models\Module;
+use App\Models\Presale;
 use App\Models\Enums\Rounding_mode;
 use App\Models\Stock_location;
 use App\Models\Tax;
@@ -262,6 +263,7 @@ class Config extends Secure_Controller
         $data['show_office_group'] = $this->module->get_show_office_group();
         $data['currency_code'] = $this->config['currency_code'] ?? '';
         $data['dbVersion'] = mysqli_get_server_info($this->db->getConnection());
+        $data['presales_open'] = $this->_presales_open();
 
         // Load all the license statements, they are already XSS cleaned in the private function
         $data['licenses'] = $this->_licenses();
@@ -930,6 +932,59 @@ class Config extends Secure_Controller
         $success = $this->appconfig->batch_save($batch_save_data);
 
         return $this->response->setJSON(['success' => $success, 'message' => lang('Config.saved_' . ($success ? '' : 'un') . 'successfully')]);
+    }
+
+    /**
+     * Saves the presales tab: the switch, the number prefix and the conditions printed on every
+     * presale document. Used in app/Views/configs/presales_config.php.
+     *
+     * The switch is always written as an explicit '1' or '0', same reason as postSaveOrderTickets().
+     * Switching it off while presales are open is allowed -- the administrator decides -- but the
+     * screen warns first, because nobody could take an instalment or deliver until it is back on.
+     *
+     * The conditions are read raw and escaped where they are printed. A FILTER_SANITIZE_* filter here
+     * would store every accented letter as an HTML entity (see correccion-codificacion-tildes.md).
+     *
+     * @throws ReflectionException
+     * @return ResponseInterface
+     * @noinspection PhpUnused
+     */
+    public function postSavePresales(): ResponseInterface
+    {
+        $prefix = trim((string) $this->request->getPost('presales_prefix'));
+        $terms  = trim(str_replace("\r\n", "\n", (string) $this->request->getPost('presales_terms')));
+
+        // Printed in front of the number on paper and typed back by whoever looks a presale up, so it
+        // stays short and plain.
+        if (preg_match('/^[A-Za-z0-9\-\/]{0,10}$/', $prefix) !== 1) {
+            return $this->response->setJSON(['success' => false, 'message' => lang('Config.presales_prefix_invalid')]);
+        }
+
+        if (mb_strlen($terms) > 4000) {
+            return $this->response->setJSON(['success' => false, 'message' => lang('Config.presales_terms_too_long')]);
+        }
+
+        $success = $this->appconfig->batch_save([
+            'presales_enable' => $this->request->getPost('presales_enable') != null ? '1' : '0',
+            'presales_prefix' => $prefix,
+            'presales_terms'  => $terms,
+        ]);
+
+        return $this->response->setJSON(['success' => $success, 'message' => lang('Config.saved_' . ($success ? '' : 'un') . 'successfully')]);
+    }
+
+    /**
+     * How many presales are open, for the warning on the presales tab. Zero when the table is not there
+     * yet: the configuration screen is shared by every tenant, and one that has not migrated must not
+     * lose it over this.
+     */
+    private function _presales_open(): int
+    {
+        if (!$this->db->tableExists('presales')) {
+            return 0;
+        }
+
+        return model(Presale::class)->count_open();
     }
 
     /**

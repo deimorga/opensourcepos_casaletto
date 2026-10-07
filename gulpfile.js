@@ -300,6 +300,9 @@ gulp.task('copy-menubar', function() {
     // Order tickets ("comandas"). Same trap as the line above: the icon is not in the repository,
     // it is produced here. A booklet is the waiter's pad, which is what the screen actually is.
     pipeline(gulp.src("./node_modules/elegant-circles/svg/full-color/booklet.svg"),rename("order_tickets.svg"),gulp.dest("public/images/menubar"));
+    // Presales ("preventas"). Same trap: generated here, not kept in the repository. A calendar,
+    // because what a presale promises is a product on a date.
+    pipeline(gulp.src("./node_modules/elegant-circles/svg/full-color/calendar.svg"),rename("presales.svg"),gulp.dest("public/images/menubar"));
     return pipeline(gulp.src('./node_modules/elegant-circles/svg/full-color/money.svg'),rename("taxes.svg"),gulp.dest("public/images/menubar"));
 });
 

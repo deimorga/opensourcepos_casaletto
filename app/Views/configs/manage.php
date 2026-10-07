@@ -45,6 +45,9 @@
         <a data-toggle="tab" href="#order_tickets_tab" title="<?= lang('Config.order_tickets_configuration') ?>"><?= lang('Config.order_tickets') ?></a>
     </li>
     <li role="presentation">
+        <a data-toggle="tab" href="#presales_tab" title="<?= lang('Config.presales_configuration') ?>"><?= lang('Config.presales') ?></a>
+    </li>
+    <li role="presentation">
         <a data-toggle="tab" href="#system_tab" title="<?= lang('Config.system_conf') ?>"><?= lang('Config.system_conf') ?></a>
     </li>
 </ul>
@@ -88,6 +91,9 @@
     </div>
     <div class="tab-pane" id="order_tickets_tab">
         <?= view('configs/order_tickets_config') ?>
+    </div>
+    <div class="tab-pane" id="presales_tab">
+        <?= view('configs/presales_config') ?>
     </div>
     <div class="tab-pane" id="system_tab">
         <?= view('configs/system_config') ?>

@@ -48,6 +48,17 @@ $routes->get('comandas/(:num)/ronda/(:num)', 'OrderTickets::getRound/$1/$2');
 $routes->post('comandas/(:num)/entregada', 'OrderTickets::postDelivered/$1');
 $routes->post('comandas/(:num)/cancelar', 'OrderTickets::postCancel/$1');
 
+// ---------------------------------------------------------------------------------------------
+// Preventas: vender por adelantado en campañas (docs/Tecnico/venta-anticipada.md).
+//
+// The menu tile links to /presales. Campaigns live in a controller of their own (PresaleCampaigns)
+// and get an address under the module's, so the URL says where the screen belongs. Explicit, like
+// comandas and writeoffs, so the shape of every address can be read in one place. Fixed routes go
+// BEFORE any (:num) added later.
+// ---------------------------------------------------------------------------------------------
+$routes->get('presales', 'Presales::getIndex');
+$routes->get('presales/campaigns', 'PresaleCampaigns::getIndex');
+
 $routes->get('/', 'Login::index');
 $routes->get('login', 'Login::index');
 $routes->post('login', 'Login::index');
