@@ -349,9 +349,11 @@ final class SalesPresaleGuardTest extends CIUnitTestCase
 
         $body = (string) $this->get('sales/edit/' . self::DELIVERY_SALE)->getBody();
 
-        $this->assertMatchesRegularExpression('/<input[^>]*name="payment_type_0"[^>]*readonly/', $body);
-        $this->assertDoesNotMatchRegularExpression('/<select[^>]*name="payment_type_0"/', $body);
-        $this->assertMatchesRegularExpression('/<select[^>]*name="payment_type_1"/', $body);
+        // The payments come back in no guaranteed order, so the rows are found by what they hold.
+        $presale = preg_quote(esc(lang('Sales.presale')), '/');
+
+        $this->assertMatchesRegularExpression('/<input[^>]*name="payment_type_\\d+" value="' . $presale . '"[^>]*readonly/', $body);
+        $this->assertSame(1, preg_match_all('/<select[^>]*name="payment_type_\\d+"/', $body), 'Only the cash row offers a dropdown.');
     }
 
     public function testTheSaleThatDeliveredAPresaleCannotBeCancelled(): void
