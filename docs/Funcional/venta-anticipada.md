@@ -154,6 +154,12 @@ Detalles:
   importar cómo esté configurado el kit en Kits («precio en todos», «solo en el kit»…): el cliente
   paga el kit una sola vez, al precio que dice la campaña.
 - **No hay cupo**: la campaña no limita cuántas unidades de un producto se venden en preventa.
+- **Borrar un producto del catálogo** *(2026-10-07)*: Artículos no deja borrar un producto mientras
+  esté en una **preventa abierta** o en una **campaña vigente** (no borrada y cuyo periodo de venta no
+  ha terminado). Cuando la campaña termina o se borra, el producto se puede borrar. Antes, un
+  producto que alguna vez estuvo en una campaña no se podía borrar nunca.
+- **Borrar una campaña** solo se puede si no tiene preventas; al borrarla se van con ella sus
+  productos y sus fechas de entrega.
 
 ### 4.3 Registrar la preventa (el «contrato»)
 
@@ -165,12 +171,16 @@ Se hace una a una, con el cliente al frente o al teléfono:
    entrega.
 3. **Productos.** Solo los de la campaña, con cantidad. Cada uno trae el precio de la campaña, y
    **ese queda pactado** en esta preventa (§4.7).
-4. **Fecha de entrega.** Se elige de la lista de la campaña.
+4. **Fecha de entrega.** Se elige de la lista de la campaña, **de hoy en adelante** *(2026-10-07)*:
+   las fechas que ya pasaron no se ofrecen, y si llega una, el sistema dice «Esa fecha de entrega ya
+   pasó. Elija una de hoy en adelante.» Entregar hoy sí se puede.
 5. **Plan de cuotas.** Quien registra escribe las cuotas acordadas con el cliente: fecha y monto de
-   cada una. La primera es la **cuota inicial**. Hay tres reglas:
+   cada una. La primera es la **cuota inicial**. Hay cuatro reglas:
    - **la suma de las cuotas tiene que dar el total**; si no da, el sistema no deja guardar y dice
      cuánto falta o sobra;
    - ninguna cuota puede quedar después de la fecha de entrega;
+   - ninguna cuota puede quedar **antes de hoy** *(2026-10-07)*: un plan no se pacta en el pasado.
+     La cuota de hoy sí;
    - la cuota inicial no puede ser menor que el mínimo de la campaña, si la campaña tiene uno.
 6. **Cuota inicial.** Se cobra en ese mismo momento, como cualquier pago de la caja (efectivo,
    datáfono o transferencia).
@@ -293,6 +303,15 @@ Funciona igual en un negocio que usa mesas y en uno que no, con una diferencia d
 - Si se mandó la preventa equivocada o el cliente no llegó, el botón **«Devolver a preventas»** (en
   lugar de Cancelar) saca la entrega de la caja sin cobrar nada; la preventa sigue abierta y pagada y
   se puede volver a entregar. Cancelar y Suspender no existen en una entrega.
+- Mientras la entrega está en pantalla *(2026-10-07)*, la caja **no deja recuperar una venta
+  suspendida ni abrir una mesa nueva**: dice «La caja tiene en pantalla la entrega de una preventa.
+  Complétela o use «Devolver a preventas» antes de abrir otra venta.» Sin mesas, recuperar una
+  suspendida botaba la entrega sin avisar. Tampoco deja cambiar la ubicación de inventario: la
+  entrega sale de la ubicación de la preventa. Con mesas, cambiar a otra pestaña sí se puede, como
+  siempre.
+- Si dos cajeros con **idiomas distintos** abren la misma pestaña de entrega (uno ve «Preventa», el
+  otro «Presale»), la entrega lleva un solo pago «Preventa» y se completa sin vuelto *(corregido el
+  2026-10-07: antes la caja podía devolver la preventa entera como vuelto en efectivo)*.
 - Si el peso real es distinto del pactado, queda anotado en la historia de la preventa, con lo que
   se devolvió y, si pasó del tope, quién lo autorizó.
 - **Se necesita un turno de caja abierto** para mandar la preventa a la caja y para completarla
@@ -333,6 +352,17 @@ por otro medio, y ningún otro pago se puede convertir en «Preventa». De paso 
 que afectaba a todas las ventas: editar una venta que dio vueltas (por ejemplo, pagada con tarjeta y
 con cambio en efectivo) borraba el registro de esas vueltas, y el cuadre del turno quedaba esperando
 ese efectivo de más. Ya no lo borra.
+
+Sobre esa fila de vueltas, en **cualquier venta de cualquier negocio** *(corregido el 2026-10-07)*:
+
+- si no se toca, queda igual;
+- si en «Devolución» se elige otro medio (por ejemplo, el cambio se le devolvió por datáfono y no en
+  efectivo), el cambio se guarda: la fila pasa a ser una devolución por ese medio y **el efectivo
+  esperado del turno deja de descontar esas vueltas**. Antes de esta corrección el sistema decía
+  «guardado» y no guardaba nada;
+- cambiar el **medio de pago** de esa fila dejando la devolución en efectivo no significa nada (la
+  fila no tiene monto pagado), y el sistema lo rechaza con un mensaje en vez de aceptarlo en
+  silencio.
 
 ### 4.10 Cancelar: lo que se acuerde con el cliente
 

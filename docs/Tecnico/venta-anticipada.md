@@ -195,9 +195,12 @@ memoria «Timezone real de OSPOS»).
 
 1. **Campaña:** activa, no borrada y dentro de su periodo de venta al registrar (T16).
 2. **Productos:** cada línea pertenece a la campaña, con el precio efectivo de la campaña (T14).
-3. **Fecha de entrega:** pertenece a la campaña (T15).
-4. **Plan:** Σ `installments.amount` = `total`, y `max(due_date)` ≤ `delivery_date`. La primera
-   cuota y el abono inicial ≥ `ceil(total × min_initial_percent / 100)` (T17).
+3. **Fecha de entrega:** pertenece a la campaña (T15) y es ≥ hoy (`Presales.delivery_date_past`,
+   2026-10-07; hoy se admite).
+4. **Plan:** Σ `installments.amount` = `total`, `min(due_date)` ≥ hoy (`Presales.installment_in_past`,
+   2026-10-07) y `max(due_date)` ≤ `delivery_date`. La primera cuota y el abono inicial ≥
+   `ceil(total × min_initial_percent / 100)` (T17). «Hoy» es el `$today` que recibe
+   `Presale::create()`; el controlador pasa `date('Y-m-d')`.
 5. **Abono:** no puede pasar de `balance`. **Devolución:** no puede pasar de `paid`.
 6. **Entrega:** solo con `balance = 0` (D11), y solo una vez (`sale_id` UNIQUE + `UPDATE … WHERE
    status = 'open'`, con las filas afectadas comprobadas).
@@ -494,9 +497,11 @@ va en la lista siguiente.
 7. ~~**Cancelar una preventa con su pestaña abierta.**~~ **Cerrado el 2026-10-07 (carril E)**, de otra
    forma que la propuesta: `Presale::cancel()` **rechaza** la cancelación mientras la pestaña está
    abierta, en vez de anular la venta OPENED desde el modelo (§7.7).
-8. **El pago se reconoce por su etiqueta traducida** (`lang('Sales.presale')`), como todos los pagos
-   del carrito. Si el idioma de la aplicación cambia con una pestaña de entrega abierta, la etiqueta
-   vieja no se reconoce. Riesgo bajo; el arreglo de fondo es llevar el código en el carrito.
+8. ~~**El pago se reconoce por su etiqueta traducida.**~~ **Cerrado el 2026-10-07 (revisión, §7.9):**
+   no era riesgo bajo. Los idiomas son por empleado, no por aplicación: una pestaña guardada por un
+   cajero en `es-MX` («Preventa») y reabierta por uno en `en` dejaba la fila guardada como pago común
+   y agregaba otro `presale`, y al completar la caja devolvía la preventa entera como vuelto. El pago
+   lleva ahora su código en el carrito.
 9. **Sin Mesas, `sales.location_id`** sale de la ubicación de la sesión (`save_value`), no de la
    preventa; el inventario sí sale de la ubicación de la preventa (por línea). Solo importa con varias
    sedes.
@@ -675,6 +680,80 @@ que leer `response()->getBody()`.
 **Pendiente.** Con impuesto aparte, el comprobante y el detalle muestran las líneas sin impuesto y el
 total con impuesto, sin un renglón de impuestos (el evento `created` ya guarda `taxes`).
 
+### 7.9 Revisión de código (2026-10-07, rama `fix/presales-review`)
+
+**El pago `presale` se reconoce por su código (hallazgo 1).** `Sale_lib::add_payment()` acepta un
+cuarto parámetro opcional, `payment_type_code`, que guarda en la entrada del pago; `copy_entire_sale()`
+le pasa el código de cada fila de `sales_payments`, así una pestaña recargada trae el código guardado
+y no solo la etiqueta en el idioma de quien la guardó. `Presale_register::ensure_payment()` marca su
+pago con `'payment_type_code' => 'presale'`. `Presale_register::is_presale_entry($key, $payment)`
+decide por el código y, solo para una entrada sin código (tecleada en esta sesión), por la etiqueta;
+`presale_entries()` y `has_presale_payment()` lo usan, `ensure_payment()` quita toda entrada
+`presale` sea cual sea su etiqueta, y `completion_refusal()` cuenta por código y rechaza más de una.
+`is_presale_payment($label)` queda solo para lo que se teclea o se postea (`postAddPayment`).
+Prueba: `PresaleDeliveryRegisterTest::testATabSavedInSpanishAndReopenedInEnglishKeepsOnePresalePayment`
+(cambia `employees.language_code` de la persona 1 y lo restaura). **No cubierto:** `Sale::save_value()`
+y `Sale::update()` siguen calculando `payment_type_code` desde la etiqueta en el idioma de quien
+guarda; para `presale` no importa (la entrada se reetiqueta en el idioma actual antes de guardar),
+pero una fila «Efectivo» recargada por un empleado en `en` se reescribe con código nulo. Es de
+`Sale.php`, fuera de este carril.
+
+**Cuándo un artículo está en uso (hallazgo 2).** `Presale::item_in_use($item_id, ?$today)`: en una
+preventa `open`, o en una campaña con `deleted = 0` y `sale_ends >= $today`. Antes bastaba cualquier
+fila de `presale_campaign_items` y el artículo quedaba sin poderse borrar para siempre.
+`Presale_campaign::delete_campaign()` (solo sin preventas) borra en la misma transacción las filas de
+`presale_campaign_items` y `presale_campaign_dates`; el filtro `deleted = 0` cubre las campañas borradas
+antes. Pruebas: `PresaleTest` (campaña terminada, borrada, fila vieja de campaña borrada, preventa
+abierta tras terminar la campaña) y `DeletePresaleGuardTest` (por Artículos).
+
+**La fila de solo vueltas al editar una venta (hallazgo 3, todos los negocios).** Comportamiento
+anterior al carril C, leído en `git show 5503710be^:app/Controllers/Sales.php` y en `Sale::update()`:
+el formulario postea la fila (monto 0, `cash_refund` X) con el medio de devolución elegido (por defecto
+«Efectivo»). Con devolución en efectivo, la entrada llegaba a `Sale::update()` con monto 0 y **se
+borraba** (`payment_amount == 0` → `DELETE`): el esperado del turno subía en X. Con otro medio, la
+conversión de siempre («Non-cash positive refund amounts») la volvía `payment_type = <medio>`, monto
+`−X`, `cash_refund = 0`, y como el monto no es cero `Sale::update()` la **reescribía**: el cambio se
+aplicaba bien. El carril C dejó toda fila de solo vueltas tal cual para evitar el borrado, pero con eso
+ignoraba también el medio elegido y respondía éxito. Ahora (`Sales::postSave`), con los montos de la
+fila guardada y no los del formulario: si el medio de devolución no es efectivo, se aplica la
+conversión de antes (se reescribe, no se borra; el efectivo esperado sube en X porque esas vueltas no
+salieron del cajón); si es efectivo y el medio de pago no cambió, queda intacta; si es efectivo y
+cambió el medio de pago, se rechaza con `Sales.change_only_payment_type_locked` (`Sale::update()` la
+borraría, y retipar una fila sin monto no significa nada). Las guardas de `presale` van antes: una
+devolución como `presale` se rechaza también en esta fila. Pruebas en `SalesPresaleGuardTest` contra
+`Sale::get_payments_by_cashup()`.
+
+**Fechas pasadas (hallazgo 4).** §4.10, puntos 3 y 4. El formulario de registro ya no ofrece fechas de
+entrega anteriores a hoy (`Presales::selling_campaigns()`).
+
+**Rendimiento (hallazgos 5, 6 y 8).** `Presale_campaign::get_items_by_id()` lee los productos de la
+campaña una vez; `Presale::price_lines($campaign_id, $requested, ?$campaign_items)` los recibe, y
+`postPreview` y `selling_campaigns()` los pasan (antes, N×M consultas). `Presale_register::delivery_facts()`
+lee resumen y líneas una vez en `postComplete`, y se pasan a `completion_refusal()`,
+`weight_refund_refusal()` y `_save_presale_delivery()`; dentro de la transacción solo
+`mark_delivered()` vuelve a leer, con la fila bloqueada. `Presale_campaign::get_with_counts()` trae la
+lista de campañas con sus conteos en una consulta (subconsultas con `COUNT`/`GROUP BY`, SQL crudo
+como `search_sql()` para que el constructor de consultas no prefije los alias).
+
+**Guardas (hallazgo 7).** Agregadas: `postChangeMode` no cambia la ubicación de inventario en una
+entrega (se pregunta después del cambio de mesa, así salir de la pestaña sigue permitido);
+`postUnsuspend` y `postCreateTable` se rechazan con `Presale_register.delivery_in_progress`
+(`_refuse_while_presale_delivery()`). `presale_for()` se memoriza por carrito (marca de sesión +
+`sale_id`) dentro de la petición; `attach()`, `detach()` y `forget()` lo olvidan; una lectura que
+falla no se memoriza.
+
+**Regla:** las guardas son una lista de negación repartida en los endpoints de `Sales`. **Todo
+endpoint nuevo de la caja** que cambie el carrito, el cliente, los pagos, el modo o la ubicación, o
+que reemplace el carrito por otra venta, **tiene que llamar a la guarda**:
+`_refuse_on_presale_delivery()` (cambios), `_refuse_while_presale_delivery()` (reemplazos) o
+`presale_register->presale_for()`. Lo dice también el comentario al inicio de la sección de preventas
+de `Sales.php`. `completion_refusal()` sigue siendo la última línea detrás de todas.
+
+**Reutilización y nombres (hallazgos 9 y 10).** `Presale_payment::net_sql()` es la única escritura del
+neto (abonos − devoluciones); `Presales::can_manage(Employee)` y `Presales::read_decimal()` sirven a
+los dos controladores. Los métodos y variables de preventas quedaron en `snake_case` (AGENTS.md); las
+pruebas conservan sus ayudantes en camelCase.
+
 ---
 
 ## 8. Trampas conocidas
@@ -691,14 +770,16 @@ total con impuesto, sin un renglón de impuestos (el evento `created` ya guarda 
    edita (un empleado en `en` dejaba el pago «Preventa» con código nulo) y **borra toda fila con
    monto cero**, que es justo la fila de vueltas (efectivo 0, `cash_refund` > 0) de una venta pagada
    con tarjeta o con preventa: una edición cualquiera la borraba y el esperado del turno subía en el
-   valor de las vueltas. `postSave` ahora **no reenvía** la fila `presale` ni las filas de solo
-   vueltas: quedan como están. Además rechaza un `payment_id` que no sea de esa venta
+   valor de las vueltas. `postSave` ahora **no reenvía** la fila `presale`, ni la de solo vueltas
+   mientras no se cambie su medio de devolución (si se cambia, se aplica como antes del carril C:
+   §7.9, hallazgo 3). Además rechaza un `payment_id` que no sea de esa venta
    (`Sale::update()` escribe por id sin mirar la venta), y ninguna otra fila ni pago nuevo puede
    volverse `presale`. Pruebas: `tests/Controllers/SalesPresaleGuardTest.php`.
 4. **Anular la venta de una entrega** (`Sales::postDelete`) devolvería el inventario dejando la
    preventa entregada. Se bloquea; la devolución de mercancía va por el modo Devolución.
-5. **Borrar** un artículo que está en una campaña o en una preventa abierta, o un cliente con
-   preventas abiertas: se rechaza. Hay que extender la guarda de `ItemsDeleteGuardTest`.
+5. **Borrar** un artículo que está en una preventa abierta o en una campaña vigente (no borrada,
+   `sale_ends >= hoy`), o un cliente con preventas abiertas: se rechaza. Una campaña terminada o
+   borrada ya no retiene sus artículos (2026-10-07, §7.9).
 6. **Kits.** Implementado el 2026-10-07 (carril B, `Presale::price_lines()` con `kit_lines()` y
    `kit_components()`). Al registrar, un kit de la campaña se expande como lo hace la caja
    (`Sale_lib::add_item_kit()`, `Sale_lib.php:1829-1865`): primero la línea del kit (`item_type =
