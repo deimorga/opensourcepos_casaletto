@@ -133,7 +133,7 @@ final class PresaleCampaignsControllerTest extends CIUnitTestCase
         $campaign = $this->makeCampaign();
         $this->postReq("presales/campaigns/save/{$campaign}", ['name' => self::NAME_PREFIX . 'Hackeada'])->assertStatus(403);
         $this->postReq("presales/campaigns/{$campaign}/add_date", ['delivery_date' => $this->typed('2026-12-23')])->assertStatus(403);
-        $this->postReq('presales/campaigns/delete', ['ids' => [$campaign]])->assertStatus(403);
+        $this->postReq('presales/campaigns/delete', ['ids' => [(string) $campaign]])->assertStatus(403);
 
         $this->assertSame(self::NAME_PREFIX . 'Navidad', $this->campaign($campaign)['name'], 'Nothing was written.');
 
@@ -320,7 +320,7 @@ final class PresaleCampaignsControllerTest extends CIUnitTestCase
     {
         $id = $this->makeCampaign(self::NAME_PREFIX . 'Borrar');
 
-        $body = $this->json($this->postReq('presales/campaigns/delete', ['ids' => [$id]]));
+        $body = $this->json($this->postReq('presales/campaigns/delete', ['ids' => [(string) $id]]));
 
         $this->assertTrue($body['success'], $body['message']);
         $this->assertSame([$id], $body['ids']);
@@ -335,7 +335,7 @@ final class PresaleCampaignsControllerTest extends CIUnitTestCase
         $id = $this->makeCampaign(self::NAME_PREFIX . 'Con preventas <b>');
         $this->makePresale($id, $this->makeItem('en preventa'), $this->dateId($id));
 
-        $body = $this->json($this->postReq('presales/campaigns/delete', ['ids' => [$id]]));
+        $body = $this->json($this->postReq('presales/campaigns/delete', ['ids' => [(string) $id]]));
 
         $this->assertFalse($body['success']);
         $this->assertStringContainsString('&lt;b&gt;', $body['message'], 'The name is escaped: the message goes to $.notify.');
