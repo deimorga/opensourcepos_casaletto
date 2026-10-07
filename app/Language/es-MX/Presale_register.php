@@ -10,6 +10,7 @@ return [
     'balance_pending'             => 'La preventa {0} tiene un saldo de {1}. No se entrega con saldo pendiente.',
     'banner'                      => 'Entrega de preventa {0} — solo se puede ajustar el peso de los productos por peso.',
     'cart_changed'                => 'Las líneas de la entrega no coinciden con la preventa. Vuelva a abrir la caja y revise antes de completar.',
+    'delivery_in_progress'        => 'La caja tiene en pantalla la entrega de una preventa. Complétela o use «Devolver a preventas» antes de abrir otra venta.',
     'delivery_failed'             => 'No se pudo completar la entrega: la preventa ya no está abierta o ya no está pagada. No se cobró nada.',
     'disabled'                    => 'Las preventas están apagadas para este negocio.',
     'items_missing'               => 'Un producto de la preventa ya no existe en el catálogo; no se puede cargar en la caja.',

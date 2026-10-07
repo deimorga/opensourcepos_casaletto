@@ -510,6 +510,53 @@ final class PresaleDeliveryRegisterTest extends CIUnitTestCase
     }
 
     /**
+     * The guards the review found missing: the register's stock location does not change under a
+     * delivery, and neither unsuspending a sale nor opening a new table replaces the delivery on
+     * screen -- it is completed or released first.
+     */
+    public function testTheDeliveryIsNotReplacedNorMovedToAnotherLocation(): void
+    {
+        $presale  = $this->makePaidPresale();
+        $this->deliver($presale);
+        $table    = (string) $_SESSION['dinner_table'];
+        $cart     = $this->cartSignature();
+        $location = $_SESSION['sales_location'] ?? null;
+        $busy     = esc(lang('Presale_register.delivery_in_progress'));
+
+        $this->postReq('sales/changeMode', ['mode' => 'sale', 'dinner_table' => $table, 'stock_location' => '987654'])
+            ->assertSee(esc(lang('Presale_register.locked')));
+        $this->assertSame($location, $_SESSION['sales_location'] ?? null);
+
+        $this->postReq('sales/unsuspend', ['suspended_sale_id' => '0'])->assertSee($busy);
+
+        $tables = $this->db->table('dinner_tables')->where('name', 'PDREG nueva')->countAllResults();
+        $this->postReq('sales/createTable', ['table_name' => 'PDREG nueva'])->assertSee($busy);
+        $this->assertSame($tables, $this->db->table('dinner_tables')->where('name', 'PDREG nueva')->countAllResults());
+
+        $this->assertSame($cart, $this->cartSignature());
+        $this->assertSame((int) $presale, (int) ($_SESSION['sales_presale_id'] ?? 0));
+        $this->assertSame([lang('Sales.presale') => '41.00'], $this->sessionPayments());
+    }
+
+    /**
+     * Without Tables the delivery lives only in the session: unsuspending a sale used to throw it
+     * away without a word.
+     */
+    public function testWithTablesOffUnsuspendingDoesNotThrowTheDeliveryAway(): void
+    {
+        $this->setConfig('dinner_table_enable', '0');
+        $this->loginAsCashier();
+        $presale = $this->makePaidPresale();
+        $this->deliver($presale);
+        $cart = $this->cartSignature();
+
+        $this->postReq('sales/unsuspend', ['suspended_sale_id' => '0'])->assertSee(esc(lang('Presale_register.delivery_in_progress')));
+
+        $this->assertSame($cart, $this->cartSignature());
+        $this->assertSame((int) $presale, (int) ($_SESSION['sales_presale_id'] ?? 0));
+    }
+
+    /**
      * The same actions on a cart that is not a delivery go through exactly as before -- except a
      * presale payment typed by hand, which no cart takes.
      */

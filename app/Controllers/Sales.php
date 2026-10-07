@@ -339,6 +339,15 @@ class Sales extends Secure_Controller
 
         $stock_location = $this->request->getPost('stock_location', FILTER_SANITIZE_NUMBER_INT);
 
+        // A delivery takes its products from the presale's location: the register's location is not
+        // changed under it. Asked after the table switch above, so leaving the tab is not affected.
+        if ($stock_location && $stock_location != $this->sale_lib->get_sale_location()
+            && $this->presale_register->presale_for($this->sale_lib) !== null) {
+            $this->sale_lib->empty_payments();
+
+            return $this->_reload(['error' => lang('Presale_register.locked')]);
+        }
+
         if (!$stock_location || $stock_location == $this->sale_lib->get_sale_location()) {
             // TODO: The code below was removed in 2017 by @steveireland. We either need to reinstate some of it or remove this entire if block but we can't leave an empty if block
             //            $dinner_table = $this->request->getPost('dinner_table');
@@ -363,6 +372,10 @@ class Sales extends Secure_Controller
      */
     public function postCreateTable(): ResponseInterface|string
     {
+        if (($refused = $this->_refuse_while_presale_delivery()) !== null) {
+            return $refused;
+        }
+
         if ($this->config['dinner_table_enable']) {
             $table_name = trim((string) $this->request->getPost('table_name'));
 
@@ -1945,6 +1958,16 @@ class Sales extends Secure_Controller
         return $new_sale_id > 0;
     }
 
+    // ---------------------------------------------------------------------------------------------
+    // Presale deliveries (docs/Tecnico/venta-anticipada.md §7)
+    //
+    // A delivery is a cart nobody may change except the weight of lines sold by weight. The guards
+    // are a deny-list: EVERY register endpoint that changes the cart, its customer, its payments,
+    // its mode or location, or replaces it with another sale must ask first --
+    // _refuse_on_presale_delivery() (changes), _refuse_while_presale_delivery() (replacements) or
+    // presale_register->presale_for() directly. A new register endpoint without one is a hole.
+    // ---------------------------------------------------------------------------------------------
+
     /**
      * Sends a fully paid presale to the register to be delivered (D17). Posted, with CSRF, by the
      * presale's own screen; answers with a redirect to the register showing the delivery, or back to
@@ -2193,6 +2216,20 @@ class Sales extends Secure_Controller
         }
 
         return $this->_reload(['error' => lang('Presale_register.locked')]);
+    }
+
+    /**
+     * The register's current cart is a delivery and the action would replace the cart with another
+     * sale (unsuspending one, opening a new table): the delivery is completed or released first.
+     * Without Tables the delivery lives only in the session and would be thrown away without a word.
+     */
+    private function _refuse_while_presale_delivery(): ResponseInterface|string|null
+    {
+        if ($this->presale_register->presale_for($this->sale_lib) === null) {
+            return null;
+        }
+
+        return $this->_reload(['error' => lang('Presale_register.delivery_in_progress')]);
     }
 
     /**
@@ -3191,6 +3228,10 @@ class Sales extends Secure_Controller
      */
     public function postUnsuspend(): ResponseInterface|string
     {
+        if (($refused = $this->_refuse_while_presale_delivery()) !== null) {
+            return $refused;
+        }
+
         $sale_id = $this->request->getPost('suspended_sale_id', FILTER_SANITIZE_NUMBER_INT);
         $this->sale_lib->clear_all();
 

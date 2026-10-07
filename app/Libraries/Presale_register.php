@@ -53,8 +53,23 @@ class Presale_register
     private ?bool $tablesPresent = null;
 
     /**
+     * presale_for()'s last answer and the cart it was for: [session mark, sale id]. A request asks
+     * the same question several times (the guard of the action, then _reload()); one instance lives
+     * for one request (Sales builds it in its constructor).
+     *
+     * @var array{0: int, 1: int}|null
+     */
+    private ?array $memo_key = null;
+
+    private ?array $memo = null;
+
+    /**
      * The presale whose delivery is the register's current cart, in whatever status it is now, or
      * null when the cart is not a delivery -- which is nearly always.
+     *
+     * Memoised per cart: asked again for the same session mark and sale id, it answers what it read
+     * the first time. Anything that changes the cart changes one of the two (clear_all() resets
+     * both, a tab switch changes the sale id); attach() and detach() forget it too.
      */
     public function presale_for(Sale_lib $sale_lib): ?array
     {
@@ -62,32 +77,59 @@ class Presale_register
             return null;
         }
 
+        $key = [$sale_lib->get_presale_id(), $sale_lib->get_sale_id()];
+
+        if ($this->memo_key === $key) {
+            return $this->memo;
+        }
+
         try {
-            $presales = model(Presale::class);
-            $marked   = $sale_lib->get_presale_id();
-
-            if ($marked > 0) {
-                return $presales->get_info($marked);
-            }
-
-            $sale_id = $sale_lib->get_sale_id();
-
-            if ($sale_id <= 0) {
-                return null;
-            }
-
-            $presale = $presales->get_by_sale($sale_id);
-
-            if ($presale !== null) {
-                $sale_lib->set_presale_id((int) $presale['presale_id']);
-            }
-
-            return $presale;
+            $presale = $this->read_presale_for($sale_lib);
         } catch (Throwable $e) {
             log_message('critical', 'Presale_register::presale_for: ' . $e->getMessage());
 
+            // Not memoised: a failed read is asked again.
             return null;
         }
+
+        // Read again: a delivery found by its sale has just been marked in the session.
+        $this->memo_key = [$sale_lib->get_presale_id(), $sale_lib->get_sale_id()];
+        $this->memo     = $presale;
+
+        return $presale;
+    }
+
+    /**
+     * Drops presale_for()'s memo, for a caller that changed the link between a presale and a sale.
+     */
+    public function forget(): void
+    {
+        $this->memo_key = null;
+        $this->memo     = null;
+    }
+
+    private function read_presale_for(Sale_lib $sale_lib): ?array
+    {
+        $presales = model(Presale::class);
+        $marked   = $sale_lib->get_presale_id();
+
+        if ($marked > 0) {
+            return $presales->get_info($marked);
+        }
+
+        $sale_id = $sale_lib->get_sale_id();
+
+        if ($sale_id <= 0) {
+            return null;
+        }
+
+        $presale = $presales->get_by_sale($sale_id);
+
+        if ($presale !== null) {
+            $sale_lib->set_presale_id((int) $presale['presale_id']);
+        }
+
+        return $presale;
     }
 
     /**
@@ -768,6 +810,8 @@ class Presale_register
      */
     public function attach(int $presale_id, int $sale_id, ?int $stale_sale_id): bool
     {
+        $this->forget();
+
         return model(Presale::class)->attach_delivery_sale($presale_id, $sale_id, $stale_sale_id);
     }
 
@@ -777,6 +821,8 @@ class Presale_register
      */
     public function detach(int $presale_id, int $sale_id): void
     {
+        $this->forget();
+
         try {
             model(Presale::class)->detach_delivery_sale($presale_id, $sale_id);
         } catch (Throwable $e) {

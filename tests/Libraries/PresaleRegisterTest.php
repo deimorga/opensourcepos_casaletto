@@ -169,6 +169,26 @@ final class PresaleRegisterTest extends CIUnitTestCase
         $this->assertSame([], $this->register->weight_adjustments($this->presaleId, $this->saleLib->get_cart(), $facts['lines']));
     }
 
+    /**
+     * presale_for() answers the same cart from memory within a request; a different cart, or
+     * forget(), reads again.
+     */
+    public function testWhichPresaleTheCartDeliversIsReadOncePerCart(): void
+    {
+        $this->register->load($this->saleLib, $this->presale());
+
+        $this->assertSame(Presale::STATUS_OPEN, $this->register->presale_for($this->saleLib)['status']);
+
+        $this->db->table('presales')->where('presale_id', $this->presaleId)->update(['comment' => 'leído de nuevo']);
+        $this->assertNull($this->register->presale_for($this->saleLib)['comment'], 'Same cart: not read again.');
+
+        $this->register->forget();
+        $this->assertSame('leído de nuevo', $this->register->presale_for($this->saleLib)['comment']);
+
+        $this->saleLib->clear_all();
+        $this->assertNull($this->register->presale_for($this->saleLib), 'Another cart: read again.');
+    }
+
     public function testRestoringKeepsTheWeightAlreadyEntered(): void
     {
         $this->register->load($this->saleLib, $this->presale());

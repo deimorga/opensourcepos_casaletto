@@ -10,6 +10,7 @@ return [
     'balance_pending'             => 'Presale {0} still owes {1}. A presale is not delivered with a balance.',
     'banner'                      => 'Delivery of presale {0} — only the weight of products sold by weight can be adjusted.',
     'cart_changed'                => 'The delivery lines no longer match the presale. Reopen the register and check before completing.',
+    'delivery_in_progress'        => 'The register has a presale delivery on screen. Complete it or use «Back to presales» before opening another sale.',
     'delivery_failed'             => 'The delivery could not be completed: the presale is no longer open or no longer paid. Nothing was charged.',
     'disabled'                    => 'Presales are switched off for this business.',
     'items_missing'               => 'A product of this presale no longer exists in the catalogue; it cannot be loaded into the register.',
