@@ -579,6 +579,9 @@ class Presale extends Model
      * Cancels an open presale and records whatever was agreed with the customer (D10): a refund of
      * anything from zero to everything paid, in one payment type, out of the shift that is open.
      * The rest is kept by the business. Nothing goes back to stock: nothing ever left it.
+     *
+     * Refused while the presale's delivery is open in the register (a tab linked by sale_id): the
+     * cashier takes it back to presales from the register first.
      */
     public function cancel(int $presale_id, int $employee_id, string $reason, mixed $refund_amount = '0', ?string $refund_type_code = null, ?string $reference_code = null): bool|string
     {
@@ -618,6 +621,21 @@ class Presale extends Model
             return 'Presales.not_open';
         }
 
+        // A delivery tab open in the register (D17) would be left behind with its presale payment
+        // and could still be charged. Checked here, after the lock, so no path can skip it: the
+        // register's attach_delivery_sale() writes this same row and waits for the lock.
+        $stale_link = false;
+
+        if ($presale['sale_id'] !== null) {
+            if ($this->delivery_tab_is_open((int) $presale['sale_id'])) {
+                $this->db->transRollback();
+
+                return 'Presales.cancel_open_in_register';
+            }
+
+            $stale_link = true;
+        }
+
         $paid = model(Presale_payment::class)->get_paid($presale_id);
 
         if (bccomp($refund, $paid, self::MONEY_SCALE) > 0) {
@@ -641,12 +659,20 @@ class Presale extends Model
             ]);
         }
 
-        $this->db->table($this->table)->where('presale_id', $presale_id)->update([
+        $changes = [
             'status'        => self::STATUS_CANCELED,
             'canceled_at'   => $now,
             'canceled_by'   => $employee_id,
             'cancel_reason' => $reason,
-        ]);
+        ];
+
+        // A link to a tab that no longer exists (its sale was deleted or is no longer open) is
+        // dropped: a canceled presale points at no sale.
+        if ($stale_link) {
+            $changes['sale_id'] = null;
+        }
+
+        $this->db->table($this->table)->where('presale_id', $presale_id)->update($changes);
 
         model(Presale_event::class)->log($presale_id, Presale_event::CANCELED, $employee_id, [
             'paid'                     => $paid,
@@ -664,6 +690,45 @@ class Presale extends Model
         $this->db->transCommit();
 
         return true;
+    }
+
+    /**
+     * Links an open presale to the register tab that delivers it (D17). Guarded so it only ever
+     * writes an open presale, and only over no link or over the stale link the caller saw: two tills
+     * pressing "Entregar" at once produce one tab and one refusal. sale_id is UNIQUE besides.
+     *
+     * Opens no transaction of its own: the register wraps creating the tab and this call in one. The
+     * UPDATE waits for the row lock cancel() takes, so a presale canceled meanwhile is refused here.
+     */
+    public function attach_delivery_sale(int $presale_id, int $sale_id, ?int $stale_sale_id): bool
+    {
+        $builder = $this->db->table($this->table)
+            ->where('presale_id', $presale_id)
+            ->where('status', self::STATUS_OPEN);
+
+        if ($stale_sale_id === null) {
+            $builder->where('sale_id', null);
+        } else {
+            $builder->where('sale_id', $stale_sale_id);
+        }
+
+        $builder->update(['sale_id' => $sale_id]);
+
+        return $this->db->affectedRows() === 1;
+    }
+
+    /**
+     * Undoes attach_delivery_sale() for a presale that will not be delivered by that tab after all:
+     * the cashier took it back to presales, or it was canceled. Never touches a delivered presale,
+     * whose sale_id is the delivery's.
+     */
+    public function detach_delivery_sale(int $presale_id, int $sale_id): void
+    {
+        $this->db->table($this->table)
+            ->where('presale_id', $presale_id)
+            ->where('sale_id', $sale_id)
+            ->where('status !=', self::STATUS_DELIVERED)
+            ->update(['sale_id' => null]);
     }
 
     /**
@@ -902,6 +967,17 @@ class Presale extends Model
         )->getRowArray();
 
         return $row ?: null;
+    }
+
+    /**
+     * Whether the sale a presale is linked to is still an open register tab (sale_status OPENED).
+     */
+    private function delivery_tab_is_open(int $sale_id): bool
+    {
+        return $this->db->table('sales')
+            ->where('sale_id', $sale_id)
+            ->where('sale_status', OPENED)
+            ->countAllResults() > 0;
     }
 
     private function customer_exists(int $customer_id): bool
