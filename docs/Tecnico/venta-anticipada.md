@@ -445,7 +445,10 @@ misma transacción un `presale_events` de tipo `quantity_adjusted` con `{sale_id
 item_id, agreed, delivered}]}`. Un peso menor devuelve efectivo por el mostrador, y eso tiene que
 poder leerse después.
 
-**Preventa cancelada con la pestaña abierta:** en el siguiente `_reload()` la venta OPENED se anula
+**Preventa cancelada con la pestaña abierta:** desde el carril E (2026-10-07) `Presale::cancel()`
+**rechaza** una preventa con su pestaña abierta (§7.7), así que con Mesas esto ya no ocurre por la
+vía normal; queda como respaldo, y sin Mesas (la entrega vive en la sesión) sigue siendo el camino.
+En el siguiente `_reload()` la venta OPENED se anula
 (`Sale::delete`), la mesa desechable se borra, `presales.sale_id` se desenlaza (solo si no está
 entregada) y el carrito se vacía con un aviso. Si la entregó otra caja, esta solo olvida la pestaña.
 
@@ -463,10 +466,9 @@ va en la lista siguiente.
 
 **Quedan abiertos** (para la integración):
 
-1. La escritura de `presales.sale_id` al abrir y al desenlazar está en `Presale_register::attach()` y
-   `detach()` con el constructor de consultas del modelo, porque el carril D no podía tocar los
-   modelos de preventa. Lo correcto es moverla a `Presale::attach_delivery_sale()` /
-   `detach_delivery_sale()`.
+1. ~~La escritura de `presales.sale_id` al abrir y al desenlazar está en `Presale_register::attach()` y
+   `detach()`.~~ **Cerrado el 2026-10-07 (carril E):** vive en `Presale::attach_delivery_sale()` /
+   `detach_delivery_sale()`, con la misma semántica; `Presale_register` solo los llama (§7.7).
 2. **Peso menor sin tope (decisión del dueño).** D22 deja devolver la diferencia en efectivo, pero
    nada limita cuánto: un peso tecleado como 0,001 kg devuelve casi todo lo abonado por el cajón. Hoy
    queda registrado (`quantity_adjusted`), no impedido. Opciones: una tolerancia (±X % de lo pactado)
@@ -484,9 +486,9 @@ va en la lista siguiente.
    venta queda con `cashup_id` nulo, como cualquier venta; falta decidir si una entrega exige turno.
 6. **Editar o anular la venta entregada (carril C, §8.3-8.4)**: hasta que se bloquee en
    `postSave`/`postDelete`, se puede.
-7. **Cancelar una preventa con su pestaña abierta (carril E):** la pestaña sigue en la barra hasta
-   que una caja la abre (ahí desaparece con aviso). Lo limpio es que `Presale::cancel()` anule la venta
-   OPENED enlazada y ponga `sale_id` en nulo en su misma transacción.
+7. ~~**Cancelar una preventa con su pestaña abierta.**~~ **Cerrado el 2026-10-07 (carril E)**, de otra
+   forma que la propuesta: `Presale::cancel()` **rechaza** la cancelación mientras la pestaña está
+   abierta, en vez de anular la venta OPENED desde el modelo (§7.7).
 8. **El pago se reconoce por su etiqueta traducida** (`lang('Sales.presale')`), como todos los pagos
    del carrito. Si el idioma de la aplicación cambia con una pestaña de entrega abierta, la etiqueta
    vieja no se reconoce. Riesgo bajo; el arreglo de fondo es llevar el código en el carrito.
@@ -496,6 +498,64 @@ va en la lista siguiente.
 4. Con Mesas, un pago normal tecleado en la pestaña de entrega (por un peso mayor) vive en la sesión
    como en cualquier pestaña: si se cambia de pestaña antes de completar, se pierde y hay que volver a
    cobrarlo. Es el comportamiento de siempre de las pestañas.
+
+### 7.7 Cancelar con devolución (carril E, 2026-10-07, rama `feat/presales-cancel`)
+
+**Piezas.** `Presales::postCancel($id)` (`POST presales/cancel/{id}`), `postCancelPreview($id)`
+(`POST presales/cancelPreview/{id}`), `getCancelReceipt($id)` (`GET presales/cancelReceipt/{id}`), la
+vista `presales/receipt_cancel.php`, el formulario en `presales/detail.php`, y en el modelo
+`Presale::cancel()` (ya existía) más `attach_delivery_sale()` / `detach_delivery_sale()`. Pruebas:
+`tests/Controllers/PresalesCancelTest.php` y `tests/Models/PresaleDeliveryLinkTest.php`.
+
+**El endpoint** exige `presales_enable = '1'` y `presales_manage` **en el servidor** (403 con mensaje
+si falta cualquiera: lo llama un script, una redirección se leería como datos), además del permiso
+`presales` de `Secure_Controller` y el CSRF global. Lee el monto con `parse_decimals()` (vacío = 0),
+toma el medio de pago **solo** si el monto es mayor que cero y le pasa todo a `Presale::cancel()`, que
+es quien decide: motivo obligatorio, devolución entre 0 y lo abonado, medio de T10, turno abierto
+cuando hay devolución, bloqueo de la fila. Los mensajes van con `esc()` porque `$.notify` escribe HTML.
+
+**La vista previa** (`cancelPreview`) calcula abonado / devuelto / retenido en el servidor, por la
+misma razón que `postPreview()`: el monto se teclea en el formato del negocio y solo
+`parse_decimals()` lo lee bien. La pantalla no hace aritmética.
+
+**El formulario** se abre en el mismo detalle (un panel, como el de abonar), no en un modal encima del
+diálogo: el detalle ya es un diálogo de Bootstrap y un segundo modal encima pelea por el foco y el
+`z-index`. Medio y referencia solo se muestran con devolución mayor que cero.
+
+**La pestaña de entrega abierta bloquea la cancelación.** Dentro de la transacción de `cancel()`, tras
+el `SELECT … FOR UPDATE`, si `presales.sale_id` apunta a una venta con `sale_status = OPENED` se
+devuelve `Presales.cancel_open_in_register` sin escribir nada. Va en el modelo y después del bloqueo
+para que ningún camino se lo salte, y porque `attach_delivery_sale()` escribe la misma fila: si la caja
+está abriendo la pestaña, una de las dos espera a la otra. Si `sale_id` apunta a algo que ya no es una
+pestaña abierta (la venta se borró), el enlace es viejo: no bloquea y la cancelación lo pone en nulo.
+**Descartado:** que `cancel()` anule la venta OPENED él mismo (lo que proponía §7.6). El modelo de
+preventas no escribe en `sales` (su contrato, ver el encabezado de `Presale.php`), la mesa desechable y
+el carrito de la sesión de otra caja quedarían a medias, y el cajero que tiene la pestaña abierta no se
+enteraría. «Devolver a preventas» ya hace esa limpieza bien desde la caja.
+
+**El enlace, en el modelo.** `attach_delivery_sale($presale_id, $sale_id, ?$stale_sale_id)`:
+`UPDATE presales SET sale_id = ? WHERE presale_id = ? AND status = 'open' AND sale_id IS NULL` (o `=
+<enlace viejo>`), con una fila afectada comprobada; sin transacción propia (la caja envuelve crear la
+pestaña y enlazarla en una). `detach_delivery_sale($presale_id, $sale_id)`: pone `sale_id` en nulo solo
+si sigue apuntando a esa venta y la preventa no está entregada. `Presale_register::attach()`/`detach()`
+quedan como envoltorios (el segundo sigue sin lanzar hacia la caja).
+
+**Comprobante de cancelación.** Se arma con los movimientos guardados (suma de `payment` = abonado,
+suma de `refund` = devuelto, retenido = la resta), así una reimpresión dice lo mismo que el día. Lleva
+quién canceló, el motivo y las condiciones con `nl2br(esc())`. Solo existe para una preventa
+`canceled` (404 si no). Se reimprime con el permiso `presales`.
+
+**El cajón** se abre después de una devolución **en efectivo**, con la misma marca de un solo uso de
+los abonos (`DRAWER_FLASH`, valor `<id>:cancel`): la pone `postCancel()` y la consume el comprobante
+que sigue, que además comprueba que la última devolución sea `cash` y pregunta a
+`Sale_lib::should_open_cash_drawer()`. Reimprimir no lo abre.
+
+**En el cuadre** no hubo que tocar nada: la fila `refund` lleva el `cashup_id` del turno abierto y el
+carril C ya la resta (§6.1). La prueba lo comprueba con `_build_reconciliation()`: el esperado del
+turno baja exactamente en lo devuelto.
+
+**Pendiente:** certificar en staging (cancelar con devolución parcial en efectivo y ver el cierre del
+turno, §8 del funcional, punto 10).
 
 ---
 

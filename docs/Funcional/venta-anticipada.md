@@ -256,8 +256,10 @@ Funciona igual en un negocio que usa mesas y en uno que no, con una diferencia d
   cliente, Suspender, Cancelar) no aparecen.
 - Pulsar «Entregar» dos veces no abre dos entregas, y si dos cajas completan la misma entrega a la
   vez, solo una venta queda registrada.
-- Si la preventa se cancela mientras su entrega está abierta en la caja, la entrega desaparece de la
-  caja con un aviso.
+- **Una preventa cuya entrega está abierta en una pestaña de la caja no se puede cancelar**
+  *(2026-10-07)*: el sistema pide primero devolverla a preventas desde la caja (ver el botón
+  siguiente). Sin mesas no hay pestaña: si se cancela con la entrega cargada en pantalla, la caja no
+  deja completarla y la saca con un aviso.
 - Si se mandó la preventa equivocada o el cliente no llegó, el botón **«Devolver a preventas»** (en
   lugar de Cancelar) saca la entrega de la caja sin cobrar nada; la preventa sigue abierta y pagada y
   se puede volver a entregar. Cancelar y Suspender no existen en una entrega.
@@ -307,6 +309,27 @@ decide; **registra lo que se acordó**:
 4. Se imprime un **comprobante de cancelación** con lo abonado, lo devuelto y lo retenido.
 
 El producto nunca salió del inventario, así que no hay nada que devolver a bodega.
+
+**Cómo se hace** *(construido el 2026-10-07, pendiente de certificar en staging)*:
+
+- En el detalle de la preventa, el botón **«Cancelar preventa»** solo lo ve quien tiene «Gestionar
+  preventas», y solo mientras la preventa está abierta. Aunque alguien sin ese permiso intentara
+  cancelar por otra vía, el sistema lo rechaza.
+- Al pulsarlo se abre, ahí mismo, el formulario: **motivo** (obligatorio), **valor a devolver** (de 0
+  a lo abonado) y, solo si se devuelve algo, el **medio** (efectivo, datáfono o transferencia) y una
+  referencia opcional. Mientras se escribe el valor, el formulario muestra **lo abonado, lo devuelto y
+  lo que retiene el negocio**.
+- Devolver **cero** no pide medio de pago ni mueve plata: el negocio retiene todo lo abonado.
+- Una devolución necesita el **turno de caja abierto**; sin turno, el sistema lo dice y no cancela.
+  Una cancelación sin devolución no necesita turno.
+- Al confirmar, se abre el **comprobante de cancelación** listo para imprimir: número, cliente,
+  campaña, quién canceló, total, lo abonado, lo devuelto con su medio, lo retenido, el motivo y las
+  condiciones del negocio (§4.14). Si la devolución fue **en efectivo**, el cajón se abre una sola
+  vez, como con los abonos; reimprimir el comprobante después no lo vuelve a abrir.
+- El comprobante se puede reimprimir desde el detalle de la preventa cancelada.
+- Si la preventa está **abierta en la caja para entregarse** (en una pestaña), no se cancela: el
+  sistema dice «La preventa está abierta en la caja para entregarse. Devuélvala a preventas desde la
+  caja antes de cancelar.»
 
 ### 4.11 Listas y reportes
 
@@ -476,7 +499,8 @@ tiene que estar en producción a finales de octubre de 2026.**
 - Los abonos entran al cuadre del turno que los recibió, en su renglón propio (§4.5).
 - Estados al día, atrasada y pagada (§4.6).
 - Entregar desde la pantalla de caja, solo con saldo cero, sin contar dos veces la plata (§4.8).
-- Cancelar con devolución de 0 a 100% y su comprobante (§4.10).
+- Cancelar con devolución de 0 a 100% y su comprobante (§4.10). *Construido el 2026-10-07, pendiente de
+  certificar en staging.*
 - Lista de preventas y lo comprometido por campaña (§4.11).
 
 ### Después — Gestionar — **por construir**
