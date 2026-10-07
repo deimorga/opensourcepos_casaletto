@@ -3,6 +3,7 @@
 > **Estado (2026-10-07, 18:30):** construido, en `develop` y **certificado por nosotros en staging**
 > (`4e17cb62d`, §7.10). Pendiente: certificación del equipo del negocio y producción. Decisiones de
 > negocio en `docs/Funcional/venta-anticipada.md` §6 (D1-D29); técnicas en §3.
+
 ---
 
 ## 1. Qué se pide, en términos de datos
