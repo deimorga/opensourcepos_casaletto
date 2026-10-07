@@ -56,6 +56,12 @@ class Sale_lib
     private const WEIGHT_ENTRY_KEY = 'sales_weight_entry';
 
     /**
+     * Session key holding the presale whose delivery is the cart on screen. Cleared by clear_all(),
+     * so anything that replaces the cart also forgets it. See App\Libraries\Presale_register.
+     */
+    private const PRESALE_KEY = 'sales_presale_id';
+
+    /**
      * A round number this long, typed with no decimal separator, is not a
      * weight: it is a barcode that a scanner fired into the weight field while
      * that field had the focus -- which it does, by design, for exactly as long
@@ -1936,6 +1942,25 @@ class Sale_lib
     }
 
     /**
+     * The presale whose delivery is the cart on screen, or 0. Only App\Libraries\Presale_register
+     * reads and writes it.
+     */
+    public function get_presale_id(): int
+    {
+        return (int) ($this->session->get(self::PRESALE_KEY) ?? 0);
+    }
+
+    public function set_presale_id(int $presale_id): void
+    {
+        $this->session->set(self::PRESALE_KEY, $presale_id);
+    }
+
+    public function clear_presale_id(): void
+    {
+        $this->session->remove(self::PRESALE_KEY);
+    }
+
+    /**
      * @return void
      */
     public function clear_all(): void
@@ -1955,6 +1980,7 @@ class Sale_lib
         $this->empty_payments();
         $this->remove_customer();
         $this->clear_cash_flags();
+        $this->clear_presale_id();
     }
 
     /**
