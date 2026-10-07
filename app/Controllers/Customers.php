@@ -357,6 +357,26 @@ class Customers extends Persons
         $customers_to_delete = $this->request->getPost('ids');
         $customers_info = $this->customer->get_multiple_info($customers_to_delete);
 
+        // A customer with an open presale is not deleted: the presale is an agreement with that
+        // person, and it still has to be paid, delivered or cancelled. All or nothing, before any
+        // row is touched. The name is escaped because the grid shows the message with $.notify(),
+        // which renders HTML, without double encoding: older rows still hold names saved as HTML
+        // entities. See docs/Tecnico/venta-anticipada.md 8.5.
+        if (db_connect()->tableExists('presales')) {
+            $presale = model(\App\Models\Presale::class);
+            $blocked = [];
+
+            foreach ($customers_info->getResult() as $info) {
+                if ($presale->customer_has_open((int) $info->person_id)) {
+                    $blocked[] = lang('Customers.cannot_delete_presale', [htmlspecialchars($info->first_name . ' ' . $info->last_name, ENT_QUOTES, 'UTF-8', false)]);
+                }
+            }
+
+            if ($blocked !== []) {
+                return $this->response->setJSON(['success' => false, 'message' => implode(' ', $blocked)]);
+            }
+        }
+
         $count = 0;
 
         foreach ($customers_info->getResult() as $info) {

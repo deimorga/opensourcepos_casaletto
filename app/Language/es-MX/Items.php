@@ -162,4 +162,5 @@ return [
     "csv_row_id_unknown"           => "No existe ningún artículo con el Id {0}.",
     "csv_row_missing_required"     => "Falta {0}, que es obligatorio para crear un artículo.",
     "csv_row_boolean_unclear"      => "«{0}» no vale para la columna {1}. Escriba 0 o 1.",
+    "cannot_delete_presale"              => "No se puede borrar «{0}»: está en una campaña de preventa o en una preventa abierta.",
 ];

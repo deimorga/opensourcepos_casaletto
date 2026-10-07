@@ -1001,6 +1001,26 @@ class Items extends Secure_Controller
             return $this->response->setJSON(['success' => false, 'message' => implode(' ', $blocked)]);
         }
 
+        // An item in a presale campaign or in an open presale is not deleted either: the delivery
+        // would have nothing to put in the register. Same all-or-nothing as the recipe guard. The
+        // name is escaped because the grid shows the message with $.notify(), which renders HTML,
+        // without double encoding: older rows still hold names saved as HTML entities.
+        // See docs/Tecnico/venta-anticipada.md 8.5.
+        if (db_connect()->tableExists('presales')) {
+            $presale = model(\App\Models\Presale::class);
+            $blocked = [];
+
+            foreach ((array) $items_to_delete as $item_id) {
+                if ($presale->item_in_use((int) $item_id)) {
+                    $blocked[] = lang('Items.cannot_delete_presale', [htmlspecialchars((string) $this->item->get_info((int) $item_id)->name, ENT_QUOTES, 'UTF-8', false)]);
+                }
+            }
+
+            if ($blocked !== []) {
+                return $this->response->setJSON(['success' => false, 'message' => implode(' ', $blocked)]);
+            }
+        }
+
         if ($this->item->delete_list($items_to_delete)) {
             $message = lang('Items.successful_deleted') . ' ' . count($items_to_delete) . ' ' . lang('Items.one_or_multiple');
             return $this->response->setJSON(['success' => true, 'message' => $message]);

@@ -54,4 +54,5 @@ return [
     "total"                         => "Total spent",
     "update"                        => "Update Customer",
     "rewards_package"               => "Rewards Package",
+    "cannot_delete_presale"         => "{0} cannot be deleted: they have an open presale. Deliver or cancel it first.",
 ];

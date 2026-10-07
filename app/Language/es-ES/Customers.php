@@ -54,4 +54,5 @@ return [
     "total"                         => "Total",
     "update"                        => "Actualizar Cliente",
     "rewards_package"               => "Paquete de recompensas",
+    "cannot_delete_presale"         => "No se puede borrar a {0}: tiene una preventa abierta. Entréguela o cancélela primero.",
 ];
