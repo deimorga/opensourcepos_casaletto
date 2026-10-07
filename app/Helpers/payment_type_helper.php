@@ -40,6 +40,11 @@ function payment_type_code_map(): array
         'cash_adjustment' => 'Sales.cash_adjustment',
         'cash_deposit'    => 'Sales.cash_deposit',
         'credit_deposit'  => 'Sales.credit_deposit',
+        // What a presale delivery is paid with: the money the customer already paid in instalments,
+        // each counted in its own shift (app/Models/Presale_payment.php). It is never cash and never
+        // offered in a dropdown -- those lists are built from explicit codes, not from this map -- and
+        // the cash-up keeps it out of the delivery shift's income so nothing is counted twice.
+        'presale'         => 'Sales.presale',
     ];
 }
 

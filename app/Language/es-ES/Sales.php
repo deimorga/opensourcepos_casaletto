@@ -66,6 +66,7 @@ return [
     "discount_included"                => "% Descuento",
     "discount_short"                   => "%",
     "due"                              => "Adeudado",
+    "presale"                          => "Preventa",
     "due_filter"                       => "Adeudado",
     "edit"                             => "Editar",
     "edit_item"                        => "Editar Artículo",

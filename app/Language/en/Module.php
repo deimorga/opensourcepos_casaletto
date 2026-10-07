@@ -34,6 +34,8 @@ return [
     "office_desc"                => "List office menu modules.",
     "order_tickets"              => "Order Tickets",
     "order_tickets_desc"         => "Take an order at the table and send it to the kitchen.",
+    "presales"                   => "Presales",
+    "presales_desc"              => "Sell in advance in campaigns: instalments, payments and delivery once fully paid.",
     "receivings"                 => "Receivings",
     "receivings_desc"            => "Process Purchase Orders.",
     "reports"                    => "Reports",

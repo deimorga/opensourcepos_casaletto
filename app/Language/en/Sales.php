@@ -66,6 +66,7 @@ return [
     "discount_included"                => "% Discount",
     "discount_short"                   => "%",
     "due"                              => "Due",
+    "presale"                          => "Presale",
     "due_filter"                       => "Due",
     "edit"                             => "Edit",
     "edit_item"                        => "Edit Item",

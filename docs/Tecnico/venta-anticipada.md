@@ -124,7 +124,7 @@ admite: al registrar la preventa se expande como lo hace la caja (§8.6).
 | `created_at` | datetime NOT NULL | |
 | `delivery_date_id` | int NOT NULL | T15 |
 | `delivery_date` | date NOT NULL | Copia desnormalizada |
-| `status` | tinyint NOT NULL default 0 | 0 open, 1 delivered, 2 canceled (T6) |
+| `status` | varchar(16) NOT NULL | `open`, `delivered`, `canceled` (T6). Código de texto y no número, el mismo criterio que `order_tickets.status` y `payment_type_code`: un número cuyo significado vive en otro archivo es lo que enseñó `sale_status` |
 | `total` | decimal(15,2) NOT NULL | |
 | `comment` | text NULL | |
 | `sale_id` | int NULL UNIQUE | La venta de la entrega (T4) |
@@ -191,7 +191,7 @@ memoria «Timezone real de OSPOS»).
    cuota y el abono inicial ≥ `ceil(total × min_initial_percent / 100)` (T17).
 5. **Abono:** no puede pasar de `balance`. **Devolución:** no puede pasar de `paid`.
 6. **Entrega:** solo con `balance = 0` (D11), y solo una vez (`sale_id` UNIQUE + `UPDATE … WHERE
-   status = 0`, con las filas afectadas comprobadas).
+   status = 'open'`, con las filas afectadas comprobadas).
 7. **Cierre:** una preventa `delivered` o `canceled` es de solo lectura.
 
 ---
@@ -352,7 +352,9 @@ hoy.
    preventa entregada. Se bloquea; la devolución de mercancía va por el modo Devolución.
 5. **Borrar** un artículo que está en una campaña o en una preventa abierta, o un cliente con
    preventas abiertas: se rechaza. Hay que extender la guarda de `ItemsDeleteGuardTest`.
-6. **Kits.** `add_item_kit()` (`Sale_lib.php:1829-1865`) expande kits anidados de forma recursiva y
+6. **Kits.** Estado al 2026-10-07: `Presale::price_lines()` **rechaza** los kits
+   (`Presales.kits_not_supported`) hasta que se construya la expansión; es mejor rechazar que guardar
+   un kit como una línea simple y descontar mal el inventario en la entrega. `add_item_kit()` (`Sale_lib.php:1829-1865`) expande kits anidados de forma recursiva y
    reparte el precio según `price_option` (`:1466-1478`). Al registrar la preventa, un kit de la
    campaña se expande igual que en la caja y se guarda línea por línea con su `print_option`. El
    precio de campaña se asigna a la línea representativa del kit, y los componentes quedan como los
@@ -405,7 +407,7 @@ El módulo es de la plataforma (D2). Reglas que aplican a todo el código:
 ```sql
 SELECT p.campaign_id, pi.item_id, i.name, p.delivery_date, SUM(pi.quantity) AS committed
 FROM ospos_presale_items pi
-JOIN ospos_presales p ON p.presale_id = pi.presale_id AND p.status = 0
+JOIN ospos_presales p ON p.presale_id = pi.presale_id AND p.status = 'open'
 JOIN ospos_items i ON i.item_id = pi.item_id
 WHERE p.campaign_id = ?
 GROUP BY p.campaign_id, pi.item_id, i.name, p.delivery_date

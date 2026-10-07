@@ -34,6 +34,8 @@ return [
     "office_desc"                => "Lista modulo de menu oficina.",
     "order_tickets"              => "Comandas",
     "order_tickets_desc"         => "Tomar el pedido en la mesa y mandarlo a la cocina.",
+    "presales"                   => "Preventas",
+    "presales_desc"              => "Vender por adelantado en campañas: cuotas, abonos y entrega al terminar de pagar.",
     "receivings"                 => "Recepción",
     "receivings_desc"            => "Procesar Ordenes de Compra.",
     "reports"                    => "Reportes",
