@@ -7,7 +7,12 @@ This document provides guidance for AI agents working on the Open Source Point o
 - Follow PHP CodeIgniter 4 coding standards
 - Run PHP-CS-Fixer before committing: `vendor/bin/php-cs-fixer fix --config=.php-cs-fixer.no-header.php`
 - Write PHP 8.1+ compatible code with proper type declarations
-- Use PSR-12 naming conventions: `camelCase` for variables and functions, `PascalCase` for classes, `UPPER_CASE` for constants
+- Naming follows the surrounding code, not PSR-12: this codebase names models, libraries, methods and
+  variables in `snake_case` (`Sale_lib::get_cart()`, `$sale_id`), classes in `PascalCase`/`Snake_case`
+  as the neighbouring files do, and constants in `UPPER_CASE`. Controller actions keep CodeIgniter's
+  `getX`/`postX`. New code matches the file it lives in; do not mix styles inside a module. (Decided
+  2026-10-07: upstream's PSR-12 rule never matched the code, and the presales module ended up mixing
+  both.)
 
 ## Development
 
