@@ -10,8 +10,12 @@
  * - Deliver: only when it is paid (open, balance zero). A plain POST, with its CSRF token, to the
  *   register's sales/deliverPresale/{id}, which opens it in a tab of its own (D17). The register owns
  *   every check of that step; this button only exists when the state says it can work.
- * - Cancel: only for presales_manage, while open. Shown disabled until the cancellation screen
- *   exists, so the place where it will live is visible and nobody is offered a dead link.
+ * - Cancel: only for presales_manage, while open. Opens the cancellation form in place (reason,
+ *   what is given back, its payment type); paid, given back and kept are worked out by the server
+ *   (presales/cancelPreview) as the amount is typed. It posts to presales/cancel, which checks the
+ *   permission again, and goes to the cancellation document. A presale whose delivery is open in the
+ *   register is refused by the model with a message that says what to do.
+ * - Once canceled, the cancellation document can be reprinted.
  *
  * Every value printed here is escaped; the payment form's answers come back escaped by the server.
  *
@@ -95,13 +99,61 @@ $customer_name = trim(($customer->first_name ?? '') . ' ' . ($customer->last_nam
         <?php endif; ?>
 
         <?php if ($is_open && $can_manage): ?>
-            <span style="display: inline-block;" tabindex="0" title="<?= esc(lang('Presales.coming_soon'), 'attr') ?>">
-                <button type="button" class="btn btn-danger btn-sm" id="presale_cancel" disabled aria-disabled="true">
-                    <span class="glyphicon glyphicon-remove">&nbsp;</span><?= esc(lang('Presales.cancel')) ?>
-                </button>
-            </span>
+            <button type="button" class="btn btn-danger btn-sm" id="presale_cancel" aria-expanded="false" aria-controls="presale_cancel_block">
+                <span class="glyphicon glyphicon-remove">&nbsp;</span><?= esc(lang('Presales.cancel')) ?>
+            </button>
+        <?php endif; ?>
+
+        <?php if ($presale['status'] === Presale::STATUS_CANCELED): ?>
+            <a class="btn btn-default btn-sm" id="presale_cancel_receipt" href="<?= site_url('presales/cancelReceipt/' . $id) ?>" target="_blank" rel="noopener">
+                <span class="glyphicon glyphicon-print">&nbsp;</span><?= esc(lang('Presales.print_cancel_receipt')) ?>
+            </a>
         <?php endif; ?>
     </div>
+
+    <?php if ($is_open && $can_manage): ?>
+        <div class="panel panel-danger" id="presale_cancel_block" role="region" aria-labelledby="presale_cancel_title" style="display: none;">
+            <div class="panel-heading"><strong id="presale_cancel_title"><?= esc(lang('Presales.cancel')) ?> <?= esc($presale['number']) ?></strong></div>
+            <div class="panel-body form-horizontal">
+                <div class="form-group form-group-sm">
+                    <label class="col-xs-4 control-label required" for="presale_cancel_reason"><?= esc(lang('Presales.cancel_reason')) ?></label>
+                    <div class="col-xs-8">
+                        <textarea id="presale_cancel_reason" class="form-control input-sm" rows="2" maxlength="1000" required aria-required="true"></textarea>
+                    </div>
+                </div>
+                <div class="form-group form-group-sm">
+                    <label class="col-xs-4 control-label" for="presale_cancel_amount"><?= esc(lang('Presales.refund_amount')) ?></label>
+                    <div class="col-xs-8">
+                        <input type="text" id="presale_cancel_amount" class="form-control input-sm" inputmode="decimal" value="0" aria-describedby="presale_cancel_help">
+                        <p class="help-block small" id="presale_cancel_help"><?= esc(lang('Presales.refund_help')) ?></p>
+                    </div>
+                </div>
+                <div class="form-group form-group-sm" id="presale_cancel_type_row" style="display: none;">
+                    <label class="col-xs-4 control-label" for="presale_cancel_type"><?= esc(lang('Presales.refund_payment_type')) ?></label>
+                    <div class="col-xs-8">
+                        <?= form_dropdown('payment_type_code', esc($payment_types), 'cash', ['id' => 'presale_cancel_type', 'class' => 'form-control input-sm']) ?>
+                    </div>
+                </div>
+                <div class="form-group form-group-sm" id="presale_cancel_reference_row" style="display: none;">
+                    <label class="col-xs-4 control-label" for="presale_cancel_reference"><?= esc(lang('Presales.reference')) ?></label>
+                    <div class="col-xs-8">
+                        <input type="text" id="presale_cancel_reference" class="form-control input-sm" maxlength="60">
+                    </div>
+                </div>
+                <?php if (! $has_open_shift): ?>
+                    <div class="alert alert-warning" role="alert" id="presale_cancel_no_shift" style="display: none;"><?= esc(lang('Presales.no_open_cashup')) ?></div>
+                <?php endif; ?>
+                <table class="table table-condensed" style="margin-bottom: 10px;" aria-live="polite">
+                    <tr><th><?= esc(lang('Presales.paid')) ?></th><td style="text-align: right;" id="presale_cancel_paid"><?= esc(to_currency($presale['paid'])) ?></td></tr>
+                    <tr><th><?= esc(lang('Presales.refunded')) ?></th><td style="text-align: right;" id="presale_cancel_refund"><?= esc(to_currency('0')) ?></td></tr>
+                    <tr><th><?= esc(lang('Presales.kept')) ?></th><td style="text-align: right;"><strong id="presale_cancel_kept"><?= esc(to_currency($presale['paid'])) ?></strong></td></tr>
+                </table>
+                <p class="text-danger small" id="presale_cancel_error" role="alert"></p>
+                <button type="button" class="btn btn-danger btn-sm" id="presale_cancel_confirm"><?= esc(lang('Presales.cancel_confirm')) ?></button>
+                <button type="button" class="btn btn-default btn-sm" id="presale_cancel_back"><?= esc(lang('Presales.cancel_back')) ?></button>
+            </div>
+        </div>
+    <?php endif; ?>
 
     <?php if ($is_open && $has_debt): ?>
         <p class="text-muted small"><?= esc(lang('Presales.deliver_needs_balance', [to_currency($presale['balance'])])) ?></p>
@@ -269,5 +321,88 @@ $customer_name = trim(($customer->first_name ?? '') . ' ' . ($customer->last_nam
             $button.prop('disabled', false);
         });
     });
+
+    // Cancelling. The figures are the server's: amounts are typed in the business's number format.
+    var $cancelBlock = $('#presale_cancel_block');
+
+    if ($cancelBlock.length) {
+        var previewTimer = null;
+        var previewSeq = 0;
+
+        var showRefundFields = function(hasRefund) {
+            $('#presale_cancel_type_row, #presale_cancel_reference_row').toggle(hasRefund);
+            $('#presale_cancel_no_shift').toggle(hasRefund);
+        };
+
+        var preview = function() {
+            var seq = ++previewSeq;
+
+            $.post('<?= site_url('presales/cancelPreview/' . $id) ?>', {
+                refund_amount: $('#presale_cancel_amount').val()
+            }, function(response) {
+                if (seq !== previewSeq) {
+                    return;
+                }
+
+                if (!response.success) {
+                    // Escaped by the server.
+                    $('#presale_cancel_error').html(response.message);
+                    return;
+                }
+
+                $('#presale_cancel_error').empty();
+                $('#presale_cancel_paid').html(response.paid);
+                $('#presale_cancel_refund').html(response.refund);
+                $('#presale_cancel_kept').html(response.kept);
+                showRefundFields(response.has_refund);
+            }, 'json');
+        };
+
+        $('#presale_cancel').on('click', function() {
+            var opening = !$cancelBlock.is(':visible');
+
+            $cancelBlock.toggle(opening);
+            $(this).attr('aria-expanded', opening ? 'true' : 'false');
+
+            if (opening) {
+                $('#presale_cancel_reason').trigger('focus');
+            }
+        });
+
+        $('#presale_cancel_back').on('click', function() {
+            $cancelBlock.hide();
+            $('#presale_cancel').attr('aria-expanded', 'false').trigger('focus');
+        });
+
+        $('#presale_cancel_amount').on('input', function() {
+            clearTimeout(previewTimer);
+            previewTimer = setTimeout(preview, 300);
+        });
+
+        $('#presale_cancel_confirm').on('click', function() {
+            var $button = $(this).prop('disabled', true);
+
+            $.post('<?= site_url('presales/cancel/' . $id) ?>', {
+                reason: $('#presale_cancel_reason').val(),
+                refund_amount: $('#presale_cancel_amount').val(),
+                payment_type_code: $('#presale_cancel_type').val(),
+                reference_code: $('#presale_cancel_reference').val()
+            }, function(response) {
+                if (response.success) {
+                    window.location.href = response.receipt_url;
+                    return;
+                }
+
+                $button.prop('disabled', false);
+                $.notify(response.message, { type: 'danger' });
+            }, 'json').fail(function(xhr) {
+                $button.prop('disabled', false);
+
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    $.notify(xhr.responseJSON.message, { type: 'danger' });
+                }
+            });
+        });
+    }
 })();
 </script>

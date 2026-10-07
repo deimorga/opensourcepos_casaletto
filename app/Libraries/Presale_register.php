@@ -419,42 +419,22 @@ class Presale_register
     }
 
     /**
-     * Links an open presale to the register tab that delivers it. Guarded so it only ever writes an
-     * open presale, and only over no link or over the stale link the caller saw: two tills pressing
-     * "Entregar" at once produce one tab and one refusal. sale_id is UNIQUE besides.
-     *
-     * TODO(presales): this belongs in App\Models\Presale (lane D may not modify the presale models);
-     * the query below uses the model's own builder and its allowed column.
+     * Links an open presale to the register tab that delivers it. The guarded write is the model's
+     * (Presale::attach_delivery_sale()).
      */
     public function attach(int $presale_id, int $sale_id, ?int $stale_sale_id): bool
     {
-        $builder = model(Presale::class)->builder()
-            ->where('presale_id', $presale_id)
-            ->where('status', Presale::STATUS_OPEN);
-
-        if ($stale_sale_id === null) {
-            $builder->where('sale_id', null);
-        } else {
-            $builder->where('sale_id', $stale_sale_id);
-        }
-
-        $builder->update(['sale_id' => $sale_id]);
-
-        return db_connect()->affectedRows() === 1;
+        return model(Presale::class)->attach_delivery_sale($presale_id, $sale_id, $stale_sale_id);
     }
 
     /**
-     * Undoes attach() for a presale that will not be delivered by that tab after all: it was
-     * cancelled while the tab was open. Never touches a delivered presale.
+     * Undoes attach() for a presale that will not be delivered by that tab after all. Never throws
+     * into the register.
      */
     public function detach(int $presale_id, int $sale_id): void
     {
         try {
-            model(Presale::class)->builder()
-                ->where('presale_id', $presale_id)
-                ->where('sale_id', $sale_id)
-                ->where('status !=', Presale::STATUS_DELIVERED)
-                ->update(['sale_id' => null]);
+            model(Presale::class)->detach_delivery_sale($presale_id, $sale_id);
         } catch (Throwable $e) {
             log_message('critical', 'Presale_register::detach: ' . $e->getMessage());
         }

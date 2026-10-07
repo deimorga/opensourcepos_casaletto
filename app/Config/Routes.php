@@ -95,6 +95,12 @@ $routes->get('presales/receipt/(:num)', 'Presales::getReceipt/$1');
 $routes->get('presales/paymentReceipt/(:num)', 'Presales::getPaymentReceipt/$1');
 // presales: core (lane B) END
 
+// presales: cancel (lane E) BEGIN
+$routes->post('presales/cancel/(:num)', 'Presales::postCancel/$1');
+$routes->post('presales/cancelPreview/(:num)', 'Presales::postCancelPreview/$1');
+$routes->get('presales/cancelReceipt/(:num)', 'Presales::getCancelReceipt/$1');
+// presales: cancel (lane E) END
+
 $routes->get('/', 'Login::index');
 $routes->get('login', 'Login::index');
 $routes->post('login', 'Login::index');

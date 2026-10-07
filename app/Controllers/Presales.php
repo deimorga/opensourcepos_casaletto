@@ -49,6 +49,11 @@ class Presales extends Secure_Controller
      */
     private const DRAWER_FLASH = 'presales_open_drawer';
 
+    /**
+     * What the drawer mark says after a cash refund, in place of a payment id. See postCancel().
+     */
+    private const DRAWER_CANCEL = 'cancel';
+
     protected Presale $presale;
 
     public function __construct()
@@ -427,6 +432,121 @@ class Presales extends Secure_Controller
     }
 
     // ---------------------------------------------------------------------------------------------
+    // Cancelling (D10)
+    // ---------------------------------------------------------------------------------------------
+
+    /**
+     * What the cancellation form adds up to: paid, the refund typed and what the business keeps,
+     * worked out here because amounts are typed in the business's number format (see postPreview()).
+     */
+    public function postCancelPreview(int $presale_id): ResponseInterface
+    {
+        $denied = $this->deny_cancel();
+
+        if ($denied !== null) {
+            return $denied;
+        }
+
+        $presale = $this->presale->get_info($presale_id);
+
+        if ($presale === null || $presale['status'] !== Presale::STATUS_OPEN) {
+            return $this->refuse(lang('Presales.not_open'));
+        }
+
+        $paid   = model(Presale_payment::class)->get_paid($presale_id);
+        $raw    = (string) $this->request->getPost('refund_amount');
+        $refund = $this->read_money($raw);
+
+        if ($refund === false) {
+            return $this->refuse(lang('Presales.amount_invalid', [$raw]));
+        }
+
+        $refund = $refund === '' ? '0.00' : $refund;
+
+        if (bccomp($refund, '0', 2) < 0) {
+            return $this->refuse(lang('Presales.refund_invalid'));
+        }
+
+        if (bccomp($refund, $paid, 2) > 0) {
+            return $this->refuse(lang('Presales.refund_exceeds_paid'));
+        }
+
+        return $this->response->setJSON([
+            'success'    => true,
+            'paid'       => esc(to_currency($paid)),
+            'refund'     => esc(to_currency($refund)),
+            'kept'       => esc(to_currency(bcsub($paid, $refund, 2))),
+            'has_refund' => bccomp($refund, '0', 2) > 0,
+        ]);
+    }
+
+    /**
+     * Cancels a presale and records what was agreed with the customer: the reason, the refund (zero
+     * to everything paid) and its payment type. Needs presales_manage, checked here and not only by
+     * hiding the button. Every rule -- the reason, the limits, the open shift, the lock, a delivery
+     * open in the register -- is Presale::cancel()'s.
+     */
+    public function postCancel(int $presale_id): ResponseInterface
+    {
+        $denied = $this->deny_cancel();
+
+        if ($denied !== null) {
+            return $denied;
+        }
+
+        $raw    = (string) $this->request->getPost('refund_amount');
+        $refund = $this->read_money($raw);
+
+        if ($refund === false) {
+            return $this->refuse(lang('Presales.amount_invalid', [$raw]));
+        }
+
+        $refund = $refund === '' ? '0.00' : $refund;
+        $code   = bccomp($refund, '0', 2) > 0 ? (string) $this->request->getPost('payment_type_code') : null;
+
+        $result = $this->presale->cancel(
+            $presale_id,
+            (int) $this->employee->get_logged_in_employee_info()->person_id,
+            (string) $this->request->getPost('reason'),
+            $refund,
+            $code,
+            (string) $this->request->getPost('reference_code'),
+        );
+
+        if (is_string($result)) {
+            return $this->refuse(lang($result));
+        }
+
+        if ($code === 'cash') {
+            $this->arm_drawer($presale_id, null, self::DRAWER_CANCEL);
+        }
+
+        return $this->response->setJSON([
+            'success'     => true,
+            'id'          => $presale_id,
+            'message'     => esc(lang('Presales.canceled', [$this->presale->number($presale_id)])),
+            'receipt_url' => site_url('presales/cancelReceipt/' . $presale_id) . '?print=1',
+        ]);
+    }
+
+    /**
+     * The refusal of a cancellation endpoint, or null when it may go on: the module must be on and
+     * the employee must hold presales_manage. 403, because these are called by script.
+     */
+    private function deny_cancel(): ?ResponseInterface
+    {
+        if (! self::is_enabled()) {
+            return $this->refuse(lang('Presales.disabled'))->setStatusCode(403);
+        }
+
+        if (! $this->can_manage()) {
+            return $this->refuse(lang('Presales.cancel_forbidden'))->setStatusCode(403);
+        }
+
+        return null;
+    }
+
+    // ---------------------------------------------------------------------------------------------
     // Documents
     // ---------------------------------------------------------------------------------------------
 
@@ -508,6 +628,51 @@ class Presales extends Secure_Controller
             'balance'       => bcsub((string) $presale['total'], $accumulated, 2),
             'print'         => $this->request->getGet('print') === '1',
             'open_drawer'   => $this->take_drawer($presale_id, $payment_id),
+        ], ['saveData' => false]);
+    }
+
+    /**
+     * The cancellation document: what had been paid, what was given back and how, what the business
+     * keeps, the reason and the conditions. Read from the stored movements, so a reprint says what it
+     * said on the day.
+     */
+    public function getCancelReceipt(int $presale_id): ResponseInterface|string
+    {
+        $presale = self::is_enabled() ? $this->presale->get_info($presale_id) : null;
+
+        if ($presale === null || $presale['status'] !== Presale::STATUS_CANCELED) {
+            return $this->response->setStatusCode(404)->setBody(esc(lang('Presales.not_found')));
+        }
+
+        $paid     = '0.00';
+        $refunded = '0.00';
+        $refunds  = [];
+
+        foreach (model(Presale_payment::class)->get_for($presale_id) as $movement) {
+            if ($movement['kind'] === Presale_payment::KIND_REFUND) {
+                $refunded  = bcadd($refunded, (string) $movement['amount'], 2);
+                $refunds[] = $movement;
+            } else {
+                $paid = bcadd($paid, (string) $movement['amount'], 2);
+            }
+        }
+
+        helper('payment_type');
+
+        $campaign    = model(Presale_campaign::class)->get_info((int) $presale['campaign_id']);
+        $canceled_by = (int) ($presale['canceled_by'] ?? 0);
+
+        return view('presales/receipt_cancel', [
+            'presale'       => $presale + ['number' => $this->presale->number($presale_id)],
+            'customer'      => model(Customer::class)->get_info((int) $presale['customer_id']),
+            'campaign_name' => $campaign['name'] ?? '',
+            'employee'      => $this->names([$canceled_by])[$canceled_by] ?? '',
+            'paid'          => $paid,
+            'refunded'      => $refunded,
+            'kept'          => bcsub($paid, $refunded, 2),
+            'refunds'       => $refunds,
+            'print'         => $this->request->getGet('print') === '1',
+            'open_drawer'   => $this->take_cancel_drawer($presale_id, $refunds),
         ], ['saveData' => false]);
     }
 
@@ -910,9 +1075,30 @@ class Presales extends Secure_Controller
      * Lets the receipt that follows a cash payment open the drawer -- once. The mark lives in the
      * session for the next request only, so reprinting the receipt later never opens it again.
      */
-    private function arm_drawer(int $presale_id, ?int $payment_id): void
+    private function arm_drawer(int $presale_id, ?int $payment_id, string $what = 'initial'): void
     {
-        $this->session->setFlashdata(self::DRAWER_FLASH, $presale_id . ':' . ($payment_id ?? 'initial'));
+        $this->session->setFlashdata(self::DRAWER_FLASH, $presale_id . ':' . ($payment_id ?? $what));
+    }
+
+    /**
+     * Whether this cancellation document is the one right after a CASH refund, and the business wants
+     * the drawer opened for cash. Same one-shot mark as the instalments' (arm_drawer()).
+     *
+     * @param list<array<string, mixed>> $refunds
+     */
+    private function take_cancel_drawer(int $presale_id, array $refunds): bool
+    {
+        if ($this->session->getFlashdata(self::DRAWER_FLASH) !== $presale_id . ':' . self::DRAWER_CANCEL) {
+            return false;
+        }
+
+        $last = end($refunds);
+
+        if ($last === false || $last['payment_type_code'] !== 'cash') {
+            return false;
+        }
+
+        return (new Sale_lib())->should_open_cash_drawer([['payment_type' => lang('Sales.cash')]]);
     }
 
     /**

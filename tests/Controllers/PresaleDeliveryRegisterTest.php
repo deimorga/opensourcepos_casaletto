@@ -563,6 +563,10 @@ final class PresaleDeliveryRegisterTest extends CIUnitTestCase
     /**
      * A presale cancelled while its tab is open: the tab goes, its open sale is cancelled and the
      * presale is unlinked from it.
+     *
+     * Since lane E, Presale::cancel() refuses a presale whose tab is open (PresalesCancelTest), so the
+     * cancellation is written here directly: this pins the register's fallback for a presale that
+     * got cancelled by any other path.
      */
     public function testAPresaleCancelledWhileItsTabIsOpenLeavesTheRegister(): void
     {
@@ -570,7 +574,8 @@ final class PresaleDeliveryRegisterTest extends CIUnitTestCase
         $this->deliver($presale);
         $sale = (int) model(Presale::class)->get_info($presale)['sale_id'];
 
-        $this->assertTrue(model(Presale::class)->cancel($presale, 1, 'El cliente desistió'));
+        $this->assertSame('Presales.cancel_open_in_register', model(Presale::class)->cancel($presale, 1, 'El cliente desistió'));
+        $this->db->table('presales')->where('presale_id', $presale)->update(['status' => Presale::STATUS_CANCELED, 'canceled_at' => date('Y-m-d H:i:s'), 'canceled_by' => 1]);
 
         $this->getReq('sales')->assertSee(esc(lang('Presale_register.no_longer_open', [model(Presale::class)->number($presale)])));
 
