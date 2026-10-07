@@ -40,8 +40,10 @@
  * @var array $config
  * @var array $weight_entry
  * @var array $order_ticket_changes set by Sales::_sync_order_ticket() when the tab is an order ticket's
+ * @var array|null $presale_delivery set by Sales::_sync_presale_delivery() when the cart is a presale's delivery
  */
 
+use App\Libraries\Presale_register;
 use App\Libraries\Sale_lib;
 use App\Models\Employee;
 use App\Models\Item;
@@ -65,6 +67,17 @@ if (isset($success)) {
 }
 
 helper('url');
+
+// A presale delivery (Sales::_sync_presale_delivery()): what was agreed cannot be changed here, so the
+// controls the server refuses on it are not drawn. The server refuses them anyway; hiding them only
+// spares the cashier an error.
+$is_presale_delivery = !empty($presale_delivery);
+
+if ($is_presale_delivery) { ?>
+    <div class="alert alert-info" id="presale_delivery_banner" role="status">
+        <span class="glyphicon glyphicon-gift" aria-hidden="true">&nbsp;</span><strong><?= esc(lang('Presale_register.banner', [$presale_delivery['number']])) ?></strong>
+    </div>
+<?php }
 ?>
 
 <?php
@@ -169,6 +182,7 @@ if (!empty($order_ticket_changes['lines'])) { ?>
 
     <?php $tabindex = 0; ?>
 
+    <?php if (!$is_presale_delivery) { ?>
     <?= form_open("$controller_name/add", ['id' => 'add_item_form', 'class' => 'form-horizontal panel panel-default']) ?>
         <div class="panel-body form-group">
             <ul>
@@ -187,6 +201,7 @@ if (!empty($order_ticket_changes['lines'])) { ?>
             </ul>
         </div>
     <?= form_close() ?>
+    <?php } ?>
 
     <?php
     // The weight field exists only while an item priced by weight is waiting
@@ -374,13 +389,18 @@ if (!empty($order_ticket_changes['lines'])) { ?>
 
                 foreach (array_reverse($cart, true) as $line => $item) {
                     $is_kit_ingredient = $item['print_option'] == PRINT_NO;
+                    // On a presale delivery only the weight of a line sold by weight is editable (T18).
+                    $line_locked = $is_presale_delivery;
+                    $weight_editable = !$is_presale_delivery || Sale_lib::line_sells_by_weight($item);
                     ob_start();
             ?>
                     <?= form_open("$controller_name/editItem/$line", ['class' => 'form-horizontal', 'id' => "cart_$line"]) ?>
                         <tr<?= $is_kit_ingredient ? ' class="kit-ingredient-row" data-kit-group="__KIT_GROUP__"' : '' ?>>
                             <td>
                                 <?php
-                                echo anchor("$controller_name/deleteItem/$line", '<span class="glyphicon glyphicon-trash"></span>');
+                                if (!$line_locked) {
+                                    echo anchor("$controller_name/deleteItem/$line", '<span class="glyphicon glyphicon-trash"></span>');
+                                }
                                 echo form_hidden('location', (string)$item['item_location']);
                                 echo form_input(['type' => 'hidden', 'name' => 'item_id', 'value' => $item['item_id']]);
                                 ?>
@@ -420,7 +440,7 @@ if (!empty($order_ticket_changes['lines'])) { ?>
                                 //             y abrirlo pregunta.
                                 $reprice_mode = $reprice_lines[$line]['mode'] ?? 'blocked';
 
-                                if ($items_module_allowed && $change_price) {
+                                if ($items_module_allowed && $change_price && !$line_locked) {
                                     $price_attrs = [
                                         'name'      => 'price',
                                         'class'     => 'form-control input-sm',
@@ -461,7 +481,7 @@ if (!empty($order_ticket_changes['lines'])) { ?>
 
                             <td>
                                 <?php
-                                if ($item['is_serialized']) {
+                                if ($item['is_serialized'] || !$weight_editable) {
                                     echo $format_line_quantity($item);
                                     echo form_hidden('quantity', $item['quantity']);
                                 } else {
@@ -483,12 +503,16 @@ if (!empty($order_ticket_changes['lines'])) { ?>
                             </td>
 
                             <td>
+                                <?php if ($line_locked) { ?>
+                                    <?= $item['discount_type'] ? to_currency($item['discount']) : to_decimals($item['discount']) . '%' ?>
+                                <?php } else { ?>
                                 <div class="input-group">
                                     <?= form_input(['name' => 'discount', 'class' => 'form-control input-sm', 'value' => $item['discount_type'] ? to_currency_no_money($item['discount']) : to_decimals($item['discount']), 'tabindex' => ++$tabindex, 'onClick' => 'this.select();']) ?>
                                     <span class="input-group-btn">
                                         <?= form_checkbox(['id' => 'discount_toggle', 'name' => 'discount_toggle', 'value' => 1, 'data-toggle' => "toggle", 'data-size' => 'small', 'data-onstyle' => 'success', 'data-on' => '<b>' . $config['currency_symbol'] . '</b>', 'data-off' => '<b>%</b>', 'data-line' => $line, 'checked' => $item['discount_type'] == 1]) ?>
                                     </span>
                                 </div>
+                                <?php } ?>
                             </td>
 
                             <td>
@@ -502,9 +526,11 @@ if (!empty($order_ticket_changes['lines'])) { ?>
                             </td>
 
                             <td>
+                                <?php if ($weight_editable) { ?>
                                 <a href="javascript:document.getElementById('<?= "cart_$line" ?>').submit();" title="<?= lang(ucfirst($controller_name) . '.update') ?>">
                                     <span class="glyphicon glyphicon-refresh"></span>
                                 </a>
+                                <?php } ?>
                             </td>
                         </tr>
                         <tr<?= $is_kit_ingredient ? ' class="kit-ingredient-row" data-kit-group="__KIT_GROUP__"' : '' ?>>
@@ -645,12 +671,14 @@ if (!empty($order_ticket_changes['lines'])) { ?>
                     <?php } ?>
                 </table>
 
+                <?php if (!$is_presale_delivery) { ?>
                 <?= anchor(
                     "$controller_name/removeCustomer",
                     '<span class="glyphicon glyphicon-remove">&nbsp;</span>' . lang('Common.remove') . ' ' . lang('Customers.customer'),
                     ['class' => 'btn btn-danger btn-sm', 'id' => 'remove_customer_button', 'title' => lang('Common.remove') . ' ' . lang('Customers.customer')]
                 )
                 ?>
+                <?php } ?>
             <?php } else { ?>
                 <div class="form-group" id="select_customer">
                     <label id="customer_label" for="customer" class="control-label" style="margin-bottom: 1em; margin-top: -1em;">
@@ -781,7 +809,7 @@ if (!empty($order_ticket_changes['lines'])) { ?>
                         <tbody id="payment_contents">
                             <?php foreach ($payments as $payment_id => $payment) { ?>
                                 <tr>
-                                    <td><?= anchor("$controller_name/deletePayment/". esc(base64url_encode($payment_id), 'url'), '<span class="glyphicon glyphicon-trash"></span>') ?></td>
+                                    <td><?= ($is_presale_delivery && Presale_register::is_presale_payment((string) $payment_id)) ? '' : anchor("$controller_name/deletePayment/". esc(base64url_encode($payment_id), 'url'), '<span class="glyphicon glyphicon-trash"></span>') ?></td>
                                     <td><?= esc($payment['payment_type']) ?></td>
                                     <td style="text-align: right;"><?= to_currency($payment['payment_amount']) ?></td>
                                 </tr>
@@ -793,7 +821,7 @@ if (!empty($order_ticket_changes['lines'])) { ?>
 
             <?= form_open("$controller_name/cancel", ['id' => 'buttons_form']) ?>
             <div class="form-group" id="buttons_sale">
-                <?php if (!($config['dinner_table_enable'] && (int) $selected_table > 2)) { ?>
+                <?php if (!$is_presale_delivery && !($config['dinner_table_enable'] && (int) $selected_table > 2)) { ?>
                     <!-- Hidden for open table tabs: autosave already persists
                          the cart on every mutation (see
                          Sales::_autosave_open_tab()), and Sale::save_value()
@@ -810,7 +838,15 @@ if (!empty($order_ticket_changes['lines'])) { ?>
                     <div class="btn btn-sm btn-success" id="finish_invoice_quote_button"><span class="glyphicon glyphicon-ok">&nbsp;</span><?= esc($mode_label) ?></div>
                 <?php } ?>
 
+                <?php if (!$is_presale_delivery) { ?>
                 <div class="btn btn-sm btn-danger pull-right" id="cancel_sale_button"><span class="glyphicon glyphicon-remove">&nbsp;</span><?= lang(ucfirst($controller_name) . '.cancel_sale') ?></div>
+                <?php } else { ?>
+                <button type="submit" class="btn btn-sm btn-warning pull-right" id="release_presale_button"
+                    formaction="<?= esc(site_url("$controller_name/releasePresale")) ?>"
+                    onclick="return confirm(<?= esc(json_encode(lang('Presale_register.release_confirm')), 'attr') ?>);">
+                    <span class="glyphicon glyphicon-share-alt">&nbsp;</span><?= esc(lang('Presale_register.release')) ?>
+                </button>
+                <?php } ?>
             </div>
             <?= form_close() ?>
 
