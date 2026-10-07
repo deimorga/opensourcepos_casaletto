@@ -6,6 +6,7 @@
  * presales/search, filters in the toolbar and the detail in a dialog. The search box finds a presale by
  * its number, the customer's name or the customer's phone.
  *
+ * @var bool                       $can_manage Whether the employee holds presales_manage (Campaigns button)
  * @var string                     $table_headers
  * @var list<array<string, mixed>> $campaigns
  * @var list<string>               $dates
@@ -44,6 +45,15 @@
     <a class="btn btn-info btn-sm pull-right" href="<?= site_url('presales/new') ?>">
         <span class="glyphicon glyphicon-plus">&nbsp;</span><?= esc(lang('Presales.new')) ?>
     </a>
+    <?php // The two other screens of the module. Without these they were reachable only by typing the address.?>
+    <a class="btn btn-default btn-sm pull-right" href="<?= site_url('presales/committed') ?>">
+        <span class="glyphicon glyphicon-list-alt">&nbsp;</span><?= esc(lang('Presale_reports.committed')) ?>
+    </a>
+    <?php if (! empty($can_manage)): ?>
+        <a class="btn btn-default btn-sm pull-right" href="<?= site_url('presales/campaigns') ?>">
+            <span class="glyphicon glyphicon-calendar">&nbsp;</span><?= esc(lang('Presales.campaigns')) ?>
+        </a>
+    <?php endif; ?>
 </div>
 
 <div id="toolbar">

@@ -36,7 +36,7 @@ $terms         = trim((string) ($config['presales_terms'] ?? ''));
     <table id="receipt_items">
         <?php foreach ($lines as $line): ?>
             <tr>
-                <td><?= esc(to_quantity_decimals((string) $line['quantity'])) ?> × <?= esc((string) $line['name']) ?><br><small><?= esc(to_currency((string) $line['unit_price'])) ?></small></td>
+                <td><?= esc(presale_quantity((string) $line['quantity'], $line['unit_of_measure'] ?? null)) ?> × <?= esc((string) $line['name']) ?><br><small><?= esc(to_currency((string) $line['unit_price'])) ?></small></td>
                 <td class="r"><?= esc(to_currency(bcmul((string) $line['quantity'], (string) $line['unit_price'], 2))) ?></td>
             </tr>
         <?php endforeach; ?>

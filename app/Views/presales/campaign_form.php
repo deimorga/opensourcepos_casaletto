@@ -104,7 +104,7 @@ $ends   = $is_new ? '' : presale_campaign_date((string) $campaign['sale_ends']);
         <div class="form-group form-group-sm">
             <?= form_label(lang('Presale_campaigns.active'), 'campaign_active', ['class' => 'control-label col-xs-4']) ?>
             <div class="col-xs-7">
-                <input type="checkbox" name="active" id="campaign_active" value="1"<?= ! $is_new && (int) $campaign['active'] === 1 ? ' checked' : '' ?>>
+                <input type="checkbox" name="active" id="campaign_active" value="1"<?= $is_new || (int) $campaign['active'] === 1 ? ' checked' : '' ?>>
             </div>
         </div>
     </fieldset>

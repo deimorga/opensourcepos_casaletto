@@ -81,6 +81,7 @@ class Presales extends Secure_Controller
             'campaigns'     => model(Presale_campaign::class)->get_all(),
             'dates'         => $this->delivery_dates(),
             'states'        => self::state_options(),
+            'can_manage'    => self::can_manage($this->employee),
         ], ['saveData' => false]);
     }
 

@@ -337,13 +337,30 @@ class PresaleCampaigns extends Secure_Controller
             return $denied;
         }
 
-        $suggestions = model(Item::class)->get_search_suggestions(
-            (string) $this->request->getGet('term'),
-            ['search_custom' => false, 'is_deleted' => false],
-            true,
-        );
+        $term    = (string) $this->request->getGet('term');
+        $filters = ['search_custom' => false, 'is_deleted' => false];
+        $items   = model(Item::class);
 
-        return $this->response->setJSON($suggestions);
+        // Item kits too: Item::get_search_suggestions() leaves them out on purpose (the register picks
+        // them up through its own kit search), and without this a campaign could never offer a basket
+        // or a combo, which is the likeliest thing a business sells in advance. Presale::price_lines()
+        // expands a kit into its components when a presale is registered.
+        $suggestions = [];
+        $seen        = [];
+
+        foreach (array_merge(
+            $items->get_search_suggestions($term, $filters, true),
+            $items->get_kit_search_suggestions($term, $filters, true),
+        ) as $suggestion) {
+            if (isset($seen[$suggestion['value']])) {
+                continue;
+            }
+
+            $seen[$suggestion['value']] = true;
+            $suggestions[]              = $suggestion;
+        }
+
+        return $this->response->setJSON(array_slice($suggestions, 0, 25));
     }
 
     public function postAddItem(int $campaign_id): ResponseInterface

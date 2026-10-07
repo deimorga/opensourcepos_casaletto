@@ -199,7 +199,7 @@ $customer_name = trim(($customer->first_name ?? '') . ' ' . ($customer->last_nam
                                 <?= esc((string) $line['name']) ?>
                                 <?php if ((int) $line['item_type'] === ITEM_KIT): ?><span class="label label-default"><?= esc(lang('Presales.kit')) ?></span><?php endif; ?>
                             </td>
-                            <td style="text-align: right;"><?= esc(to_quantity_decimals((string) $line['quantity'])) ?></td>
+                            <td style="text-align: right;"><?= esc(presale_quantity((string) $line['quantity'], $line['unit_of_measure'] ?? null)) ?></td>
                             <td style="text-align: right;"><?= esc(to_currency((string) $line['unit_price'])) ?></td>
                             <td style="text-align: right;"><?= esc(to_currency(bcmul((string) $line['quantity'], (string) $line['unit_price'], 2))) ?></td>
                         </tr>

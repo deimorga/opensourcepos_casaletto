@@ -11,7 +11,9 @@
  * before it is wrapped.
  */
 
+use App\Models\Item;
 use App\Models\Presale;
+use Config\OSPOS;
 
 /**
  * The columns of the list. Only stored values sort; the derived ones (state, days late, next
@@ -98,4 +100,31 @@ function get_presale_data_row(array $row, array $derived, string $number): array
             ['class' => 'modal-dlg modal-dlg-wide', 'title' => lang('Presales.view') . ' ' . $number],
         ),
     ];
+}
+
+/**
+ * A presale line's quantity for a screen or a document.
+ *
+ * A product sold by weight shows up to three decimals without trailing zeros and its unit (2,5 kg),
+ * whatever the business's quantity_decimals: a business set to 0 would otherwise print 2.5 kg agreed
+ * as "3". Anything else uses the business's quantity setting, exactly as the register does. Same rule
+ * as the committed-quantities report (PresaleReports::quantity()). Found in the staging certification
+ * of 2026-10-07.
+ */
+function presale_quantity(string $quantity, ?string $unit_of_measure): string
+{
+    if (! Item::unit_of_measure_is_weight($unit_of_measure)) {
+        return to_quantity_decimals($quantity);
+    }
+
+    $config    = config(OSPOS::class)->settings;
+    $formatter = new NumberFormatter($config['number_locale'] ?? 'en_US', NumberFormatter::DECIMAL);
+    $formatter->setAttribute(NumberFormatter::MIN_FRACTION_DIGITS, 0);
+    $formatter->setAttribute(NumberFormatter::MAX_FRACTION_DIGITS, 3);
+
+    if (empty($config['thousands_separator'])) {
+        $formatter->setAttribute(NumberFormatter::GROUPING_USED, 0);
+    }
+
+    return $formatter->format((float) $quantity) . ' ' . Item::unit_of_measure_symbol($unit_of_measure);
 }
