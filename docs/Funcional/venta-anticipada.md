@@ -1,9 +1,9 @@
 # Alcance funcional — Venta anticipada (Preventas): se paga por cuotas, se entrega al final
 
-> **Estado (2026-10-07):** **alcance cerrado, sin construir.** Todas las preguntas al dueño están
-> respondidas en dos rondas (§6). Lo que hay hoy en el sistema está verificado contra el código (§2).
-> Construcción planeada para salir a producción **a finales de octubre de 2026** (§7). Nada de esto
-> existe todavía en ningún negocio.
+> **Estado (2026-10-07):** **alcance cerrado, en construcción.** Todas las preguntas al dueño están
+> respondidas en tres rondas (§6) y no quedan supuestos abiertos. Lo que hay hoy en el sistema está
+> verificado contra el código (§2). La salida a producción está planeada para **finales de octubre de
+> 2026** (§7); las fechas se pueden ajustar. Nada de esto existe todavía en ningún negocio.
 >
 > Documento hermano: `docs/Tecnico/venta-anticipada.md`.
 
@@ -120,13 +120,19 @@ La arma quien tenga el permiso «Gestionar preventas» (§4.13), antes de empeza
    recibiendo abonos y se siguen entregando** normalmente.
 3. **Fechas de entrega**: la lista de días en que se va a entregar, por ejemplo 23 y 24 de
    diciembre. Así las entregas quedan unificadas por logística.
-4. **Productos**: se buscan en el catálogo y se agregan. Para cada uno:
+4. **Descuento de la campaña** (opcional): un porcentaje que aplica a **todos** sus productos.
+5. **Cuota inicial mínima** (opcional): el porcentaje del total que el cliente tiene que pagar como
+   mínimo al registrar la preventa, por ejemplo 30%. En cero, no hay mínimo.
+6. **Productos**: se buscan **en el catálogo del negocio** y se agregan. Si hace falta un producto
+   que no existe, primero se crea en Artículos. Para cada uno:
    - el precio de preventa **arranca en el precio de catálogo** de ese momento;
-   - se le puede poner un **descuento en porcentaje** propio de la campaña;
+   - se le puede poner un **descuento en porcentaje propio**, que reemplaza al de la campaña para ese
+     producto;
    - o se le puede poner **un precio propio de la campaña**, distinto al de la caja.
 
-   Hay una acción para aplicar el mismo porcentaje a todos los productos de la campaña de una vez.
-5. **Activar** la campaña.
+   El orden es: precio propio, si lo tiene; si no, el precio de catálogo con el descuento del
+   producto; y si el producto no tiene descuento propio, con el de la campaña.
+7. **Activar** la campaña.
 
 Detalles:
 
@@ -135,7 +141,8 @@ Detalles:
 - **Un negocio puede tener varias campañas a la vez**, por ejemplo Navidad y Año Nuevo. Cada
   preventa pertenece a una sola.
 - Los productos pueden ser de cualquier tipo: normales, recetas armadas (kits) o **por peso**. Uno
-  por peso se pacta con una cantidad fija, por ejemplo 2,5 kg (§5).
+  por peso se pacta con un peso inicial, por ejemplo 2,5 kg, que puede cambiar en la entrega (§4.8).
+- **No hay cupo**: la campaña no limita cuántas unidades de un producto se venden en preventa.
 
 ### 4.3 Registrar la preventa (el «contrato»)
 
@@ -153,13 +160,12 @@ Se hace una a una, con el cliente al frente o al teléfono:
    - **la suma de las cuotas tiene que dar el total**; si no da, el sistema no deja guardar y dice
      cuánto falta o sobra;
    - ninguna cuota puede quedar después de la fecha de entrega;
-   - no hay un mínimo para la cuota inicial.
+   - la cuota inicial no puede ser menor que el mínimo de la campaña, si la campaña tiene uno.
 6. **Cuota inicial.** Se cobra en ese mismo momento, como cualquier pago de la caja (efectivo,
    datáfono o transferencia).
 7. **Comprobante.** Se imprime un comprobante de preventa para el cliente. Lleva la campaña, los
    productos, el precio pactado, la fecha de entrega, el plan de cuotas, lo abonado, el saldo y las
-   condiciones del negocio, en un texto que el administrador escribe en Configuración. Es el
-   «contrato» en papel.
+   **condiciones de la preventa** (§4.14). Es el «contrato» en papel.
 
 Cada preventa recibe un **número propio** (por ejemplo `PV-000123`), que es el que se le da al
 cliente y el que se usa para buscarla.
@@ -223,8 +229,9 @@ Se muestra cuántos días lleva atrasada y cuánto falta para ponerse al día.
 2. **Si tiene saldo, Entregar no está habilitado** y el sistema dice cuánto falta. No hay excepción:
    es la regla del negocio.
 3. Con saldo en cero, la preventa **se abre en la pantalla de caja**, en una pestaña propia, con el
-   cliente, los productos a precio pactado y el pago «Preventa» por el total. **Nada de eso se puede
-   modificar ahí**: ni productos, ni precios, ni cliente, ni pagos.
+   cliente, los productos a precio pactado y el pago «Preventa» por lo abonado. **Nada de eso se
+   puede modificar ahí**: ni productos, ni precios, ni cliente, ni ese pago. La única excepción es
+   el peso real de los productos por peso (ver abajo).
 4. El cajero pulsa **Completar**, como en cualquier venta. En ese momento:
    - la preventa se convierte en una **venta normal**, con su número de venta;
    - **el inventario baja ese día**, como en cualquier venta;
@@ -233,6 +240,18 @@ Se muestra cuántos días lleva atrasada y cuánto falta para ponerse al día.
    - se imprime el recibo normal de venta y la preventa queda **Entregada**.
 
 Funciona igual en un negocio que usa mesas y en uno que no.
+
+**Productos por peso.** El peso pactado es inicial. En la entrega, **lo único que el cajero puede
+cambiar en esa pestaña es el peso real** de esas líneas, al precio por kilo pactado. Si el total
+cambia:
+
+- **si pesa más**, la diferencia se cobra en ese momento con cualquier medio de pago de la caja, y
+  cuenta en el turno de la entrega;
+- **si pesa menos**, la diferencia se le devuelve al cliente como vuelto, en efectivo, desde el cajón
+  de ese turno.
+
+El saldo de la preventa tiene que estar en cero **antes** de entregar; la diferencia por peso se
+arregla en la entrega misma.
 
 **Fecha de entrega vencida:** si llega la fecha y el cliente no ha terminado de pagar, la preventa
 sigue abierta y aparece señalada en la lista. El negocio decide con el cliente qué hacer: esperar o
@@ -274,7 +293,7 @@ El producto nunca salió del inventario, así que no hay nada que devolver a bod
 Lo hace el **administrador de cada negocio**, cuando lo necesite. No lo hace la plataforma:
 
 1. En **Configuración**, pestaña **Preventas**, encender «Usar preventas». Ahí mismo se escribe el
-   prefijo del número (por defecto `PV-`) y el texto de condiciones que llevan los comprobantes.
+   prefijo del número (por defecto `PV-`) y las condiciones que llevan los comprobantes (§4.14).
 2. En **Empleados**, dar el permiso **Preventas** a quien vaya a registrar, abonar y entregar.
 3. Dar el permiso **«Gestionar preventas»** solo a quien vaya a armar campañas y cancelar.
 4. Crear la primera campaña (§4.2).
@@ -290,6 +309,29 @@ entregar. La pantalla avisa cuántas hay abiertas antes de dejar apagarlo.
 | **Preventas** | El cajero | Ver, registrar preventas, abonar, entregar e imprimir comprobantes |
 | **Gestionar preventas** | El encargado o el dueño | Además: crear y editar campañas, y cancelar con o sin devolución |
 
+### 4.14 Las condiciones de la preventa
+
+Todos los comprobantes (preventa, abono y cancelación) llevan al pie las **condiciones** del negocio.
+Cada negocio escribe las suyas en Configuración, pestaña Preventas. Para no arrancar en blanco, la
+pantalla tiene el botón **«Usar texto sugerido»**, que llena el campo con este texto. El negocio lo
+corrige a su gusto antes de guardar:
+
+> **CONDICIONES DE LA PREVENTA**
+>
+> 1. Este comprobante reserva los productos y los precios aquí indicados para la fecha de entrega
+>    señalada.
+> 2. Los productos se entregan **únicamente cuando el valor total esté pagado**.
+> 3. El cliente se compromete a pagar las cuotas en las fechas acordadas. Puede abonar antes de cada
+>    fecha y por cualquier valor, hasta completar el saldo.
+> 4. Los atrasos en las cuotas no generan intereses ni recargos.
+> 5. Los productos que se venden por peso se pactan con un peso aproximado. El valor final se ajusta
+>    al peso real el día de la entrega, y la diferencia se paga o se devuelve ese mismo día.
+> 6. Si el cliente cancela la preventa, la devolución de lo abonado se acordará entre el cliente y el
+>    negocio, y quedará registrada en el comprobante de cancelación.
+> 7. Para abonar y para reclamar los productos, presente este comprobante o su número de preventa.
+
+El texto sugerido no menciona ningún negocio. Lo que se imprime es lo que cada negocio guarde.
+
 ---
 
 ## 5. Lo que este requerimiento NO hace
@@ -297,13 +339,11 @@ entregar. La pantalla avisa cuántas hay abiertas antes de dejar apagarlo.
 - **No es fiado.** El producto no sale antes de estar pagado. El crédito con entrega inmediata
   («Adeudo») sigue como está, sin cambios.
 - **No cobra recargos ni intereses por atraso.** Solo se marca (D4).
-- **No limita cuántas unidades se venden en preventa** («solo 40 pavos»). Lo comprometido se informa
-  para planear las compras, pero no hay cupo.
+- **No limita cuántas unidades se venden en preventa** («solo 40 pavos»), por ahora. Lo
+  comprometido se informa para planear las compras, pero no hay cupo.
 - **No aparta inventario.** Mientras llega la entrega, el sistema no impide vender esas unidades en
   la caja.
-- **No exige una cuota inicial mínima.**
-- **No ajusta por el peso real.** Un producto por peso se pacta con una cantidad fija (por ejemplo
-  2,5 kg) y se entrega exactamente esa cantidad, al precio pactado.
+- **No vende productos que no estén en el catálogo.** Un producto nuevo se crea primero en Artículos.
 - **No envía recordatorios** por SMS, WhatsApp ni correo.
 - **No cambia el tratamiento contable ni de impuestos.** La venta se registra como cualquier venta
   del POS (D7). La facturación electrónica sigue por fuera, como hoy.
@@ -335,6 +375,13 @@ entregar. La pantalla avisa cuántas hay abiertas antes de dejar apagarlo.
 | **D16** | **La campaña tiene periodo de venta con fecha de cierre.** Cerrada, no hay preventas nuevas, pero sí abonos y entregas | 2026-10-07 |
 | **D17** | **La entrega se hace en la pantalla de caja**, en una pestaña bloqueada que el cajero completa | 2026-10-07 |
 | **D18** | **La salida incluye la cancelación con devolución.** El ajuste de precio, el cambio de fecha y la cartera llegan después | 2026-10-07 |
+| **D19** | **Descuento configurable por campaña y por producto.** El del producto reemplaza al de la campaña; el precio propio reemplaza a ambos | 2026-10-07 |
+| **D20** | **Sin cupo de unidades**, por ahora | 2026-10-07 |
+| **D21** | **Cuota inicial mínima configurable en la campaña**, en porcentaje del total; cero = sin mínimo | 2026-10-07 |
+| **D22** | **Productos por peso: peso inicial que puede cambiar en la entrega.** La diferencia se paga o se devuelve ese día | 2026-10-07 |
+| **D23** | **Condiciones de la preventa: texto por negocio**, con un texto sugerido de partida (§4.14) | 2026-10-07 |
+| **D24** | **Solo productos del catálogo del negocio.** Si falta uno, se crea en Artículos | 2026-10-07 |
+| **D25** | **Nosotros certificamos en staging antes de entregar** a la certificación del equipo del negocio | 2026-10-07 |
 
 ### 6.1 Primera ronda de preguntas, resuelta el 2026-10-07
 
@@ -362,15 +409,20 @@ entregar. La pantalla avisa cuántas hay abiertas antes de dejar apagarlo.
 | 15 | ¿La campaña define las fechas de entrega? | Sí, una lista de fechas |
 | 16 | ¿La campaña tiene periodo de venta? | Sí, con fecha de cierre |
 
-### 6.3 Supuestos que quedan, a confirmar sin frenar la construcción
+### 6.3 Tercera ronda, resuelta el 2026-10-07
 
-| Supuesto | Si el dueño dice otra cosa |
-|---|---|
-| El descuento es por producto, con una acción para aplicar el mismo % a todos | Se agrega un % general de campaña |
-| No hay cupo de unidades por producto | Se agrega un tope por producto en la campaña |
-| No hay cuota inicial mínima | Se agrega un % mínimo en la campaña |
-| El texto de condiciones lo escribe el administrador en Configuración | — |
-| Producto por peso con cantidad fija pactada | Ajuste por peso real en la entrega, después |
+| # | Pregunta | Respuesta del dueño |
+|---|---|---|
+| 17 | ¿Descuento solo por producto o también por campaña? | Configurable por producto o por campaña |
+| 18 | ¿Cupo de unidades por producto? | Por ahora, sin límite |
+| 19 | ¿Cuota inicial mínima? | La define el negocio en la configuración de la campaña |
+| 20 | ¿Productos por peso? | Tienen un valor inicial, pero puede cambiar |
+| 21 | ¿Texto de condiciones del comprobante? | Hay que definirlo: queda el texto sugerido de §4.14 |
+| 22 | ¿Qué productos se pueden vender? | Los que el negocio tenga en su catálogo; si necesita otros, los ingresa al catálogo |
+| 23 | ¿Quién certifica? | El equipo del negocio, pero antes lo certificamos nosotros en staging |
+| 24 | ¿Si la fecha aprieta? | Se pueden ajustar las fechas y el plan de despliegue |
+
+No quedan supuestos abiertos.
 
 ---
 
@@ -397,7 +449,7 @@ tiene que estar en producción a finales de octubre de 2026.**
 - Ajustar precio o cantidades de una preventa registrada, con motivo y registro de quién lo hizo.
 - Mover la fecha de entrega y rehacer el plan de cuotas, con motivo.
 - Cartera de preventas: cuánto falta por cobrar en total y cuánto está vencido.
-- Lo que salga de los supuestos de §6.3.
+- Cupo de unidades por producto, si se pide.
 
 ### Más adelante, si se pide
 
@@ -408,26 +460,38 @@ tiene que estar en producción a finales de octubre de 2026.**
 
 ## 8. Cómo se va a comprobar que funciona
 
-En staging, con el módulo encendido en un negocio de prueba:
+**Dos certificaciones, en este orden (D25):**
 
-1. Crear una campaña con 3 productos (uno con descuento %, uno con precio propio y uno a precio de
-   catálogo), dos fechas de entrega y un periodo de venta.
-2. Registrar una preventa con cuota inicial en efectivo y 3 cuotas más. El turno abierto muestra el
+1. **La nuestra, primero.** Recorremos en staging todo lo que sigue y dejamos un informe con lo
+   probado, lo que salió y las evidencias. Solo con todo en verde se entrega.
+2. **La del equipo del negocio**, sobre el mismo staging, con ese informe en la mano.
+
+El recorrido, con el módulo encendido en un negocio de prueba:
+
+1. Crear una campaña con descuento general del 10%, cuota inicial mínima del 30%, dos fechas de
+   entrega, un periodo de venta y 4 productos: uno con el descuento de la campaña, uno con descuento
+   propio, uno con precio propio y uno por peso. Los precios de preventa salen según el orden de
+   §4.2.
+2. Intentar registrar una preventa con cuota inicial menor al 30%: no deja.
+3. Registrar una preventa con cuota inicial en efectivo y 3 cuotas más. El turno abierto muestra el
    abono en «Abonos de preventa» y el efectivo esperado en el cajón sube en ese monto.
-3. Cerrar ese turno, abrir otro y abonar por transferencia. El abono aparece **en el segundo turno**,
+4. Cerrar ese turno, abrir otro y abonar por transferencia. El abono aparece **en el segundo turno**,
    no en el primero.
-4. Dejar vencer una cuota (fecha en el pasado): la preventa sale **Atrasada**.
-5. Intentar entregar con saldo: no deja.
-6. Pagar el saldo y entregar desde la caja. Sale una venta con los 3 productos al precio pactado y
-   el inventario baja ese día. **El cuadre del turno de la entrega no suma otra vez** la plata de los
-   abonos.
-7. Cerrar el periodo de venta de la campaña: no deja registrar preventas nuevas, pero sí abonar a las
+5. Dejar vencer una cuota (fecha en el pasado): la preventa sale **Atrasada**.
+6. Intentar entregar con saldo: no deja.
+7. Pagar el saldo y entregar desde la caja. Sale una venta con los productos al precio pactado y el
+   inventario baja ese día. **El cuadre del turno de la entrega no suma otra vez** la plata de los
+   abonos. En la pestaña de entrega no se puede tocar nada salvo el peso real del producto por peso.
+8. Entregar otra preventa cambiando el peso real: si pesa más, se cobra la diferencia; si pesa menos,
+   se devuelve como vuelto. Las dos cosas cuentan en el turno de la entrega.
+9. Cerrar el periodo de venta de la campaña: no deja registrar preventas nuevas, pero sí abonar a las
    existentes.
-8. Cancelar otra preventa con devolución parcial en efectivo: el esperado del cajón baja en lo
-   devuelto y el comprobante muestra lo abonado, lo devuelto y lo retenido.
-9. Lo comprometido muestra los productos de las preventas abiertas por fecha de entrega, y deja de
-   mostrarlos al entregar o cancelar.
-10. Repetir lo esencial en **un segundo negocio con otra configuración**: otro formato de números,
+10. Cancelar otra preventa con devolución parcial en efectivo: el esperado del cajón baja en lo
+    devuelto y el comprobante muestra lo abonado, lo devuelto y lo retenido.
+11. Lo comprometido muestra los productos de las preventas abiertas por fecha de entrega, y deja de
+    mostrarlos al entregar o cancelar.
+12. Los comprobantes salen con las condiciones del negocio, en el papel configurado.
+13. Repetir lo esencial en **un segundo negocio con otra configuración**: otro formato de números,
     sin mesas, con un producto por peso y papel de 58 mm.
-11. Con el módulo apagado en otro negocio, la caja, el cuadre y los reportes se ven exactamente igual
+14. Con el módulo apagado en otro negocio, la caja, el cuadre y los reportes se ven exactamente igual
     que hoy.

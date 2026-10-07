@@ -1,8 +1,8 @@
 # Venta anticipada (Preventas) — diseño técnico
 
-> **Estado (2026-10-07):** **diseño cerrado, sin código.** El mapa de lo que existe (§2) está
+> **Estado (2026-10-07):** **diseño cerrado, en construcción (Fase 0).** El mapa de lo que existe (§2) está
 > verificado contra `develop` en `f2f489c19`. Las decisiones de negocio están en el documento hermano
-> `docs/Funcional/venta-anticipada.md` §6 (D1-D18). Las técnicas, en §3 (T1-T16). Las dos que este
+> `docs/Funcional/venta-anticipada.md` §6 (D1-D25). Las técnicas, en §3 (T1-T19). Las dos que este
 > documento dejaba abiertas quedaron resueltas el 2026-10-07: la entrega va por la pantalla de caja y
 > D7 está confirmada. Antes de codificar solo quedan dos verificaciones (§12). Plan de construcción
 > en §13.
@@ -64,7 +64,7 @@ Constantes (`app/Config/Constants.php:136-145`): `COMPLETED=0`, `SUSPENDED=1`, `
 | **T1** | **Tablas propias** (§4). La preventa no vive en `sales` hasta la entrega | `sales` alimenta todos los reportes, el inventario y el cuadre. Una fila ahí con un estado nuevo obliga a revisar cada consulta que filtra por `sale_status`; ya son 9 archivos solo con `SUSPENDED` | Un estado `PRESALE=4` en `sales`; venta suspendida u orden de trabajo (§2) |
 | **T2** | **El abono es un movimiento propio** en `presale_payments`, con su `payment_time` y su `cashup_id` | Es lo único que atribuye cada peso a su turno sin tocar la mecánica de `sales_payments` | Agregar `cashup_id` a `sales_payments` para toda la aplicación: correcto en abstracto, pero cambia la consulta del cuadre de todos los negocios en plena temporada |
 | **T3** | **El abono y la devolución exigen un turno abierto** (`Cashup::get_open_cashup_id() !== null`); sin turno se rechazan | Una venta sin turno se tolera (`cashup_id` nulo es una respuesta válida). Un abono sin turno es plata que nadie cuadra | Tolerar nulo como en ventas |
-| **T4** | **La entrega crea una venta COMPLETED normal** (`SALE_TYPE_POS`) con un único pago de un código nuevo, **`presale`** («Preventa»), por el total. Se enlaza con `presales.sale_id` | Reportes por artículo, categoría, empleado e impuestos, el inventario, el recibo y la estadística del cliente funcionan sin cambios (D7) | Un `sale_type` nuevo: cada `switch` sobre `sale_type` de vistas y recibos tendría que aprenderlo |
+| **T4** | **La entrega crea una venta COMPLETED normal** (`SALE_TYPE_POS`) con un pago de un código nuevo, **`presale`** («Preventa»), por lo abonado (T18). Se enlaza con `presales.sale_id` | Reportes por artículo, categoría, empleado e impuestos, el inventario, el recibo y la estadística del cliente funcionan sin cambios (D7) | Un `sale_type` nuevo: cada `switch` sobre `sale_type` de vistas y recibos tendría que aprenderlo |
 | **T5** | **El código `presale` nunca es efectivo** y **se excluye de `income_total`** del turno; se muestra aparte como «Entregas de preventa (cobradas antes)» | La plata ya entró por `presale_payments` en su turno (D12) | — |
 | **T6** | **El estado guardado es solo `open` / `delivered` / `canceled`.** «Al día», «Atrasada» y «Pagada» **se calculan al leer** | Un estado derivado y guardado se desincroniza en cuanto alguien abona. Con cientos de filas, calcularlo cuesta nada | Un trabajo nocturno que marque atrasos |
 | **T7** | **El saldo se valida en el servidor, dentro de una transacción con bloqueo de la fila** (`SELECT … FOR UPDATE` sobre `presales`) | Dos clics, o dos cajas abonando a la vez, no pueden dejar el saldo negativo | Validarlo solo en la vista, el error de origen de «Adeudo» |
@@ -74,9 +74,12 @@ Constantes (`app/Config/Constants.php:136-145`): `COMPLETED=0`, `SUSPENDED=1`, `
 | **T11** | **Módulo `presales` con UNA sola subpermisión, `presales_manage`**, que cubre campañas y cancelación | La regla de prefijo de `Employee::has_module_grant()` (`Employee.php:483-502`): con dos o más subpermisiones, un empleado sin el permiso base pasa el chequeo. Explicado en `AddOrderTicketsModule` | Un permiso por acción |
 | **T12** | **Interruptor por negocio `presales_enable`**, en la Configuración del propio negocio, sembrado en `'0'` y leído siempre con `?? '0'` | Igual que comandas: la consola de plataforma no escribe en el `app_config` de ningún negocio | Encenderlo desde la plataforma |
 | **T13** | **Campañas en tablas propias** (`presale_campaigns`, `presale_campaign_items`, `presale_campaign_dates`). `presales.campaign_id` es obligatorio | D13: productos, precios, fechas y periodo son configuración del negocio, no código | Una casilla «vendible en preventa» en `items` |
-| **T14** | **El precio de campaña se materializa al agregar el producto**: `base_price` = `unit_price` del catálogo en ese momento. `campaign_price` es opcional y `discount_percent` va de 0 a 100. Precio efectivo = `campaign_price ?? base_price × (1 − discount_percent/100)`, redondeado a `totals_decimals()` | D14: «inicialmente serán los valores del catálogo», y no sigue sus cambios. Guardar `base_price` deja ver de dónde salió el precio | Leer el catálogo en vivo cada vez |
+| **T14** | **El precio de campaña se materializa al agregar el producto**: `base_price` = `unit_price` del catálogo en ese momento. `campaign_price` y `discount_percent` del producto son opcionales (NULL = heredar); la campaña tiene su propio `discount_percent`. Precio efectivo = `campaign_price ?? base_price × (1 − (item.discount_percent ?? campaign.discount_percent)/100)`, redondeado a `totals_decimals()`. Se calcula en un solo método del modelo | D14, D19: «inicialmente serán los valores del catálogo», y no sigue sus cambios. Guardar `base_price` deja ver de dónde salió el precio | Leer el catálogo en vivo cada vez |
 | **T15** | **La fecha de entrega es una FK a `presale_campaign_dates`**, no una fecha libre. Se guarda también `delivery_date` desnormalizada para filtrar y ordenar | D15. Una fecha de la campaña con preventas no se puede borrar | Fecha libre con sugerencias |
 | **T16** | **El periodo de venta se valida en el servidor** al registrar: `sale_starts ≤ hoy ≤ sale_ends` y campaña activa. Abonar, entregar y cancelar **no** dependen del periodo | D16 | — |
+| **T17** | **Cuota inicial mínima** = `presale_campaigns.min_initial_percent` (0-100, 0 = sin mínimo). Se valida en el servidor contra la primera cuota **y** contra el abono que se cobra al registrar, redondeando hacia arriba a `totals_decimals()` | D21 | Un monto fijo |
+| **T18** | **Peso variable en la entrega**: en la pestaña de entrega solo se puede editar la cantidad de las líneas de artículos por peso, al precio congelado. El pago `presale` = **lo abonado** (no el total de la venta); la diferencia se cobra con pagos normales de la caja o sale como vuelto en efectivo, y cuenta en el turno de la entrega | D22 | Bloquear el peso y ajustar después con una devolución |
+| **T19** | **Condiciones: `presales_terms` por negocio**, sembrada vacía. El texto sugerido vive en los archivos de idioma (`Presales.terms_template`), y el botón «Usar texto sugerido» lo copia al campo | D23. Un texto sembrado en `app_config` quedaría en un solo idioma y en todos los negocios | Sembrarlo en la migración |
 
 ---
 
@@ -94,13 +97,15 @@ TIMESTAMP, como `AddOrderTickets` (DATETIME, guardas `tableExists`).
 | `name` | varchar(100) NOT NULL | |
 | `sale_starts`, `sale_ends` | date NOT NULL | Periodo de venta, inclusivo (T16) |
 | `active` | tinyint NOT NULL default 1 | Desactivar oculta la campaña para registrar, nada más |
+| `discount_percent` | decimal(5,2) NOT NULL default 0 | Descuento general (D19) |
+| `min_initial_percent` | decimal(5,2) NOT NULL default 0 | Cuota inicial mínima (T17) |
 | `created_at`, `created_by` | datetime / int | |
 | `deleted` | tinyint default 0 | Una campaña con preventas nunca se borra físicamente |
 
 ### 4.2 `presale_campaign_items`
 
 `campaign_id`, `item_id` (PK compuesta), `base_price` decimal(15,2) NOT NULL, `campaign_price`
-decimal(15,2) NULL y `discount_percent` decimal(5,2) NOT NULL default 0 (T14). Un artículo kit se
+decimal(15,2) NULL y `discount_percent` decimal(5,2) NULL, donde NULL hereda el de la campaña (T14). Un artículo kit se
 admite: al registrar la preventa se expande como lo hace la caja (§8.6).
 
 ### 4.3 `presale_campaign_dates`
@@ -182,7 +187,8 @@ memoria «Timezone real de OSPOS»).
 1. **Campaña:** activa, no borrada y dentro de su periodo de venta al registrar (T16).
 2. **Productos:** cada línea pertenece a la campaña, con el precio efectivo de la campaña (T14).
 3. **Fecha de entrega:** pertenece a la campaña (T15).
-4. **Plan:** Σ `installments.amount` = `total`, y `max(due_date)` ≤ `delivery_date`.
+4. **Plan:** Σ `installments.amount` = `total`, y `max(due_date)` ≤ `delivery_date`. La primera
+   cuota y el abono inicial ≥ `ceil(total × min_initial_percent / 100)` (T17).
 5. **Abono:** no puede pasar de `balance`. **Devolución:** no puede pasar de `paid`.
 6. **Entrega:** solo con `balance = 0` (D11), y solo una vez (`sale_id` UNIQUE + `UPDATE … WHERE
    status = 0`, con las filas afectadas comprobadas).
@@ -280,20 +286,24 @@ prueba (§11).
   descuento del cliente alteraría las líneas congeladas.
 - El precio congelado no necesita el permiso `sales_change_price`: ese permiso solo se mira en
   `postEditItem`. Las líneas no llevan la clave `reprice`, así que no se cuelan al catálogo.
-- Un único pago `presale` por el total exacto. Hay que cuidar el redondeo de efectivo
-  (`Sale_lib.php:1154-1166`): un pago mayor que el total genera vuelto en efectivo (`Sales.php:1317-1338`)
-  y abriría el cajón.
+- Un único pago `presale` por **lo abonado** (= total pactado, porque se entrega con saldo cero).
+  Sin cambios de peso, la venta queda pagada exacta. Hay que cuidar el redondeo de efectivo
+  (`Sale_lib.php:1154-1166`).
+- **Peso real (T18):** las líneas de artículos por peso admiten editar la cantidad, y solo la
+  cantidad. Si el total sube, el cajero agrega un pago normal por la diferencia. Si baja, el
+  excedente del pago `presale` sale como vuelto en efectivo por la vía de siempre
+  (`Sales.php:1317-1338`), que abre el cajón y queda en el turno de la entrega.
 
 ### 7.3 Guardas en el servidor, todas con prueba
 
 | Riesgo | Dónde | Guarda |
 |---|---|---|
 | `empty_payments()` borra el pago `presale` al cambiar de pestaña o editar | `Sales.php:332, 1162, 1187` | Reinyectarlo en `_reload()`, junto a `_sync_order_ticket()` (`Sales.php:1962`), desde la base y no desde la sesión |
-| Agregar, editar o borrar líneas | `postAdd` `:584`, `postAddWeight` `:692`, `postEditItem` `:1035`, `getDeleteItem` `:1183`, cambios de número, nombre y descripción `:2609-2653` | Rechazar si la pestaña es una entrega de preventa |
+| Agregar, editar o borrar líneas | `postAdd` `:584`, `postAddWeight` `:692`, `postEditItem` `:1035`, `getDeleteItem` `:1183`, cambios de número, nombre y descripción `:2609-2653` | Rechazar si la pestaña es una entrega de preventa. **Excepción (T18):** `postEditItem` acepta solo la cantidad en líneas de artículos por peso; precio, descuento y todo lo demás se ignoran |
 | Cambiar o quitar el cliente | `postSelectCustomer` `:250`, `getRemoveCustomer` `:1200` | Rechazar |
-| Quitar el pago o agregar otro | `getDeletePayment` `:569`, `postAddPayment` `:469` | Rechazar en la pestaña de entrega. **`postAddPayment` hoy acepta cualquier etiqueta** (`:553-556`): rechazar `presale` fuera de una pestaña de entrega |
+| Quitar el pago `presale` o agregar otro `presale` | `getDeletePayment` `:569`, `postAddPayment` `:469` | Rechazar. Los pagos normales sí se admiten, porque cubren la diferencia por peso (T18). **`postAddPayment` hoy acepta cualquier etiqueta** (`:553-556`): rechazar `presale` siempre que no lo inyecte `Presale_register` |
 | Suspender o cancelar la pestaña | `postSuspend` `:2487`, `postCancel` `:2431` (borra la venta) | Rechazar, y ocultar los botones |
-| Completar sin cubrir el total | `postComplete` solo verifica total negativo (`:1304`) | Para la entrega: verificar que la preventa sigue `open` y con saldo 0, y que el pago `presale` = total |
+| Completar sin cubrir el total | `postComplete` solo verifica total negativo (`:1304`) | Para la entrega: verificar que la preventa sigue `open` y con saldo 0, que el pago `presale` = lo abonado, y que los pagos cubren el total de la venta |
 | Entregar dos veces | Dos cajas a la vez | `UPDATE presales SET status=1, sale_id=?, delivered_at=?, delivered_by=? WHERE presale_id=? AND status=0`, comprobando las filas afectadas |
 
 ### 7.4 Atomicidad
@@ -382,7 +392,9 @@ El módulo es de la plataforma (D2). Reglas que aplican a todo el código:
   entrega descuenta de esa ubicación.
 - **Papel del recibo:** los comprobantes usan `partial/receipt_paper` (58 u 80 mm).
 - **Funciones apagadas:** nada depende de Mesas, Comandas ni facturas (§7.5).
-- **Artículos por peso:** cantidad decimal fija pactada; la entrega es esa cantidad.
+- **Artículos por peso:** cantidad decimal pactada como inicial; puede cambiar en la entrega (T18).
+- **Solo artículos del catálogo del negocio** (D24): el buscador de la campaña solo ofrece artículos
+  existentes y no borrados.
 - **Verificación obligatoria:** con el módulo apagado, la caja, el cuadre y los reportes son
   idénticos a hoy, en un negocio que no lo usa.
 
@@ -421,7 +433,7 @@ Ubicación: `tests/Database/PresalesMigrationTest.php`, `tests/Models/Presale*Te
 | Un abono en efectivo sube el esperado del turno que lo recibió, y **no** el del siguiente | D12 |
 | Una devolución en efectivo baja el esperado de su turno; no puede pasar de lo abonado | D10 |
 | Entregar con saldo es rechazado en el servidor | D11 |
-| Venta de la entrega: COMPLETED, precios congelados, inventario descontado de la ubicación, un pago `presale` = total, sellada con el turno de la entrega, `income_total` de ese turno sin la plata abonada | T4, T5 |
+| Venta de la entrega: COMPLETED, precios congelados, inventario descontado de la ubicación, un pago `presale` = lo abonado, sellada con el turno de la entrega, `income_total` de ese turno sin la plata abonada | T4, T5 |
 | Entregar dos veces (dos peticiones) deja una sola venta | §7.3 |
 | Cada guarda de §7.3 rechaza su acción en la pestaña de entrega | §7.3 |
 | Entrega con Mesas apagado | §7.5 |
@@ -429,6 +441,10 @@ Ubicación: `tests/Database/PresalesMigrationTest.php`, `tests/Models/Presale*Te
 | `presale` no se puede cambiar de tipo en la edición de ventas, y la venta enlazada no se anula | §8.3, §8.4 |
 | Atrasada, al día y pagada en fechas límite (vence hoy, ayer, pago exacto), con la zona horaria del negocio | T6 |
 | Kits con los tres `price_option`, y un artículo por peso | §8.6, §9 |
+| Precio efectivo con descuento de campaña, descuento propio del producto y precio propio (T14) | D19 |
+| Cuota inicial menor al mínimo de la campaña es rechazada; mínimo 0 = sin mínimo | T17 |
+| Entrega con peso real mayor (cobra la diferencia) y menor (vuelto en efectivo), ambas en el turno de la entrega; solo la cantidad de líneas por peso es editable | T18 |
+| `presales_terms` vacía en la migración; el texto sugerido existe en es-MX, es-ES y en | T19 |
 | Montos con `number_locale = es_CO` | §9 |
 | Con el interruptor apagado: vista `disabled`, sin menú, y una conciliación idéntica a la de hoy | §6.3, §9 |
 | Permisos: sin `presales_manage` no se crean campañas ni se cancela; ningún permiso concedido por la migración | T11 |
@@ -463,7 +479,7 @@ en el plan de la sesión del 2026-10-07.
 | **0 · Cimientos** | Estos documentos; migraciones; modelos con invariantes y estado derivado; código `presale` y textos; pestaña de Configuración; controlador vacío con `is_enabled()`; pruebas de migración, modelo y config; tildes en staging | Secuencial, una sola mano. Punto de control: CI verde en `develop` |
 | **1 · Carriles en paralelo** | **A** campañas · **B** registrar, lista, detalle, abonar y comprobantes · **C** cuadre, Ingresos vs Gastos, bloqueo en la edición de ventas y guardas de borrado · **D** entrega por la caja con sus guardas y su transacción | Un agente por carril, cada uno en su worktree y su rama; PR a `develop` |
 | **2 · Lo que depende de B y C** | **E** cancelación con devolución · **F** lo comprometido por campaña | Dos carriles en paralelo |
-| **3 · Integración y certificación** | Merge; suite completa en CI; revisión de código y de seguridad; staging en dos negocios con configuración distinta; certificación del dueño | Secuencial |
+| **3 · Integración y certificación** | Merge; suite completa en CI; revisión de código y de seguridad; staging en dos negocios con configuración distinta; **nuestra certificación con informe y evidencias (D25)**; después, la del equipo del negocio | Secuencial |
 | **4 · Producción** | Despliegue por workflow; `platform:support-employee`; verificar «instalado y apagado» en todos los negocios; encender solo en el que lo pide | Después de las 22:00 |
 
 **Efecto en un negocio que no lo encienda: ninguno, en ninguna fase.**
