@@ -58,6 +58,10 @@ $routes->post('comandas/(:num)/cancelar', 'OrderTickets::postCancel/$1');
 // ---------------------------------------------------------------------------------------------
 $routes->get('presales', 'Presales::getIndex');
 $routes->get('presales/campaigns', 'PresaleCampaigns::getIndex');
+// presales: committed (lane F) BEGIN
+$routes->get('presales/committed', 'PresaleReports::getCommitted');
+$routes->get('presales/committed/csv', 'PresaleReports::getCommittedCsv');
+// presales: committed (lane F) END
 
 $routes->get('/', 'Login::index');
 $routes->get('login', 'Login::index');
