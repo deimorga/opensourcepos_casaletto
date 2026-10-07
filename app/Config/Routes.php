@@ -59,6 +59,20 @@ $routes->post('comandas/(:num)/cancelar', 'OrderTickets::postCancel/$1');
 $routes->get('presales', 'Presales::getIndex');
 $routes->get('presales/campaigns', 'PresaleCampaigns::getIndex');
 
+// presales: core (lane B) BEGIN
+// The list, registering, one presale and its documents. Fixed addresses first, (:num) after.
+$routes->get('presales/search', 'Presales::getSearch');
+$routes->get('presales/new', 'Presales::getNew');
+$routes->get('presales/suggestCustomer', 'Presales::getSuggestCustomer');
+$routes->post('presales/preview', 'Presales::postPreview');
+$routes->post('presales/save', 'Presales::postSave');
+$routes->get('presales/customer/(:num)', 'Presales::getCustomer/$1');
+$routes->get('presales/view/(:num)', 'Presales::getView/$1');
+$routes->post('presales/addPayment/(:num)', 'Presales::postAddPayment/$1');
+$routes->get('presales/receipt/(:num)', 'Presales::getReceipt/$1');
+$routes->get('presales/paymentReceipt/(:num)', 'Presales::getPaymentReceipt/$1');
+// presales: core (lane B) END
+
 $routes->get('/', 'Login::index');
 $routes->get('login', 'Login::index');
 $routes->post('login', 'Login::index');
