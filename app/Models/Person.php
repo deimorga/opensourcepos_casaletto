@@ -43,8 +43,16 @@ class Person extends Model
      * people.document_number without dots, commas, spaces and hyphens, uppercased: the same cleaning
      * as Identity_document::normalize() and search_key(), done in SQL so that old numbers, copied as
      * typed from «Id Impuesto», compare like new ones.
+     *
+     * Raw SQL, so the table carries its prefix here: the query builder adds it only to what it
+     * escapes itself, and a bare `people.document_number` is an unknown column on `ospos_people`.
      */
-    public const DOCUMENT_NUMBER_KEY_SQL = "REPLACE(REPLACE(REPLACE(REPLACE(UPPER(people.document_number), '.', ''), ',', ''), ' ', ''), '-', '')";
+    public function document_number_key_sql(): string
+    {
+        $column = $this->db->escapeIdentifiers($this->db->prefixTable('people')) . '.' . $this->db->escapeIdentifiers('document_number');
+
+        return "REPLACE(REPLACE(REPLACE(REPLACE(UPPER($column), '.', ''), ',', ''), ' ', ''), '-', '')";
+    }
 
     /**
      * The person of a role, not deleted, who already holds this document, or null.
@@ -72,7 +80,7 @@ class Person extends Model
         $builder->groupEnd();
         $builder->orGroupStart();
         $builder->where('people.document_type', null);
-        $builder->where(self::DOCUMENT_NUMBER_KEY_SQL . ' = ' . $this->db->escape($number), null, false);
+        $builder->where($this->document_number_key_sql() . ' = ' . $this->db->escape($number), null, false);
         $builder->groupEnd();
         $builder->groupEnd();
         $builder->orderBy('people.person_id', 'asc');

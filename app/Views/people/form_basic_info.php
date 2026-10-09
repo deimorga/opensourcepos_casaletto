@@ -48,7 +48,7 @@ $document_required_attributes = static fn (string $message): array => $document_
     // stops the form; the same document in another role is only a warning, shown under the field. The
     // server escapes the names it puts in both.
     var identity_document_remote = {
-        url: <?= json_encode(site_url(($controller_name ?? '') . '/checkDocument'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>,
+        url: <?= json_encode(site_url(($controller_name ?? '') . '/checkDocument'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES) ?>,
         type: 'POST',
         data: {
             person_id: <?= json_encode((string)(int)$person_info->person_id) ?>,

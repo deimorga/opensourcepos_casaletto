@@ -483,6 +483,6 @@ class Customer extends Person
         }
 
         $pattern = '%' . $this->db->escapeLikeString($key) . '%';
-        $builder->orWhere(Person::DOCUMENT_NUMBER_KEY_SQL . ' LIKE ' . $this->db->escape($pattern) . " ESCAPE '!'", null, false);
+        $builder->orWhere($this->document_number_key_sql() . ' LIKE ' . $this->db->escape($pattern) . " ESCAPE '!'", null, false);
     }
 }
