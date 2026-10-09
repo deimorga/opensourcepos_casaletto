@@ -1,5 +1,6 @@
 <?php
 
+use App\Libraries\Identity_document;
 use App\Models\Attribute;
 use App\Models\Employee;
 use App\Models\Item_taxes;
@@ -192,6 +193,7 @@ function person_headers(): array
         ['people.person_id' => lang('Common.id')],
         ['last_name'        => lang('Common.last_name')],
         ['first_name'       => lang('Common.first_name')],
+        ['document_number'  => lang('Common.document')],
         ['email'            => lang('Common.email')],
         ['phone_number'     => lang('Common.phone_number')]
     ];
@@ -226,6 +228,7 @@ function get_person_data_row(object $person): array
         'people.person_id' => $person->person_id,
         'last_name'        => $person->last_name,
         'first_name'       => $person->first_name,
+        'document_number'  => Identity_document::format($person->document_type ?? null, $person->document_number ?? null),
         'email'            => empty($person->email) ? '' : mailto(esc($person->email), esc($person->email)),
         'phone_number'     => $person->phone_number,
         'messages'         => empty($person->phone_number)
@@ -258,6 +261,7 @@ function customer_headers(): array
         ['people.person_id' => lang('Common.id')],
         ['last_name'        => lang('Common.last_name')],
         ['first_name'       => lang('Common.first_name')],
+        ['document_number'  => lang('Common.document')],
         ['email'            => lang('Common.email')],
         ['phone_number'     => lang('Common.phone_number')],
         ['total'            => lang('Common.total_spent'), 'sortable' => false]
@@ -292,6 +296,7 @@ function get_customer_data_row(object $person, object $stats): array
         'people.person_id' => $person->person_id,
         'last_name'        => $person->last_name,
         'first_name'       => $person->first_name,
+        'document_number'  => Identity_document::format($person->document_type ?? null, $person->document_number ?? null),
         'email'            => empty($person->email) ? '' : mailto(esc($person->email), esc($person->email)),
         'phone_number'     => $person->phone_number,
         'total'            => to_currency($stats->total),
@@ -327,6 +332,7 @@ function supplier_headers(): array
         ['category'         => lang('Suppliers.category')],
         ['last_name'        => lang('Common.last_name')],
         ['first_name'       => lang('Common.first_name')],
+        ['document_number'  => lang('Common.document')],
         ['email'            => lang('Common.email')],
         ['phone_number'     => lang('Common.phone_number')]
     ];
@@ -367,6 +373,7 @@ function get_supplier_data_row(object $supplier): array
         'category'         => $supplier->category,
         'last_name'        => $supplier->last_name,
         'first_name'       => $supplier->first_name,
+        'document_number'  => Identity_document::format($supplier->document_type ?? null, $supplier->document_number ?? null),
         'email'            => empty($supplier->email) ? '' : mailto(esc($supplier->email), esc($supplier->email)),
         'phone_number'     => $supplier->phone_number,
         'messages'         => empty($supplier->phone_number)

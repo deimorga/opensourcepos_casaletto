@@ -157,6 +157,17 @@ class Employees extends Persons
             'comments'     => $this->request->getPost('comments')
         ];
 
+        // Required when creating AND when editing (I2), except for the platform's support employee
+        // (soporte_micronuba), which is not a person of the business. Checked before anything is written.
+        $is_platform_support = $employee_id != NEW_ENTRY && (int)($target_employee->is_platform_support ?? 0) === 1;
+        $document = $this->read_identity_document($employee_id, !$is_platform_support);
+
+        if ($document['error'] !== null) {
+            return $this->response->setJSON(['success' => false, 'message' => $document['error'], 'id' => $employee_id]);
+        }
+
+        $person_data = array_merge($person_data, $document['data']);
+
         $grants_array = [];
         $isAdmin = $this->employee->isAdmin($current_user->person_id);
 
@@ -203,7 +214,8 @@ class Employees extends Persons
                 return $this->response->setJSON([
                     'success' => true,
                     'message' => lang('Employees.successful_adding') . ' ' . $display_name,
-                    'id'      => $employee_data['person_id']
+                    'id'      => $employee_data['person_id'],
+                    'warning' => $document['warning']
                 ]);
             } else { // Existing employee
                 $logged_in_employee_id = session()->get('person_id');
@@ -214,7 +226,8 @@ class Employees extends Persons
                 return $this->response->setJSON([
                     'success' => true,
                     'message' => lang('Employees.successful_updating') . ' ' . $display_name,
-                    'id'      => $employee_id
+                    'id'      => $employee_id,
+                    'warning' => $document['warning']
                 ]);
             }
         } else { // Failure

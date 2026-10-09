@@ -83,6 +83,16 @@ class CustomersCsvImportTest extends CIUnitTestCase
         return $builder->get()->getRow();
     }
 
+    /**
+     * The identity document every imported customer now needs (columns 18 and 19, required since
+     * 2026-10-08, docs/Funcional/documento-de-identidad.md). Random because the customers this class
+     * imports are not removed, and a document is unique among customers.
+     */
+    protected function uniqueDocument(): string
+    {
+        return '75' . random_int(10000000, 99999999);
+    }
+
     protected function createCsvFile(array $rows): string
     {
         $tempFile = tempnam(sys_get_temp_dir(), 'csv_test_');
@@ -101,8 +111,8 @@ class CustomersCsvImportTest extends CIUnitTestCase
         $this->loginAsEmployee();
 
         $csvContent = [
-            ['First Name', 'Last Name', 'Gender', 'Consent', 'Email', 'Phone', 'Address 1', 'Address 2', 'City', 'State', 'Zip', 'Country', 'Comments', 'Company', 'Account Number', 'Discount', 'Discount Type', 'Taxable'],
-            ['John', 'Doe', '1', '1', 'john.doe@example.com', '555-1234', '123 Main St', '', 'Springfield', 'IL', '62701', 'US', '', '', '', '', '', '']
+            ['First Name', 'Last Name', 'Gender', 'Consent', 'Email', 'Phone', 'Address 1', 'Address 2', 'City', 'State', 'Zip', 'Country', 'Comments', 'Company', 'Account Number', 'Discount', 'Discount Type', 'Taxable', 'Document Type', 'Document Number'],
+            ['John', 'Doe', '1', '1', 'john.doe@example.com', '555-1234', '123 Main St', '', 'Springfield', 'IL', '62701', 'US', '', '', '', '', '', '', 'CC', $this->uniqueDocument()]
         ];
 
         $tempFile = $this->createCsvFile($csvContent);
@@ -131,8 +141,8 @@ class CustomersCsvImportTest extends CIUnitTestCase
         $this->loginAsEmployee();
 
         $csvContent = [
-            ['First Name', 'Last Name', 'Gender', 'Consent', 'Email', 'Phone', 'Address 1', 'Address 2', 'City', 'State', 'Zip', 'Country', 'Comments', 'Company', 'Account Number', 'Discount', 'Discount Type', 'Taxable'],
-            ['John', 'Doe', '1', '1', 'not-an-email', '555-1234', '123 Main St', '', 'Springfield', 'IL', '62701', 'US', '', '', '', '', '', '']
+            ['First Name', 'Last Name', 'Gender', 'Consent', 'Email', 'Phone', 'Address 1', 'Address 2', 'City', 'State', 'Zip', 'Country', 'Comments', 'Company', 'Account Number', 'Discount', 'Discount Type', 'Taxable', 'Document Type', 'Document Number'],
+            ['John', 'Doe', '1', '1', 'not-an-email', '555-1234', '123 Main St', '', 'Springfield', 'IL', '62701', 'US', '', '', '', '', '', '', 'CC', $this->uniqueDocument()]
         ];
 
         $tempFile = $this->createCsvFile($csvContent);
@@ -167,8 +177,8 @@ class CustomersCsvImportTest extends CIUnitTestCase
         $maliciousEmail = '<script>alert("xss")</script>@example.com';
 
         $csvContent = [
-            ['First Name', 'Last Name', 'Gender', 'Consent', 'Email', 'Phone', 'Address 1', 'Address 2', 'City', 'State', 'Zip', 'Country', 'Comments', 'Company', 'Account Number', 'Discount', 'Discount Type', 'Taxable'],
-            ['John', 'Doe', '1', '1', $maliciousEmail, '555-1234', '123 Main St', '', 'Springfield', 'IL', '62701', 'US', '', '', '', '', '', '']
+            ['First Name', 'Last Name', 'Gender', 'Consent', 'Email', 'Phone', 'Address 1', 'Address 2', 'City', 'State', 'Zip', 'Country', 'Comments', 'Company', 'Account Number', 'Discount', 'Discount Type', 'Taxable', 'Document Type', 'Document Number'],
+            ['John', 'Doe', '1', '1', $maliciousEmail, '555-1234', '123 Main St', '', 'Springfield', 'IL', '62701', 'US', '', '', '', '', '', '', 'CC', $this->uniqueDocument()]
         ];
 
         $tempFile = $this->createCsvFile($csvContent);
@@ -199,10 +209,10 @@ class CustomersCsvImportTest extends CIUnitTestCase
         $this->loginAsEmployee();
 
         $csvContent = [
-            ['First Name', 'Last Name', 'Gender', 'Consent', 'Email', 'Phone', 'Address 1', 'Address 2', 'City', 'State', 'Zip', 'Country', 'Comments', 'Company', 'Account Number', 'Discount', 'Discount Type', 'Taxable'],
-            ['Valid', 'User', '1', '1', 'valid@example.com', '555-1111', '123 Main St', '', 'City1', 'ST', '12345', 'US', '', '', '', '', '', ''],
-            ['Invalid', 'User', '1', '1', 'invalid-email', '555-2222', '456 Oak Ave', '', 'City2', 'ST', '23456', 'US', '', '', '', '', '', ''],
-            ['Another', 'Valid', '1', '1', 'another@example.com', '555-3333', '789 Pine Rd', '', 'City3', 'ST', '34567', 'US', '', '', '', '', '', '']
+            ['First Name', 'Last Name', 'Gender', 'Consent', 'Email', 'Phone', 'Address 1', 'Address 2', 'City', 'State', 'Zip', 'Country', 'Comments', 'Company', 'Account Number', 'Discount', 'Discount Type', 'Taxable', 'Document Type', 'Document Number'],
+            ['Valid', 'User', '1', '1', 'valid@example.com', '555-1111', '123 Main St', '', 'City1', 'ST', '12345', 'US', '', '', '', '', '', '', 'CC', $this->uniqueDocument()],
+            ['Invalid', 'User', '1', '1', 'invalid-email', '555-2222', '456 Oak Ave', '', 'City2', 'ST', '23456', 'US', '', '', '', '', '', '', 'CC', $this->uniqueDocument()],
+            ['Another', 'Valid', '1', '1', 'another@example.com', '555-3333', '789 Pine Rd', '', 'City3', 'ST', '34567', 'US', '', '', '', '', '', '', 'CC', $this->uniqueDocument()]
         ];
 
         $tempFile = $this->createCsvFile($csvContent);
@@ -237,8 +247,8 @@ class CustomersCsvImportTest extends CIUnitTestCase
 
         $emailWithSpecialChars = 'test"user@example.com';
         $csvContent = [
-            ['First Name', 'Last Name', 'Gender', 'Consent', 'Email', 'Phone', 'Address 1', 'Address 2', 'City', 'State', 'Zip', 'Country', 'Comments', 'Company', 'Account Number', 'Discount', 'Discount Type', 'Taxable'],
-            ['Test', 'User', '1', '1', $emailWithSpecialChars, '555-1234', '123 Main St', '', 'Springfield', 'IL', '62701', 'US', '', '', '', '', '', '']
+            ['First Name', 'Last Name', 'Gender', 'Consent', 'Email', 'Phone', 'Address 1', 'Address 2', 'City', 'State', 'Zip', 'Country', 'Comments', 'Company', 'Account Number', 'Discount', 'Discount Type', 'Taxable', 'Document Type', 'Document Number'],
+            ['Test', 'User', '1', '1', $emailWithSpecialChars, '555-1234', '123 Main St', '', 'Springfield', 'IL', '62701', 'US', '', '', '', '', '', '', 'CC', $this->uniqueDocument()]
         ];
 
         $tempFile = $this->createCsvFile($csvContent);
@@ -274,8 +284,8 @@ class CustomersCsvImportTest extends CIUnitTestCase
         // testValidEmailIsAccepted) are still present and would otherwise be
         // matched by a name-only lookup below.
         $csvContent = [
-            ['First Name', 'Last Name', 'Gender', 'Consent', 'Email', 'Phone', 'Address 1', 'Address 2', 'City', 'State', 'Zip', 'Country', 'Comments', 'Company', 'Account Number', 'Discount', 'Discount Type', 'Taxable'],
-            ['EmptyEmail', 'Tester', '1', '1', '', '555-1234', '123 Main St', '', 'Springfield', 'IL', '62701', 'US', '', '', '', '', '', '']
+            ['First Name', 'Last Name', 'Gender', 'Consent', 'Email', 'Phone', 'Address 1', 'Address 2', 'City', 'State', 'Zip', 'Country', 'Comments', 'Company', 'Account Number', 'Discount', 'Discount Type', 'Taxable', 'Document Type', 'Document Number'],
+            ['EmptyEmail', 'Tester', '1', '1', '', '555-1234', '123 Main St', '', 'Springfield', 'IL', '62701', 'US', '', '', '', '', '', '', 'CC', $this->uniqueDocument()]
         ];
 
         $tempFile = $this->createCsvFile($csvContent);

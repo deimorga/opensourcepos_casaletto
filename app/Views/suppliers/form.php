@@ -43,7 +43,7 @@
             </div>
         </div>
 
-        <?= view('people/form_basic_info') ?>
+        <?= view('people/form_basic_info', ['document_required' => false]) ?>
 
         <div class="form-group form-group-sm">
             <?= form_label(lang('Suppliers.account_number'), 'account_number', ['class' => 'control-label col-xs-3']) ?>
@@ -53,18 +53,6 @@
                     'id'    => 'account_number',
                     'class' => 'form-control input-sm',
                     'value' => $person_info->account_number
-                ]) ?>
-            </div>
-        </div>
-
-        <div class="form-group form-group-sm">
-            <?= form_label(lang('Suppliers.tax_id'), 'tax_id', ['class' => 'control-label col-xs-3']) ?>
-            <div class="col-xs-8">
-                <?= form_input([
-                    'name'  => 'tax_id',
-                    'id'    => 'tax_id',
-                    'class' => 'form-control input-sm',
-                    'value' => $person_info->tax_id
                 ]) ?>
             </div>
         </div>
@@ -80,6 +68,10 @@
                 $(form).ajaxSubmit({
                     success: function(response) {
                         dialog_support.hide();
+                        // The same document in another role: saved, and said (escaped by the server).
+                        if (response.success && response.warning) {
+                            $.notify(response.warning, { type: 'warning' });
+                        }
                         table_support.handle_submit("<?= esc($controller_name) ?>", response);
                     },
                     dataType: 'json'
@@ -92,7 +84,10 @@
                 company_name: 'required',
                 first_name: 'required',
                 last_name: 'required',
-                email: 'email'
+                email: 'email',
+                document_number: {
+                    remote: identity_document_remote
+                }
             },
 
             messages: {

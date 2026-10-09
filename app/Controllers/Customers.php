@@ -2,6 +2,7 @@
 
 namespace App\Controllers;
 
+use App\Libraries\Identity_document;
 use App\Libraries\Mailchimp_lib;
 
 use App\Models\Customer;
@@ -46,8 +47,23 @@ class Customers extends Persons
     public function getIndex(): string
     {
         $data['table_headers'] = get_customer_manage_table_headers();
+        $data['filters'] = ['no_document' => lang('Customers.no_document')];
+        $data['selected_filters'] = array_keys($this->document_filters());
 
         return view('people/manage', $data);
+    }
+
+    /**
+     * The list filters asked for, among the ones this list has: only «Sin documento» for now.
+     * Read raw and kept only if known, so nothing else reaches the query.
+     *
+     * @return array<string, bool>
+     */
+    private function document_filters(): array
+    {
+        $requested = (array)($this->request->getGet('filters') ?? []);
+
+        return array_fill_keys(array_values(array_intersect(['no_document'], $requested)), true);
     }
 
     /**
@@ -91,8 +107,9 @@ class Customers extends Persons
         $sort = $this->sanitizeSortColumn(customer_headers(), $this->request->getGet('sort', FILTER_SANITIZE_FULL_SPECIAL_CHARS), 'people.person_id');
         $order = $this->request->getGet('order', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
 
-        $customers = $this->customer->search($search, $limit, $offset, $sort, $order);
-        $total_rows = $this->customer->get_found_rows($search);
+        $filters = $this->document_filters();
+        $customers = $this->customer->search($search, $limit, $offset, $sort, $order, false, $filters);
+        $total_rows = $this->customer->get_found_rows($search, $filters);
 
         $data_rows = [];
 
@@ -263,6 +280,16 @@ class Customers extends Persons
             'comments'     => $this->request->getPost('comments')
         ];
 
+        // Required when creating AND when editing (I2): an old customer without type is asked for it
+        // the first time someone edits it. Checked before anything is written.
+        $document = $this->read_identity_document($customer_id, true);
+
+        if ($document['error'] !== null) {
+            return $this->response->setJSON(['success' => false, 'message' => $document['error'], 'id' => $customer_id]);
+        }
+
+        $person_data = array_merge($person_data, $document['data']);
+
         $date_formatter = parse_typed_datetime($this->request->getPost('date'));
 
         // Before, ->format() on a false from date_create_from_format() was a 500.
@@ -273,7 +300,6 @@ class Customers extends Persons
         $customer_data = [
             'consent'           => $this->request->getPost('consent') != null,
             'account_number'    => $this->request->getPost('account_number') == '' ? null : $this->request->getPost('account_number'),
-            'tax_id'            => $this->request->getPost('tax_id'),
             'company_name'      => $this->request->getPost('company_name') == '' ? null : $this->request->getPost('company_name'),
             'discount'          => $this->request->getPost('discount') == '' ? 0.00 : parse_decimals($this->request->getPost('discount')),
             'discount_type'     => $this->request->getPost('discount_type') == null ? PERCENT : $this->request->getPost('discount_type', FILTER_SANITIZE_NUMBER_INT),
@@ -301,13 +327,15 @@ class Customers extends Persons
                 return $this->response->setJSON([
                     'success' => true,
                     'message' => lang('Customers.successful_adding') . ' ' . $first_name . ' ' . $last_name,
-                    'id'      => $customer_data['person_id']
+                    'id'      => $customer_data['person_id'],
+                    'warning' => $document['warning']
                 ]);
             } else { // Existing customer
                 return $this->response->setJSON([
                     'success' => true,
                     'message' => lang('Customers.successful_updating') . ' ' . $first_name . ' ' . $last_name,
-                    'id'      => $customer_id
+                    'id'      => $customer_id,
+                    'warning' => $document['warning']
                 ]);
             }
         } else { // Failure
@@ -453,19 +481,44 @@ class Customers extends Persons
                             continue;
                         }
                         
+                        // The document goes in the last two columns (18 and 19), so the positions of
+                        // every column a business already fills do not move. Same rules as the form:
+                        // required, valid for its type, and not held by another customer -- which also
+                        // refuses the second of two rows of the same file with one document.
+                        $document_type = strtoupper(trim((string)($data[18] ?? '')));
+                        $document_raw = trim((string)($data[19] ?? ''));
+                        $document_error = $document_type === '' ? 'Common.document_type_required' : Identity_document::validate($document_type, $document_raw);
+
+                        if ($document_error !== null) {
+                            $failCodes[] = lang('Customers.csv_row_error', [$i, lang($document_error)]);
+                            $i++;
+                            continue;
+                        }
+
+                        $document_number = Identity_document::normalize($document_type, $document_raw);
+                        $owner = $this->customer->document_owner($document_type, $document_number, 'customers');
+
+                        if ($owner !== null) {
+                            $failCodes[] = lang('Customers.csv_row_error', [$i, lang('Common.document_duplicate_customers', [esc(trim($owner->first_name . ' ' . $owner->last_name))])]);
+                            $i++;
+                            continue;
+                        }
+
                         $person_data = [
-                            'first_name'   => $data[0],
-                            'last_name'    => $data[1],
-                            'gender'       => $data[2],
-                            'email'        => $email,
-                            'phone_number' => $data[5],
-                            'address_1'    => $data[6],
-                            'address_2'    => $data[7],
-                            'city'         => $data[8],
-                            'state'        => $data[9],
-                            'zip'          => $data[10],
-                            'country'      => $data[11],
-                            'comments'     => $data[12]
+                            'first_name'      => $data[0],
+                            'last_name'       => $data[1],
+                            'gender'          => $data[2],
+                            'email'           => $email,
+                            'phone_number'    => $data[5],
+                            'address_1'       => $data[6],
+                            'address_2'       => $data[7],
+                            'city'            => $data[8],
+                            'state'           => $data[9],
+                            'zip'             => $data[10],
+                            'country'         => $data[11],
+                            'comments'        => $data[12],
+                            'document_type'   => $document_type,
+                            'document_number' => $document_number
                         ];
 
                         $customer_data = [

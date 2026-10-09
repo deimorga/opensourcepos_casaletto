@@ -79,7 +79,10 @@ final class CustomersAccentTest extends CIUnitTestCase
             'country'      => '',
             'comments'     => '',
             'account_number' => '',
-            'tax_id'       => '',
+            // Required since 2026-10-08 (docs/Funcional/documento-de-identidad.md); the customer is
+            // removed by its email, so a fixed number does not pile up.
+            'document_type'   => 'CC',
+            'document_number' => '7300000001',
             'company_name' => '',
             'discount'     => '',
             'discount_type' => (string) PERCENT,

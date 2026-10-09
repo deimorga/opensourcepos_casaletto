@@ -2,8 +2,78 @@
 /**
  * @var object $person_info
  * @var array $config
+ * @var string $controller_name
+ * @var bool $document_required whether this role must have an identity document; each form passes it
  */
+
+use App\Libraries\Identity_document;
+
+$document_required = !empty($document_required);
+$document_required_attributes = static fn (string $message): array => $document_required
+    ? ['required' => 'required', 'data-msg-required' => $message]
+    : [];
 ?>
+
+<div class="form-group form-group-sm">
+    <?= form_label(lang('Common.document_type'), 'document_type', ['class' => ($document_required ? 'required ' : '') . 'control-label col-xs-3']) ?>
+    <div class="col-xs-8">
+        <?= form_dropdown(
+            'document_type',
+            Identity_document::options(),
+            (string)($person_info->document_type ?? ''),
+            array_merge(['id' => 'document_type', 'class' => 'form-control input-sm'], $document_required_attributes(lang('Common.document_type_required')))
+        ) ?>
+    </div>
+</div>
+
+<div class="form-group form-group-sm">
+    <?= form_label(lang('Common.document_number'), 'document_number', ['class' => ($document_required ? 'required ' : '') . 'control-label col-xs-3']) ?>
+    <div class="col-xs-8">
+        <?= form_input(array_merge([
+            'name'         => 'document_number',
+            'id'           => 'document_number',
+            'class'        => 'form-control input-sm',
+            'maxlength'    => '40',
+            'autocomplete' => 'off',
+            'value'        => (string)($person_info->document_number ?? '')
+        ], $document_required_attributes(lang('Common.document_number_required')))) ?>
+        <span id="document_nit_hint" class="help-block"<?= ($person_info->document_type ?? '') === 'NIT' ? '' : ' hidden' ?>><?= esc(lang('Common.document_nit_hint')) ?></span>
+        <span id="document_warning" class="help-block text-warning"></span>
+    </div>
+</div>
+
+<script type="text/javascript">
+    // The form's remote rule for document_number (customers, employees and suppliers forms). The server
+    // answers {valid, message, warning}: a document repeated in this role, or not valid for its type,
+    // stops the form; the same document in another role is only a warning, shown under the field. The
+    // server escapes the names it puts in both.
+    var identity_document_remote = {
+        url: <?= json_encode(site_url(($controller_name ?? '') . '/checkDocument'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>,
+        type: 'POST',
+        data: {
+            person_id: <?= json_encode((string)(int)$person_info->person_id) ?>,
+            document_type: function() {
+                return $('#document_type').val();
+            }
+        },
+        dataFilter: function(data) {
+            var response = JSON.parse(data);
+            $('#document_warning').html(response.warning || '');
+            return JSON.stringify(response.valid ? true : response.message);
+        }
+    };
+
+    $('#document_type').on('change', function() {
+        var $number = $('#document_number');
+
+        $('#document_nit_hint').prop('hidden', $(this).val() !== 'NIT');
+        $('#document_warning').html('');
+
+        if ($number.val() !== '' && $number.closest('form').data('validator')) {
+            $number.removeData('previousValue').valid();
+        }
+    });
+</script>
 
 <div class="form-group form-group-sm">
     <?= form_label(lang('Common.first_name'), 'first_name', ['class' => 'required control-label col-xs-3']) ?>

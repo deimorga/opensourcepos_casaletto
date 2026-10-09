@@ -42,7 +42,7 @@
                     </div>
                 </div>
 
-                <?= view('people/form_basic_info') ?>
+                <?= view('people/form_basic_info', ['document_required' => true]) ?>
 
                 <div class="form-group form-group-sm">
                     <?= form_label(lang('Customers.discount_type'), 'discount_type', ['class' => 'control-label col-xs-3']) ?>
@@ -103,18 +103,6 @@
                             'id'    => 'account_number',
                             'class' => 'form-control input-sm',
                             'value' => $person_info->account_number
-                        ]) ?>
-                    </div>
-                </div>
-
-                <div class="form-group form-group-sm">
-                    <?= form_label(lang('Customers.tax_id'), 'tax_id', ['class' => 'control-label col-xs-3']) ?>
-                    <div class="col-xs-4">
-                        <?= form_input([
-                            'name'  => 'tax_id',
-                            'id'    => 'tax_id',
-                            'class' => 'form-control input-sm',
-                            'value' => $person_info->tax_id
                         ]) ?>
                     </div>
                 </div>
@@ -474,6 +462,10 @@
                 $(form).ajaxSubmit({
                     success: function(response) {
                         dialog_support.hide();
+                        // The same document in another role: saved, and said (escaped by the server).
+                        if (response.success && response.warning) {
+                            $.notify(response.warning, { type: 'warning' });
+                        }
                         table_support.handle_submit("<?= $controller_name ?>", response);
                     },
                     dataType: 'json'
@@ -495,6 +487,9 @@
                             // Email is posted by default
                         }
                     }
+                },
+                document_number: {
+                    remote: identity_document_remote
                 },
                 account_number: {
                     remote: {

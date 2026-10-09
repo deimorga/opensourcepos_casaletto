@@ -87,6 +87,18 @@ class EmployeesControllerTest extends CIUnitTestCase
         return (int) $row->person_id;
     }
 
+    /**
+     * The identity document an edit through the employees screen now has to carry (required since
+     * 2026-10-08, docs/Funcional/documento-de-identidad.md). Derived from the employee id because the
+     * employees this class creates are not removed, and a document is unique among employees.
+     *
+     * @return array<string, string>
+     */
+    protected function documentFor(int $employeeId): array
+    {
+        return ['document_type' => 'CC', 'document_number' => '74' . str_pad((string) $employeeId, 8, '0', STR_PAD_LEFT)];
+    }
+
     protected function loginAsAdmin(): void
     {
         $session = Services::session();
@@ -197,7 +209,7 @@ class EmployeesControllerTest extends CIUnitTestCase
             'last_name' => 'User',
             'email' => 'modified_' . uniqid() . '@test.com',
             'username' => 'modified_' . uniqid()
-        ]);
+        ] + $this->documentFor($nonAdminId));
 
         $response->assertStatus(200);
         $result = json_decode($response->getJSON(), true);
@@ -224,7 +236,7 @@ class EmployeesControllerTest extends CIUnitTestCase
             'email'      => $username . '@test.com',
             'username'   => $username,
             'language'   => 'es-ES:spanish'
-        ]);
+        ] + $this->documentFor($targetId));
 
         $response->assertStatus(200);
 
@@ -246,7 +258,7 @@ class EmployeesControllerTest extends CIUnitTestCase
             'email'      => $username . '@test.com',
             'username'   => $username,
             'language'   => 'en:english'
-        ]);
+        ] + $this->documentFor($targetId));
 
         $row = db_connect()->table('employees')->where('person_id', $targetId)->get()->getRow();
 
@@ -270,7 +282,7 @@ class EmployeesControllerTest extends CIUnitTestCase
             'email'      => $username . '@test.com',
             'username'   => $username,
             'language'   => ':'
-        ]);
+        ] + $this->documentFor($targetId));
 
         $row = db_connect()->table('employees')->where('person_id', $targetId)->get()->getRow();
 

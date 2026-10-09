@@ -27,8 +27,84 @@ class Person extends Model
         'zip',
         'country',
         'comments',
-        'gender'
+        'gender',
+        'document_type',
+        'document_number'
     ];
+
+    /**
+     * The roles a person can hold. Each role has its own table and creates its own `people` row, so
+     * the same human being who is customer and employee exists twice: that is why a document is
+     * unique within a role and may repeat across roles (docs/Tecnico/documento-de-identidad.md IT2).
+     */
+    public const DOCUMENT_ROLES = ['customers', 'employees', 'suppliers'];
+
+    /**
+     * people.document_number without dots, commas, spaces and hyphens, uppercased: the same cleaning
+     * as Identity_document::normalize() and search_key(), done in SQL so that old numbers, copied as
+     * typed from «Id Impuesto», compare like new ones.
+     */
+    public const DOCUMENT_NUMBER_KEY_SQL = "REPLACE(REPLACE(REPLACE(REPLACE(UPPER(people.document_number), '.', ''), ',', ''), ' ', ''), '-', '')";
+
+    /**
+     * The person of a role, not deleted, who already holds this document, or null.
+     *
+     * $number must come cleaned by Identity_document::normalize(). A person saved before document
+     * types existed has a number and no type (the old «Id Impuesto», copied by the migration); that
+     * number is compared without its dots, commas, spaces and hyphens, so an old customer with
+     * "1.020.345.678" still counts as the owner of CC 1020345678.
+     */
+    public function document_owner(string $type, string $number, string $role, int $except_person_id = NEW_ENTRY): ?object
+    {
+        if (!in_array($role, self::DOCUMENT_ROLES, true) || $type === '' || $number === '') {
+            return null;
+        }
+
+        $builder = $this->db->table($role);
+        $builder->select('people.person_id, people.first_name, people.last_name, people.document_type, people.document_number');
+        $builder->join('people', "people.person_id = $role.person_id");
+        $builder->where("$role.deleted", 0);
+        $builder->where("$role.person_id !=", $except_person_id);
+        $builder->groupStart();
+        $builder->groupStart();
+        $builder->where('people.document_type', $type);
+        $builder->where('people.document_number', $number);
+        $builder->groupEnd();
+        $builder->orGroupStart();
+        $builder->where('people.document_type', null);
+        $builder->where(self::DOCUMENT_NUMBER_KEY_SQL . ' = ' . $this->db->escape($number), null, false);
+        $builder->groupEnd();
+        $builder->groupEnd();
+        $builder->orderBy('people.person_id', 'asc');
+        $builder->limit(1);
+
+        return $builder->get()->getRow();
+    }
+
+    /**
+     * Who holds the same document in the OTHER roles. Allowed -- it is the same person in another
+     * role -- and reported as a warning, never a refusal (I3).
+     *
+     * @return array<int, array{role: string, person: object}>
+     */
+    public function document_other_roles(string $type, string $number, string $role, int $except_person_id = NEW_ENTRY): array
+    {
+        $others = [];
+
+        foreach (self::DOCUMENT_ROLES as $other_role) {
+            if ($other_role === $role) {
+                continue;
+            }
+
+            $owner = $this->document_owner($type, $number, $other_role, $except_person_id);
+
+            if ($owner !== null) {
+                $others[] = ['role' => $other_role, 'person' => $owner];
+            }
+        }
+
+        return $others;
+    }
 
     /**
      * Determines whether the given person exists in the people database table

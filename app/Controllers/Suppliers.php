@@ -147,9 +147,18 @@ class Suppliers extends Persons
             'company_name'   => $this->request->getPost('company_name'),
             'agency_name'    => $this->request->getPost('agency_name'),
             'category'       => $this->request->getPost('category'),
-            'account_number' => $this->request->getPost('account_number') == '' ? null : $this->request->getPost('account_number'),
-            'tax_id'         => $this->request->getPost('tax_id', FILTER_SANITIZE_NUMBER_INT)
+            'account_number' => $this->request->getPost('account_number') == '' ? null : $this->request->getPost('account_number')
         ];
+
+        // Optional for suppliers (I2): many are registered without one. If one is typed, it follows
+        // the same rules and is unique among suppliers.
+        $document = $this->read_identity_document($supplier_id, false);
+
+        if ($document['error'] !== null) {
+            return $this->response->setJSON(['success' => false, 'message' => $document['error'], 'id' => $supplier_id]);
+        }
+
+        $person_data = array_merge($person_data, $document['data']);
 
         // The browser hands these messages to $.notify(), which renders them as HTML, so the company name
         // is escaped here. Escaping at the output is what lets the name be stored with its accents intact.
@@ -161,14 +170,16 @@ class Suppliers extends Persons
                 return $this->response->setJSON([
                     'success' => true,
                     'message' => lang('Suppliers.successful_adding') . ' ' . $display_company_name,
-                    'id'      => $supplier_data['person_id']
+                    'id'      => $supplier_data['person_id'],
+                    'warning' => $document['warning']
                 ]);
             } else { // Existing supplier
 
                 return $this->response->setJSON([
                     'success' => true,
                     'message' => lang('Suppliers.successful_updating') . ' ' . $display_company_name,
-                    'id'      => $supplier_id
+                    'id'      => $supplier_id,
+                    'warning' => $document['warning']
                 ]);
             }
         } else { // Failure

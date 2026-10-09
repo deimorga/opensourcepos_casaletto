@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Libraries\Identity_document;
+use CodeIgniter\Database\BaseBuilder;
 use CodeIgniter\Database\ResultInterface;
 use Config\OSPOS;
 use stdClass;
@@ -269,7 +271,9 @@ class Customer extends Person
                 'state'        => '',
                 'zip'          => '',
                 'country'      => '',
-                'comments'     => ''
+                'comments'     => '',
+                'document_type'   => null,
+                'document_number' => null
             ]);
 
             $builder = $this->db->table('customers');
@@ -326,6 +330,7 @@ class Customer extends Person
             $builder->orLike('email', $search);
             $builder->orLike('phone_number', $search);
             $builder->orLike('company_name', $search);
+            $this->or_like_document($builder, $search);
         }
         $builder->groupEnd();
         $builder->where('deleted', 0);
@@ -378,6 +383,20 @@ class Customer extends Person
             foreach ($builder->get()->getResult() as $row) {
                 $suggestions[] = ['value' => $row->person_id, 'label' => $row->company_name];
             }
+
+            if (Identity_document::search_key($search) !== '') {
+                $builder = $this->db->table('customers');
+                $builder->join('people', 'customers.person_id = people.person_id');
+                $builder->where('deleted', 0);
+                $builder->groupStart();
+                $this->or_like_document($builder, $search);
+                $builder->groupEnd();
+                $builder->orderBy('document_number', 'asc');
+
+                foreach ($builder->get()->getResult() as $row) {
+                    $suggestions[] = ['value' => $row->person_id, 'label' => Identity_document::format($row->document_type, $row->document_number)];
+                }
+            }
         }
 
         // Only return $limit suggestions
@@ -391,15 +410,15 @@ class Customer extends Person
     /**
      * Gets rows
      */
-    public function get_found_rows(string $search): int
+    public function get_found_rows(string $search, array $filters = []): int
     {
-        return $this->search($search, 0, 0, 'last_name', 'asc', true);
+        return $this->search($search, 0, 0, 'last_name', 'asc', true, $filters);
     }
 
     /**
      * Performs a search on customers
      */
-    public function search(string $search, ?int $rows = 0, ?int $limit_from = 0, ?string $sort = 'last_name', ?string $order = 'asc', ?bool $count_only = false)
+    public function search(string $search, ?int $rows = 0, ?int $limit_from = 0, ?string $sort = 'last_name', ?string $order = 'asc', ?bool $count_only = false, array $filters = [])
     {
         // Set default values
         if ($rows == null) $rows = 0;
@@ -424,8 +443,18 @@ class Customer extends Person
         $builder->orLike('account_number', $search);
         $builder->orLike('company_name', $search);
         $builder->orLike('CONCAT(first_name, " ", last_name)', $search);    // TODO: Duplicated code.
+        $this->or_like_document($builder, $search);
         $builder->groupEnd();
         $builder->where('deleted', 0);
+
+        // «Sin documento»: no number, or an old number still without its type (docs/Funcional/documento-de-identidad.md 4.4).
+        if (!empty($filters['no_document'])) {
+            $builder->groupStart();
+            $builder->where('people.document_number', null);
+            $builder->orWhere('people.document_number', '');
+            $builder->orWhere('people.document_type', null);
+            $builder->groupEnd();
+        }
 
         // get_found_rows case
         if ($count_only) {
@@ -439,5 +468,21 @@ class Customer extends Person
         }
 
         return $builder->get();
+    }
+
+    /**
+     * Adds "or the document number contains the search", compared without dots, commas, spaces and
+     * hyphens on both sides: «1.020.345.678» and «1020345678» find the same customer, old ones too.
+     */
+    private function or_like_document(BaseBuilder $builder, string $search): void
+    {
+        $key = Identity_document::search_key($search);
+
+        if ($key === '') {
+            return;
+        }
+
+        $pattern = '%' . $this->db->escapeLikeString($key) . '%';
+        $builder->orWhere(Person::DOCUMENT_NUMBER_KEY_SQL . ' LIKE ' . $this->db->escape($pattern) . " ESCAPE '!'", null, false);
     }
 }

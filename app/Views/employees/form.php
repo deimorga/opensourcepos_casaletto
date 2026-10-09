@@ -31,7 +31,8 @@ use App\Libraries\Wiring_lock;
     <div class="tab-content">
         <div class="tab-pane fade in active" id="employee_basic_info">
             <fieldset>
-                <?= view('people/form_basic_info') ?>
+                <?php // The platform's support employee is not a person of the business: no document required. ?>
+                <?= view('people/form_basic_info', ['document_required' => (int)($person_info->is_platform_support ?? 0) !== 1]) ?>
             </fieldset>
         </div>
 
@@ -234,6 +235,10 @@ use App\Libraries\Wiring_lock;
                 $(form).ajaxSubmit({
                     success: function(response) {
                         dialog_support.hide();
+                        // The same document in another role: saved, and said (escaped by the server).
+                        if (response.success && response.warning) {
+                            $.notify(response.warning, { type: 'warning' });
+                        }
                         table_support.handle_submit("<?= esc($controller_name) ?>", response);
                     },
                     dataType: 'json'
@@ -260,7 +265,10 @@ use App\Libraries\Wiring_lock;
                 repeat_password: {
                     equalTo: '#password'
                 },
-                email: 'email'
+                email: 'email',
+                document_number: {
+                    remote: identity_document_remote
+                }
             },
 
             messages: {
