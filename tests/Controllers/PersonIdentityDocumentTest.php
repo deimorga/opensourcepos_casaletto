@@ -96,6 +96,19 @@ final class PersonIdentityDocumentTest extends CIUnitTestCase
         $this->assertNull($this->personByFirstName('Sin'), 'Nothing is written when the document is missing.');
     }
 
+    /**
+     * The save message is shown with $.notify(), which renders HTML. Every customer now goes through this
+     * form, so a name carrying markup must come back escaped (employees and suppliers already did).
+     */
+    public function testTheSaveMessageEscapesTheCustomerName(): void
+    {
+        $result = $this->saveCustomer('<img src=x onerror=alert(1)>', ['document_type' => 'CC', 'document_number' => '7399000001']);
+
+        $this->assertTrue($result['success']);
+        $this->assertStringNotContainsString('<img', $result['message']);
+        $this->assertStringContainsString('&lt;', $result['message']);
+    }
+
     public function testACustomerWithANumberButNoTypeIsRefused(): void
     {
         $result = $this->saveCustomer('Sintipo', ['document_type' => '', 'document_number' => '1020345678']);

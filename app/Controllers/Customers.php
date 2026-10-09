@@ -326,14 +326,14 @@ class Customers extends Persons
             if ($customer_id == NEW_ENTRY) {
                 return $this->response->setJSON([
                     'success' => true,
-                    'message' => lang('Customers.successful_adding') . ' ' . $first_name . ' ' . $last_name,
+                    'message' => lang('Customers.successful_adding') . ' ' . esc($first_name) . ' ' . esc($last_name),
                     'id'      => $customer_data['person_id'],
                     'warning' => $document['warning']
                 ]);
             } else { // Existing customer
                 return $this->response->setJSON([
                     'success' => true,
-                    'message' => lang('Customers.successful_updating') . ' ' . $first_name . ' ' . $last_name,
+                    'message' => lang('Customers.successful_updating') . ' ' . esc($first_name) . ' ' . esc($last_name),
                     'id'      => $customer_id,
                     'warning' => $document['warning']
                 ]);
@@ -341,7 +341,7 @@ class Customers extends Persons
         } else { // Failure
             return $this->response->setJSON([
                 'success' => false,
-                'message' => lang('Customers.error_adding_updating') . ' ' . $first_name . ' ' . $last_name,
+                'message' => lang('Customers.error_adding_updating') . ' ' . esc($first_name) . ' ' . esc($last_name),
                 'id'      => NEW_ENTRY
             ]);
         }
