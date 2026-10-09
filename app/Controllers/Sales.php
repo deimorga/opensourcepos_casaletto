@@ -4,6 +4,7 @@ namespace App\Controllers;
 
 use App\Libraries\Barcode_lib;
 use App\Libraries\Email_lib;
+use App\Libraries\Identity_document;
 use App\Libraries\Order_ticket_register;
 use App\Libraries\Presale_register;
 use App\Libraries\Sale_lib;
@@ -1354,7 +1355,6 @@ class Sales extends Secure_Controller
 
         if ($customer_info != null) {
             $data["customer_comments"] = $customer_info->comments;
-            $data['tax_id'] = $customer_info->tax_id;
         }
         $tax_details = $this->tax_lib->get_taxes($data['cart']);    // TODO: Duplicated code
         $data['taxes'] = $tax_details[0];
@@ -1759,10 +1759,14 @@ class Sales extends Secure_Controller
                 $data['customer_info'] .= "\n" . lang('Sales.account_number') . ": " . $data['customer_account_number'];
             }
 
-            if ($customer_info->tax_id != '') {
-                $data['customer_info'] .= "\n" . lang('Sales.tax_id') . ": " . $customer_info->tax_id;
+            // The identity document replaces «Id Impuesto» (docs/Tecnico/documento-de-identidad.md IT6):
+            // "CC 1020345678", "NIT 900123456-8"; an old customer without type prints the number alone;
+            // no number, no line. Receipts, invoices, quotes and work orders all take it from here.
+            $data['customer_document'] = Identity_document::format($customer_info->document_type ?? null, $customer_info->document_number ?? null);
+
+            if ($data['customer_document'] !== '') {
+                $data['customer_info'] .= "\n" . $data['customer_document'];
             }
-            $data['tax_id'] = $customer_info->tax_id;
         }
 
         return $customer_info;

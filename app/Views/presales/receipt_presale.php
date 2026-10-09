@@ -16,8 +16,13 @@
  * @var bool                       $open_drawer
  * @var array                      $config
  */
+
+use App\Libraries\Identity_document;
+
 $customer_name = trim(($customer->first_name ?? '') . ' ' . ($customer->last_name ?? ''));
-$terms         = trim((string) ($config['presales_terms'] ?? ''));
+// "CC 1020345678"; an old customer without type, the number alone; none, no line (docs/Tecnico/documento-de-identidad.md IT6).
+$customer_document = Identity_document::format($customer->document_type ?? null, $customer->document_number ?? null);
+$terms             = trim((string) ($config['presales_terms'] ?? ''));
 ?>
 <?= view('presales/receipt_head', ['title' => lang('Presales.receipt_presale'), 'config' => $config], ['saveData' => false]) ?>
 
@@ -25,6 +30,9 @@ $terms         = trim((string) ($config['presales_terms'] ?? ''));
         <tr><th><?= esc(lang('Presales.number')) ?></th><td class="r"><strong><?= esc($presale['number']) ?></strong></td></tr>
         <tr><th><?= esc(lang('Presales.created_at')) ?></th><td class="r"><?= esc(to_datetime(strtotime((string) $presale['created_at']))) ?></td></tr>
         <tr><th><?= esc(lang('Presales.customer')) ?></th><td class="r"><?= esc($customer_name) ?></td></tr>
+        <?php if ($customer_document !== ''): ?>
+            <tr><th><?= esc(lang('Common.document')) ?></th><td class="r"><?= esc($customer_document) ?></td></tr>
+        <?php endif; ?>
         <?php if (! empty($customer->phone_number)): ?>
             <tr><th><?= esc(lang('Presales.phone')) ?></th><td class="r"><?= esc($customer->phone_number) ?></td></tr>
         <?php endif; ?>

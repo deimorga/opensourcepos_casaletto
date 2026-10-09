@@ -39,6 +39,9 @@
         <?php if (isset($customer)) { ?>
             <div id="customer"><?= lang('Customers.customer') . esc(": $customer") ?></div>
         <?php } ?>
+        <?php if (!empty($customer_document)) { ?>
+            <div id="customer_document"><?= esc($customer_document) ?></div>
+        <?php } ?>
 
         <div id="sale_id"><?= lang('Sales.id') . esc(": $sale_id") ?></div>
 
