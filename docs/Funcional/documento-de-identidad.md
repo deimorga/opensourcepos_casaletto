@@ -1,7 +1,8 @@
 # Alcance funcional — Tipo y número de documento de las personas
 
-> **Estado (2026-10-08):** **definición cerrada, en construcción.** Pedido del dueño el 2026-10-08, durante la
-> certificación de Preventas en staging. Decisiones en §6. **Sale junto con Preventas** (§7).
+> **Estado (2026-10-08):** **construido**, en la rama `feat/identity-document`, **pendiente de desplegar a
+> staging y certificar** junto con Preventas (§7). Pedido del dueño el 2026-10-08, durante la certificación
+> de Preventas en staging. Decisiones en §6. Cómo quedó, en §9.
 >
 > Documento hermano: `docs/Tecnico/documento-de-identidad.md`.
 
@@ -70,14 +71,15 @@ desde aquí.
   se escriban por costumbre («1.020.345.678» se guarda como 1020345678).
 - Para pasaporte, PPT, PEP y documento extranjero se aceptan **letras y números**.
 - **NIT:** se escribe el número **sin** el dígito de verificación; el sistema lo calcula y lo muestra
-  («900123456-7»). Si se escribe con dígito y está mal, avisa.
+  («900123456-8»). Si se escribe con dígito después de un guion («900.123.456-8») y está bien, se acepta y
+  se guarda sin él; si está mal, **no deja guardar** y lo dice.
 
 ### 4.3 Dónde aparece
 
 - **Fichas** de clientes, empleados y proveedores, y **«Cliente Nuevo»** en la caja y en Preventas.
 - **Búsqueda**: escribir el número de documento encuentra al cliente en Clientes, en la caja y en Preventas.
 - **Documentos impresos**: recibos, facturas, cotizaciones, órdenes de trabajo y comprobantes de preventa
-  muestran «CC 1020345678» (o «NIT 900123456-7») en lugar de «Id Impuesto: …».
+  muestran «CC 1020345678» (o «NIT 900123456-8») en lugar de «Id Impuesto: …».
 - **Listas**: columna «Documento» en Clientes, Empleados y Proveedores.
 - **Carga masiva de clientes (CSV)**: dos columnas nuevas, tipo y número, con las mismas reglas; una fila sin
   documento o repetida se rechaza con su motivo.
@@ -136,3 +138,65 @@ En staging, en dos negocios: crear cliente sin documento (rechazado), con CC con
 número en Clientes, caja y Preventas; ver el documento en recibo, factura y comprobante de preventa; editar un
 cliente antiguo (pide el tipo); cargar un CSV con filas buenas y malas; crear un proveedor sin documento
 (permitido).
+
+## 9. Cómo quedó (construido el 2026-10-08)
+
+Lo que va a ver el equipo del negocio cuando se despliegue. Todavía **no** está en staging ni en producción.
+
+### 9.1 En las fichas
+
+- Las fichas de **clientes**, **empleados** y **proveedores** empiezan con **Tipo de documento** (una lista
+  con los diez tipos de §4.1, «CC - Cédula de ciudadanía», …) y **Número de documento**.
+- En clientes y empleados los dos campos van marcados como obligatorios: sin ellos la ficha no se envía.
+  En proveedores no.
+- Si el NIT es el tipo elegido, bajo el número aparece «El NIT va sin dígito de verificación: el sistema lo
+  calcula».
+- **Mientras se escribe**, la ficha consulta el número:
+  - si ya lo tiene **otro cliente** (u otro empleado, u otro proveedor, según la ficha), lo dice en rojo
+    con el nombre — «Ya hay un cliente con este documento: Ana Gómez.» — y no deja guardar;
+  - si lo tiene alguien **en otro papel**, lo dice en amarillo bajo el campo — «Este documento también
+    corresponde al empleado Juan Pérez.» — y deja guardar. Al guardar, el aviso vuelve a salir.
+- La ficha de clientes ya **no** tiene «Id Impuesto»; la de proveedores tampoco. Lo que tenían quedó como
+  número de documento (§9.4).
+- Lo mismo pasa en **«Cliente Nuevo»** de la caja y de Preventas: es la misma ficha.
+
+### 9.2 Búsqueda, listas y filtro
+
+- En **Clientes**, en la **caja** y en **Preventas**, escribir el número —con o sin puntos— encuentra al
+  cliente.
+- Las listas de **Clientes**, **Empleados** y **Proveedores** tienen la columna **«Documento»**
+  («CC 1020345678», «NIT 900123456-8»).
+- La lista de **Clientes** tiene el filtro **«Sin documento»**: los clientes sin número o con un número
+  viejo todavía sin tipo, para completarlos de a poco.
+
+### 9.3 En el papel
+
+- **Recibo** (normal, corto y por correo): una línea con el documento bajo «Cliente».
+- **Factura, cotización y orden de trabajo**: el documento en el bloque del cliente, donde antes salía
+  «Id Impuesto: …».
+- **Comprobantes de preventa** (preventa, abono y cancelación): una fila «Documento» bajo el cliente.
+- Un cliente viejo sin tipo imprime el número solo; un cliente sin número no imprime nada.
+
+### 9.4 Lo que ya existía
+
+- Al desplegar, lo que cada cliente y proveedor tenía en «Id Impuesto» pasa a ser su **número de
+  documento, sin tipo**, tal como estaba escrito. Nada se borra: «Id Impuesto» sigue guardado por si hay
+  que volver atrás.
+- Esos clientes siguen vendiéndose, buscándose e imprimiéndose igual. **La primera vez que alguien los
+  edite**, la ficha pide el tipo (y el número si no tenían).
+- Un cliente viejo con «1.020.345.678» sin tipo **cuenta** como dueño de ese documento: no se puede crear
+  otro cliente con CC 1020345678.
+- Los empleados no tenían ningún dato de identificación: **todos** quedan sin documento y lo piden la
+  primera vez que se editen. El de soporte de la plataforma, nunca.
+- Un proveedor viejo con número pero sin tipo pide el tipo si se edita y se deja el número; si se borra el
+  número, guarda sin documento.
+- Cambiar la contraseña propia (Inicio → contraseña) no pide documento.
+
+### 9.5 Carga masiva de clientes (CSV)
+
+- La plantilla tiene dos columnas nuevas **al final**: «Document Type» (CC, NIT, PA…) y «Document Number».
+  Las demás columnas no se movieron.
+- Una fila sin documento, con un documento que no es válido para su tipo, o con un documento que ya tiene
+  otro cliente (o una fila anterior del mismo archivo), **no entra**, y el mensaje dice la fila y el motivo:
+  «Fila 3: Ya hay un cliente con este documento: Ana Gómez.» Las filas buenas entran.
+

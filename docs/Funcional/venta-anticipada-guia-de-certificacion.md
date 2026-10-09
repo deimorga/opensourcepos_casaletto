@@ -1,8 +1,9 @@
 # Preventas — guía de certificación en staging, paso a paso
 
 > **Para:** el equipo del negocio que certifica el módulo antes de producción.
-> **Estado (2026-10-07):** nosotros ya certificamos (informe: `venta-anticipada-certificacion-staging.md`).
-> Esta guía es para la certificación del equipo del negocio.
+> **Estado (2026-10-08):** nosotros ya certificamos (informe: `venta-anticipada-certificacion-staging.md`).
+> Esta guía es para la certificación del equipo del negocio. Desde el 2026-10-08 incluye el **documento de
+> identidad** de las personas, que sale junto con Preventas (pasos 2 y 12; `documento-de-identidad.md`).
 
 **Dónde:** empezar por **Casaletto staging** — `https://casaletto.staging.ospos-saas.micronuba.net`. Es el
 negocio que va a usar el módulo, tiene mesas, recetas armadas y productos por peso, y el módulo ya está
@@ -39,13 +40,15 @@ Si algo no sale como dice el ✅: anotar el paso, el número de la preventa (PV-
 
 1. Entrar con el **cajero**. ✅ La lista muestra «Lo comprometido» y **no** «Campañas».
 2. **«Nueva preventa»:** campaña; cliente con «Cliente Nuevo», con tildes (p. ej. «José Muñoz»), marcar
-   consentimiento.
+   consentimiento. **Tipo y número de documento son obligatorios** (p. ej. CC «1.020.345.678»).
+   ✅ Sin documento no deja enviar; con él, el cliente queda elegido en la preventa.
 3. Productos (el de peso con decimales, p. ej. 2,5; y la receta) y fecha de entrega.
 4. **Error a propósito:** cuota inicial **menor** al mínimo que muestra la pantalla. ✅ Rechazada.
 5. Corregir: cuota inicial ≥ mínimo hoy en efectivo, y una segunda cuota en diciembre (deben sumar el
    total). Registrar.
 
-✅ Comprobante de preventa con número PV-…, productos, plan, saldo y condiciones.
+✅ Comprobante de preventa con número PV-…, el **documento del cliente** («CC 1020345678»), productos,
+plan, saldo y condiciones.
 
 ## Paso 3 — La plata en el turno
 
@@ -105,3 +108,21 @@ descarga CSV.
 
 En otro negocio de staging (p. ej. «pruebas»): una venta y un cierre de turno normales.
 ✅ Nada de Preventas; todo igual que antes.
+
+## Paso 12 — Documento de identidad (administrador y cajero)
+
+En **Clientes**, en **Empleados** y en la **caja**:
+
+1. **Clientes → Nuevo cliente** sin tipo ni número. ✅ No deja enviar.
+2. Un cliente con **CC «1.020.345.678»**. ✅ Se guarda; la lista muestra «CC 1020345678» en «Documento».
+3. **Otro** cliente con el **mismo número** (con o sin puntos). ✅ Dice «Ya hay un cliente con este documento:
+   …» con el nombre, y no deja guardar.
+4. **Empleados →** un empleado con ese **mismo documento**. ✅ Avisa «Este documento también corresponde al
+   cliente …» y **sí** guarda.
+5. En la **caja** y en **Preventas**, buscar el cliente escribiendo el **número** (con y sin puntos).
+   ✅ Aparece.
+6. Hacer una venta a ese cliente y abrir el **recibo** y la **factura**; abrir el **comprobante** de una
+   preventa suya. ✅ Sale «CC 1020345678»; ya no sale «Id Impuesto».
+7. Opcional: un cliente con **NIT** «800197268». ✅ Se muestra «NIT 800197268-4». Con «800197268-5»
+   ✅ dice que el dígito de verificación no corresponde.
+
