@@ -781,6 +781,13 @@ y un caso nuevo en `tests/Models/PresaleCashupReconciliationTest.php`):
    vista de la caja, `Sales::_edit_presale_delivery_line()`, la restauración de pesos y
    `cart_matches()`. Prueba en `tests/Libraries/PresaleRegisterTest.php`.
 
+6. **(certificación del negocio, 2026-10-08)** El selector de fecha de las cuotas escribía fecha **y hora**
+   («08/10/2026 20:24:03») y el servidor, que lee una fecha, lo rechazaba. Causa: `presales/form.php` usaba
+   `pickerconfig()` del parcial compartido `partial/datepicker_locale.php`, que arma el formato con la hora
+   e **ignora las opciones que recibe** (`$.extend({...}, <?= isset($config) ?>)` pasa un `1`). Ahora el
+   selector de cuotas se configura con solo la fecha, como el de campañas. **El parcial compartido no se
+   tocó**: lo usan todas las pantallas con fechas; su defecto queda anotado para arreglarlo aparte.
+
 De paso: `presale_quantity()` (`app/Helpers/presales_helper.php`) muestra un producto por peso con hasta
 tres decimales y su unidad en el detalle y el comprobante, sin depender de `quantity_decimals` (con 0, 2,5
 kg salía «3»); y `Config.saved_successfully` estaba en inglés en es-MX.

@@ -260,7 +260,19 @@ $(document).ready(function() {
             .append($('<td>').append(remove_button()));
 
         $('#presale_plan tbody').append($row);
-        $date.datetimepicker(pickerconfig({ minView: 2 }));
+        // Date only, configured here and not through pickerconfig(): the shared partial builds its format
+        // with the time of day and pickerconfig() ignores the options it is given ($.extend with a stray
+        // `1`), so the instalment field got "08/10/2026 20:24:03" and the server, which reads a date, refused
+        // the value the picker itself wrote (staging, 2026-10-08). Same settings as campaign_form.php.
+        $date.datetimepicker({
+            format: <?= json_encode(dateformat_bootstrap($config['dateformat'])) ?>,
+            minView: 2,
+            autoclose: true,
+            todayBtn: true,
+            todayHighlight: true,
+            bootcssVer: 3,
+            language: <?= json_encode(current_language_code()) ?>
+        });
         label_installments();
     };
 

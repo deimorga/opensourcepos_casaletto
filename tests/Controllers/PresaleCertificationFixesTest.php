@@ -141,6 +141,21 @@ final class PresaleCertificationFixesTest extends CIUnitTestCase
     }
 
     /**
+     * Staging, 2026-10-08: the instalment date picker wrote "08/10/2026 20:24:03" and the server, which
+     * reads a date, refused it. The instalment picker is configured with the business's date format only,
+     * not through the shared pickerconfig() (which carries the time and ignores the options it is given).
+     */
+    public function testTheInstalmentDatePickerWritesTheDateOnly(): void
+    {
+        helper('locale');
+
+        $body = (string) $this->get_as('/presales/new')->response()->getBody();
+
+        $this->assertStringNotContainsString('pickerconfig({ minView', $body);
+        $this->assertStringContainsString('format: ' . json_encode(dateformat_bootstrap(config(OSPOS::class)->settings['dateformat'])), $body);
+    }
+
+    /**
      * @param array<string, string> $settings
      */
     private function given(array $settings): void

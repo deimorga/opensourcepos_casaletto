@@ -473,6 +473,9 @@ los pasos. Se corrigieron cuatro cosas antes de seguir:
 Además, un producto por peso se muestra siempre con sus decimales y su unidad (2,5 kg) en el detalle y
 en el comprobante.
 
+El 2026-10-08, en la certificación del equipo, se corrigió el calendario de las cuotas: al elegir un día
+escribía también la hora y la preventa no se dejaba registrar. Ahora escribe solo la fecha.
+
 ## 5. Lo que este requerimiento NO hace
 
 - **No es fiado.** El producto no sale antes de estar pagado. El crédito con entrega inmediata
