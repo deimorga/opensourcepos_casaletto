@@ -1,8 +1,7 @@
 # Alcance funcional — Tipo y número de documento de las personas
 
-> **Estado (2026-10-08):** **definición, sin construir.** Pedido del dueño el 2026-10-08, durante la
-> certificación de Preventas en staging. Decisiones en §6. Falta decidir cuándo sale respecto a Preventas
-> (§7).
+> **Estado (2026-10-08):** **definición cerrada, en construcción.** Pedido del dueño el 2026-10-08, durante la
+> certificación de Preventas en staging. Decisiones en §6. **Sale junto con Preventas** (§7).
 >
 > Documento hermano: `docs/Tecnico/documento-de-identidad.md`.
 
@@ -111,8 +110,9 @@ desde aquí.
 | **I2** | Obligatorio siempre para clientes y empleados; opcional para proveedores | 2026-10-08 |
 | **I3** | Único dentro de cada rol en el negocio; se puede repetir entre roles, con aviso | 2026-10-08 |
 | **I4** | Aplica a clientes, empleados y proveedores; búsqueda por documento; impreso en documentos; carga masiva | 2026-10-08 |
-| **I5** | «Id Impuesto» se convierte en «Número de documento»; lo ya guardado se conserva | 2026-10-08 (propuesta) |
-| **I6** | NIT con dígito de verificación calculado | 2026-10-08 (propuesta) |
+| **I5** | «Id Impuesto» se convierte en «Número de documento»; lo ya guardado se conserva | 2026-10-08 |
+| **I6** | NIT con dígito de verificación calculado | 2026-10-08 |
+| **I7** | Sale junto con Preventas | 2026-10-08 |
 
 ### 6.1 Preguntas resueltas el 2026-10-08
 
@@ -125,12 +125,9 @@ desde aquí.
 
 ## 7. Cuándo sale
 
-Pendiente de decisión del dueño. Opciones:
-
-- **Con Preventas**, antes de producción: el cliente de una preventa nace con documento. Agrega unos días a
-  la salida de Preventas.
-- **Después de Preventas**, en su propio despliegue: Preventas sale en la fecha prevista y los clientes se
-  completan al editarlos.
+**Junto con Preventas** (decisión del dueño, 2026-10-08): se construye y se despliega a staging antes de
+la salida, para que los clientes de las preventas nazcan con documento. El equipo del negocio certifica las
+dos cosas juntas con la guía actualizada. **I7**.
 
 ## 8. Cómo se va a comprobar
 

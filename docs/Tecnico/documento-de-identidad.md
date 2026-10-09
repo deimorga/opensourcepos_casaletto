@@ -1,6 +1,6 @@
 # Tipo y número de documento de las personas — diseño técnico
 
-> **Estado (2026-10-08):** **diseño, sin código.** Decisiones de negocio en
+> **Estado (2026-10-08):** **diseño aprobado, en construcción** (rama `feat/identity-document`; sale con Preventas). Decisiones de negocio en
 > `docs/Funcional/documento-de-identidad.md` §6. Verificado contra `develop` en `ea184d274`.
 
 ---
