@@ -1,8 +1,8 @@
 # Alcance funcional — Tipo y número de documento de las personas
 
-> **Estado (2026-10-08):** **construido**, en la rama `feat/identity-document`, **pendiente de desplegar a
-> staging y certificar** junto con Preventas (§7). Pedido del dueño el 2026-10-08, durante la certificación
-> de Preventas en staging. Decisiones en §6. Cómo quedó, en §9.
+> **Estado (2026-10-14):** **en producción** en todos los negocios, junto con Preventas. Al desplegar, el
+> número que estaba en «Id Impuesto» pasó a «Número de documento» sin tipo: hay que completar el tipo la
+> próxima vez que se edite cada ficha. Pedido del dueño el 2026-10-08. Decisiones en §6. Cómo quedó, en §9.
 >
 > Documento hermano: `docs/Tecnico/documento-de-identidad.md`.
 
@@ -141,7 +141,7 @@ cliente antiguo (pide el tipo); cargar un CSV con filas buenas y malas; crear un
 
 ## 9. Cómo quedó (construido el 2026-10-08)
 
-Lo que va a ver el equipo del negocio cuando se despliegue. Todavía **no** está en staging ni en producción.
+Lo que ve el equipo del negocio. En producción desde el 2026-10-14.
 
 ### 9.1 En las fichas
 

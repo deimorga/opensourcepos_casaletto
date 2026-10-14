@@ -1,8 +1,13 @@
 # Venta anticipada (Preventas) — diseño técnico
 
-> **Estado (2026-10-07, 18:30):** construido, en `develop` y **certificado por nosotros en staging**
-> (`4e17cb62d`, §7.10). Pendiente: certificación del equipo del negocio y producción. Decisiones de
-> negocio en `docs/Funcional/venta-anticipada.md` §6 (D1-D29); técnicas en §3.
+> **Estado (2026-10-14, 09:10):** **en producción**, commit `e0554cfab` (run 38577073219 de
+> `deploy-production.yml`, autorizado en horario de venta). Respaldo previo
+> `/root/backups/prod-20261014-090728-fbd822908`; vuelta atrás `casaletto-ospos:rollback-prod-20261014-090728-fbd822908`
+> **junto con ese respaldo** (la imagen anterior no conoce las cinco migraciones nuevas). Las migraciones
+> corrieron en los 4 esquemas («All schemas current») y `platform:support-employee` actualizó 3 negocios.
+> El módulo nace apagado (`presales_enable = '0'`) y sin permisos concedidos; se enciende por negocio.
+> Certificación en staging en §7.10. Decisiones de negocio en `docs/Funcional/venta-anticipada.md` §6
+> (D1-D29); técnicas en §3.
 
 ---
 

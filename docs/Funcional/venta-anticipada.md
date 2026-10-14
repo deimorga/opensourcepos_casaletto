@@ -1,11 +1,11 @@
 # Alcance funcional — Venta anticipada (Preventas): se paga por cuotas, se entrega al final
 
-> **Estado (2026-10-07, 18:30):** **construido y certificado por nosotros en staging**, en dos negocios con
-> configuración distinta (informe: `venta-anticipada-certificacion-staging.md`). Encendido en Casaletto
-> staging y Panadería La Espiga; apagado en todos los demás negocios. **Pendiente: la certificación del
-> equipo del negocio y la salida a producción.** No está en producción.
->
-> Documento hermano: `docs/Tecnico/venta-anticipada.md`.
+> **Estado (2026-10-14, 09:10):** **en producción** en todos los negocios, **apagado** salvo que el negocio
+> lo encienda (Configuración → Preventas). El dueño autorizó la salida el 2026-10-14 en horario de venta,
+> después de nuestra certificación en staging (informe: `venta-anticipada-certificacion-staging.md`).
+> **Casaletto lo enciende ya**, para su temporada navideña: interruptor, permisos «Preventas» y
+> «Gestionar preventas» al administrador, y su campaña. Staging sigue encendido en Casaletto staging y
+> Panadería La Espiga.
 
 ---
 

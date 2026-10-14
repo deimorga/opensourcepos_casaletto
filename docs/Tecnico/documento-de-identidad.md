@@ -1,8 +1,9 @@
 # Tipo y número de documento de las personas — diseño técnico
 
-> **Estado (2026-10-08):** **construido** en la rama `feat/identity-document` (desde `develop` en `68e7bacd4`),
-> **sin desplegar**: falta staging y la certificación del negocio, junto con Preventas. Decisiones de negocio
-> en `docs/Funcional/documento-de-identidad.md` §6. Lo construido y lo decidido al construir, en §6 y §7.
+> **Estado (2026-10-14):** **en producción**, commit `e0554cfab`, junto con Preventas. La migración
+> `20261008040000_AddPersonIdentityDocument` corrió en los 4 esquemas: copió `tax_id` a `document_number`
+> sin tipo y no borró `tax_id`. Decisiones de negocio en `docs/Funcional/documento-de-identidad.md` §6.
+> Lo construido y lo decidido al construir, en §6 y §7.
 
 ---
 
