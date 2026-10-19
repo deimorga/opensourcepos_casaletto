@@ -74,6 +74,7 @@ Después, **la prueba que ningún script hace**:
 | Impresora | Predeterminada fija; driver con `zjCashDrawer = zjNoCashDrawer` | Imprimir en otra impresora; que cada impresión abra el cajón |
 | Energía | Inicio rápido apagado; botón de encendido = Apagar | Que «apagar» hibernara, y al encender el agente no arrancara |
 | SSH | Solo llave, solo `AllowUsers` de la cuenta, apagado y deshabilitado | Una puerta abierta permanente en la red del cliente |
+| `C:\POS` | Escriben solo Administradores y SYSTEM; la cuenta de la caja, solo en `perfil-chrome` | Que alguien sin ser administrador cambie `pos-agent.exe` o `arreglar-puertos.ps1`, que corren como SYSTEM, y se vuelva SYSTEM. Una carpeta en la raíz de C: hereda «modificar» para todo usuario |
 
 **El SSH no vuelve solo, a propósito.** Después de cualquier reinicio está
 apagado: alguien en el local toca **2 - SSH ENCENDER** y dicta la IP que

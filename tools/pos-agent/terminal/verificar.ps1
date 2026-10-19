@@ -73,6 +73,23 @@ if (Test-Path "$pos\agente\pos-agent.log") {
 }
 
 ''
+'-- Permisos de lo que corre como SYSTEM'
+# Si alguien que no es administrador puede escribir aqui, puede correr lo que
+# quiera como SYSTEM. Se aceptan Administradores, SYSTEM y TrustedInstaller.
+$confiables = @('S-1-5-32-544', 'S-1-5-18', 'S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464')
+foreach ($ruta in $pos, "$pos\agente", "$pos\agente\pos-agent.exe", "$pos\arreglar-puertos.ps1") {
+    if (-not (Test-Path $ruta)) { continue }
+    $quienes = (Get-Acl $ruta).Access | Where-Object {
+        $_.AccessControlType -eq 'Allow' -and
+        ($_.FileSystemRights -match 'FullControl|Modify|Write|Delete|ChangePermissions|TakeOwnership')
+    } | ForEach-Object {
+        try { $sid = $_.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value } catch { $sid = "$($_.IdentityReference)" }
+        if ($confiables -notcontains $sid) { "$($_.IdentityReference)" }
+    } | Select-Object -Unique
+    Revisar (-not $quienes) "solo administradores escriben en $ruta" "tambien puede escribir: $($quienes -join ', ')"
+}
+
+''
 '-- Arranque sin ventanas'
 $t = Get-ScheduledTask -TaskName ArreglarPuertos -ErrorAction SilentlyContinue
 Revisar ($t -and $t.Principal.UserId -match 'SYSTEM') 'ArreglarPuertos existe y corre como SYSTEM' $(if ($t) { "corre como $($t.Principal.UserId)" } else { 'no existe' })

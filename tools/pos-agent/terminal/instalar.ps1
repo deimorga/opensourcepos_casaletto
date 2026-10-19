@@ -52,9 +52,18 @@ $argsChrome = "--kiosk --kiosk-printing --user-data-dir=`"$pos\perfil-chrome`" -
 
 # ---------------------------------------------------------------------------
 Paso 'Carpetas y archivos de apoyo'
-foreach ($d in $pos, "$pos\agente", "$pos\respaldo-tareas") {
+foreach ($d in $pos, "$pos\agente", "$pos\respaldo-tareas", "$pos\perfil-chrome") {
     New-Item -ItemType Directory -Force -Path $d | Out-Null
 }
+# Aqui viven programas que corren como SYSTEM. Una carpeta en la raiz de C:
+# hereda "modificar" para cualquier usuario autenticado, y quien pudiera
+# reemplazar pos-agent.exe o arreglar-puertos.ps1 correria como SYSTEM. Se
+# cierra: escriben solo Administradores y SYSTEM; los demas leen y ejecutan.
+icacls $pos /inheritance:r /grant '*S-1-5-32-544:(OI)(CI)F' /grant '*S-1-5-18:(OI)(CI)F' /grant '*S-1-5-32-545:(OI)(CI)RX' | Out-Null
+if ($LASTEXITCODE -ne 0) { throw "no se pudieron cerrar los permisos de $pos" }
+# Menos el perfil de Chrome, que el quiosco escribe sin elevar.
+icacls "$pos\perfil-chrome" /grant "$env:COMPUTERNAME\${Usuario}:(OI)(CI)M" | Out-Null
+if ($LASTEXITCODE -ne 0) { throw "no se pudo dar a $Usuario el perfil de Chrome" }
 foreach ($f in 'arreglar-puertos.ps1', 'verificar.ps1', 'ver-mi-ip.cmd', 'ssh-encender.cmd', 'ssh-apagar.cmd') {
     Copy-Item -Path (Join-Path $aqui $f) -Destination (Join-Path $pos $f) -Force
 }
