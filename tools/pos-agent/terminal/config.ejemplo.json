@@ -1,0 +1,24 @@
+{
+    "puerto_http": 7878,
+    "origenes_permitidos": [
+        "https://NEGOCIO.ospos-saas.micronuba.net"
+    ],
+    "bascula": {
+        "puerto": "auto",
+        "baudios": 4800,
+        "bits_datos": 8,
+        "paridad": "N",
+        "bits_parada": 1,
+        "comando": "",
+        "frescura_ms": 3000,
+        "espera_ms": 2500
+    },
+    "impresora": {
+        "nombre": "POS-58-Series",
+        "abrir_cajon": [27, 112, 0, 25, 250]
+    },
+    "actualizacion": {
+        "manifiesto": "",
+        "cada_horas": 24
+    }
+}

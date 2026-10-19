@@ -130,13 +130,16 @@ el cajero, que sólo ve que no hay peso.
 Es lo primero que hay que mirar: el cajero no ve nada del agente, así que **sin
 este archivo no hay forma de saber por qué no funciona**.
 
-**No arranca sin ventana, aunque esta nota lo dijo hasta el 2026-09-30.** Es un
-programa de consola (subsistema PE 3): lanzado por la tarea `AgentePOS` abre una
-ventana negra, y **cerrarla lo apaga** — `CTRL_CLOSE_EVENT` llega como
-`SIGTERM` y la bitácora escribe `cerrando`. Así pasó ese día: `arrancando` a
-las 10:34:11, `cerrando` catorce segundos después, y la caja quedó sin cajón
-ni báscula. Un `cerrando` sin que nadie apagara el equipo es casi siempre
-eso.
+**Es un programa de consola** (subsistema PE 3): lanzado en la sesión del
+cajero abre una ventana negra, y **cerrarla lo apaga** — `CTRL_CLOSE_EVENT`
+llega como `SIGTERM` y la bitácora escribe `cerrando`. Así pasó el 2026-09-30:
+`arrancando` a las 10:34:11, `cerrando` catorce segundos después, y la caja
+quedó sin cajón ni báscula.
+
+Por eso **la tarea `AgentePOS` lo corre como SYSTEM**, en la sesión 0, donde
+no hay ventana que cerrar, y con un vigilante cada 5 minutos (desde el
+2026-10-19). Cómo se deja así una caja: [`terminal/`](terminal/README.md).
+Un `cerrando` sin que nadie apagara el equipo quiere decir que algo lo mató.
 
 ## Actualización a distancia
 
