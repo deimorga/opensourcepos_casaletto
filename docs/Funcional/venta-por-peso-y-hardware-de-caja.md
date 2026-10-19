@@ -1,5 +1,15 @@
 # Alcance funcional — Venta por peso, hardware de caja e inventario para supermercado
 
+> **Actualización del 2026-10-19: al encender ya no sale ninguna ventana negra.** El programa de
+> la caja arranca escondido, donde nadie lo puede cerrar, y si se cae vuelve solo en 5 minutos
+> como mucho. El botón de encendido ahora **apaga de verdad**: antes dejaba el equipo dormido, y al
+> despertarlo la báscula podía quedar desconectada. La lentitud de esa mañana era del equipo,
+> recién prendido tras cuatro días apagado, y no del sistema (§4.3c-bis). Desde ahora, montar una
+> caja nueva es correr un instalador que deja todo igual que en Paraíso.
+>
+> **Al 2026-10-19 el negocio no registra ventas desde el 12 de octubre**, y siguen **221 artículos
+> sin precio, 12 de ellos por peso**.
+>
 > **Estado a 2026-09-30: la caja está completa y el negocio empezó a vender de verdad.**
 >
 > Visita al local ese día. Quedó funcionando, **probado con ventas reales en la caja**:
@@ -25,9 +35,9 @@
 > carga masiva (`docs/Funcional/carga-masiva-de-articulos.md`) o desde la ficha del artículo.
 >
 > **Lo que queda abierto:**
-> - **Al encender el equipo salen ventanas negras que no hay que cerrar** (§4.3c-bis). Cerrarlas
->   el 2026-09-30 dejó la caja sin cajón, sin báscula y sin modo caja. Hacer que no aparezcan está
->   preparado y espera autorización.
+> - ~~**Al encender el equipo salen ventanas negras que no hay que cerrar**~~ **Resuelto el
+>   2026-10-19** (§4.3c-bis). Cerrarlas el 2026-09-30 dejó la caja sin cajón, sin báscula y sin
+>   modo caja.
 > - **Windows no está activado**: es una compra del cliente.
 > - **Falta confirmar si habrá pistola lectora.**
 >
@@ -243,8 +253,8 @@ instalado en el PC de la caja que abre el puerto y le entrega el peso a la pági
 ### 4.2 Qué es ese programa, en términos del negocio
 
 Es un ejecutable nuestro que arranca con el computador y se queda esperando. No pide nada al usuario
-y no hay que abrirlo. Se instala una vez por caja durante el montaje. **Sí abre una ventana negra al
-arrancar, y no hay que cerrarla** — ver §4.3c-bis.
+y no hay que abrirlo. Se instala una vez por caja durante el montaje. Desde el 2026-10-19 **no
+tiene ventana**: no hay nada que el cajero pueda cerrar por error — ver §4.3c-bis.
 
 Lo que hace hoy:
 
@@ -354,10 +364,25 @@ Esa mañana alguien vio las ventanas y las cerró. Con eso **se apagaron las tre
 hubo cajón ni báscula, y sin lanzador Chrome no arrancó en modo caja; lo abrieron a mano desde el
 escritorio, sin impresión directa. Parecía que el sistema estaba roto, y era una ventana cerrada.
 
-**Qué hay que decirle al cajero:** al encender, **no cerrar ninguna ventana negra** y esperar un
-minuto a que la caja se abra sola a pantalla completa. **El arreglo de fondo** —que las tres
-arranquen sin ventana, para que no haya nada que cerrar— está preparado en el terminal y **espera
-autorización**, porque cambia cómo arranca el equipo.
+**Arreglado el 2026-10-19, con autorización del dueño.** Las tres arrancan sin ventana: no queda
+nada que cerrar. El programa de la caja corre escondido y **un vigilante lo revisa cada 5
+minutos**; si alguna vez se cae, vuelve solo. Al encender, el cajero espera un minuto y la caja se
+abre sola a pantalla completa.
+
+**El botón de encendido ahora apaga de verdad.** Antes, «apagar» dejaba el equipo en una especie de
+sueño profundo, y al encender lo despertaba en vez de arrancarlo. Ese despertar no siempre volvía a
+conectar la báscula. Ahora se apaga completo, con el botón físico o con el menú, y cada mañana
+arranca limpio. Tarda unos segundos más en encender.
+
+**«El sistema está lento» (2026-10-19): era el equipo.** Se midió ese día. El sistema respondía en
+6 centésimas de segundo, y el internet del local alcanza. Lo que estaba ocupado era el propio
+computador: venía de cuatro días apagado y el antivirus de Windows se estaba poniendo al día. Es
+pasajero. Si la lentitud vuelve con el equipo ya encendido desde hace rato, hay que avisar para
+medirla otra vez.
+
+**Para la próxima caja:** todo lo que se le hizo a este equipo quedó escrito en un instalador.
+Montar una caja nueva ya no depende de que alguien se acuerde de cada ajuste, y un revisor dice en
+un minuto si una caja está bien configurada.
 
 **Lo que hace por dentro, que importa aunque no se vea:** no interpreta el peso. Lo entrega tal como
 lo dijo la báscula y es el sistema el que lo traduce. Suena a detalle técnico y es una decisión de
@@ -799,7 +824,8 @@ báscula y no con el peso digitado.
 5. **¿Cuántas cajas va a tener?** Define cuántas básculas montar y cómo se hace el cuadre si hay más
    de un cajero por turno.
 6. ~~¿Cuántos productos tiene el catálogo?~~ **Resuelta: 1.217.** La velocidad de la caja con ese
-   tamaño **no se ha medido**; en la visita del 2026-09-30 nadie reportó lentitud.
+   tamaño **no se ha medido**; en la visita del 2026-09-30 nadie reportó lentitud. La que se
+   reportó el 2026-10-19 era del equipo y no del catálogo (§4.3c-bis).
 
 ## 10. Referencia técnica
 

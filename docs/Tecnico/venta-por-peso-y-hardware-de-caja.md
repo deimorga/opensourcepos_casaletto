@@ -1,5 +1,12 @@
 # Diseño técnico — Venta por peso, hardware de caja e inventario para supermercado
 
+> **Estado a 2026-10-19: el arranque del terminal ya no tiene ventanas que cerrar.** Aplicado en el
+> terminal de Paraíso con autorización del dueño. Además, el agente corre como **SYSTEM** con un
+> vigilante cada 5 minutos, el inicio rápido de Windows está apagado y el botón físico apaga. Sin
+> cambios de código del POS. La configuración entera del terminal quedó versionada en
+> `tools/pos-agent/terminal/` (instalador idempotente y verificador de solo lectura). La lentitud
+> que se reportó ese día era del equipo, no de la plataforma. Todo esto está en §7b-bis.
+>
 > **Estado a 2026-09-30: la caja de Paraíso está completa y probada en el local.** Producción en
 > `fbd822908`. Báscula (desde 2026-09-02), **cajón al finalizar una venta en efectivo** y **recibo
 > solo a pedido**, maquetado a 58 mm — los tres probados con ventas reales en el terminal ese día.
@@ -460,9 +467,10 @@ Los tres son de baja gravedad para el camino elegido, pero se arreglan al tocar 
 ### 5.1 Qué es
 
 Un ejecutable propio en el PC de la caja que abre el puerto de la báscula y lo publica por WebSocket
-en `localhost`. Arranca con la sesión y no pide nada al usuario. **Es un programa de consola**
-(subsistema PE 3): lanzado por la tarea de arranque abre una ventana negra, y **cerrarla lo apaga**
-— ver «El arranque en modo caja» en §7b-bis.
+en `localhost`. Arranca con el equipo y no pide nada al usuario. **Es un programa de consola**
+(subsistema PE 3): lanzado en la sesión del cajero abre una ventana negra, y **cerrarla lo apaga**.
+Por eso, desde el 2026-10-19, corre como **SYSTEM** en la sesión 0, donde no tiene ventana — ver
+«El arranque en modo caja» en §7b-bis.
 
 **Tecnología: Go.** Compila a un binario estático único, sin runtime que instalar en el equipo del
 cliente — ni JVM, ni .NET, ni Python. Es la diferencia entre un archivo y un procedimiento de
@@ -875,7 +883,7 @@ es lo que hay que saber para tocarlo; el detalle está en ese README.
 | | |
 |---|---|
 | Dónde vive | `C:\POS\agente\pos-agent.exe` + `config.json` + `pos-agent.log` |
-| Cómo arranca | Tarea programada **`AgentePOS`**, al iniciar sesión, como `BTS` |
+| Cómo arranca | Tarea programada **`AgentePOS`**, como **SYSTEM**: al arrancar, al iniciar sesión y un vigilante cada 5 min (hasta el 2026-10-19: al iniciar sesión, como `BTS`, con ventana) |
 | Dónde escucha | `127.0.0.1:7878` — **solo loopback**, verificado con `netstat` |
 | Versión instalada | `1.0.0` |
 | Pruebas | **22, verdes con `-race`** |
@@ -1245,8 +1253,13 @@ una máquina que maneja dinero, esa clase de herramienta modifica servicios del 
 | `scale-probe.exe` | En el escritorio, **ejecutado de punta a punta** en esta máquina |
 | Driver **POS-58-Series** | Instalado el 2026-09-02, cola en `USB001`. **Cajón del driver apagado el 2026-09-30** — ver «La impresora» |
 | Acceso a la caja | Modo kiosco con `--kiosk-printing`, tarea `PuntoDeVenta` |
-| **`pos-agent.exe` 1.4.0** | En `C:\POS\agente\`, tarea `AgentePOS` (§5.10e) |
-| `arreglar-puertos.ps1` | Tarea `ArreglarPuertos`: reapunta la cola al `USB00N` presente si la impresora cambió de conector |
+| **`pos-agent.exe` 1.4.0** | En `C:\POS\agente\`, tarea `AgentePOS` como SYSTEM (§5.10e) |
+| `arreglar-puertos.ps1` | Tarea `ArreglarPuertos`, como SYSTEM: reapunta la cola al `USB00N` presente si la impresora cambió de conector |
+| Energía | Inicio rápido apagado y botón físico = Apagar, desde el 2026-10-19 |
+
+**Todo lo de esta tabla se reproduce con `tools/pos-agent/terminal/instalar.ps1`**, salvo los
+drivers, que llevan el hardware presente. `verificar.ps1`, en la misma carpeta, revisa una
+terminal punto por punto sin cambiar nada.
 
 *Al 2026-08-31 la tabla decía que el driver de la impresora estaba copiado sin instalar y que el
 agente era la 1.0.0; ambas cosas cambiaron en la visita del 2026-09-02.*
@@ -1262,12 +1275,16 @@ conectar la báscula**. Si ese día no aparece el puerto, se baja el actual de `
 
 ### El arranque en modo caja
 
-`C:\POS\abrir-caja.cmd`, disparado por la tarea programada **`PuntoDeVenta`** al iniciar sesión.
+La tarea programada **`PuntoDeVenta`** lanza Chrome directo, en la sesión del cajero, **40 segundos
+después de iniciar sesión**:
 
 ```
-timeout /t 40 /nobreak
-chrome --kiosk --user-data-dir="C:\POS\perfil-chrome" --no-first-run <url del negocio>
+chrome --kiosk --kiosk-printing --user-data-dir="C:\POS\perfil-chrome" --disable-features=TranslateUI --no-first-run <url del negocio>
 ```
+
+*Hasta el 2026-10-19 la tarea corría `C:\POS\abrir-caja.cmd`, que hacía `timeout /t 40` en una
+ventana con la cuenta regresiva. La espera pasó al disparador de la tarea (`Delay = PT40S`), y
+`abrir-caja.cmd` queda solo para el acceso directo «PUNTO DE VENTA», que reabre el quiosco a mano.*
 
 **Los 40 segundos no son adorno.** Al encender, la WiFi todavía no ha conectado; sin la pausa Chrome
 abre antes de que haya red y se queda en una página de error que un cajero no sabe quitar. El perfil
@@ -1300,12 +1317,68 @@ Dos cosas que se descartaron por el camino y conviene no volver a perseguir: **n
 —las tres tareas tienen «detener en batería», pero el terminal no tiene batería— y **no fue un
 reinicio**: el equipo se reanudó de la hibernación del apagado rápido a las 10:34:02.
 
-**El arreglo de fondo está preparado y NO aplicado.** `C:\Users\BTS\ocultar.ps1` lanza las tres
-órdenes por un `wscript` que no abre ventana —misma orden, mismo usuario, mismo disparador—, les
-quita «detener en batería» y el límite de 72 horas, y respalda cada tarea en
-`C:\POS\respaldo-tareas\` antes de tocarla. **Cambiar las tareas de arranque del equipo requiere
-autorización explícita del dueño**, y al cierre de la visita no la había. Hasta entonces, la regla
-para el cajero: **al encender, no cerrar ninguna ventana negra**.
+**Aplicado el 2026-10-19, con autorización del dueño, y con otro diseño que el que se preparó el
+30/09.** El de entonces, `C:\Users\BTS\ocultar.ps1`, escondía las ventanas con un `wscript`: las
+mismas tareas, en la misma sesión del cajero, sin ventana visible. **Se descartó** porque el agente
+seguía viviendo en una sesión que se puede cerrar, y si algo lo tumbaba nadie lo volvía a levantar.
+Lo aplicado:
+
+| Tarea | Antes | Ahora |
+|---|---|---|
+| `AgentePOS` | `BTS`, al iniciar sesión, con ventana | **SYSTEM** en la sesión 0: al arrancar + al iniciar sesión + diario repitiendo cada 5 min. `MultipleInstances = IgnoreNew`, así que el vigilante no hace nada si está vivo y lo levanta si murió. Reintenta 3 veces, cada minuto |
+| `ArreglarPuertos` | `BTS`, `powershell` con ventana | **SYSTEM**, sin ventana |
+| `PuntoDeVenta` | `abrir-caja.cmd` con `timeout` visible | Chrome directo; la espera es `Delay = PT40S` del disparador. Sigue en la sesión de `BTS`, porque tiene que verse |
+
+A las tres se les quitó «detener en batería» y el límite de ejecución. Antes de tocarlas, cada una
+se exportó a `C:\POS\respaldo-tareas\<Tarea>.xml`; se recupera con `Register-ScheduledTask -Xml`.
+Verificado ese día: agente en la sesión 0 como SYSTEM, `/estado` respondiendo y báscula en `COM10`.
+
+**SYSTEM puede imprimir y leer la báscula igual que `BTS`:** la cola de impresión y el puerto COM
+son del equipo, no de la sesión. Lo que no puede hacer SYSTEM es mostrar Chrome, y por eso
+`PuntoDeVenta` no se movió.
+
+#### Inicio rápido: «Apagar» no apagaba (2026-10-19)
+
+Con el inicio rápido de Windows (`HiberbootEnabled = 1`), «Apagar» cierra la sesión e **hiberna el
+núcleo**, y al encender el equipo **se reanuda**: no arranca. El 30/09 ya se había visto
+(«se reanudó de la hibernación del apagado rápido a las 10:34:02»). Al reanudar no corren los
+disparadores de arranque, y el agente amanecía muerto. Además, el botón físico estaba en *No hacer
+nada* con corriente y en *Suspender* con batería.
+
+Aplicado ese día: `HiberbootEnabled = 0` y `PBUTTONACTION = 3` (Apagar) con corriente y con
+batería. Una pulsación corta del botón **apaga de verdad**, y el encendido siguiente es un arranque
+en frío con todas las tareas. El costo son unos segundos más de arranque. El vigilante de
+`AgentePOS` cubre lo que quede: un agente muerto vuelve en 5 minutos como mucho.
+
+Volver atrás: `HiberbootEnabled = 1`; botón 0 con corriente y 1 con batería.
+
+#### «El sistema está lento»: era el equipo (2026-10-19)
+
+Medido ese día por SSH, con el equipo recién encendido tras cuatro días apagado:
+
+| Dónde | Resultado |
+|---|---|
+| La plataforma | **0,06 s** de respuesta del servidor; páginas comprimidas (gzip) y HTTP/2 |
+| Internet del local | 14–29 Mbps: suficiente |
+| El terminal | CPU ocupada por **Windows Defender poniéndose al día** después de cuatro días apagado |
+
+O sea que la lentitud de esa mañana fue del terminal, y es pasajera: se va cuando Defender
+termina. *Una primera lectura culpó al servidor por ~280 KB/s; estaba mal medida, sin
+compresión.*
+
+#### La configuración del terminal está versionada
+
+Nada de lo anterior es código del POS: vive en el Windows del cliente. Para que la caja siguiente
+no dependa de la memoria de nadie, quedó en **`tools/pos-agent/terminal/`**:
+
+- `instalar.ps1`: idempotente, con la dirección del negocio como parámetro. Respalda lo que
+  reemplaza y **no toca un `config.json` que ya exista**.
+- `verificar.ps1`: solo lee, y dice OK o FALLA en cada punto. Es también el diagnóstico de «no
+  pesa» o «no abre el cajón».
+- `arreglar-puertos.ps1` y los accesos directos de soporte.
+
+El README de esa carpeta trae lo que no se automatiza: Windows, drivers, llave de soporte y la
+prueba de apagar y encender.
 
 ### El acceso remoto: encendido a demanda, no permanente
 
@@ -2086,10 +2159,10 @@ en el plan (`~/.claude/plans/prancy-puzzling-umbrella.md`).
 **El cliente ya salió a producción** y el agente local, que no estaba en el camino crítico, terminó
 llegando antes que la salida: la báscula vende desde el 2026-09-02.
 
-**Lo que queda abierto** es el módulo de inventario y dos cosas del terminal: **que las tareas de
-arranque corran sin ventana** (preparado, espera autorización — §7b-bis) y **abrir el cajón sin
-venta** desde la pantalla, que el agente ya sabe hacer. Lo más urgente del negocio no es técnico:
-**250 de 1.217 artículos sin precio, 27 de ellos por peso**, y un artículo sin precio sale a $0.
+**Lo que queda abierto** es el módulo de inventario y **abrir el cajón sin venta** desde la
+pantalla, que el agente ya sabe hacer. El arranque sin ventanas quedó aplicado el 2026-10-19
+(§7b-bis). Lo más urgente del negocio no es técnico: **al 2026-10-19, 221 de 1.263 artículos
+activos sin precio, 12 de ellos por peso**, y un artículo sin precio sale a $0.
 
 **Orden de merge respetado:** V1 → V3 → V2. V3 fue primero entre las de código porque **no trae
 migración**, lo que la hacía la candidata segura para estrenar el pipeline nuevo del entrypoint.
