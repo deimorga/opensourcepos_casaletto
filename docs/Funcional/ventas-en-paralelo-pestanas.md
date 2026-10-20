@@ -5,7 +5,7 @@
 - **Revisado contra documentación funcional:** 2026-07-09 (ver sección 5.1)
 - **Decisión de diseño aprobada:** 2026-07-09 (ver sección 5.2)
 - **Verificación funcional completa:** 2026-07-10 (3+ mesas reales, alternancia, resiliencia ante reinicio, cobro — 2 bugs reales encontrados y corregidos en el ciclo, ver doc técnico sección 9)
-- **Corrección 2026-10-19:** ninguna cuenta pierde productos al vaciarla ni al abrir otra (ver sección 5.5) — en rama, pendiente de staging
+- **Corrección 2026-10-19:** ninguna cuenta pierde productos al vaciarla ni al abrir otra (ver sección 5.5) — **en producción desde 2026-10-19 22:48** (`63f87e5e8`), certificada en staging antes
 - **Módulo afectado:** Sales / Register
 
 ## 1. Contexto y motivación

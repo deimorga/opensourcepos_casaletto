@@ -277,6 +277,8 @@ Resultado: cada vez que la sesión perdía el `sale_id` (cierre de sesión, expi
 
 ## 14. Cuentas que "vuelven a como estaban" y ventas perdidas al abrir otra cuenta (2026-10-19)
 
+**Estado: en producción desde 2026-10-19 22:48 (`63f87e5e8`).** Certificada antes en staging con los cuatro casos de 14.2 contra la interfaz desplegada, revisando la base en cada paso. Vuelta atrás: imagen `casaletto-ospos:rollback-prod-20261019-224753-e0554cfab` (no hay migración, así que no hace falta restaurar la base).
+
 **Síntoma reportado por el dueño, en Paraíso de la Canasta:** con dos cuentas abiertas, se modifica la
 primera, se cobra la segunda, y la primera aparece otra vez con los productos de antes. Dos casos ese
 día.
