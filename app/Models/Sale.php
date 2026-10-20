@@ -1547,6 +1547,33 @@ class Sale extends Model
      * This clears the sales detail for a given sale_id before the detail is re-saved.
      * This allows us to reuse the same sale_id
      */
+    /**
+     * Leaves an open tab (OPENED) with no lines, the way the cashier left it on screen.
+     *
+     * Not clear_suspended_sale_detail(): that one also releases the table, and an emptied tab is
+     * still the customer's -- it keeps its table and its place in the tabs bar until it is paid or
+     * cancelled. Only OPENED sales: a completed, suspended or cancelled sale is never touched from
+     * here. No inventory to undo: an open tab moves no stock until it is completed.
+     */
+    public function empty_open_sale(int $sale_id): bool
+    {
+        $row = $this->db->table('sales')->select('sale_status')->where('sale_id', $sale_id)->get()->getRow();
+
+        if ($row === null || (int) $row->sale_status !== OPENED) {
+            return false;
+        }
+
+        $this->db->transStart();
+
+        foreach (['sales_payments', 'sales_items_taxes', 'sales_items', 'sales_taxes'] as $table) {
+            $this->db->table($table)->delete(['sale_id' => $sale_id]);
+        }
+
+        $this->db->transComplete();
+
+        return $this->db->transStatus();
+    }
+
     public function clear_suspended_sale_detail(int $sale_id): bool
     {
         $this->db->transStart();

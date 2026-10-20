@@ -99,18 +99,23 @@ class Dinner_table extends Model
     public function get_empty_tables(?int $current_dinner_table_id): array
     {
         $builder = $this->db->table('dinner_tables');
-        $builder->where('deleted', 0);
         // Grouped explicitly: without groupStart()/groupEnd(), AND binds
-        // tighter than OR in the generated SQL (WHERE deleted = 0 AND status
-        // = 0 OR dinner_table_id = ?), so any soft-deleted table with
+        // tighter than OR in the generated SQL, so any soft-deleted table with
         // status = 0 (the common case -- deleting doesn't touch status)
-        // would still leak into the free-table list regardless of
-        // `deleted`. See docs/Tecnico/ventas-en-paralelo-pestanas.md
-        // section 12.
+        // would leak into the free-table list regardless of `deleted`. See
+        // docs/Tecnico/ventas-en-paralelo-pestanas.md section 12.
+        //
+        // The CURRENT table is listed even when deleted. The dropdown posts
+        // its selected option with every mode or location change, and a
+        // current table missing from it makes the browser post the first
+        // option instead: the register reads that as "switch to that table".
+        // Paraíso deleted table 1 («Cuenta 1») from the configuration, and it
+        // is where every sale starts (§14 of docs/Tecnico/ventas-en-paralelo-pestanas.md).
         $builder->groupStart();
+        $builder->where('deleted', 0);
         $builder->where('status', 0);
-        $builder->orWhere('dinner_table_id', $current_dinner_table_id);
         $builder->groupEnd();
+        $builder->orWhere('dinner_table_id', $current_dinner_table_id);
 
         $empty_tables = $builder->get()->getResultArray();
 

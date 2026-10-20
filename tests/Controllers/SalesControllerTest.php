@@ -3,6 +3,7 @@
 namespace Tests\Controllers;
 
 use App\Models\Appconfig;
+use App\Models\Dinner_table;
 use App\Models\Sale;
 use CodeIgniter\Test\CIUnitTestCase;
 use CodeIgniter\Test\DatabaseTestTrait;
@@ -352,6 +353,114 @@ class SalesControllerTest extends CIUnitTestCase
 
         $this->assertNotContains(1, $openTableIds, 'Delivery must never hold an open tab.');
         $this->assertNotContains(2, $openTableIds, 'Take Away must never hold an open tab.');
+    }
+
+    private function itemsOfSale(int $saleId): array
+    {
+        return array_column(
+            db_connect()->table('sales_items si')
+                ->select('i.item_number')
+                ->join('items i', 'i.item_id = si.item_id')
+                ->where('si.sale_id', $saleId)
+                ->get()->getResultArray(),
+            'item_number'
+        );
+    }
+
+    /**
+     * A tab the cashier emptied stays empty. save_value() refuses an empty cart, and the autosave
+     * used to give up there, leaving the last product in the database: it came back the next time
+     * the tab was opened. Found at Paraíso on 2026-10-19 ("se regresa a los productos iniciales").
+     */
+    public function testAnEmptiedTabStaysEmptyAfterLeavingIt(): void
+    {
+        $this->openTableWithItem($this->tableA, $this->itemNumberA);
+        $saleIdA = model(Sale::class)->get_open_sale_by_table($this->tableA);
+        $this->assertNotNull($saleIdA);
+
+        $this->getReq('sales/deleteItem/1');
+        $this->openTableWithItem($this->tableB, $this->itemNumberB);
+
+        $response = $this->postReq('sales/changeMode', ['mode' => 'sale', 'dinner_table' => $this->tableA]);
+
+        $response->assertDontSee($this->itemNumberA);
+        $this->assertSame([], $this->itemsOfSale($saleIdA), 'The emptied tab must not keep its last product in the database.');
+        $this->assertSame($saleIdA, model(Sale::class)->get_open_sale_by_table($this->tableA), 'Emptied is not closed: the tab stays open until paid or cancelled.');
+    }
+
+    /**
+     * A cart on Delivery lives only in session. Picking an empty table used to clear_all() it away;
+     * now the order goes to that table and is saved there.
+     */
+    public function testACartOnDeliveryMovesToTheEmptyTableChosen(): void
+    {
+        $this->postReq('sales/add', ['item' => $this->itemNumberA]);
+
+        $this->postReq('sales/changeMode', ['mode' => 'sale', 'dinner_table' => $this->tableA]);
+
+        $saleId = model(Sale::class)->get_open_sale_by_table($this->tableA);
+        $this->assertNotNull($saleId, 'The order rung up on Delivery must become the table\'s tab, not vanish.');
+        $this->assertSame([$this->itemNumberA], $this->itemsOfSale($saleId));
+    }
+
+    /**
+     * Same cart, but the table chosen already has a tab: two orders are not merged on a guess, and
+     * neither is lost -- the register stays where it was.
+     */
+    public function testACartOnDeliveryIsKeptWhenTheTableChosenHasATab(): void
+    {
+        $this->openTableWithItem($this->tableB, $this->itemNumberB);
+        $saleIdB = model(Sale::class)->get_open_sale_by_table($this->tableB);
+
+        $this->postReq('sales/changeMode', ['mode' => 'sale', 'dinner_table' => 1]);
+        $this->postReq('sales/add', ['item' => $this->itemNumberA]);
+
+        $response = $this->postReq('sales/changeMode', ['mode' => 'sale', 'dinner_table' => $this->tableB]);
+
+        $response->assertSee($this->itemNumberA);
+        $this->assertSame([$this->itemNumberB], $this->itemsOfSale($saleIdB), 'The other tab must not receive the Delivery order.');
+        $this->assertSame(1, $_SESSION['dinner_table'] ?? null, 'The register stays on Delivery, with its order.');
+    }
+
+    /**
+     * «+ Nueva mesa» while ringing up on Delivery: the order becomes the new table's. At Paraíso
+     * (table 1 is «Cuenta 1») a split-paid sale vanished this way on 2026-10-19.
+     */
+    public function testCreatingATableKeepsTheCartRungUpOnDelivery(): void
+    {
+        $this->postReq('sales/add', ['item' => $this->itemNumberA]);
+
+        $this->postReq('sales/createTable', ['table_name' => 'Cliente que vuelve']);
+
+        $tableId = (int) db_connect()->table('dinner_tables')->select('dinner_table_id')
+            ->where('name', 'Cliente que vuelve')->orderBy('dinner_table_id', 'DESC')->get()->getRow()->dinner_table_id;
+        $saleId = model(Sale::class)->get_open_sale_by_table($tableId);
+
+        $this->assertNotNull($saleId);
+        $this->assertSame([$this->itemNumberA], $this->itemsOfSale($saleId));
+    }
+
+    /**
+     * The table dropdown posts its selected option with every mode change. A current table missing
+     * from it -- Paraíso deleted table 1 from the configuration -- made the browser post the first
+     * option, which the register reads as "switch to that table".
+     */
+    public function testTheCurrentTableIsListedEvenWhenDeleted(): void
+    {
+        $db = db_connect();
+        $db->table('dinner_tables')->where('dinner_table_id', 1)->update(['deleted' => 1]);
+        $db->table('dinner_tables')->insert(['name' => 'Mesa borrada', 'status' => 0, 'deleted' => 1]);
+        $deleted = (int) $db->insertID();
+
+        try {
+            $tables = model(Dinner_table::class)->get_empty_tables(1);
+
+            $this->assertArrayHasKey(1, $tables, 'The current table must be selectable even when deleted.');
+            $this->assertArrayNotHasKey($deleted, $tables, 'Any other deleted table stays out of the list.');
+        } finally {
+            // Shared database: table 1 is every other test's starting point.
+            $db->table('dinner_tables')->where('dinner_table_id', 1)->update(['deleted' => 0]);
+        }
     }
 
     /**

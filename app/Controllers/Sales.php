@@ -312,10 +312,27 @@ class Sales extends Secure_Controller
 
             // Only touch session state when the table selection actually
             // changes -- re-selecting the currently active table must not
-            // wipe its own in-progress cart.
-            if ($occupied_dinner_table !== $current_dinner_table) {
+            // wipe its own in-progress cart. A post that names no table at all
+            // (0) is a mode or location change, not a switch to "table 0".
+            if ($occupied_dinner_table > 0 && $occupied_dinner_table !== $current_dinner_table) {
                 $current_sale_id = $this->sale_lib->get_sale_id();
                 $existing_sale_id = $this->sale->get_open_sale_by_table($occupied_dinner_table);
+
+                // A cart on Delivery/Take Away lives only in session (see _autosave_open_tab()), so
+                // the clear_all() below would throw it away for good. It goes with the cashier to
+                // the table instead -- or, when that table already has a tab of its own, the switch
+                // is refused rather than guessing how to merge two orders.
+                if ($this->_cart_lives_only_in_session($current_dinner_table)) {
+                    $refused = $this->_carry_session_cart_to($occupied_dinner_table, $existing_sale_id);
+
+                    if ($refused !== null) {
+                        return $this->_reload($refused);
+                    }
+
+                    return $this->_reload($occupied_dinner_table > 2
+                        ? ['success' => lang('Sales.open_tab_moved', [$this->dinner_table->get_name((string) $occupied_dinner_table)])]
+                        : []);
+                }
 
                 // Autosave already persisted whatever's about to be discarded
                 // from session, so clearing here never loses data -- it just
@@ -329,6 +346,7 @@ class Sales extends Secure_Controller
                     // The target table already has an open tab -- load it in
                     // full, same pattern postUnsuspend() uses.
                     $this->sale_lib->copy_entire_sale($existing_sale_id);
+                    $this->_trace_tab('abre');
                 } else {
                     // Empty table: start a fresh, not-yet-persisted tab. The
                     // row gets created on the first item add via
@@ -381,15 +399,74 @@ class Sales extends Secure_Controller
             $table_name = trim((string) $this->request->getPost('table_name'));
 
             if ($table_name !== '') {
+                // A cart on Delivery/Take Away that cannot become a tab (a return, a quote...) is
+                // asked to be finished first: creating the table would have wiped it.
+                $carry = $this->_cart_lives_only_in_session($this->sale_lib->get_dinner_table());
+
+                if ($carry && $this->sale_lib->get_mode() !== 'sale') {
+                    return $this->_reload(['warning' => lang('Sales.open_tab_unsaved_mode')]);
+                }
+
                 // ospos_dinner_tables.name is a varchar(30) -- truncate
                 // rather than let the insert fail outright.
                 $new_dinner_table_id = $this->dinner_table->create(mb_substr($table_name, 0, 30));
+
+                if ($carry) {
+                    // The order the cashier was ringing up is the new table's: "this one is for
+                    // the customer who will come back". Same path as picking an empty table.
+                    $this->_carry_session_cart_to($new_dinner_table_id, null);
+
+                    return $this->_reload(['success' => lang('Sales.open_tab_moved', [$this->dinner_table->get_name((string) $new_dinner_table_id)])]);
+                }
+
                 $this->sale_lib->clear_all();
                 $this->sale_lib->set_dinner_table($new_dinner_table_id);
             }
         }
 
         return $this->_reload();
+    }
+
+    /**
+     * Whether the register holds products that exist nowhere but in this session: a cart on
+     * Delivery (1) or Take Away (2), which are never autosaved. Leaving such a cart through
+     * clear_all() loses it with no trace -- at Paraíso, where table 1 is called «Cuenta 1», a
+     * split-paid sale vanished that way on 2026-10-19 when the cashier opened a second account.
+     */
+    private function _cart_lives_only_in_session(?int $dinner_table): bool
+    {
+        return $this->config['dinner_table_enable']
+            && ($dinner_table === null || $dinner_table <= 2)
+            && count($this->sale_lib->get_cart()) > 0;
+    }
+
+    /**
+     * Moves the session-only cart to $dinner_table instead of discarding it, and saves it there.
+     * Returns the reload data of a refusal, or null when the cart moved.
+     *
+     * Refused when the table already has a tab (merging two orders is the cashier's call, not
+     * ours) and when the cart is not a plain sale (a return or a quote cannot become a tab).
+     * Payments still pending are dropped: an open tab never holds payments (any change to it
+     * empties them), and the cashier enters them again when charging.
+     */
+    private function _carry_session_cart_to(int $dinner_table, ?int $existing_sale_id): ?array
+    {
+        $from = $this->dinner_table->get_name((string) ($this->sale_lib->get_dinner_table() ?? 1));
+
+        if ($existing_sale_id !== null) {
+            return ['warning' => lang('Sales.open_tab_unsaved_switch', [$from, $this->dinner_table->get_name((string) $dinner_table), lang('Sales.new_table')])];
+        }
+
+        if ($this->sale_lib->get_mode() !== 'sale') {
+            return ['warning' => lang('Sales.open_tab_unsaved_mode')];
+        }
+
+        $this->sale_lib->set_dinner_table($dinner_table);
+        $this->sale_lib->empty_payments();
+        $this->_autosave_open_tab();
+        $this->_trace_tab('lleva');
+
+        return null;
     }
 
     /**
@@ -1591,6 +1668,7 @@ class Sales extends Secure_Controller
                 // docs/Tecnico/ventas-en-paralelo-pestanas.md section 12.
                 if ($this->config['dinner_table_enable'] && (int) $data['dinner_table'] > 2) {
                     $this->dinner_table->delete((int) $data['dinner_table']);
+                    $this->_trace_tab('cobra');
                 }
 
                 // Aquí, y no una línea antes: la venta ya está confirmada en la base.
@@ -1891,6 +1969,46 @@ class Sales extends Secure_Controller
      * dinner-table mode, and on the Delivery/Take Away pseudo-tables. See
      * docs/Tecnico/ventas-en-paralelo-pestanas.md sections 3 and 13.
      */
+    /**
+     * One line per tab event in writable/logs/cuentas-<date>.log: which session did what to which
+     * tab, and what the tab held right after. Production logs only errors, and the access log
+     * carries no request bodies, so without this a tab that "goes back to how it was" cannot be
+     * explained afterwards -- as happened at Paraíso on 2026-10-19 (docs/Tecnico/
+     * ventas-en-paralelo-pestanas.md §14). Never throws: a trace must not cost a sale.
+     */
+    private function _trace_tab(string $event): void
+    {
+        if (!$this->config['dinner_table_enable']) {
+            return;
+        }
+
+        try {
+            $lines = [];
+
+            foreach ($this->sale_lib->get_cart() as $line) {
+                $lines[] = $line['line'] . ':' . $line['item_id'] . 'x' . $line['quantity'] . '@' . $line['price'];
+            }
+
+            $employee = $this->employee->get_logged_in_employee_info();
+
+            $text = implode("\t", [
+                date('Y-m-d H:i:s'),
+                db_connect()->getDatabase(),
+                $event,
+                $this->request->getMethod() . ' ' . $this->request->getPath(),
+                'empleado=' . ($employee ? $employee->person_id : '-'),
+                'sesion=' . substr(md5((string) session_id()), 0, 8),
+                'venta=' . $this->sale_lib->get_sale_id(),
+                'mesa=' . ($this->sale_lib->get_dinner_table() ?? '-'),
+                $lines === [] ? '(vacia)' : implode(' ', $lines),
+            ]) . "\n";
+
+            @file_put_contents(WRITEPATH . 'logs/cuentas-' . date('Y-m-d') . '.log', $text, FILE_APPEND | LOCK_EX);
+        } catch (\Throwable) {
+            // Deliberately silent: see above.
+        }
+    }
+
     private function _autosave_open_tab(): bool
     {
         if (!$this->config['dinner_table_enable']) {
@@ -1920,11 +2038,6 @@ class Sales extends Secure_Controller
         }
 
         $cart = $this->sale_lib->get_cart();
-
-        if (count($cart) === 0) {
-            return false;    // save_value() refuses empty carts anyway (returns -1)
-        }
-
         $sale_id = $this->sale_lib->get_sale_id();
 
         // An order ticket cancelled from a phone while this till still had its tab open. save_value()
@@ -1935,6 +2048,21 @@ class Sales extends Secure_Controller
         if ($ticket !== null && $this->order_tickets->is_cancelled($ticket)) {
             return false;
         }
+
+        if (count($cart) === 0) {
+            // A tab the cashier emptied is saved EMPTY. save_value() refuses an empty cart, and
+            // until 2026-10-19 that refusal kept the last product in the database: deleting every
+            // line, then going to another tab, brought that product back the next time the tab was
+            // opened. Seen at Paraíso the same day ("se regresa a los productos iniciales").
+            if ($sale_id === NEW_ENTRY || !$this->sale->empty_open_sale($sale_id)) {
+                return false;
+            }
+
+            $this->_trace_tab('vacia');
+
+            return true;
+        }
+
         $sale_status = OPENED;
         $payments = $this->sale_lib->get_payments();
         $employee_id = $this->employee->get_logged_in_employee_info()->person_id;
@@ -1956,6 +2084,8 @@ class Sales extends Secure_Controller
         if ($new_sale_id > 0 && $sale_id === NEW_ENTRY) {
             $this->sale_lib->set_sale_id($new_sale_id);
         }
+
+        $this->_trace_tab($new_sale_id > 0 ? 'guarda' : 'no-guarda');
 
         // Whether the tab really reached the database. Order tickets only stamp a dish as billed after
         // this is true; every other caller ignores it.

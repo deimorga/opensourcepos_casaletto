@@ -274,4 +274,7 @@ return [
     "presale_payment_locked"           => "The «Presale» payment is what the customer paid towards the presale and cannot be changed to another payment type.",
     "presale_payment_not_allowed"        => "«Presale» cannot be chosen here: only a presale delivery records that payment.",
     "presale_sale_cannot_delete"         => "Sale {0} delivered presale {1} and cannot be cancelled. If the customer returns goods, use Return mode in the register.",
+    "open_tab_moved"                     => "The sale in progress is now saved in table «{0}».",
+    "open_tab_unsaved_switch"            => "«{0}» has products that are not saved in any table, and «{1}» already has its own. Charge or cancel this sale first, or keep it with «{2}».",
+    "open_tab_unsaved_mode"              => "The sale in progress is not a regular sale: complete or cancel it before moving to a table.",
 ];

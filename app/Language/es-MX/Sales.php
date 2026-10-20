@@ -275,4 +275,7 @@ return [
     "presale_payment_locked"           => "El pago «Preventa» es lo que el cliente abonó a su preventa y no se puede cambiar por otro medio de pago.",
     "presale_payment_not_allowed"        => "«Preventa» no se puede elegir aquí: ese pago solo lo registra la entrega de una preventa.",
     "presale_sale_cannot_delete"         => "La venta {0} entregó la preventa {1} y no se puede anular. Si el cliente devuelve producto, use el modo Devolución de la caja.",
+    "open_tab_moved"                     => "La venta en curso quedó guardada en la mesa «{0}».",
+    "open_tab_unsaved_switch"            => "«{0}» tiene productos que no están guardados en ninguna mesa, y «{1}» ya tiene los suyos. Primero cobre o anule esta venta, o guárdela con «{2}».",
+    "open_tab_unsaved_mode"              => "La venta en curso no es una venta normal: finalícela o anúlela antes de pasarla a una mesa.",
 ];
