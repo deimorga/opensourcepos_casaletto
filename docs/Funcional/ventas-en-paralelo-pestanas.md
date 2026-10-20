@@ -5,6 +5,7 @@
 - **Revisado contra documentación funcional:** 2026-07-09 (ver sección 5.1)
 - **Decisión de diseño aprobada:** 2026-07-09 (ver sección 5.2)
 - **Verificación funcional completa:** 2026-07-10 (3+ mesas reales, alternancia, resiliencia ante reinicio, cobro — 2 bugs reales encontrados y corregidos en el ciclo, ver doc técnico sección 9)
+- **Corrección 2026-10-19:** ninguna cuenta pierde productos al vaciarla ni al abrir otra (ver sección 5.5) — en rama, pendiente de staging
 - **Módulo afectado:** Sales / Register
 
 ## 1. Contexto y motivación
@@ -72,6 +73,31 @@ Delivery y Take Away no son mesas del negocio: son dos entradas fijas que OSPOS 
 Por eso **no generan pestaña**. Una pestaña representa una cuenta abierta que se atiende en paralelo y se cobra al final; una venta de Delivery o Take Away se arma y se cobra de una sola vez.
 
 Durante julio y agosto de 2026 esto no se cumplía y el negocio veía una fila de pestañas idénticas llamadas "Delivery" que no abrían nada. Eran carritos que habían quedado abiertos sobre esa entrada fija (al cerrar sesión, al vencerse la sesión, o al tener el Register abierto en dos pestañas del navegador) y que la pantalla ya no podía ni recuperar ni cerrar. No afectaban ventas, turnos ni inventario — eran ruido en pantalla. Corregido el 2026-08-10: ver sección 13 del documento técnico.
+
+### 5.5 Ninguna cuenta pierde productos (2026-10-19)
+
+En Paraíso de la Canasta las mesas se usan como **cuentas en paralelo** (un cliente que vuelve, otro
+que sigue mercando), y la mesa 1 se llama «Cuenta 1». El 2026-10-19 el negocio reportó que, con dos
+cuentas abiertas, una volvía a mostrar los productos de antes. Se encontraron dos fallas reales,
+corregidas para todos los negocios:
+
+- **Al vaciar una cuenta reaparecía su último producto.** Si el cajero borraba todos los productos y
+  se iba a otra cuenta, al volver encontraba el último otra vez. Ahora la cuenta queda vacía, y abierta
+  hasta que se cobre o se anule.
+- **Una venta en «Cuenta 1» (o «Delivery») se perdía al abrir otra cuenta.** Esa es la venta "de paso"
+  de la caja, y el sistema no la guarda como cuenta. Ese día se perdió así una venta con pago mixto
+  que no alcanzó a cobrarse. Ahora:
+  - con **«Nueva mesa»**, la venta en curso **pasa a la cuenta nueva**;
+  - si se elige **una mesa libre**, la venta pasa a esa mesa;
+  - si se elige **una mesa que ya tiene cuenta**, la caja avisa y no cambia: primero hay que cobrar
+    o anular la venta en curso, o guardarla con «Nueva mesa».
+
+  En los tres casos, lo que se hubiera ingresado como pago se vuelve a ingresar al cobrar.
+
+Hubo un tercer caso ese día (17:49): una cuenta modificada volvió a como estaba después de cobrar
+otra. Ni los registros ni una reproducción en staging permitieron explicarlo, así que desde ahora la
+caja deja un **rastro de cada movimiento de las cuentas**. Si vuelve a pasar, hay que avisar con la
+hora aproximada, y el rastro dirá qué ocurrió.
 
 ## 6. Actores
 

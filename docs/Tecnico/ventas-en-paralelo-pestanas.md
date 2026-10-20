@@ -274,3 +274,74 @@ Resultado: cada vez que la sesión perdía el `sale_id` (cierre de sesión, expi
 **Descartado durante la implementación:** "adoptar" la venta `OPENED` existente de la mesa cuando la sesión pierde el `sale_id`. Sería peor que el bug: `Sale::save_value()` llama a `clear_suspended_sale_detail()` y borra los ítems de la venta antes de reinsertar el carrito actual, así que adoptar una pestaña con un carrito nuevo (que es justo lo que hay tras un `clear_all()`) le destruiría el contenido a la pestaña vieja. Crear una fila de más es preferible a perder datos.
 
 **Efecto secundario conocido y aceptado:** un carrito de Delivery a medio armar ya no sobrevive a una caída del navegador o del servidor (vuelve a ser lo que era antes de la feature). En la práctica no cambia nada para este negocio: antes tampoco se recuperaba — quedaba como una fila `OPENED` inalcanzable.
+
+## 14. Cuentas que "vuelven a como estaban" y ventas perdidas al abrir otra cuenta (2026-10-19)
+
+**Síntoma reportado por el dueño, en Paraíso de la Canasta:** con dos cuentas abiertas, se modifica la
+primera, se cobra la segunda, y la primera aparece otra vez con los productos de antes. Dos casos ese
+día.
+
+### 14.1 Lo que se encontró (producción, solo lectura: registro de Apache, ventas, sesiones)
+
+Paraíso, que vende por peso, usa las mesas como **cuentas en paralelo**: «2», «3», «4», «Cliente 3». Y
+su mesa 1 —la «Delivery» de fábrica, adonde vuelve la caja después de cada venta— **se llama
+«Cuenta 1» y está borrada** en Configuración. Tres defectos, dos demostrados y uno abierto:
+
+1. **Una cuenta vaciada recuperaba su último producto.** `Sale::save_value()` rechaza un carrito
+   vacío y `_autosave_open_tab()` se rendía ahí (`count($cart) === 0 → return false`): la base
+   seguía con la última línea. Al volver a la cuenta, el producto borrado reaparecía. Pasó con la
+   cuenta «4» (quedó una ZANAHORIA de 0,155 kg que ya no estaba en pantalla) y se reprodujo en
+   staging. Explica el patrón que aparece varias veces en el registro de la caja: abrir cuenta →
+   borrar la línea 1 → volver a escanear.
+2. **Una venta en «Cuenta 1» se borraba al abrir otra cuenta.** Las mesas 1 y 2 nunca se
+   autoguardan (§13): su carrito vive solo en la sesión, y `postCreateTable()` y `postChangeMode()`
+   lo eliminaban con `clear_all()`. Entre 17:22 y 17:24 la caja armó en «Cuenta 1» una venta con pago
+   mixto, creó la cuenta «11», y esa venta desapareció sin cobrarse ni dejar rastro. Para el
+   cajero, «Cuenta 1» es una cuenta más; para el sistema era una venta de paso.
+3. **Abierto:** a las 17:49 la cuenta «2» se abrió, se le cambió la línea 2, se creó y cobró la «3»,
+   y al volver a la «2» la página llegó del mismo tamaño byte a byte que antes del cambio, y la
+   cajera repitió la misma corrección. La misma secuencia de peticiones, repetida en staging, **no**
+   lo reproduce; solo hubo una sesión activa (no fue otro equipo), y el código de la báscula no
+   escribe nada. El registro de Apache no guarda los cuerpos de las peticiones, así que no se puede
+   saber más. De ahí el punto 4 de la corrección.
+
+Además, al estar borrada la mesa 1, `get_empty_tables()` la dejaba fuera del desplegable. Con la
+mesa actual ausente, el navegador envía la **primera opción** con cualquier cambio de modo o de
+bodega, y `postChangeMode()` lo lee como "cambiar a esa mesa".
+
+### 14.2 Corrección
+
+1. **Vaciar una cuenta se guarda.** Con carrito vacío y venta `OPENED`, `_autosave_open_tab()` llama a
+   `Sale::empty_open_sale()`, que borra líneas, impuestos y pagos de esa venta. No es
+   `clear_suspended_sale_detail()`, porque ese libera la mesa, y una cuenta vaciada sigue siendo del
+   cliente hasta cobrarla o anularla. Solo toca ventas `OPENED`, y no hay inventario que deshacer
+   porque una cuenta abierta no descuenta existencias.
+2. **La venta de Delivery/Take Away no se pierde al salir de ella** (`_cart_lives_only_in_session()`,
+   `_carry_session_cart_to()`):
+   - **«Nueva mesa»** con productos en la mesa 1 o 2: la venta **pasa a la mesa nueva** y se guarda
+     ahí.
+   - **Elegir una mesa libre**: igual, la venta pasa a esa mesa.
+   - **Elegir una mesa que ya tiene cuenta**: se **rechaza** con un aviso y la caja se queda donde
+     estaba. Fusionar dos pedidos es decisión del cajero.
+   - **Una devolución, cotización u otro modo** no se convierte en cuenta: se pide finalizarla o
+     anularla primero.
+   - **Los pagos pendientes se descartan al mover la venta.** Una cuenta abierta nunca guarda pagos
+     (cualquier cambio a ella los vacía), y así ningún pago a medio ingresar queda en una venta
+     `OPENED`, donde podría colarse en un cuadre. El cajero los vuelve a ingresar al cobrar.
+3. **`get_empty_tables()` lista siempre la mesa actual**, aunque esté borrada. Y `postChangeMode()` ya
+   no trata como cambio de mesa una petición que no nombra mesa (antes "mesa 0", que además borraba
+   la venta en curso).
+4. **Rastro de cuentas:** `_trace_tab()` escribe una línea por evento en
+   `writable/logs/cuentas-<fecha>.log` (abre, guarda, vacia, lleva, cobra): hora, base del negocio,
+   petición, empleado, huella corta de la sesión, venta, mesa y las líneas
+   (`línea:artículo x cantidad @ precio`). Solo con mesas activadas, y nunca lanza excepciones. La
+   producción solo registra errores (`threshold = 4`), por eso va en un archivo aparte. No se rota
+   solo: son pocas líneas por día, pero hay que limpiarlo si crece.
+
+**Descartado:** guardar Delivery/Take Away como cuentas, que reabre las pestañas fantasma de §13.
+También fusionar la venta de Delivery con la cuenta que ya tiene la mesa elegida: es una decisión de
+negocio, no del sistema.
+
+Pruebas: `tests/Controllers/SalesControllerTest.php`: la cuenta vaciada sigue vacía, la venta de
+Delivery pasa a la mesa libre, no pisa la mesa ocupada, «Nueva mesa» la conserva, y la mesa actual
+borrada sigue en la lista.
