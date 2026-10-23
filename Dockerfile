@@ -11,7 +11,12 @@
 # Composer resuelve los requisitos de plataforma (`ext-intl`, `php ^8.2`) contra
 # el PHP con el que corre, asi que instalar con otra version puede elegir
 # paquetes que luego no encajen.
-FROM php:8.4-cli AS vendor
+#
+# Version EXACTA, no `8.4`: scripts/deploy.sh construye sin `--pull`, asi que una
+# etiqueta flotante reutiliza la imagen que el servidor ya tenga en cache. Asi
+# siguio sirviendo 8.4.26 cuando salio php2shell (CVE-2026-109618/109619, RCE sin
+# autenticar, corregido en 8.4.27). Subir esta y la de `ospos` a la vez.
+FROM php:8.4.27-cli AS vendor
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         libicu-dev unzip \
@@ -86,8 +91,13 @@ RUN grep -A3 'inject:prod:js'  app/Views/partial/header.php | grep -q '<script' 
     || ( echo "FALLO: los assets no se generaron o las vistas quedaron sin inyectar" && exit 1 )
 
 
-FROM php:8.4-apache AS ospos
+FROM php:8.4.27-apache AS ospos
 LABEL maintainer="jekkos"
+
+# Minimo de seguridad: por debajo de 8.4.27 la imagen no se construye. Convierte
+# una base vieja en un build roto en vez de una imagen vulnerable que arranca.
+RUN php -r 'exit(version_compare(PHP_VERSION, "8.4.27", ">=") ? 0 : 1);' \
+    || ( echo "FALLO: PHP $(php -r 'echo PHP_VERSION;') es anterior a 8.4.27 (php2shell)" && exit 1 )
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libicu-dev \
