@@ -28,9 +28,10 @@ que guardar el papel de la caja.
   (`cotizaciones.md` §5).
 - **El correo del cliente es opcional** en su ficha. Algunos clientes con preventas ya registradas
   pueden no tenerlo.
-- **El dominio micronuba.net ya está preparado para enviar correo**: tiene su propio servidor
-  (`mail.micronuba.net`) y la autenticación que exigen Gmail y Outlook para no mandar los correos a
-  spam (SPF, DKIM y DMARC). Verificado por consulta de DNS el 2026-10-26.
+- **Los correos saldrán por Resend**, el servicio de envío que ya usa PLAGIE, con plan pago.
+  PLAGIE envía desde `plagie.cloud`, que es el único dominio verificado allí. **Hay que agregar
+  `micronuba.net` a Resend** para poder enviar como `ospos@micronuba.net`. Verificado por consulta de
+  DNS el 2026-10-26.
 
 ---
 
@@ -77,8 +78,9 @@ marcando sin penalidad, como en la primera entrega (D4 de `venta-anticipada.md`)
 
 ### 4.1 Desde dónde se envían
 
-- **Una sola cuenta para toda la plataforma: `ospos@micronuba.net`.** El dueño la crea en el
-  servidor de correo del dominio. Sirve para todos los negocios y nadie tiene que configurar nada.
+- **Una sola dirección para toda la plataforma: `ospos@micronuba.net`**, enviada por Resend.
+  Sirve para todos los negocios y ningún negocio tiene que configurar nada. No hace falta crear un
+  buzón para esa dirección: solo envía.
 - **El correo habla del negocio, no de la plataforma.** El cliente ve como remitente el nombre del
   negocio, por ejemplo «Casaletto», y el contenido lleva el logo, el nombre, el NIT, la dirección y
   el teléfono del negocio.
@@ -158,6 +160,7 @@ cliente (Ley 1581 de 2012). Esa autorización está fuera de este alcance.
 | **A3** | Avisos al **registrar, abonar, cancelar y entregar**, más un **recordatorio de cuota** | 2026-10-26 |
 | **A4** | Un cliente sin correo **no impide registrar**; la pantalla avisa y se puede reenviar después | 2026-10-26 |
 | **A5** | El correo lleva **el detalle en el cuerpo y el comprobante en PDF adjunto** | 2026-10-26 |
+| **A6** | Se envía por **Resend** (plan pago, el mismo de PLAGIE), con `micronuba.net` verificado como dominio | 2026-10-26 |
 
 ---
 
@@ -171,7 +174,7 @@ Se construye con estos valores salvo que el dueño diga otra cosa:
 | **S2** | El recordatorio **va sin PDF**: solo el detalle de la cuota y el saldo | El PDF ya le llegó con cada abono; un recordatorio con adjunto cae más fácil en spam |
 | **S3** | Los recordatorios salen **a las 9:00** hora de Colombia | Antes de abrir, para que el cliente pase ese día |
 | **S4** | La **cartera la ve quien tiene «Gestionar preventas»**, no todo el que vende | Muestra cifras del negocio y datos de contacto de todos los clientes |
-| **S5** | La cuenta `ospos@micronuba.net` vive en el **servidor de correo actual del dominio** (`mail.micronuba.net`, alojado en Hivelocity). Hay que confirmar que **no se va con la salida de Neolo**: el portal se mudó desde ahí el 2026-10-23. Si se fuera, la alternativa es Resend, que PLAGIE ya usa, enviando igual como `ospos@micronuba.net` | Si el servidor de correo se apaga, se apagan todos los avisos |
+| **S5** | ~~Servidor de correo del dominio~~ **Resuelto el 2026-10-26: se envía por Resend**, con `micronuba.net` agregado como dominio (A6) | — |
 | **S6** | «Enviar cotización» **no se toca** en esta entrega | Ese botón usa la cuenta de cada negocio; pasarlo a la de la plataforma es otra decisión |
 
 ---
@@ -181,7 +184,7 @@ Se construye con estos valores salvo que el dueño diga otra cosa:
 | Entrega | Qué trae | Depende de |
 |---|---|---|
 | **2a · Cartera** | La pantalla de §3, con su CSV | Nada. Puede salir primero |
-| **2b · Avisos** | La cuenta de la plataforma, los cuatro avisos (registro, abono, cancelación y entrega) con PDF, «Correos enviados» y «Reenviar», la casilla en Configuración | La cuenta `ospos@micronuba.net` creada y su contraseña en el servidor |
+| **2b · Avisos** | El envío de la plataforma, los cuatro avisos (registro, abono, cancelación y entrega) con PDF, «Correos enviados» y «Reenviar», la casilla en Configuración | `micronuba.net` verificado en Resend y la clave de envío en el servidor |
 | **2c · Recordatorios** | Los recordatorios de cuota (§4.2) | 2b, y una tarea programada en el servidor |
 
 ---

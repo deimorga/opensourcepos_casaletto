@@ -3,7 +3,7 @@
 > **Estado (2026-10-26):** **diseño, sin construir.** Segunda entrega del módulo Preventas, que está en
 > producción desde el 2026-10-14 (`e0554cfab`). Decisiones de negocio en
 > `docs/Funcional/preventas-cartera-y-avisos.md` §6 (A1-A5) y supuestos en su §7 (S1-S6). Las
-> decisiones técnicas están en §2. El diseño de la primera entrega está en `venta-anticipada.md`.
+> decisiones técnicas están en §2. Envío por Resend (A6) desde el 2026-10-26. El diseño de la primera entrega está en `venta-anticipada.md`.
 
 ---
 
@@ -22,10 +22,14 @@
 **Estado verificado de producción** (consulta de DNS y `docs/Tecnico/cotizaciones.md` §107):
 
 - `app_config.protocol = mail` sin `smtp_host`, y el contenedor no trae `sendmail`: hoy **ningún** correo sale.
-- `micronuba.net` tiene MX `mail.micronuba.net` (94.72.167.146, Hivelocity), SPF
-  `v=spf1 +mx include:relay.mailbaby.net include:spf.ipzmarketing.com ~all`, DKIM con selector
-  `default` y DMARC `p=none`. Si se envía por SMTP autenticado contra `mail.micronuba.net`, SPF y
-  DKIM quedan alineados con el `From`.
+- `micronuba.net` tiene MX propio, `mail.micronuba.net` (94.72.167.146, Hivelocity), SPF raíz
+  `v=spf1 +mx include:relay.mailbaby.net include:spf.ipzmarketing.com ~all`, DKIM `default` y DMARC
+  `p=none`. **No tiene los registros de Resend** (`resend._domainkey`, `send`). Hoy solo
+  `plagie.cloud` está verificado en Resend: PLAGIE envía como `no-reply@plagie.cloud` por
+  `smtp.resend.com:587`, desde este mismo VPS, así que la salida al 587 ya está comprobada.
+- Agregar `micronuba.net` a Resend no toca el MX ni el SPF raíz. Resend usa `send.micronuba.net` para
+  el remitente de sobre (MAIL FROM, rebotes) y `resend._domainkey.micronuba.net` para DKIM. La
+  alineación DMARC pasa por DKIM (`d=micronuba.net`).
 
 ---
 
@@ -33,7 +37,7 @@
 
 | # | Decisión | Por qué | Descartado |
 |---|---|---|---|
-| **K1** | El SMTP de la plataforma va en **variables de entorno** (`PLATFORM_SMTP_*`), no en `app_config` | Es una sola cuenta para todos los esquemas; el repositorio es público (AGENTS.md: `${VAR}` y `.env` sin versionar) | Copiarla en el `app_config` de cada negocio: N copias de una contraseña, y un negocio nuevo nacería sin ella |
+| **K1** | El SMTP de la plataforma (**Resend**, `smtp.resend.com`, usuario `resend`, clave de API de solo envío) va en **variables de entorno** (`PLATFORM_SMTP_*`), no en `app_config` | Es una sola cuenta para todos los esquemas; el repositorio es público (AGENTS.md: `${VAR}` y `.env` sin versionar) | Copiarla en el `app_config` de cada negocio: N copias de una contraseña, y un negocio nuevo nacería sin ella |
 | **K2** | `From: "<company>" <ospos@micronuba.net>` y `Reply-To: <app_config.email>` del negocio | Alineación SPF/DKIM con el dominio que firma; las respuestas van al negocio (A2) | `From` con el correo del negocio: falla DMARC del dominio ajeno y el correo va a spam |
 | **K3** | **Bandeja de salida** (`presale_notifications`) y envío **fuera de la petición**, con un comando programado cada minuto | Apache con mod_php no puede responder y seguir trabajando: un SMTP lento (timeout de 10 s) congelaría la caja. Con la bandeja, la caja nunca espera al correo | Enviar en línea después del `commit`: el cajero espera al SMTP; `register_shutdown_function`: con mod_php sigue reteniendo la respuesta |
 | **K4** | El PDF se genera **al enviar**, desde los mismos comprobantes de la pantalla | Una sola fuente de verdad para lo impreso y lo enviado; no se guardan archivos | Guardar el PDF al registrar: archivos que limpiar y datos que podrían desactualizarse |
@@ -93,22 +97,28 @@ Variables nuevas en cada `.env` del VPS (sin versionar), pasadas por `docker-com
 `${VAR}`:
 
 ```
-PLATFORM_SMTP_HOST=mail.micronuba.net
-PLATFORM_SMTP_PORT=465
-PLATFORM_SMTP_CRYPTO=ssl
-PLATFORM_SMTP_USER=ospos@micronuba.net
-PLATFORM_SMTP_PASS=…
+PLATFORM_SMTP_HOST=smtp.resend.com
+PLATFORM_SMTP_PORT=587
+PLATFORM_SMTP_CRYPTO=tls
+PLATFORM_SMTP_USER=resend
+PLATFORM_SMTP_PASS=re_…            # clave de API «Sending access», limitada a micronuba.net
 PLATFORM_MAIL_FROM=ospos@micronuba.net
+PLATFORM_MAIL_REDIRECT_TO=          # solo staging: todo correo va a esta dirección
 ```
+
+Una clave de API por ambiente (`ospos-produccion`, `ospos-staging`), con permiso de solo envío y
+limitada al dominio. Si una se filtra, se revoca sin tocar a PLAGIE ni al otro ambiente.
 
 - `Email_lib::platform(): ?Email_lib`, un constructor alterno. Con `PLATFORM_SMTP_HOST` vacío devuelve
   `null` y los avisos quedan en `skipped_no_transport`, sin error. El constructor actual, el que usa
   el negocio, **no cambia** (S6: las cotizaciones siguen como están).
 - `sendEmail()` recibe `Reply-To` y adjuntos con CID. `setFrom(PLATFORM_MAIL_FROM, company)`.
-- Staging usa **su propia** cuenta o un buzón de pruebas, nunca la de producción: los correos de
-  prueba no deben salir con el nombre de un negocio real hacia clientes reales.
-- **Antes de la 2b, comprobar desde el contenedor** que el VPS alcanza `mail.micronuba.net:465` y
-  `:587`. Hostinger bloquea el 25; los otros dos no deberían estar bloqueados.
+- **Staging nunca escribe a clientes reales.** Su base trae datos copiados de negocios reales. Con
+  `PLATFORM_MAIL_REDIRECT_TO` definido, `Email_lib::platform()` cambia el destinatario por esa
+  dirección y antepone al asunto «[STAGING → correo original]». Producción la deja vacía. Hay una
+  prueba que comprueba la redirección.
+- Seguimiento de clics y aperturas de Resend **apagado** para `micronuba.net`. Reescribir enlaces y
+  agregar un píxel perjudica la entrega de un correo transaccional y no aporta nada.
 
 ### 4.2 Configuración por negocio
 
@@ -223,9 +233,9 @@ hubo, y el botón **«Reenviar»** (`Presales::postResendNotification($id)`, POS
 
 1. **2a Cartera:** código solo; migración ninguna. Sale cuando esté certificada.
 2. **2b Avisos:**
-   - el dueño crea `ospos@micronuba.net`;
-   - se cargan las `PLATFORM_SMTP_*` en el `.env` de producción y de staging, cada una con su cuenta;
-   - se comprueba la salida a los puertos 465 y 587 desde el contenedor;
+   - `micronuba.net` verificado en Resend (registros `send` MX/TXT y `resend._domainkey` en Cloudflare);
+   - se cargan las `PLATFORM_SMTP_*` en `/root/POS_Casaletto/.env` y `/root/POS_Casaletto_staging/.env`,
+     cada uno con su clave, y staging con `PLATFORM_MAIL_REDIRECT_TO`;
    - se despliega con `deploy.sh`: la migración crea la tabla y las claves en todos los esquemas;
    - se instala la línea de cron;
    - se enciende `presales_notify_email` solo en Casaletto, cuando el dueño lo pida.
@@ -241,8 +251,8 @@ anterior a la migración solo junto con su respaldo.
 
 | Riesgo | Mitigación |
 |---|---|
-| `mail.micronuba.net` se apaga con la salida de Neolo (S5) | Confirmar con el dueño antes de la 2b. Alternativa: Resend con dominio verificado, sin cambiar el código (solo las variables SMTP) |
+| Resend se cae o suspende la cuenta | Los avisos esperan en la bandeja y se reintentan; la caja no se entera. El transporte es SMTP estándar: cambiar de proveedor es cambiar las variables |
 | Los correos llegan a spam | `From` alineado con el dominio que firma (K2), DKIM `default` presente; prueba en Gmail y Outlook (funcional §9.8). Más adelante, subir DMARC de `p=none` a `quarantine` |
-| Límite de envíos del servidor de correo | Volumen esperado bajo: cientos de preventas × pocos correos cada una. Lote de 50 por minuto; preguntar el límite por hora de la cuenta |
+| Límite de envíos | El plan Pro de Resend (50.000 al mes) se comparte con PLAGIE. Preventas suma cientos al mes. Lote de 50 por minuto, por debajo del límite de peticiones por segundo |
 | El cron se queda sin instalar en un VPS | `despliegue.md` lo trae como paso y la pestaña «Correos» muestra los `pending` viejos. Se puede agregar una alerta si hay `pending` con más de 30 minutos |
 | Un error del comando no se ve | Log propio rotado. El comando sale con código distinto de 0 si un negocio falla, sin detener a los demás |
