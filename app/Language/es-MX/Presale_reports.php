@@ -1,21 +1,51 @@
 <?php
 
 /**
- * Preventas: reporte de lo comprometido por campaña.
+ * Preventas: reporte de lo comprometido por campaña y cartera.
  */
 
 return [
+    'aging'             => 'Vencido por antigüedad',
+    'aging_1_7'         => 'De 1 a 7 días',
+    'aging_31_plus'     => 'Más de 30 días',
+    'aging_8_30'        => 'De 8 a 30 días',
+    'all_campaigns'     => 'Todas las campañas',
+    'all_dates'         => 'Todas las fechas de entrega',
+    'amount'            => 'Valor',
+    'balance'           => 'Saldo',
     'campaign'          => 'Campaña',
     'choose_campaign'   => 'Elija una campaña',
+    'collected'         => 'Recaudado',
     'committed'         => 'Lo comprometido',
+    'customer'          => 'Cliente',
+    'days_late'         => 'Días de atraso',
+    'delivery_date'     => 'Fecha de entrega',
     'download_csv'      => 'Descargar CSV',
+    'due_date'          => 'Vence',
+    'due_next_days'     => 'Vence en los próximos 7 días',
+    'email'             => 'Correo',
     'item_number'       => 'Código',
+    'late_list'         => 'Atrasados',
+    'no_open_presales'  => 'No hay preventas abiertas con este filtro.',
     'nothing_committed' => 'Esta campaña no tiene preventas abiertas: no hay nada comprometido.',
+    'nothing_late'      => 'Ninguna preventa está atrasada.',
+    'nothing_upcoming'  => 'Ninguna cuota vence en los próximos 7 días.',
+    'number'            => 'Número',
+    'overdue'           => 'Vencido',
+    'overdue_note'      => 'Una cuota que vence hoy todavía no cuenta como vencida. Solo cuentan las preventas vigentes: ni canceladas ni entregadas.',
+    'paid'              => 'Pagado',
+    'phone'             => 'Teléfono',
     'pick_campaign'     => 'Elija una campaña para ver lo que hay comprometido en sus preventas abiertas.',
+    'portfolio'         => 'Cartera',
+    'presales_count'    => 'Preventas',
     'product'           => 'Producto',
+    'receivable'        => 'Por cobrar',
     'shortfall'         => 'Falta',
     'show'              => 'Ver',
+    'sold'              => 'Vendido',
     'stock'             => 'En inventario',
     'total'             => 'Total',
     'unit'              => 'Unidad',
+    'upcoming'          => 'Lo que vence en los próximos 7 días',
+    'view_presale'      => 'Ver preventa',
 ];

@@ -1004,7 +1004,8 @@ class Presales extends Secure_Controller
     }
 
     /**
-     * The instalments of several presales, in one query, grouped by presale.
+     * The instalments of several presales, in one query, grouped by presale. Lives on the model since
+     * the portfolio needs it too (Presale::installments_for()).
      *
      * @param list<int> $presale_ids
      *
@@ -1012,17 +1013,7 @@ class Presales extends Secure_Controller
      */
     private function installments_for(array $presale_ids): array
     {
-        if ($presale_ids === []) {
-            return [];
-        }
-
-        $grouped = [];
-
-        foreach ($this->db()->table('presale_installments')->whereIn('presale_id', $presale_ids)->get()->getResultArray() as $row) {
-            $grouped[(int) $row['presale_id']][] = $row;
-        }
-
-        return $grouped;
+        return $this->presale->installments_for($presale_ids);
     }
 
     /**

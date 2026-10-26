@@ -62,6 +62,10 @@ $routes->get('presales/campaigns', 'PresaleCampaigns::getIndex');
 $routes->get('presales/committed', 'PresaleReports::getCommitted');
 $routes->get('presales/committed/csv', 'PresaleReports::getCommittedCsv');
 // presales: committed (lane F) END
+// presales: portfolio (entrega 2a) BEGIN
+$routes->get('presales/portfolio', 'PresaleReports::getPortfolio');
+$routes->get('presales/portfolio/csv', 'PresaleReports::getPortfolioCsv');
+// presales: portfolio (entrega 2a) END
 
 // presales: campaigns (lane A) BEGIN
 // Fixed addresses first; the ones with ids follow. view/save take (:segment) because a new campaign

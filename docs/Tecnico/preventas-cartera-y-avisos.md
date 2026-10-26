@@ -1,7 +1,8 @@
 # Preventas: cartera y avisos por correo — diseño técnico
 
-> **Estado (2026-10-26):** **avisos por correo y recordatorios construidos** (§4.9), en certificación
-> en staging; sin desplegar a producción. Segunda entrega del módulo Preventas, que está en
+> **Estado (2026-10-26):** **2a · Cartera (§3.4), 2b · avisos y 2c · recordatorios (§4.9)
+> construidos** e integrados en `develop`, en certificación en staging; sin desplegar a producción.
+> Segunda entrega del módulo Preventas, que está en
 > producción desde el 2026-10-14 (`e0554cfab`). Decisiones de negocio en
 > `docs/Funcional/preventas-cartera-y-avisos.md` §6 (A1-A5) y supuestos en su §7 (S1-S6). Las
 > decisiones técnicas están en §2. Envío por Resend (A6) desde el 2026-10-26. El diseño de la primera entrega está en `venta-anticipada.md`.
@@ -87,6 +88,43 @@ canceladas y las entregadas no entran, porque su dinero ya está en otro sitio: 
 - La cartera cuadra con una suma hecha a mano sobre un conjunto fijo: al día, atrasada en cada tramo,
   pagada sin entregar, cancelada con devolución y entregada.
 - Sin `presales_manage` responde 403 o redirige; con el módulo apagado muestra la vista `disabled`.
+
+### 3.4 Cómo quedó construida (2026-10-26)
+
+| Pieza | Dónde |
+|---|---|
+| Cobertura cuota por cuota | `Presale::coverage($paid, $installments)`, pura. Devuelve cada cuota con `amount`, `cumulative`, `covered` y `missing`, en orden de fecha (empates por `installment_id`). **`derive()` ahora recorre `coverage()`**: la acumulación está escrita una sola vez, y las pruebas de `derive()` de siempre (`PresaleRulesTest`) siguen pasando sin cambios |
+| Cuotas de varias preventas | `Presale::installments_for($ids)`, en el modelo. `Presales::installments_for()` quedó como una línea que delega en él |
+| Cálculo | `Presale_report::portfolio($today, ?$campaign_id, ?$delivery_date)` y `open_delivery_dates()`. Dos consultas, sea cual sea el número de preventas |
+| Pantalla y CSV | `PresaleReports::getPortfolio()` y `getPortfolioCsv()`, vista `presales/portfolio.php`, rutas `presales/portfolio` y `presales/portfolio/csv` |
+| Botón | «Cartera» en `presales/manage`, junto a «Campañas», solo con `presales_manage` |
+| Textos | `app/Language/{es-MX,es-ES,en}/Presale_reports.php`, el archivo de «Lo comprometido», no `Presales.php` |
+| Pruebas | `PresaleCoverageTest` (pura), `PresalePortfolioTest` (el conjunto fijo sumado a mano, en el encabezado del archivo) y `PresalePortfolioControllerTest` |
+
+**Decisiones tomadas al construir, que el diseño no fijaba:**
+
+- **Tramo de antigüedad:** todo el vencido de una preventa va al tramo de sus `days_late`, que se cuentan
+  desde la cuota más vieja sin cubrir. Una preventa con dos cuotas vencidas, de 40 y de 10 días, suma su
+  vencido entero en «más de 30». Así cada preventa cuenta una sola vez en el número del tramo.
+- **Ventana de los próximos 7 días:** hoy y los seis días siguientes (`today ≤ due_date < today + 7`). Una
+  cuota que vence hoy está en la ventana y no en el vencido. Cuenta solo lo que falta de cada cuota según
+  `coverage()`: un abono parcial se aplica primero a la cuota vencida, como en `derive()`.
+- **«Todas las campañas»** es toda preventa `open`, sin mirar la campaña: una campaña con preventas no se
+  puede borrar (`Presale_campaign::delete_campaign()`), así que no hay preventas vigentes huérfanas. Una
+  campaña o una fecha que no está en las listas del filtro se lee como «todas», nunca como un valor
+  libre: las listas son la lista blanca, como en «Lo comprometido».
+- **El CSV trae una fila por preventa vigente del filtro**, no solo los atrasados: número, cliente,
+  teléfono, correo, campaña, fecha de entrega, total, pagado, saldo, vencido, días de atraso y lo que
+  vence en 7 días, del más atrasado al menos. Con eso, las cuatro cifras y los tramos salen sumando
+  columnas en la hoja de cálculo. Los montos van con los decimales y el separador decimal del negocio,
+  sin separador de miles ni símbolo, por la misma razón que las cantidades de «Lo comprometido». Cada
+  celda pasa por `safe_cell()`: un teléfono `+57 …` sale como `'+57 …`.
+- **Sin `presales_manage`, la pantalla y el CSV redirigen** a `no_access/presales/presales_manage`, como
+  la página de Campañas. No hay 403 porque ninguno de los dos se llama por script.
+- **Por cobrar** es vendido menos recaudado, como dice el funcional. Los montos se suman a escala 2 con
+  `bcadd` y se redondean con `Presale_campaign::round_money()`, que usa `totals_decimals()`.
+- Cada número de preventa abre el detalle en el mismo diálogo de la lista (`modal-dlg`), que ya trae el
+  formulario para abonar.
 
 ---
 
@@ -289,7 +327,9 @@ Diferencias con el diseño de arriba, y por qué:
 
 ## 5. Despliegue
 
-1. **2a Cartera:** código solo; migración ninguna. Sale cuando esté certificada.
+1. **2a Cartera:** código solo; migración ninguna, permiso nuevo ninguno (usa `presales_manage`, que ya
+   existe, así que no hace falta `platform:support-employee`). Construida el 2026-10-26; sale cuando
+   esté certificada en staging (funcional §9.1).
 2. **2b Avisos:**
    - `micronuba.net` verificado en Resend (registros `send` MX/TXT y `resend._domainkey` en Cloudflare);
    - ✅ 2026-10-26: correo de la plataforma construido; Mailpit en staging; Resend en el compose de

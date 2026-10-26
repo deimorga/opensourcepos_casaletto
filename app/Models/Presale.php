@@ -908,25 +908,19 @@ class Presale extends Model
     {
         $balance = bcsub($total, $paid, self::MONEY_SCALE);
 
-        usort($installments, static fn (array $a, array $b): int => strcmp($a['due_date'], $b['due_date']));
-
         $due_to_date   = '0.00';
-        $cumulative    = '0.00';
         $oldest_unpaid = null;
         $next_date     = null;
         $next_amount   = '0.00';
 
-        foreach ($installments as $installment) {
-            $amount     = bcadd((string) $installment['amount'], '0', self::MONEY_SCALE);
-            $cumulative = bcadd($cumulative, $amount, self::MONEY_SCALE);
-
+        foreach (self::coverage($paid, $installments) as $installment) {
             if ($installment['due_date'] < $today) {
-                $due_to_date = bcadd($due_to_date, $amount, self::MONEY_SCALE);
+                $due_to_date = bcadd($due_to_date, $installment['amount'], self::MONEY_SCALE);
             }
 
-            if ($next_date === null && bccomp($paid, $cumulative, self::MONEY_SCALE) < 0) {
+            if ($next_date === null && bccomp($paid, $installment['cumulative'], self::MONEY_SCALE) < 0) {
                 $next_date   = $installment['due_date'];
-                $next_amount = bcsub($cumulative, $paid, self::MONEY_SCALE);
+                $next_amount = bcsub($installment['cumulative'], $paid, self::MONEY_SCALE);
 
                 if ($installment['due_date'] < $today) {
                     $oldest_unpaid = $installment['due_date'];
@@ -959,6 +953,85 @@ class Presale extends Model
             'next_due_date'   => $state === self::STATE_PAID ? null : $next_date,
             'next_due_amount' => $state === self::STATE_PAID ? '0.00' : $next_amount,
         ];
+    }
+
+    /**
+     * How the payments cover the plan, instalment by instalment: the accumulation derive() reads its
+     * next instalment from, exposed so the portfolio can tell what is still missing of the instalments
+     * due in the coming days (docs/Tecnico/preventas-cartera-y-avisos.md §3.1). Pure, like derive().
+     *
+     * Payments are not tied to an instalment: they fill the oldest first. Each instalment comes back,
+     * in date order (ties by installment_id when there is one), with its own fields and:
+     *
+     * - amount:     at scale 2;
+     * - cumulative: the plan's total up to and including it;
+     * - covered:    what the payments put towards it, between 0 and its amount;
+     * - missing:    amount - covered.
+     *
+     * @param list<array{due_date: string, amount: float|string}> $installments
+     *
+     * @return list<array<string, mixed>>
+     */
+    public static function coverage(string $paid, array $installments): array
+    {
+        usort($installments, static fn (array $a, array $b): int => strcmp($a['due_date'], $b['due_date'])
+            ?: (int) ($a['installment_id'] ?? 0) <=> (int) ($b['installment_id'] ?? 0));
+
+        $cumulative = '0.00';
+        $rows       = [];
+
+        foreach ($installments as $installment) {
+            $amount     = bcadd((string) $installment['amount'], '0', self::MONEY_SCALE);
+            $left       = bcsub($paid, $cumulative, self::MONEY_SCALE);
+            $cumulative = bcadd($cumulative, $amount, self::MONEY_SCALE);
+
+            if (bccomp($left, '0', self::MONEY_SCALE) <= 0) {
+                $covered = '0.00';
+            } elseif (bccomp($left, $amount, self::MONEY_SCALE) >= 0) {
+                $covered = $amount;
+            } else {
+                $covered = $left;
+            }
+
+            $rows[] = array_merge($installment, [
+                'amount'     => $amount,
+                'cumulative' => $cumulative,
+                'covered'    => $covered,
+                'missing'    => bcsub($amount, $covered, self::MONEY_SCALE),
+            ]);
+        }
+
+        return $rows;
+    }
+
+    /**
+     * The instalments of several presales, in one query, grouped by presale and in date order: what
+     * derive() needs for a list of presales without one query each.
+     *
+     * @param list<int> $presale_ids
+     *
+     * @return array<int, list<array<string, mixed>>>
+     */
+    public function installments_for(array $presale_ids): array
+    {
+        if ($presale_ids === []) {
+            return [];
+        }
+
+        $rows = $this->db->table('presale_installments')
+            ->whereIn('presale_id', $presale_ids)
+            ->orderBy('presale_id', 'asc')
+            ->orderBy('due_date', 'asc')
+            ->orderBy('installment_id', 'asc')
+            ->get()->getResultArray();
+
+        $grouped = [];
+
+        foreach ($rows as $row) {
+            $grouped[(int) $row['presale_id']][] = $row;
+        }
+
+        return $grouped;
     }
 
     /**

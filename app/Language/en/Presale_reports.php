@@ -1,21 +1,51 @@
 <?php
 
 /**
- * Presales: committed quantities report by campaign.
+ * Presales: committed quantities report by campaign, and portfolio.
  */
 
 return [
+    'aging'             => 'Overdue by age',
+    'aging_1_7'         => '1 to 7 days',
+    'aging_31_plus'     => 'More than 30 days',
+    'aging_8_30'        => '8 to 30 days',
+    'all_campaigns'     => 'All campaigns',
+    'all_dates'         => 'All delivery dates',
+    'amount'            => 'Amount',
+    'balance'           => 'Balance',
     'campaign'          => 'Campaign',
     'choose_campaign'   => 'Choose a campaign',
+    'collected'         => 'Collected',
     'committed'         => 'Committed',
+    'customer'          => 'Customer',
+    'days_late'         => 'Days late',
+    'delivery_date'     => 'Delivery date',
     'download_csv'      => 'Download CSV',
+    'due_date'          => 'Due',
+    'due_next_days'     => 'Due in the next 7 days',
+    'email'             => 'Email',
     'item_number'       => 'Item number',
+    'late_list'         => 'Late',
+    'no_open_presales'  => 'There are no open presales for this filter.',
     'nothing_committed' => 'This campaign has no open presales: nothing is committed.',
+    'nothing_late'      => 'No presale is late.',
+    'nothing_upcoming'  => 'No instalment falls due in the next 7 days.',
+    'number'            => 'Number',
+    'overdue'           => 'Overdue',
+    'overdue_note'      => 'An instalment due today is not overdue yet. Only current presales count: neither canceled nor delivered.',
+    'paid'              => 'Paid',
+    'phone'             => 'Phone',
     'pick_campaign'     => 'Choose a campaign to see what its open presales have committed.',
+    'portfolio'         => 'Portfolio',
+    'presales_count'    => 'Presales',
     'product'           => 'Product',
+    'receivable'        => 'To collect',
     'shortfall'         => 'Shortfall',
     'show'              => 'Show',
+    'sold'              => 'Sold',
     'stock'             => 'In stock',
     'total'             => 'Total',
     'unit'              => 'Unit',
+    'upcoming'          => 'Due in the next 7 days',
+    'view_presale'      => 'View presale',
 ];
