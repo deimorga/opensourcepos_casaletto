@@ -50,6 +50,10 @@
         <span class="glyphicon glyphicon-list-alt">&nbsp;</span><?= esc(lang('Presale_reports.committed')) ?>
     </a>
     <?php if (! empty($can_manage)): ?>
+        <?php // The portfolio shows the business's figures and every customer's contact data (S4).?>
+        <a class="btn btn-default btn-sm pull-right" href="<?= site_url('presales/portfolio') ?>">
+            <span class="glyphicon glyphicon-usd">&nbsp;</span><?= esc(lang('Presale_reports.portfolio')) ?>
+        </a>
         <a class="btn btn-default btn-sm pull-right" href="<?= site_url('presales/campaigns') ?>">
             <span class="glyphicon glyphicon-calendar">&nbsp;</span><?= esc(lang('Presales.campaigns')) ?>
         </a>

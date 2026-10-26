@@ -3,18 +3,22 @@
 namespace App\Controllers;
 
 use App\Models\Item;
+use App\Models\Presale;
 use App\Models\Presale_campaign;
 use App\Models\Presale_report;
+use CodeIgniter\HTTP\RedirectResponse;
 use CodeIgniter\HTTP\ResponseInterface;
 use Config\OSPOS;
 use NumberFormatter;
 
 /**
- * Reports of the presales module. Today one: what each campaign has committed, which is the
- * season's shopping list (docs/Funcional/venta-anticipada.md section 4.11).
+ * Reports of the presales module: what each campaign has committed, which is the season's shopping
+ * list (docs/Funcional/venta-anticipada.md section 4.11), and the portfolio, what the open presales
+ * still owe and who is late (docs/Funcional/preventas-cartera-y-avisos.md section 3).
  *
- * Behind the `presales` module grant and the business's switch, like the rest of the module. Read
- * only. A separate controller from Presales so the lanes of the module do not share a file.
+ * Behind the `presales` module grant and the business's switch, like the rest of the module; the
+ * portfolio also needs presales_manage. Read only. A separate controller from Presales so the lanes
+ * of the module do not share a file.
  */
 class PresaleReports extends Secure_Controller
 {
@@ -78,6 +82,155 @@ class PresaleReports extends Secure_Controller
             );
         }
 
+        return $this->response->download('preventas_comprometido_' . $campaign_id . '.csv', self::csv($lines));
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Portfolio (docs/Funcional/preventas-cartera-y-avisos.md §3)
+    // ---------------------------------------------------------------------------------------------
+
+    /**
+     * The portfolio: what the open presales sold, collected and still owe, what is overdue and by
+     * how long, what falls due this week and who is late. Only for presales_manage (S4): it shows the
+     * business's figures and every customer's phone and email.
+     */
+    public function getPortfolio(): RedirectResponse|string
+    {
+        if (! Presales::is_enabled()) {
+            return view('presales/disabled');
+        }
+
+        if (! Presales::can_manage($this->employee)) {
+            return redirect()->to('no_access/presales/presales_manage');
+        }
+
+        $campaigns = $this->campaigns->get_all();
+        $dates     = $this->report->open_delivery_dates();
+        $filter    = $this->portfolio_filter($campaigns, $dates);
+        $data      = $this->report->portfolio(date('Y-m-d'), $filter['campaign_id'], $filter['delivery_date']);
+
+        // The screen lists the late and the upcoming; the number printed for the customer goes on each.
+        $data['late']             = $this->with_numbers($data['late']);
+        $data['upcoming']['rows'] = $this->with_numbers($data['upcoming']['rows']);
+
+        return view('presales/portfolio', [
+            'campaigns'     => $campaigns,
+            'dates'         => $dates,
+            'campaign_id'   => $filter['campaign_id'],
+            'delivery_date' => $filter['delivery_date'],
+            'portfolio'     => $data,
+            'csv_query'     => http_build_query(array_filter($filter, static fn ($value): bool => $value !== null)),
+        ], ['saveData' => false]);
+    }
+
+    /**
+     * Every open presale of the filter as a CSV, one row each with its money and its contact data, the
+     * most days late first. Same filter and same guard as the screen.
+     */
+    public function getPortfolioCsv(): ResponseInterface
+    {
+        if (! Presales::is_enabled()) {
+            return redirect()->to('presales');
+        }
+
+        if (! Presales::can_manage($this->employee)) {
+            return redirect()->to('no_access/presales/presales_manage');
+        }
+
+        $filter = $this->portfolio_filter($this->campaigns->get_all(), $this->report->open_delivery_dates());
+        $data   = $this->report->portfolio(date('Y-m-d'), $filter['campaign_id'], $filter['delivery_date']);
+        $rows   = $this->with_numbers($data['rows']);
+
+        usort($rows, static fn (array $a, array $b): int => ($b['days_late'] <=> $a['days_late']) ?: ($a['presale_id'] <=> $b['presale_id']));
+
+        $lines = [[
+            lang('Presale_reports.number'), lang('Presale_reports.customer'), lang('Presale_reports.phone'),
+            lang('Presale_reports.email'), lang('Presale_reports.campaign'), lang('Presale_reports.delivery_date'),
+            lang('Presale_reports.total'), lang('Presale_reports.paid'), lang('Presale_reports.balance'),
+            lang('Presale_reports.overdue'), lang('Presale_reports.days_late'), lang('Presale_reports.due_next_days'),
+        ]];
+
+        foreach ($rows as $row) {
+            $lines[] = [
+                $row['number'],
+                trim($row['first_name'] . ' ' . $row['last_name']),
+                $row['phone_number'],
+                $row['email'],
+                $row['campaign_name'],
+                to_date((int) strtotime($row['delivery_date'])),
+                $this->money_cell($row['total']),
+                $this->money_cell($row['paid']),
+                $this->money_cell($row['balance']),
+                $this->money_cell($row['overdue']),
+                $row['days_late'] > 0 ? (string) $row['days_late'] : '',
+                $this->money_cell($row['upcoming']),
+            ];
+        }
+
+        $suffix = $filter['campaign_id'] === null ? 'todas' : (string) $filter['campaign_id'];
+
+        return $this->response->download('preventas_cartera_' . $suffix . '.csv', self::csv($lines));
+    }
+
+    /**
+     * The campaign and the delivery date asked for, each only when it is one of the options: the lists
+     * are the whitelist. Anything else reads as "all".
+     *
+     * @param list<array<string, mixed>> $campaigns
+     * @param list<string>               $dates
+     *
+     * @return array{campaign_id: int|null, delivery_date: string|null}
+     */
+    private function portfolio_filter(array $campaigns, array $dates): array
+    {
+        $date = (string) $this->request->getGet('delivery_date');
+
+        return [
+            'campaign_id'   => $this->chosen_campaign($campaigns),
+            'delivery_date' => in_array($date, $dates, true) ? $date : null,
+        ];
+    }
+
+    /**
+     * Each row with `number`, the presale's number as printed for the customer (Presale::number()).
+     *
+     * @param list<array<string, mixed>> $rows
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function with_numbers(array $rows): array
+    {
+        $presale = model(Presale::class);
+
+        return array_map(static fn (array $row): array => $row + ['number' => $presale->number((int) $row['presale_id'])], $rows);
+    }
+
+    /**
+     * An amount for the CSV: the business's decimals and decimal separator, no thousands separator
+     * and no currency symbol, so a spreadsheet in the same locale reads it as a number (same reason as
+     * quantity()).
+     */
+    private function money_cell(string $amount): string
+    {
+        $config   = config(OSPOS::class)->settings;
+        $decimals = totals_decimals();
+        $fmt      = new NumberFormatter($config['number_locale'] ?? 'en_US', NumberFormatter::DECIMAL);
+
+        $fmt->setAttribute(NumberFormatter::MIN_FRACTION_DIGITS, $decimals);
+        $fmt->setAttribute(NumberFormatter::MAX_FRACTION_DIGITS, $decimals);
+        $fmt->setTextAttribute(NumberFormatter::GROUPING_SEPARATOR_SYMBOL, '');
+        $fmt->setAttribute(NumberFormatter::GROUPING_USED, 0);
+
+        return (string) $fmt->format((float) $amount);
+    }
+
+    /**
+     * Lines as a CSV with a BOM, every cell through safe_cell().
+     *
+     * @param list<list<mixed>> $lines
+     */
+    private static function csv(array $lines): string
+    {
         $handle = fopen('php://temp', 'r+b');
         fwrite($handle, "\xEF\xBB\xBF");
 
@@ -89,7 +242,7 @@ class PresaleReports extends Secure_Controller
         $csv = (string) stream_get_contents($handle);
         fclose($handle);
 
-        return $this->response->download('preventas_comprometido_' . $campaign_id . '.csv', $csv);
+        return $csv;
     }
 
     /**
