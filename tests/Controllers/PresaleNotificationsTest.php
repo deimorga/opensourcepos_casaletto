@@ -121,8 +121,12 @@ final class PresaleNotificationsTest extends CIUnitTestCase
         $this->db->table('presale_campaigns')->where('campaign_id', $this->campaign_id ?? 0)->delete();
         $this->db->table('items')->where('item_id', $this->item_id ?? 0)->delete();
         $this->db->table('cash_up')->where('cashup_id', $this->cashup_id ?? 0)->delete();
-        $this->db->table('customers')->like('comments', 'PRNOTIFY-TEST')->delete();
-        $this->db->table('people')->like('comments', 'PRNOTIFY-TEST')->delete();
+        $people = array_column($this->db->table('people')->select('person_id')->where('comments', 'PRNOTIFY-TEST')->get()->getResultArray(), 'person_id');
+
+        if ($people !== []) {
+            $this->db->table('customers')->whereIn('person_id', $people)->delete();
+            $this->db->table('people')->whereIn('person_id', $people)->delete();
+        }
 
         if ($this->grantedHere) {
             $this->db->table('grants')->where(['permission_id' => 'presales', 'person_id' => 1])->delete();
@@ -231,7 +235,7 @@ final class PresaleNotificationsTest extends CIUnitTestCase
         $page       = $this->getReq('presales/paymentReceipt/' . $payment_id . '?sin_correo=1');
 
         $page->assertSee('presale_mail_notice');
-        $page->assertSee(esc(lang('Presales.notify_no_email')));
+        $page->assertSee(lang('Presales.notify_no_email'));
     }
 
     public function testWithAnAddressTheDocumentCarriesNoNotice(): void
