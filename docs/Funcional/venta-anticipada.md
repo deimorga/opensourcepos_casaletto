@@ -588,7 +588,7 @@ Salieron al construir la entrega por la caja.
 La temporada del primer negocio manda: **para vender preventas navideñas desde noviembre, la salida
 tiene que estar en producción a finales de octubre de 2026.**
 
-### Salida — Vender, abonar, entregar y cancelar — **por construir, objetivo finales de octubre**
+### Salida — Vender, abonar, entregar y cancelar — **en producción desde el 2026-10-14**
 
 - Interruptor en Configuración y los dos permisos (§4.12, §4.13).
 - Campañas: productos con precio de catálogo, descuento o precio propio; fechas de entrega; periodo
@@ -598,20 +598,27 @@ tiene que estar en producción a finales de octubre de 2026.**
 - Los abonos entran al cuadre del turno que los recibió, en su renglón propio (§4.5).
 - Estados al día, atrasada y pagada (§4.6).
 - Entregar desde la pantalla de caja, solo con saldo cero, sin contar dos veces la plata (§4.8).
-- Cancelar con devolución de 0 a 100% y su comprobante (§4.10). *Construido el 2026-10-07, pendiente de
-  certificar en staging.*
+- Cancelar con devolución de 0 a 100% y su comprobante (§4.10).
 - Lista de preventas y lo comprometido por campaña (§4.11).
+
+### Segunda entrega — Cartera y avisos por correo — **alcance escrito el 2026-10-26, por construir**
+
+Detalle en `preventas-cartera-y-avisos.md`:
+
+- Cartera: vendido, recaudado, por cobrar y vencido; antigüedad del vencido; lo que vence en 7 días;
+  lista de atrasados con teléfono y correo.
+- Correo al cliente al registrar, abonar, cancelar y entregar, con el comprobante en PDF, desde
+  `ospos@micronuba.net` y con los datos del negocio.
+- Recordatorio de cuota por correo.
 
 ### Después — Gestionar — **por construir**
 
 - Ajustar precio o cantidades de una preventa registrada, con motivo y registro de quién lo hizo.
 - Mover la fecha de entrega y rehacer el plan de cuotas, con motivo.
-- Cartera de preventas: cuánto falta por cobrar en total y cuánto está vencido.
 - Cupo de unidades por producto, si se pide.
 
 ### Más adelante, si se pide
 
-- Recordatorios de cuota al cliente.
 - Estado de cuenta del cliente con todas sus preventas.
 
 ---

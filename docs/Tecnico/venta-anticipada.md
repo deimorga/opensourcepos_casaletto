@@ -8,6 +8,7 @@
 > El módulo nace apagado (`presales_enable = '0'`) y sin permisos concedidos; se enciende por negocio.
 > Certificación en staging en §7.10. Decisiones de negocio en `docs/Funcional/venta-anticipada.md` §6
 > (D1-D29); técnicas en §3.
+> **Segunda entrega (cartera y avisos por correo):** diseño en `preventas-cartera-y-avisos.md` (2026-10-26).
 
 ---
 
