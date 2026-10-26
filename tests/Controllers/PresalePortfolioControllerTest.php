@@ -61,8 +61,9 @@ final class PresalePortfolioControllerTest extends CIUnitTestCase
         $this->campaign_id = (int) $this->db->insertID();
 
         // A name that starts like a formula and carries markup: escaped on screen, defused in the CSV.
+        // Without accents on purpose: the page body reaches the test with é as &eacute;.
         $this->db->table('people')->insert([
-            'first_name' => '=José <b>', 'last_name' => 'PORTFOLIO-CTRL', 'phone_number' => '+57 300 111 2233',
+            'first_name' => '=Jose <b>', 'last_name' => 'PORTFOLIO-CTRL', 'phone_number' => '+57 300 111 2233',
             'email'      => 'jose@example.com', 'address_1' => '', 'address_2' => '', 'city' => '', 'state' => '',
             'zip'        => '', 'country' => '', 'comments' => '',
         ]);
@@ -200,8 +201,8 @@ final class PresalePortfolioControllerTest extends CIUnitTestCase
 
         $this->assertStringContainsString(esc(lang('Presale_reports.portfolio')), $body);
         $this->assertStringContainsString(esc(lang('Presale_reports.overdue')), $body);
-        $this->assertStringContainsString(esc('=José <b> PORTFOLIO-CTRL'), $body);
-        $this->assertStringNotContainsString('=José <b>', $body);
+        $this->assertStringContainsString(esc('=Jose <b> PORTFOLIO-CTRL'), $body);
+        $this->assertStringNotContainsString('=Jose <b>', $body);
         $this->assertStringContainsString('+57 300 111 2233', $body);
         $this->assertStringContainsString('jose@example.com', $body);
         $this->assertStringContainsString(esc(model(Presale::class)->number($this->presale_id)), $body);
@@ -218,7 +219,7 @@ final class PresalePortfolioControllerTest extends CIUnitTestCase
 
         $body = (string) $this->getAs('/presales/portfolio?campaign_id=999999999&delivery_date=nonsense')->getBody();
 
-        $this->assertStringContainsString(esc('=José <b> PORTFOLIO-CTRL'), $body);
+        $this->assertStringContainsString(esc('=Jose <b> PORTFOLIO-CTRL'), $body);
     }
 
     public function testTheCsvCarriesEveryOpenPresaleAndDefusesFormulas(): void
@@ -233,11 +234,11 @@ final class PresalePortfolioControllerTest extends CIUnitTestCase
         $csv = $this->csvOf($response);
 
         $this->assertStringContainsString(lang('Presale_reports.days_late'), $csv);
-        $this->assertStringContainsString("'=José <b> PORTFOLIO-CTRL", $csv);
+        $this->assertStringContainsString("'=Jose <b> PORTFOLIO-CTRL", $csv);
         $this->assertStringContainsString("'+57 300 111 2233", $csv);
         $this->assertStringContainsString('jose@example.com', $csv);
         $this->assertStringContainsString(model(Presale::class)->number($this->presale_id), $csv);
-        $this->assertStringNotContainsString(',=José', $csv);
+        $this->assertStringNotContainsString(',=Jose', $csv);
     }
 
     public function testTheListShowsThePortfolioButtonOnlyToWhoManages(): void
