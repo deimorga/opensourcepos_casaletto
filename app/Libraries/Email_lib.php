@@ -20,10 +20,37 @@ class Email_lib
 {
     private Email $email;
     private array $config;
+    private ?string $platform_from = null;
+    private string $failure = '';
 
-    public function __construct()
+    /**
+     * @param array{host: string, port: int, crypto: string, user: string, pass: string, from: string}|null $platform
+     *        The platform's own SMTP account (see platform()). Null: the business's settings, as always.
+     */
+    public function __construct(?array $platform = null)
     {
         $this->email = new Email();
+
+        if ($platform !== null) {
+            $this->config        = [];
+            $this->platform_from = $platform['from'];
+
+            $this->email->initialize([
+                'mailType'    => 'html',
+                'userAgent'   => 'OSPOS',
+                'validate'    => true,
+                'protocol'    => 'smtp',
+                'SMTPHost'    => $platform['host'],
+                'SMTPUser'    => $platform['user'],
+                'SMTPPass'    => $platform['pass'],
+                'SMTPPort'    => $platform['port'],
+                'SMTPTimeout' => 10,
+                'SMTPCrypto'  => $platform['crypto'],
+            ]);
+
+            return;
+        }
+
         $this->config = config(OSPOS::class)->settings;
 
         $encrypter = Services::encrypter();
@@ -54,6 +81,110 @@ class Email_lib
             'SMTPCrypto'  => $this->config['smtp_crypto']
         ];
         $this->email->initialize($email_config);
+    }
+
+    /**
+     * The platform's sender: one SMTP account for every business, read from the environment
+     * (docs/Tecnico/preventas-cartera-y-avisos.md §4.1). Production sends through Resend; staging
+     * through Mailpit, which keeps every message and delivers none. Null when the environment names no
+     * host or no sender: then there is nothing to send with, and the caller says so instead of failing.
+     */
+    public static function platform(): ?self
+    {
+        $host = trim((string) getenv('PLATFORM_SMTP_HOST'));
+        $from = trim((string) getenv('PLATFORM_MAIL_FROM'));
+
+        if ($host === '' || filter_var($from, FILTER_VALIDATE_EMAIL) === false) {
+            return null;
+        }
+
+        $port = (int) getenv('PLATFORM_SMTP_PORT');
+
+        return new self([
+            'host'   => $host,
+            'port'   => $port > 0 ? $port : 587,
+            'crypto' => trim((string) getenv('PLATFORM_SMTP_CRYPTO')),
+            'user'   => trim((string) getenv('PLATFORM_SMTP_USER')),
+            'pass'   => (string) getenv('PLATFORM_SMTP_PASS'),
+            'from'   => $from,
+        ]);
+    }
+
+    /**
+     * Sends from the platform's address under a business's name, with replies going to the business
+     * (K2: the From must be the domain that signs, or DMARC sends it to spam).
+     *
+     * @param list<string> $attachments Paths of files to attach.
+     */
+    public function send_as(string $sender_name, string $to, string $subject, string $message, string $reply_to = '', array $attachments = []): bool
+    {
+        if ($this->platform_from === null) {
+            throw new \LogicException('send_as() needs the platform sender: use Email_lib::platform().');
+        }
+
+        $email = $this->email;
+        $email->clear(true);
+
+        $email->setFrom($this->platform_from, self::header_text($sender_name));
+        $email->setTo($to);
+
+        if (filter_var($reply_to, FILTER_VALIDATE_EMAIL) !== false) {
+            $email->setReplyTo($reply_to, self::header_text($sender_name));
+        }
+
+        $email->setSubject(self::header_text($subject));
+        $email->setMessage($message);
+
+        foreach ($attachments as $attachment) {
+            $email->attach($attachment);
+        }
+
+        // CodeIgniter opens the SMTP socket with a bare fsockopen(): a refused or timed-out connection
+        // raises a PHP warning, which the framework's error handler turns into an ErrorException in
+        // production. While sending, warnings are noted and absorbed instead, so CodeIgniter sees the
+        // failed socket and returns false the way it was written to. A mail server that does not
+        // answer is a false here, never an exception.
+        $this->failure = '';
+
+        set_error_handler(function (int $severity, string $message): bool {
+            $this->failure = $message;
+
+            return true;
+        }, E_WARNING | E_NOTICE);
+
+        try {
+            $result = $email->send(false);
+        } catch (\Throwable $e) {
+            $this->failure = $e->getMessage();
+            $result        = false;
+        } finally {
+            restore_error_handler();
+        }
+
+        if (!$result) {
+            log_message('error', 'Platform mail to ' . $to . ' failed: ' . $this->last_error());
+        }
+
+        return $result;
+    }
+
+    /**
+     * What the mail server answered on the last failure, without the message itself. The SMTP
+     * conversation CodeIgniter keeps holds the server's replies, never the password.
+     */
+    public function last_error(): string
+    {
+        $answer = trim(html_entity_decode(strip_tags($this->email->printDebugger([])), ENT_QUOTES));
+
+        return trim($this->failure . ($this->failure !== '' && $answer !== '' ? "\n" : '') . $answer);
+    }
+
+    /**
+     * A name or subject fit for a mail header: one line, no control characters.
+     */
+    public static function header_text(string $text): string
+    {
+        return trim((string) preg_replace('/[\x00-\x1F\x7F]+/u', ' ', $text));
     }
 
     /**

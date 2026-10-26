@@ -47,9 +47,10 @@ class TenantProvisioner
      * Never assignable to a real tenant -- kept in sync with the
      * reserved list documented in docs/Tecnico/multi-tenant-arquitectura.md
      * (Fase 6/7): these are infrastructure subdomains of ospos-saas.micronuba.net,
-     * not business slugs.
+     * not business slugs. 'mailpit' is staging's mail inbox
+     * (mailpit.staging.ospos-saas.micronuba.net, docker-compose.staging.yml).
      */
-    private const RESERVED_SLUGS = ['staging', 'www', 'admin', 'platform', 'login', 'api', 'app'];
+    private const RESERVED_SLUGS = ['staging', 'www', 'admin', 'platform', 'login', 'api', 'app', 'mailpit'];
 
     /**
      * El usuario que create() deja como administrador del negocio nuevo. D9: uno solo, con todos
