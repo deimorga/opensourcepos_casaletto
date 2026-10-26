@@ -73,6 +73,10 @@ Todo lo demás vive en el script, versionado. **A mano, solo en emergencia, y co
   (el dominio antiguo y los 4 negocios) y 5 en staging.
 - Si todo está bien: `php spark platform:support-employee` (un permiso nuevo deja atrás al empleado
   de soporte; si falla, avisa y no tumba nada).
+- Luego los **servicios auxiliares**: todo lo del compose que no es `ospos` ni `mysql` (hoy solo
+  Mailpit, en staging) se crea o actualiza con `up -d --no-deps`. Si uno no arranca, avisa y no tumba
+  nada. Antes del 2026-10-26 este paso no existía, y un servicio nuevo en el compose no llegaba a
+  crearse: la bandeja de Mailpit respondió 404 después de un despliegue «exitoso».
 
 **Si la verificación falla:**
 

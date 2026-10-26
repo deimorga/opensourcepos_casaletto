@@ -323,6 +323,20 @@ if ! dc exec -T ospos php spark platform:support-employee; then
     say "AVISO: platform:support-employee falló; correrlo a mano."
 fi
 
+# Los servicios que no son la aplicación ni la base (hoy, solo Mailpit en staging). switch_app
+# los deja fuera a propósito; sin este paso, uno nuevo en el compose no llegaba a crearse
+# nunca (2026-10-26: la bandeja de staging respondía 404 tras un despliegue «exitoso»). La
+# caja no depende de ellos: si uno falla, se avisa y el despliegue sigue sano.
+EXTRAS="$(dc config --services | grep -vxE 'ospos|mysql' || true)"
+if [ -n "$EXTRAS" ]; then
+    # shellcheck disable=SC2086 # una palabra por servicio
+    if dc up -d --no-build --no-deps $EXTRAS; then
+        say "servicios auxiliares al día: $(echo $EXTRAS)"
+    else
+        say "AVISO: no arrancaron todos los servicios auxiliares ($(echo $EXTRAS)); revisar a mano."
+    fi
+fi
+
 # Limpieza: imágenes sin etiqueta, y solo las últimas vueltas atrás y respaldos de este ambiente.
 docker image prune -f >/dev/null
 docker images --format '{{.Repository}}:{{.Tag}}' | grep "^casaletto-ospos:rollback-$ENV_NAME-" | sort -r \
