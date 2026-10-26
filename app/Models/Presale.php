@@ -233,6 +233,9 @@ class Presale extends Model
         $events->log($presale_id, Presale_event::CREATED, $employee_id, ['total' => $total, 'taxes' => $charge['taxes'], 'lines' => count($lines), 'installments' => count($installments)]);
         $events->log($presale_id, Presale_event::PAYMENT, $employee_id, ['amount' => $amount, 'payment_type_code' => $code, 'cashup_id' => $cashup_id]);
 
+        // The customer's e-mail, in this same transaction (K7): it exists if and only if the presale does.
+        model(Presale_notification::class)->enqueue($presale_id, Presale_notification::KIND_CREATED, 0, $employee_id);
+
         if ($this->db->transStatus() === false) {
             $this->db->transRollback();
 
@@ -603,6 +606,7 @@ class Presale extends Model
         $payment_id = (int) $this->db->insertID();
 
         model(Presale_event::class)->log($presale_id, Presale_event::PAYMENT, $employee_id, ['amount' => $amount, 'payment_type_code' => $payment_type_code, 'cashup_id' => $cashup_id]);
+        model(Presale_notification::class)->enqueue($presale_id, Presale_notification::KIND_PAYMENT, $payment_id, $employee_id);
 
         if ($this->db->transStatus() === false) {
             $this->db->transRollback();
@@ -721,6 +725,8 @@ class Presale extends Model
             'refund_payment_type_code' => $cashup_id === null ? null : $refund_type_code,
         ], $reason);
 
+        model(Presale_notification::class)->enqueue($presale_id, Presale_notification::KIND_CANCELED, 0, $employee_id);
+
         if ($this->db->transStatus() === false) {
             $this->db->transRollback();
 
@@ -807,7 +813,14 @@ class Presale extends Model
             return false;
         }
 
-        return model(Presale_event::class)->log($presale_id, Presale_event::DELIVERED, $employee_id, ['sale_id' => $sale_id]);
+        if (! model(Presale_event::class)->log($presale_id, Presale_event::DELIVERED, $employee_id, ['sale_id' => $sale_id])) {
+            return false;
+        }
+
+        // Inside the register's transaction: a delivery rolled back takes its e-mail with it (K7).
+        model(Presale_notification::class)->enqueue($presale_id, Presale_notification::KIND_DELIVERED, $sale_id, $employee_id);
+
+        return true;
     }
 
     // ---------------------------------------------------------------------------------------------

@@ -2,6 +2,7 @@
 
 namespace App\Controllers;
 
+use App\Libraries\Presale_documents;
 use App\Libraries\Sale_lib;
 use App\Models\Cashup;
 use App\Models\Customer;
@@ -10,6 +11,7 @@ use App\Models\Item;
 use App\Models\Presale;
 use App\Models\Presale_campaign;
 use App\Models\Presale_event;
+use App\Models\Presale_notification;
 use App\Models\Presale_payment;
 use CodeIgniter\Database\BaseConnection;
 use CodeIgniter\HTTP\ResponseInterface;
@@ -354,7 +356,7 @@ class Presales extends Secure_Controller
             'success'     => true,
             'id'          => $result,
             'message'     => esc(lang('Presales.registered', [$this->presale->number($result)])),
-            'receipt_url' => site_url('presales/receipt/' . $result) . '?print=1',
+            'receipt_url' => site_url('presales/receipt/' . $result) . '?print=1' . self::no_email_flag($result, Presale_notification::KIND_CREATED, 0),
         ]);
     }
 
@@ -405,6 +407,8 @@ class Presales extends Secure_Controller
             'payment_types'  => self::payment_options(),
             'has_open_shift' => model(Cashup::class)->get_open_cashup_id() !== null,
             'can_manage'     => self::can_manage($this->employee),
+            'notifications'  => model(Presale_notification::class)->get_for($presale_id),
+            'notify_on'      => Presale_notification::is_on(),
         ], ['saveData' => false]);
     }
 
@@ -445,7 +449,7 @@ class Presales extends Secure_Controller
             'success'     => true,
             'id'          => $presale_id,
             'message'     => esc(lang('Presales.payment_saved')),
-            'receipt_url' => site_url('presales/paymentReceipt/' . $result) . '?print=1',
+            'receipt_url' => site_url('presales/paymentReceipt/' . $result) . '?print=1' . self::no_email_flag($presale_id, Presale_notification::KIND_PAYMENT, $result),
         ]);
     }
 
@@ -543,7 +547,7 @@ class Presales extends Secure_Controller
             'success'     => true,
             'id'          => $presale_id,
             'message'     => esc(lang('Presales.canceled', [$this->presale->number($presale_id)])),
-            'receipt_url' => site_url('presales/cancelReceipt/' . $presale_id) . '?print=1',
+            'receipt_url' => site_url('presales/cancelReceipt/' . $presale_id) . '?print=1' . self::no_email_flag($presale_id, Presale_notification::KIND_CANCELED, 0),
         ]);
     }
 
@@ -574,29 +578,16 @@ class Presales extends Secure_Controller
      */
     public function getReceipt(int $presale_id): ResponseInterface|string
     {
-        $summary = self::is_enabled() ? $this->presale->get_summary($presale_id, date('Y-m-d')) : null;
+        $data = self::is_enabled() ? (new Presale_documents())->presale($presale_id, date('Y-m-d')) : null;
 
-        if ($summary === null) {
+        if ($data === null) {
             return $this->response->setStatusCode(404)->setBody(esc(lang('Presales.not_found')));
         }
 
-        $campaign = model(Presale_campaign::class)->get_info((int) $summary['campaign_id']);
-
-        // On the paper, only the lines the register would print: a kit whose components are set not
-        // to print shows as the kit.
-        $lines = array_values(array_filter(
-            $this->presale->get_lines($presale_id),
-            static fn (array $line): bool => (int) $line['print_option'] === PRINT_YES,
-        ));
-
-        return view('presales/receipt_presale', [
-            'presale'       => $summary,
-            'customer'      => model(Customer::class)->get_info((int) $summary['customer_id']),
-            'campaign_name' => $campaign['name'] ?? '',
-            'lines'         => $lines,
-            'installments'  => $this->presale->get_installments($presale_id),
-            'print'         => $this->request->getGet('print') === '1',
-            'open_drawer'   => $this->take_drawer($presale_id, null),
+        return view('presales/receipt_presale', $data + [
+            'print'       => $this->request->getGet('print') === '1',
+            'open_drawer' => $this->take_drawer($presale_id, null),
+            'notice'      => $this->mail_notice(),
         ], ['saveData' => false]);
     }
 
@@ -607,45 +598,18 @@ class Presales extends Secure_Controller
      */
     public function getPaymentReceipt(int $payment_id): ResponseInterface|string
     {
-        $payment = self::is_enabled() ? model(Presale_payment::class)->find($payment_id) : null;
+        $data = self::is_enabled() ? (new Presale_documents())->payment($payment_id) : null;
 
-        if (! is_array($payment) || $payment['kind'] !== Presale_payment::KIND_PAYMENT) {
+        if ($data === null) {
             return $this->response->setStatusCode(404)->setBody(esc(lang('Presales.not_found')));
-        }
-
-        $presale_id = (int) $payment['presale_id'];
-        $presale    = $this->presale->get_info($presale_id);
-
-        if ($presale === null) {
-            return $this->response->setStatusCode(404)->setBody(esc(lang('Presales.not_found')));
-        }
-
-        $accumulated = '0.00';
-
-        foreach (model(Presale_payment::class)->get_for($presale_id) as $movement) {
-            if ((int) $movement['payment_id'] > $payment_id) {
-                continue;
-            }
-
-            $accumulated = $movement['kind'] === Presale_payment::KIND_REFUND
-                ? bcsub($accumulated, (string) $movement['amount'], 2)
-                : bcadd($accumulated, (string) $movement['amount'], 2);
         }
 
         helper('payment_type');
 
-        $campaign = model(Presale_campaign::class)->get_info((int) $presale['campaign_id']);
-
-        return view('presales/receipt_payment', [
-            'presale'       => $presale + ['number' => $this->presale->number($presale_id)],
-            'payment'       => $payment,
-            'customer'      => model(Customer::class)->get_info((int) $presale['customer_id']),
-            'campaign_name' => $campaign['name'] ?? '',
-            'employee'      => $this->names([(int) $payment['employee_id']])[(int) $payment['employee_id']] ?? '',
-            'accumulated'   => $accumulated,
-            'balance'       => bcsub((string) $presale['total'], $accumulated, 2),
-            'print'         => $this->request->getGet('print') === '1',
-            'open_drawer'   => $this->take_drawer($presale_id, $payment_id),
+        return view('presales/receipt_payment', $data + [
+            'print'       => $this->request->getGet('print') === '1',
+            'open_drawer' => $this->take_drawer((int) $data['presale']['presale_id'], $payment_id),
+            'notice'      => $this->mail_notice(),
         ], ['saveData' => false]);
     }
 
@@ -656,42 +620,89 @@ class Presales extends Secure_Controller
      */
     public function getCancelReceipt(int $presale_id): ResponseInterface|string
     {
-        $presale = self::is_enabled() ? $this->presale->get_info($presale_id) : null;
+        $data = self::is_enabled() ? (new Presale_documents())->cancellation($presale_id) : null;
 
-        if ($presale === null || $presale['status'] !== Presale::STATUS_CANCELED) {
+        if ($data === null) {
             return $this->response->setStatusCode(404)->setBody(esc(lang('Presales.not_found')));
-        }
-
-        $paid     = '0.00';
-        $refunded = '0.00';
-        $refunds  = [];
-
-        foreach (model(Presale_payment::class)->get_for($presale_id) as $movement) {
-            if ($movement['kind'] === Presale_payment::KIND_REFUND) {
-                $refunded  = bcadd($refunded, (string) $movement['amount'], 2);
-                $refunds[] = $movement;
-            } else {
-                $paid = bcadd($paid, (string) $movement['amount'], 2);
-            }
         }
 
         helper('payment_type');
 
-        $campaign    = model(Presale_campaign::class)->get_info((int) $presale['campaign_id']);
-        $canceled_by = (int) ($presale['canceled_by'] ?? 0);
-
-        return view('presales/receipt_cancel', [
-            'presale'       => $presale + ['number' => $this->presale->number($presale_id)],
-            'customer'      => model(Customer::class)->get_info((int) $presale['customer_id']),
-            'campaign_name' => $campaign['name'] ?? '',
-            'employee'      => $this->names([$canceled_by])[$canceled_by] ?? '',
-            'paid'          => $paid,
-            'refunded'      => $refunded,
-            'kept'          => bcsub($paid, $refunded, 2),
-            'refunds'       => $refunds,
-            'print'         => $this->request->getGet('print') === '1',
-            'open_drawer'   => $this->take_cancel_drawer($presale_id, $refunds),
+        return view('presales/receipt_cancel', $data + [
+            'print'       => $this->request->getGet('print') === '1',
+            'open_drawer' => $this->take_cancel_drawer($presale_id, $data['refunds']),
+            'notice'      => $this->mail_notice(),
         ], ['saveData' => false]);
+    }
+
+    /**
+     * The document of a delivered presale: what the register handed over and the difference a weight
+     * left. It is what the customer's delivery e-mail attaches (preventas-cartera-y-avisos.md §4.6).
+     */
+    public function getDeliveryReceipt(int $presale_id): ResponseInterface|string
+    {
+        $data = self::is_enabled() ? (new Presale_documents())->delivery($presale_id) : null;
+
+        if ($data === null) {
+            return $this->response->setStatusCode(404)->setBody(esc(lang('Presales.not_found')));
+        }
+
+        return view('presales/receipt_delivered', $data + [
+            'print'       => $this->request->getGet('print') === '1',
+            'open_drawer' => false,
+            'notice'      => '',
+        ], ['saveData' => false]);
+    }
+
+    /**
+     * The notice the document right after registering, paying or cancelling shows when the customer
+     * could not be e-mailed (A4). The action that redirects here adds `sin_correo=1`; the notice is
+     * on screen only, never on the paper.
+     */
+    private function mail_notice(): string
+    {
+        return $this->request->getGet('sin_correo') === '1' ? lang('Presales.notify_no_email') : '';
+    }
+
+    /**
+     * `&sin_correo=1` when the e-mail of that fact was skipped for want of an address, else nothing.
+     */
+    private static function no_email_flag(int $presale_id, string $kind, int $ref_id): string
+    {
+        return model(Presale_notification::class)->status_of($presale_id, $kind, $ref_id) === Presale_notification::STATUS_SKIPPED_NO_EMAIL
+            ? '&sin_correo=1'
+            : '';
+    }
+
+    /**
+     * Puts one of a presale's e-mails back in the queue, to the customer's current address. Any
+     * employee with the presales module may do it: it sends the customer what they were already due.
+     */
+    public function postResendNotification(int $presale_id, int $notification_id): ResponseInterface
+    {
+        if (! self::is_enabled()) {
+            return $this->refuse(lang('Presales.disabled'))->setStatusCode(403);
+        }
+
+        if (! Presale_notification::is_on()) {
+            return $this->refuse(lang('Presales.notify_off'));
+        }
+
+        $status = model(Presale_notification::class)->resend(
+            $notification_id,
+            $presale_id,
+            (int) $this->employee->get_logged_in_employee_info()->person_id,
+        );
+
+        if ($status === null) {
+            return $this->refuse(lang('Presales.not_found'))->setStatusCode(404);
+        }
+
+        if ($status === Presale_notification::STATUS_SKIPPED_NO_EMAIL) {
+            return $this->refuse(lang('Presales.notify_no_email'));
+        }
+
+        return $this->response->setJSON(['success' => true, 'message' => esc(lang('Presales.notify_resent'))]);
     }
 
     // ---------------------------------------------------------------------------------------------

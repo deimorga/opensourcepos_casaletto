@@ -7,13 +7,21 @@
  * Ids follow the sale receipt's (#receipt_wrapper, #receipt_items, #company_name) so the paper rules of
  * partial/receipt_paper.php apply to these documents too.
  *
+ * As the PDF of a customer's e-mail ($pdf, docs/Tecnico/preventas-cartera-y-avisos.md K4) the page
+ * has no buttons and no receipt-paper geometry: dompdf lays it out on a sheet of its own, and the
+ * paper partial's `size: <width> auto` is a browser's idea, not dompdf's.
+ *
  * @var string $title
  * @var array  $config
+ * @var string $notice  shown on screen only: "the customer has no e-mail" (A4)
+ * @var bool   $pdf
  */
 
 use App\Libraries\Sale_lib;
 
-$width = Sale_lib::receipt_printable_width_mm($config['receipt_paper'] ?? '') ?? 80;
+$width  = Sale_lib::receipt_printable_width_mm($config['receipt_paper'] ?? '') ?? 80;
+$pdf    = (bool) ($pdf ?? false);
+$notice = (string) ($notice ?? '');
 ?>
 <!doctype html>
 <html lang="<?= esc(current_language_code()) ?>">
@@ -36,15 +44,23 @@ $width = Sale_lib::receipt_printable_width_mm($config['receipt_paper'] ?? '') ??
         .presale-doc-terms { margin-top: 4mm; font-size: 11px; }
         .presale-doc-actions { margin: 4mm 0; text-align: center; }
         .presale-doc-actions a, .presale-doc-actions button { font: inherit; margin: 0 2mm; }
+        .presale-doc-notice { margin: 2mm 0; padding: 2mm; border: 1px solid #c09853; background: #fcf8e3; color: #8a6d3b; font-family: sans-serif; }
         @media print { body { padding: 0; } .print_hide { display: none !important; } }
     </style>
-    <?= view('partial/receipt_paper', ['config' => $config], ['saveData' => false]) ?>
+    <?php if (! $pdf): ?>
+        <?= view('partial/receipt_paper', ['config' => $config], ['saveData' => false]) ?>
+    <?php endif; ?>
 </head>
 <body>
-<div class="presale-doc-actions print_hide">
-    <button type="button" onclick="window.print();"><?= esc(lang('Common.print')) ?></button>
-    <a href="<?= site_url('presales') ?>"><?= esc(lang('Presales.back')) ?></a>
-</div>
+<?php if (! $pdf): ?>
+    <div class="presale-doc-actions print_hide">
+        <button type="button" onclick="window.print();"><?= esc(lang('Common.print')) ?></button>
+        <a href="<?= site_url('presales') ?>"><?= esc(lang('Presales.back')) ?></a>
+    </div>
+<?php endif; ?>
+<?php if ($notice !== ''): ?>
+    <div class="presale-doc-notice print_hide" role="status" id="presale_mail_notice"><?= esc($notice) ?></div>
+<?php endif; ?>
 <div id="receipt_wrapper">
     <?php if (($config['company'] ?? '') !== ''): ?>
         <div id="company_name"><?= nl2br(esc($config['company'])) ?></div>

@@ -15,6 +15,8 @@
  * @var bool                       $print
  * @var bool                       $open_drawer
  * @var array                      $config
+ * @var string                     $notice
+ * @var bool                       $pdf
  */
 
 use App\Libraries\Identity_document;
@@ -24,7 +26,7 @@ $customer_name = trim(($customer->first_name ?? '') . ' ' . ($customer->last_nam
 $customer_document = Identity_document::format($customer->document_type ?? null, $customer->document_number ?? null);
 $terms             = trim((string) ($config['presales_terms'] ?? ''));
 ?>
-<?= view('presales/receipt_head', ['title' => lang('Presales.receipt_presale'), 'config' => $config], ['saveData' => false]) ?>
+<?= view('presales/receipt_head', ['title' => lang('Presales.receipt_presale'), 'config' => $config, 'notice' => $notice ?? '', 'pdf' => $pdf ?? false], ['saveData' => false]) ?>
 
     <table>
         <tr><th><?= esc(lang('Presales.number')) ?></th><td class="r"><strong><?= esc($presale['number']) ?></strong></td></tr>

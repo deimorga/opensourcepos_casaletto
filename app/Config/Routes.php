@@ -101,6 +101,11 @@ $routes->post('presales/cancelPreview/(:num)', 'Presales::postCancelPreview/$1')
 $routes->get('presales/cancelReceipt/(:num)', 'Presales::getCancelReceipt/$1');
 // presales: cancel (lane E) END
 
+// presales: customer e-mails (delivery 2b) BEGIN
+$routes->get('presales/deliveryReceipt/(:num)', 'Presales::getDeliveryReceipt/$1');
+$routes->post('presales/(:num)/resendNotification/(:num)', 'Presales::postResendNotification/$1/$2');
+// presales: customer e-mails (delivery 2b) END
+
 $routes->get('/', 'Login::index');
 $routes->get('login', 'Login::index');
 $routes->post('login', 'Login::index');

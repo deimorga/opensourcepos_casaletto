@@ -985,6 +985,20 @@ class Config extends Secure_Controller
             $settings['presales_weight_refund_limit'] = rtrim(rtrim(number_format((float) $parsed, 2, '.', ''), '0'), '.');
         }
 
+        // Customer e-mails (docs/Tecnico/preventas-cartera-y-avisos.md §4.2). The switch only when the
+        // form carries the field, so an older form saved by an open tab does not switch it off.
+        if ($this->request->getPost('presales_notify_form') !== null) {
+            $days = trim((string) $this->request->getPost('presales_reminder_days_before'));
+
+            if (preg_match('/^\d{1,2}$/', $days) !== 1 || (int) $days > 30) {
+                return $this->response->setJSON(['success' => false, 'message' => lang('Config.presales_reminder_days_invalid')]);
+            }
+
+            $settings['presales_notify_email']         = $this->request->getPost('presales_notify_email') != null ? '1' : '0';
+            $settings['presales_reminder_days_before'] = (string) (int) $days;
+            $settings['presales_reminder_late']        = $this->request->getPost('presales_reminder_late') != null ? '1' : '0';
+        }
+
         $success = $this->appconfig->batch_save($settings);
 
         return $this->response->setJSON(['success' => $success, 'message' => lang('Config.saved_' . ($success ? '' : 'un') . 'successfully')]);

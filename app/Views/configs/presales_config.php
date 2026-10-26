@@ -1,7 +1,7 @@
 <?php
 /**
- * Presales configuration: the switch, the number prefix and the conditions printed on every presale
- * document.
+ * Presales configuration: the switch, the number prefix, the conditions printed on every presale
+ * document, and the customer's e-mails (docs/Funcional/preventas-cartera-y-avisos.md §4.5).
  *
  * Every presales_* setting is read with ?? default on purpose. The configuration screens are shared by
  * every tenant in the platform, including ones running against a settings cache that predates
@@ -68,6 +68,56 @@ $presales_enabled = ($config['presales_enable'] ?? '0') === '1';
                 </div>
                 <div class="col-xs-6">
                     <span class="help-block"><?= esc(lang('Config.presales_weight_refund_limit_help')) ?></span>
+                </div>
+            </div>
+
+            <?= form_hidden('presales_notify_form', '1') ?>
+
+            <div class="form-group form-group-sm">
+                <?= form_label(lang('Config.presales_notify_email'), 'presales_notify_email', ['class' => 'control-label col-xs-2']) ?>
+                <div class="col-xs-1">
+                    <?= form_checkbox([
+                        'name'    => 'presales_notify_email',
+                        'value'   => 'presales_notify_email',
+                        'id'      => 'presales_notify_email',
+                        'checked' => ($config['presales_notify_email'] ?? '0') === '1',
+                    ]) ?>
+                </div>
+                <div class="col-xs-6">
+                    <span class="help-block"><?= esc(lang('Config.presales_notify_email_help')) ?></span>
+                </div>
+            </div>
+
+            <div class="form-group form-group-sm">
+                <?= form_label(lang('Config.presales_reminder_days_before'), 'presales_reminder_days_before', ['class' => 'control-label col-xs-2']) ?>
+                <div class="col-xs-1">
+                    <?= form_input([
+                        'name'  => 'presales_reminder_days_before',
+                        'id'    => 'presales_reminder_days_before',
+                        'class' => 'form-control input-sm',
+                        'type'  => 'number',
+                        'min'   => 0,
+                        'max'   => 30,
+                        'value' => $config['presales_reminder_days_before'] ?? '2',
+                    ]) ?>
+                </div>
+                <div class="col-xs-6">
+                    <span class="help-block"><?= esc(lang('Config.presales_reminder_days_before_help')) ?></span>
+                </div>
+            </div>
+
+            <div class="form-group form-group-sm">
+                <?= form_label(lang('Config.presales_reminder_late'), 'presales_reminder_late', ['class' => 'control-label col-xs-2']) ?>
+                <div class="col-xs-1">
+                    <?= form_checkbox([
+                        'name'    => 'presales_reminder_late',
+                        'value'   => 'presales_reminder_late',
+                        'id'      => 'presales_reminder_late',
+                        'checked' => ($config['presales_reminder_late'] ?? '1') === '1',
+                    ]) ?>
+                </div>
+                <div class="col-xs-6">
+                    <span class="help-block"><?= esc(lang('Config.presales_reminder_late_help')) ?></span>
                 </div>
             </div>
 

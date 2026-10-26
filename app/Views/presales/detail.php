@@ -15,7 +15,11 @@
  *   (presales/cancelPreview) as the amount is typed. It posts to presales/cancel, which checks the
  *   permission again, and goes to the cancellation document. A presale whose delivery is open in the
  *   register is refused by the model with a message that says what to do.
- * - Once canceled, the cancellation document can be reprinted.
+ * - Once canceled, the cancellation document can be reprinted; once delivered, the delivery document.
+ *
+ * The «Correos» tab lists the customer's e-mails about this presale and their state, with a Resend
+ * button (presales/{id}/resendNotification/{notification_id}) that sends to the customer's CURRENT
+ * address (docs/Funcional/preventas-cartera-y-avisos.md §4.3 and §4.4).
  *
  * Every value printed here is escaped; the payment form's answers come back escaped by the server.
  *
@@ -30,9 +34,12 @@
  * @var array<string, string>      $payment_types
  * @var bool                       $has_open_shift
  * @var bool                       $can_manage
+ * @var list<array<string, mixed>> $notifications  Presale_notification::get_for()
+ * @var bool                       $notify_on
  */
 
 use App\Models\Presale;
+use App\Models\Presale_notification;
 use App\Models\Presale_payment;
 
 $id            = (int) $presale['presale_id'];
@@ -109,6 +116,12 @@ $customer_name = trim(($customer->first_name ?? '') . ' ' . ($customer->last_nam
                 <span class="glyphicon glyphicon-print">&nbsp;</span><?= esc(lang('Presales.print_cancel_receipt')) ?>
             </a>
         <?php endif; ?>
+
+        <?php if ($presale['status'] === Presale::STATUS_DELIVERED): ?>
+            <a class="btn btn-default btn-sm" id="presale_delivery_receipt" href="<?= site_url('presales/deliveryReceipt/' . $id) ?>" target="_blank" rel="noopener">
+                <span class="glyphicon glyphicon-print">&nbsp;</span><?= esc(lang('Presales.receipt_delivered')) ?>
+            </a>
+        <?php endif; ?>
     </div>
 
     <?php if ($is_open && $can_manage): ?>
@@ -179,6 +192,7 @@ $customer_name = trim(($customer->first_name ?? '') . ' ' . ($customer->last_nam
         <li role="presentation"><a data-toggle="tab" href="#presale_tab_plan" role="tab" aria-controls="presale_tab_plan" aria-selected="false"><?= esc(lang('Presales.plan_state')) ?></a></li>
         <li role="presentation"><a data-toggle="tab" href="#presale_tab_payments" role="tab" aria-controls="presale_tab_payments" aria-selected="false"><?= esc(lang('Presales.payments')) ?> <span class="badge"><?= count($payments) ?></span></a></li>
         <li role="presentation"><a data-toggle="tab" href="#presale_tab_history" role="tab" aria-controls="presale_tab_history" aria-selected="false"><?= esc(lang('Presales.history')) ?></a></li>
+        <li role="presentation"><a data-toggle="tab" href="#presale_tab_emails" role="tab" aria-controls="presale_tab_emails" aria-selected="false"><?= esc(lang('Presales.emails')) ?> <span class="badge"><?= count($notifications ?? []) ?></span></a></li>
     </ul>
 
     <div class="tab-content" style="padding-top: 10px;">
@@ -290,6 +304,55 @@ $customer_name = trim(($customer->first_name ?? '') . ' ' . ($customer->last_nam
                 </tbody>
             </table>
         </div>
+
+        <div class="tab-pane fade" id="presale_tab_emails" role="tabpanel">
+            <?php if (! ($notify_on ?? false)): ?>
+                <p class="text-muted"><?= esc(lang('Presales.emails_off')) ?></p>
+            <?php endif; ?>
+            <?php if (($notifications ?? []) === []): ?>
+                <p class="text-muted"><?= esc(lang('Presales.emails_none')) ?></p>
+            <?php else: ?>
+                <table class="table table-condensed" id="presale_emails">
+                    <thead>
+                        <tr>
+                            <th><?= esc(lang('Presales.email_when')) ?></th>
+                            <th><?= esc(lang('Presales.email_kind')) ?></th>
+                            <th><?= esc(lang('Presales.email_to')) ?></th>
+                            <th><?= esc(lang('Presales.email_status')) ?></th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($notifications as $notification): ?>
+                            <?php
+                            $status = (string) $notification['status'];
+                            $label  = match ($status) {
+                                Presale_notification::STATUS_SENT => 'label-success',
+                                Presale_notification::STATUS_FAILED, Presale_notification::STATUS_SKIPPED_NO_EMAIL, Presale_notification::STATUS_SKIPPED_NO_TRANSPORT => 'label-danger',
+                                default => 'label-default',
+                            };
+                            ?>
+                            <tr>
+                                <td><?= esc(to_datetime(strtotime((string) ($notification['sent_at'] ?? $notification['created_at'])))) ?></td>
+                                <td><?= esc(lang('Presales.email_kind_' . $notification['kind'])) ?></td>
+                                <td><?= esc((string) ($notification['to_email'] ?? '')) ?></td>
+                                <td>
+                                    <span class="label <?= $label ?>"><?= esc(lang('Presales.email_status_' . $status)) ?></span>
+                                    <?php if (! empty($notification['last_error'])): ?>
+                                        <br><small class="text-muted"><?= esc((string) $notification['last_error']) ?></small>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    <?php if (($notify_on ?? false) && ! in_array($status, [Presale_notification::STATUS_PENDING, Presale_notification::STATUS_SENDING], true)): ?>
+                                        <button type="button" class="btn btn-default btn-xs presale-resend" data-notification="<?= (int) $notification['notification_id'] ?>"><?= esc(lang('Presales.email_resend')) ?></button>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            <?php endif; ?>
+        </div>
     </div>
 </div>
 
@@ -300,6 +363,25 @@ $customer_name = trim(($customer->first_name ?? '') . ' ' . ($customer->last_nam
     $('#presale_tabs a[data-toggle="tab"]').on('shown.bs.tab', function() {
         $('#presale_tabs a[role="tab"]').attr('aria-selected', 'false');
         $('#presale_tabs li.active a[role="tab"]').attr('aria-selected', 'true');
+    });
+
+    $('#presale_emails').on('click', '.presale-resend', function() {
+        var $button = $(this).prop('disabled', true);
+
+        $.post('<?= site_url('presales/' . $id . '/resendNotification') ?>/' + $button.data('notification'), {}, function(response) {
+            // Escaped by the server.
+            $.notify(response.message, { type: response.success ? 'success' : 'warning' });
+
+            if (!response.success) {
+                $button.prop('disabled', false);
+            }
+        }, 'json').fail(function(xhr) {
+            $button.prop('disabled', false);
+
+            if (xhr.responseJSON && xhr.responseJSON.message) {
+                $.notify(xhr.responseJSON.message, { type: 'danger' });
+            }
+        });
     });
 
     $('#presale_take_payment').on('click', function() {

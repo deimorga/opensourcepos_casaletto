@@ -115,8 +115,10 @@ class Email_lib
      * (K2: the From must be the domain that signs, or DMARC sends it to spam).
      *
      * @param list<string> $attachments Paths of files to attach.
+     * @param string       $logo_path   A local image embedded in the body by CID (K5: Gmail shows no
+     *                                  data: images). The body refers to it as src="cid:logo".
      */
-    public function send_as(string $sender_name, string $to, string $subject, string $message, string $reply_to = '', array $attachments = []): bool
+    public function send_as(string $sender_name, string $to, string $subject, string $message, string $reply_to = '', array $attachments = [], string $logo_path = ''): bool
     {
         if ($this->platform_from === null) {
             throw new \LogicException('send_as() needs the platform sender: use Email_lib::platform().');
@@ -133,11 +135,21 @@ class Email_lib
         }
 
         $email->setSubject(self::header_text($subject));
-        $email->setMessage($message);
 
         foreach ($attachments as $attachment) {
             $email->attach($attachment);
         }
+
+        if ($logo_path !== '' && is_file($logo_path)) {
+            $email->attach($logo_path, 'inline');
+            $cid = $email->setAttachmentCID($logo_path);
+
+            if (is_string($cid)) {
+                $message = str_replace('cid:logo', 'cid:' . $cid, $message);
+            }
+        }
+
+        $email->setMessage($message);
 
         // CodeIgniter opens the SMTP socket with a bare fsockopen(): a refused or timed-out connection
         // raises a PHP warning, which the framework's error handler turns into an ErrorException in
