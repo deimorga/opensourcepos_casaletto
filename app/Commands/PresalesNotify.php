@@ -188,7 +188,7 @@ class PresalesNotify extends BaseCommand
      */
     private function spawn(array $tenant): int
     {
-        $command = escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg(ROOTPATH . 'spark') . ' presales:notify ' . escapeshellarg($tenant['slug']);
+        $command = escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg(ROOTPATH . 'spark') . ' presales:notify ' . escapeshellarg($tenant['slug']) . ' --no-header';
         $env     = getenv();
 
         $env['MYSQL_DB_NAME'] = $tenant['db_name'];
