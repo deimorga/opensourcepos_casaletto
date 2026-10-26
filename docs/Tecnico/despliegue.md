@@ -104,3 +104,32 @@ etiqueta. Se conservan las últimas 8 etiquetas y los últimos 15 respaldos por 
 - El respaldo vive en el mismo servidor. Protege de un despliegue malo, no de perder el servidor.
 - `docker-compose.yml` sigue siendo el de upstream (publica el 80). Lo neutraliza `COMPOSE_FILE`
   en cada `.env`, no se cambió el archivo.
+
+## 6. Secretos del `.env` y correo de la plataforma
+
+**Un secreto se escribe en el `.env` con `scripts/set-env-secret.sh`**, dentro de la carpeta del
+ambiente. Pide el valor dos veces sin mostrarlo, lo reemplaza si ya estaba y deja el archivo en 600.
+No queda en la pantalla, en el historial ni en un archivo temporal del editor. Se aplica en el
+siguiente despliegue, que recrea el contenedor al cambiar su configuración.
+
+Si la carpeta todavía no tiene el script (producción antes del despliegue que lo trae), se toma del
+repositorio sin desplegar nada:
+
+```
+cd /root/POS_Casaletto && git fetch -q origin develop && bash <(git show origin/develop:scripts/set-env-secret.sh) PLATFORM_SMTP_PASS
+```
+
+| Ambiente | Variable | Qué es |
+|---|---|---|
+| Producción | `PLATFORM_SMTP_PASS` | Clave de API de Resend `ospos-produccion` (solo envío, dominio `micronuba.net`) |
+| Staging | `MAILPIT_UI_AUTH` | `usuario:contraseña` de la bandeja de Mailpit. **Obligatoria:** sin ella, staging no despliega |
+
+**Comprobar el correo** después del despliegue (diseño en `preventas-cartera-y-avisos.md` §4.1):
+
+```
+docker compose exec -T ospos php spark platform:mail-test deimorga@gmail.com
+```
+
+- Staging: el correo no sale. Aparece en `https://mailpit.staging.ospos-saas.micronuba.net`.
+- Producción: llega a la bandeja y figura en Resend → Emails. En producción es un correo real, pero no
+  una transacción: no toca ventas ni caja, así que la regla de solo lectura no lo impide.

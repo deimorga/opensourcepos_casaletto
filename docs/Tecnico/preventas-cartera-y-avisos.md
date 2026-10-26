@@ -93,30 +93,46 @@ canceladas y las entregadas no entran, porque su dinero ya está en otro sitio: 
 
 ### 4.1 Correo de la plataforma
 
-Variables nuevas en cada `.env` del VPS (sin versionar), pasadas por `docker-compose.prod.yml` como
-`${VAR}`:
+**Construido el 2026-10-26** (`Email_lib::platform()`, `php spark platform:mail-test`), antes que el
+resto de la 2b, para dejar la configuración de los dos ambientes probada de punta a punta.
 
-```
-PLATFORM_SMTP_HOST=smtp.resend.com
-PLATFORM_SMTP_PORT=587
-PLATFORM_SMTP_CRYPTO=tls
-PLATFORM_SMTP_USER=resend
-PLATFORM_SMTP_PASS=re_…            # clave de API «Sending access», limitada a micronuba.net
-PLATFORM_MAIL_FROM=ospos@micronuba.net
-PLATFORM_MAIL_REDIRECT_TO=          # solo staging: todo correo va a esta dirección
-```
+| Variable | Producción (Resend) | Staging (Mailpit) |
+|---|---|---|
+| `PLATFORM_SMTP_HOST` | `smtp.resend.com` | `mailpit` |
+| `PLATFORM_SMTP_PORT` | `587` | `1025` |
+| `PLATFORM_SMTP_CRYPTO` | `tls` (STARTTLS) | vacío |
+| `PLATFORM_SMTP_USER` | `resend` | vacío: CodeIgniter no hace AUTH |
+| `PLATFORM_SMTP_PASS` | `${PLATFORM_SMTP_PASS}` del `.env`: clave de API `ospos-produccion`, «Sending access», limitada a `micronuba.net` | vacío |
+| `PLATFORM_MAIL_FROM` | `ospos@micronuba.net` | `ospos@micronuba.net` |
 
-Una clave de API por ambiente (`ospos-produccion`, `ospos-staging`), con permiso de solo envío y
-limitada al dominio. Si una se filtra, se revoca sin tocar a PLAGIE ni al otro ambiente.
+Todo menos la clave está escrito en el compose de cada ambiente: no es secreto y así se ve qué usa
+cada uno. La clave se carga con `scripts/set-env-secret.sh` (despliegue.md §6). En producción, si la
+clave falta, se toma vacía: el contenedor arranca igual y el correo falla con un rechazo de acceso.
+La caja no depende del correo.
 
-- `Email_lib::platform(): ?Email_lib`, un constructor alterno. Con `PLATFORM_SMTP_HOST` vacío devuelve
-  `null` y los avisos quedan en `skipped_no_transport`, sin error. El constructor actual, el que usa
-  el negocio, **no cambia** (S6: las cotizaciones siguen como están).
-- `sendEmail()` recibe `Reply-To` y adjuntos con CID. `setFrom(PLATFORM_MAIL_FROM, company)`.
-- **Staging nunca escribe a clientes reales.** Su base trae datos copiados de negocios reales. Con
-  `PLATFORM_MAIL_REDIRECT_TO` definido, `Email_lib::platform()` cambia el destinatario por esa
-  dirección y antepone al asunto «[STAGING → correo original]». Producción la deja vacía. Hay una
-  prueba que comprueba la redirección.
+- **Staging nunca escribe a clientes reales**, y no por una regla del código. Su servidor de correo es
+  **Mailpit** (`axllent/mailpit`, servicio del compose de staging): recibe por SMTP solo dentro de
+  `app_net`, guarda cada mensaje y no entrega ninguno, porque no tiene relevo configurado
+  (`MP_SMTP_RELAY_*`). Así se descartó la redirección por variable que proponía la primera versión de
+  este documento. Los correos se leen en `https://mailpit.staging.ospos-saas.micronuba.net`, con
+  usuario y contraseña (`MAILPIT_UI_AUTH` en el `.env` de staging), porque llevan datos de clientes
+  reales. Sin esa variable, `docker compose` falla al interpolar y el despliegue se detiene antes de
+  tocar nada, en vez de publicar la bandeja abierta. El router tiene prioridad 30 sobre el comodín de
+  los negocios de staging (10), y `mailpit` es un slug reservado.
+- `Email_lib::platform(): ?Email_lib`, un constructor alterno que lee esas variables. Sin host o sin un
+  remitente válido devuelve `null`: los avisos quedarán en `skipped_no_transport`, sin error. El
+  constructor de siempre, el del negocio, **no cambia** (S6: las cotizaciones siguen como están).
+- `send_as($nombre_del_negocio, $para, $asunto, $html, $responder_a, $adjuntos)`. `From` es
+  `PLATFORM_MAIL_FROM` con el nombre del negocio, y `Reply-To` es el correo del negocio cuando es
+  válido; si no lo es, se omite. El nombre y el asunto pasan por `header_text()` (una línea, sin
+  caracteres de control).
+- **Un servidor de correo caído devuelve `false`, nunca una excepción.** CodeIgniter abre el socket
+  con `fsockopen()` sin `@`. En producción, la advertencia de una conexión rechazada se vuelve
+  `ErrorException`, y en las pruebas haría fallar la corrida (`failOnWarning`). Mientras envía,
+  `send_as` instala un manejador que anota la advertencia y la absorbe. `last_error()` devuelve
+  ese motivo más las respuestas del servidor, que nunca incluyen la clave.
+- Una clave de API por ambiente que la necesite. Hoy es solo `ospos-produccion`, porque staging no usa
+  Resend. Si se filtra, se revoca sin tocar a PLAGIE.
 - Seguimiento de clics y aperturas de Resend **apagado** para `micronuba.net`. Reescribir enlaces y
   agregar un píxel perjudica la entrega de un correo transaccional y no aporta nada.
 
@@ -234,8 +250,12 @@ hubo, y el botón **«Reenviar»** (`Presales::postResendNotification($id)`, POS
 1. **2a Cartera:** código solo; migración ninguna. Sale cuando esté certificada.
 2. **2b Avisos:**
    - `micronuba.net` verificado en Resend (registros `send` MX/TXT y `resend._domainkey` en Cloudflare);
-   - se cargan las `PLATFORM_SMTP_*` en `/root/POS_Casaletto/.env` y `/root/POS_Casaletto_staging/.env`,
-     cada uno con su clave, y staging con `PLATFORM_MAIL_REDIRECT_TO`;
+   - ✅ 2026-10-26: correo de la plataforma construido; Mailpit en staging; Resend en el compose de
+     producción;
+   - la clave `PLATFORM_SMTP_PASS` en `/root/POS_Casaletto/.env` y `MAILPIT_UI_AUTH` en
+     `/root/POS_Casaletto_staging/.env`, con `scripts/set-env-secret.sh`;
+   - `php spark platform:mail-test` en cada ambiente: en staging el correo aparece en Mailpit; en
+     producción llega a la bandeja y aparece en Resend → Emails;
    - se despliega con `deploy.sh`: la migración crea la tabla y las claves en todos los esquemas;
    - se instala la línea de cron;
    - se enciende `presales_notify_email` solo en Casaletto, cuando el dueño lo pida.

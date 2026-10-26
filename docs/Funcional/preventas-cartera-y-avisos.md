@@ -191,13 +191,18 @@ Se construye con estos valores salvo que el dueño diga otra cosa:
 
 ## 9. Cómo se va a comprobar que funciona
 
+**En staging, ningún correo llega a un cliente.** El ambiente de pruebas tiene copias de clientes
+reales, así que sus correos no salen a internet: quedan en una **bandeja de pruebas (Mailpit)**,
+protegida con contraseña, donde se leen tal como los recibiría el cliente. Solo producción envía de
+verdad, por Resend. *(Configurado el 2026-10-26.)*
+
 En staging, en dos negocios con configuración distinta, como la primera entrega:
 
 1. **Cartera.** Con preventas al día, atrasadas, pagadas, canceladas y entregadas, las cuatro cifras
    cuadran con la suma hecha a mano. Una cuota que vence hoy no cuenta como vencida. Las canceladas y
    entregadas no suman.
-2. **Registro con correo.** El cliente recibe el correo con el nombre del negocio como remitente, su
-   logo y el PDF. Responder ese correo llega al correo del negocio.
+2. **Registro con correo.** El correo aparece en la bandeja de pruebas con el nombre del negocio como
+   remitente, su logo y el PDF, y con «responder a» el correo del negocio.
 3. **Abono, cancelación y entrega:** llega cada correo con su PDF y sus cifras correctas.
 4. **Cliente sin correo:** la preventa se registra, aparece el aviso y, tras agregar el correo,
    «Reenviar» lo envía.
@@ -206,5 +211,6 @@ En staging, en dos negocios con configuración distinta, como la primera entrega
 6. **Recordatorios:** con una cuota que vence en 2 días y otra vencida ayer, sale un correo de cada
    tipo, y al día siguiente no se repite.
 7. **Apagado:** con la casilla apagada no sale ningún correo.
-8. **Que no llegue a spam:** recibirlo en una cuenta de Gmail y una de Outlook, y revisar que llegue
-   a la bandeja de entrada.
+8. **Que no llegue a spam:** esto solo se puede probar en producción, donde el correo sale de verdad:
+   con `platform:mail-test` a una cuenta de Gmail y una de Outlook, revisar que llegue a la bandeja de
+   entrada.

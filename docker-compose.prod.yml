@@ -13,6 +13,7 @@
 #       MYSQL_PASSWORD=...
 #       MYSQL_DB_NAME=ospos
 #       ENCRYPTION_KEY=hex2bin:...
+#       PLATFORM_SMTP_PASS=re_...   (clave de API de Resend «ospos-produccion»; ver servicio ospos)
 #     docker compose lo carga automáticamente para sustituir las ${VARIABLES}
 #     de abajo -- no hay secretos en este archivo.
 
@@ -136,6 +137,18 @@ services:
             - PLATFORM_DB_NAME=platform_control
             - PLATFORM_PROVISION_USERNAME=platform_provisioner
             - PLATFORM_PROVISION_PASSWORD=${PLATFORM_PROVISION_PASSWORD}
+            # Correo de la plataforma (docs/Tecnico/preventas-cartera-y-avisos.md §4.1): una sola
+            # cuenta para todos los negocios, por Resend, con micronuba.net verificado como dominio.
+            # El único secreto es la clave de API, que va en el .env (scripts/set-env-secret.sh); el
+            # resto no es secreto y queda aquí a la vista. Sin la clave el contenedor arranca igual
+            # y `php spark platform:mail-test` dice que el servidor rechazó el acceso: la caja no
+            # depende del correo. Staging no usa Resend: usa Mailpit (docker-compose.staging.yml).
+            - PLATFORM_SMTP_HOST=smtp.resend.com
+            - PLATFORM_SMTP_PORT=587
+            - PLATFORM_SMTP_CRYPTO=tls
+            - PLATFORM_SMTP_USER=resend
+            - PLATFORM_SMTP_PASS=${PLATFORM_SMTP_PASS:-}
+            - PLATFORM_MAIL_FROM=ospos@micronuba.net
         labels:
             - "traefik.enable=true"
             # Router de siempre: SOLO la URL propia de Casaletto (legacy,

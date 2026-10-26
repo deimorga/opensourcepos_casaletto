@@ -13,6 +13,7 @@
 #       MYSQL_PASSWORD=...
 #       MYSQL_DB_NAME=ospos
 #       ENCRYPTION_KEY=hex2bin:...
+#       MAILPIT_UI_AUTH=usuario:contraseña   (bandeja de Mailpit, ver servicio mailpit)
 #     docker compose lo carga automáticamente para sustituir las ${VARIABLES}
 #     de abajo -- no hay secretos en este archivo.
 
@@ -29,6 +30,8 @@ volumes:
     mysql_11_4:
         external: true
         name: pos_casaletto_staging_mysql_11_4
+    # Correos guardados por Mailpit: sobreviven a cada despliegue.
+    mailpit:
 
 services:
     mysql:
@@ -134,6 +137,17 @@ services:
             # root. Ver runbook, sección 16 del mismo documento.
             - PLATFORM_PROVISION_USERNAME=platform_provisioner
             - PLATFORM_PROVISION_PASSWORD=${PLATFORM_PROVISION_PASSWORD}
+            # Correo de la plataforma (docs/Tecnico/preventas-cartera-y-avisos.md §4.1). En staging
+            # va a Mailpit, el servicio de abajo: guarda cada correo y NO entrega ninguno. La base
+            # de staging trae clientes reales copiados de los negocios, así que ningún correo de
+            # prueba puede salir a internet. Sin usuario ni cifrado: Mailpit no los pide y la red
+            # app_net no sale del servidor. Producción usa Resend (docker-compose.prod.yml).
+            - PLATFORM_SMTP_HOST=mailpit
+            - PLATFORM_SMTP_PORT=1025
+            - PLATFORM_SMTP_CRYPTO=
+            - PLATFORM_SMTP_USER=
+            - PLATFORM_SMTP_PASS=
+            - PLATFORM_MAIL_FROM=ospos@micronuba.net
         labels:
             - "traefik.enable=true"
             # Router de siempre: SOLO la URL de staging de Casaletto
@@ -197,6 +211,42 @@ services:
             # OBLIGATORIO: con más de un service por contenedor, sin esto
             # Traefik descarta la configuración entera. Ver prod.
             - "traefik.http.routers.ospos-saas-staging-root.service=ospos-saas-staging"
+            - "traefik.docker.network=micronuba_public"
+
+    # Mailpit: el «servidor de correo» de staging. Recibe por SMTP en el puerto 1025, solo dentro de
+    # app_net, guarda lo que llega y no lo entrega a nadie: no tiene configurado ningún relevo
+    # (MP_SMTP_RELAY_*), y sin eso no puede enviar fuera. Los correos se leen en su bandeja web,
+    # https://mailpit.staging.ospos-saas.micronuba.net, que pide usuario y contraseña
+    # (MAILPIT_UI_AUTH en el .env): los correos llevan nombres, teléfonos y montos de clientes reales
+    # copiados de los negocios. Sin esa variable el despliegue falla a propósito antes de tocar nada,
+    # en vez de publicar la bandeja abierta.
+    mailpit:
+        image: axllent/mailpit:v1.31.4
+        container_name: mailpit-casaletto-staging
+        restart: always
+        networks:
+            - app_net
+            - micronuba_public
+        volumes:
+            - mailpit:/data
+        environment:
+            - MP_DATABASE=/data/mailpit.db
+            # Los más viejos se borran solos al pasar de aquí.
+            - MP_MAX_MESSAGES=2000
+            - MP_UI_AUTH=${MAILPIT_UI_AUTH:?falta MAILPIT_UI_AUTH=usuario:contraseña en el .env de staging}
+            - TZ=America/Bogota
+        labels:
+            - "traefik.enable=true"
+            - "traefik.http.routers.mailpit-staging.rule=Host(`mailpit.staging.ospos-saas.micronuba.net`)"
+            - "traefik.http.routers.mailpit-staging.entrypoints=websecure"
+            # Host() literal: HTTP-01 basta, como el router legacy de staging.
+            - "traefik.http.routers.mailpit-staging.tls.certresolver=le"
+            # FUNCIONAL, no higiene: «mailpit» también encaja en la regex del router comodín de los
+            # negocios de staging (prioridad 10). Sin una prioridad mayor, la bandeja la serviría
+            # OSPOS. Por lo mismo, «mailpit» es un slug reservado (TenantProvisioner::RESERVED_SLUGS).
+            - "traefik.http.routers.mailpit-staging.priority=30"
+            - "traefik.http.routers.mailpit-staging.service=mailpit-staging"
+            - "traefik.http.services.mailpit-staging.loadbalancer.server.port=8025"
             - "traefik.docker.network=micronuba_public"
 
 networks:
