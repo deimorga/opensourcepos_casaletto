@@ -1,6 +1,8 @@
 # Alcance funcional — Preventas: cartera y avisos por correo al cliente
 
-> **Estado (2026-10-26):** **alcance escrito, sin construir.** Es la segunda entrega del módulo
+> **Estado (2026-10-26):** **la Cartera (§3) está construida** y espera su revisión en el ambiente de
+> pruebas (§9.1) antes de llegar a los negocios. **Los avisos por correo (§4) siguen sin construir.**
+> Es la segunda entrega del módulo
 > Preventas, que está en producción desde el 2026-10-14 y que Casaletto ya usa para vender su
 > temporada navideña. Decisiones del dueño en §6; lo que falta confirmar, en §7.
 >
@@ -60,6 +62,22 @@ campaña o de todas las campañas abiertas, y por fecha de entrega.
   entrega, valor vencido y días de atraso, del más atrasado al menos. Cada fila lleva a la preventa
   para abonar desde ahí.
 - **Descargar CSV**, igual que «Lo comprometido».
+
+**Cómo se lee, en detalle** (construido el 2026-10-26):
+
+- El botón **«Cartera»** está en la lista de Preventas, junto a «Campañas». Solo lo ve quien tiene
+  «Gestionar preventas» (S4); quien no lo tiene y escribe la dirección a mano es enviado a la pantalla
+  de «sin acceso».
+- **Vencido por antigüedad:** cada preventa atrasada cuenta en un solo tramo, según los días que lleva
+  vencida su cuota más vieja sin pagar, y con todo lo que tiene vencido.
+- **Próximos 7 días:** son hoy y los seis días siguientes. Cuenta lo que **falta** de cada cuota: si el
+  cliente ya abonó una parte, solo suma lo que le queda. Un abono se aplica primero a la cuota más vieja.
+- **Atrasados:** el número de cada preventa abre su detalle, donde se le puede registrar el abono.
+- **El CSV trae todas las preventas vigentes del filtro**, no solo las atrasadas: cliente, teléfono,
+  correo, campaña, fecha de entrega, total, pagado, saldo, vencido, días de atraso y lo que vence en los
+  próximos 7 días. Sirve para llamar a los atrasados y para revisar las cifras en una hoja de cálculo.
+- Una preventa **pagada y sin entregar** aparece con saldo 0. Las canceladas y las entregadas no
+  aparecen.
 
 ### 3.2 Para qué sirve
 
