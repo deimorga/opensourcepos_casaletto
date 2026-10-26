@@ -1,6 +1,7 @@
 # Preventas: cartera y avisos por correo — diseño técnico
 
-> **Estado (2026-10-26):** **diseño, sin construir.** Segunda entrega del módulo Preventas, que está en
+> **Estado (2026-10-26):** **avisos por correo y recordatorios construidos** (§4.9), en certificación
+> en staging; sin desplegar a producción. Segunda entrega del módulo Preventas, que está en
 > producción desde el 2026-10-14 (`e0554cfab`). Decisiones de negocio en
 > `docs/Funcional/preventas-cartera-y-avisos.md` §6 (A1-A5) y supuestos en su §7 (S1-S6). Las
 > decisiones técnicas están en §2. Envío por Resend (A6) desde el 2026-10-26. El diseño de la primera entrega está en `venta-anticipada.md`.
@@ -248,6 +249,41 @@ hubo, y el botón **«Reenviar»** (`Presales::postResendNotification($id)`, POS
 - Seguridad: «Reenviar» sin CSRF o sin permiso se rechaza, y no se puede reenviar la preventa de otro
   negocio (el esquema es por negocio, pero se prueba).
 - Base de pruebas compartida: cada prueba restaura las claves que toca (`TOUCHED_KEYS`).
+
+### 4.9 Lo construido (2026-10-26) y en qué cambió respecto al diseño
+
+**Avisos (2b) y recordatorios (2c) construidos el 2026-10-26** en la rama `feat/presales_avisos_correo`:
+migración `20261026000000_AddPresaleNotifications`, `Presale_notification` (bandeja),
+`Presale_notifier` (contenido y envío), `Presale_documents` (datos de los comprobantes, compartidos
+con la pantalla), `php spark presales:notify`, vistas `presales/email_*.php` y
+`presales/receipt_delivered.php`, línea de cron en `docker/cron/presales-notify`. Pruebas en
+`tests/Controllers/PresaleNotificationsTest.php`.
+
+Diferencias con el diseño de arriba, y por qué:
+
+- **El PDF de la entrega es un comprobante de entrega propio** (`receipt_delivered`), no el recibo de
+  la venta (`sales/receipt`). Ese recibo se arma desde el carrito en la sesión de la caja, que el
+  comando no tiene. El comprobante propio lista lo entregado y la diferencia por peso, cobrada o
+  devuelta. La diferencia es el total de la venta (lo que guardaron sus pagos, `payment_amount −
+  cash_refund`) menos lo pagado en la preventa. No se recalculan impuestos ni redondeos.
+- **Un proceso por negocio.** Sin argumento, `presales:notify` lee el registro y se lanza a sí mismo
+  por cada negocio con `MYSQL_DB_NAME`, como `migrate-tenants.sh`. Cambiar la conexión dentro de un
+  comando ya arrancado no es fiable (`TenantMigrateOne.php`). Cada negocio tiene además su
+  configuración en caché, su zona horaria y su idioma. El hijo fija `TenantContext` antes de leer la
+  configuración: sin eso leería la clave de caché `settings`, que es la de Casaletto.
+- **Un estado más, `skipped_paid`:** un recordatorio cuya cuota se pagó, o cuya preventa dejó de estar
+  abierta, entre que se encoló y que salió. No se envía.
+- **Con la casilla apagada, el comando no envía nada**, ni siquiera lo que ya estaba en cola, y
+  «Reenviar» se rechaza. Lo encolado espera hasta que se vuelva a encender.
+- **El aviso de «cliente sin correo»** aparece en la página del comprobante que sigue al registro, al
+  abono o a la cancelación (`?sin_correo=1`, solo en pantalla, `print_hide`). Las tres acciones navegan
+  a esa página, así que un `$.notify()` se perdía. **En la entrega no hay aviso en la caja:** la caja
+  imprime su propio recibo y no se tocó para esto. La pestaña «Correos» lo muestra igual.
+- **Los recordatorios se encolan en cada corrida desde las 9:00**, no una vez al día: la unicidad (K6)
+  vuelve inofensivo repetirlo. Si el cron estuvo caído todo el día, el recordatorio de «vencida ayer»
+  de ese día no sale: la cuota sigue en la cartera y en la lista de atrasados.
+- **Logo por CID:** `send_as()` recibe la ruta del logo, lo adjunta `inline` y cambia `cid:logo` en el
+  cuerpo por el CID real.
 
 ---
 

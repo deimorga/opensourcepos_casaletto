@@ -1,6 +1,8 @@
 # Alcance funcional — Preventas: cartera y avisos por correo al cliente
 
-> **Estado (2026-10-26):** **alcance escrito, sin construir.** Es la segunda entrega del módulo
+> **Estado (2026-10-26):** **los avisos por correo y los recordatorios están construidos** y se
+> certifican en staging, donde los correos llegan a la bandeja de pruebas. Todavía no están en
+> producción. Es la segunda entrega del módulo
 > Preventas, que está en producción desde el 2026-10-14 y que Casaletto ya usa para vender su
 > temporada navideña. Decisiones del dueño en §6; lo que falta confirmar, en §7.
 >
@@ -94,7 +96,7 @@ marcando sin penalidad, como en la primera entrega (D4 de `venta-anticipada.md`)
 | **Registro de la preventa** | Número, productos y cantidades, precio pactado, total, cuota inicial pagada, saldo, plan de cuotas con fechas, fecha de entrega y condiciones | Comprobante de la preventa en PDF |
 | **Cada abono** | Valor abonado, medio de pago, fecha, total pagado hasta hoy, saldo y próxima cuota | Comprobante del abono en PDF |
 | **Cancelación** | Motivo, lo pagado, lo devuelto y por qué medio | Comprobante de cancelación en PDF |
-| **Entrega** | Productos entregados, diferencia por peso cobrada o devuelta si la hubo | Recibo de la venta en PDF |
+| **Entrega** | Productos entregados, diferencia por peso cobrada o devuelta si la hubo | Comprobante de entrega en PDF (nuevo: también se imprime desde el detalle de la preventa) |
 | **Recordatorio de cuota** | Que una cuota está por vencer o venció, cuánto, cuándo, y el saldo total | Sin adjunto (supuesto S2, §7) |
 
 **Recordatorios** (supuestos S1 y S3, §7):
@@ -108,9 +110,11 @@ marcando sin penalidad, como en la primera entrega (D4 de `venta-anticipada.md`)
 
 ### 4.3 Si el cliente no tiene correo
 
-La preventa, el abono o la entrega se registran **igual**. La pantalla avisa: «El cliente no tiene
-correo: no se le envió el aviso». Si después se le agrega el correo en su ficha, el aviso se puede
-**reenviar** desde la preventa.
+La preventa, el abono o la entrega se registran **igual**. Al registrar, abonar o cancelar, la página
+del comprobante avisa en pantalla, sin que salga en el papel: «El cliente no tiene correo: no se le
+envió el aviso». En la entrega el aviso no aparece en la caja, pero sí en la pestaña «Correos» de la
+preventa. Si después se le agrega el correo en su ficha, el aviso se puede **reenviar** desde esa
+pestaña.
 
 ### 4.4 Si el correo falla
 
@@ -124,6 +128,10 @@ correo: no se le envió el aviso». Si después se le agrega el correo en su fic
 
 - En **Configuración → Preventas**, una casilla nueva: **«Avisar al cliente por correo»**. Viene
   **apagada** en todos los negocios, como todo el módulo.
+- Junto a la casilla: **cuántos días antes** se recuerda la cuota (2 por defecto; 0 = no recordar) y si
+  se recuerda **la cuota vencida** al día siguiente (encendido por defecto).
+- Al apagarla, no sale ningún correo, ni siquiera los que estaban en cola: esperan hasta que se vuelva
+  a encender.
 - Al encenderla, **no se envían correos por lo que ya pasó**. Los avisos empiezan con el primer
   registro, abono, cancelación o entrega posterior. Los recordatorios empiezan a contar desde ese día.
 - En Casaletto, que ya vende, conviene **completar el correo de los clientes con preventa** antes

@@ -1,0 +1,10 @@
+# Rotación de los registros del envío de correos de preventas. Instalar en el VPS:
+#     cp docker/cron/presales-notify.logrotate /etc/logrotate.d/presales-notify
+/root/presales-notify-prod.log /root/presales-notify-staging.log {
+    weekly
+    rotate 8
+    compress
+    missingok
+    notifempty
+    copytruncate
+}

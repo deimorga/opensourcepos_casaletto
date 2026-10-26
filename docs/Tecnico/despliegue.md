@@ -137,3 +137,29 @@ docker compose exec -T ospos php spark platform:mail-test deimorga@gmail.com
 - Staging: el correo no sale. Aparece en `https://mailpit.staging.ospos-saas.micronuba.net`.
 - Producción: llega a la bandeja y figura en Resend → Emails. En producción es un correo real, pero no
   una transacción: no toca ventas ni caja, así que la regla de solo lectura no lo impide.
+
+## 7. Tarea programada del correo de preventas
+
+Los avisos de preventas no salen en la petición de la caja: se encolan y los envía
+`php spark presales:notify`, que corre **cada minuto desde el crontab del host** (el contenedor solo
+corre Apache). Diseño en `preventas-cartera-y-avisos.md` §4.5. Las líneas están versionadas en
+`docker/cron/presales-notify`, una por ambiente, con `flock` para que dos corridas no se monten.
+
+Instalar o actualizar **dentro de la carpeta del ambiente**, después del despliegue que trae el
+comando (reemplaza solo la línea de ese ambiente; la del otro queda como esté):
+
+```
+cd /root/POS_Casaletto_staging   # o /root/POS_Casaletto para producción
+crontab -l 2>/dev/null | grep -v "cd $PWD &&" > /tmp/c && grep "cd $PWD &&" docker/cron/presales-notify >> /tmp/c \
+  && crontab /tmp/c && crontab -l | grep presales
+cp docker/cron/presales-notify.logrotate /etc/logrotate.d/presales-notify
+```
+
+- Registros: `/root/presales-notify-prod.log` y `/root/presales-notify-staging.log`. Una corrida sin
+  nada que enviar no escribe nada; una con envíos escribe una línea por negocio.
+- **Deliberadamente fuera del entrypoint y de `deploy.sh`**, como `platform:support-employee`: un fallo
+  del correo no puede tumbar la caja ni un despliegue.
+- Con el cron sin instalar, los avisos esperan en la bandeja como «En cola» y se ven así en la pestaña
+  «Correos» de cada preventa. Nada se pierde; sale todo al instalarlo.
+- Apagar todos los envíos: quitar las líneas del crontab. Apagar un negocio: su casilla «Avisar al
+  cliente por correo».

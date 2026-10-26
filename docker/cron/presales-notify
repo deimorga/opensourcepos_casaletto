@@ -1,0 +1,14 @@
+# Envío de los correos de preventas (docs/Tecnico/preventas-cartera-y-avisos.md §4.5).
+#
+# Va en el crontab del HOST, no en el contenedor: el contenedor solo corre Apache. Cada minuto envía lo
+# que espera en la bandeja de salida de cada negocio y, desde las 9:00 hora del negocio, encola los
+# recordatorios de cuota del día. Si falla, la caja no se entera: los correos esperan y se reintentan.
+#
+# Instalar en el VPS una línea por ambiente, desde la carpeta de ese ambiente y después del despliegue
+# que trae el comando (despliegue.md §7).
+#
+# -T: sin terminal, que el cron no tiene. flock -n: si una corrida tarda más de un minuto, la siguiente
+# no se monta encima (la bandeja ya lo resiste, pero no hace falta el segundo proceso).
+
+* * * * * cd /root/POS_Casaletto && flock -n /tmp/presales-notify-prod.lock docker compose exec -T ospos php spark presales:notify >> /root/presales-notify-prod.log 2>&1
+* * * * * cd /root/POS_Casaletto_staging && flock -n /tmp/presales-notify-staging.lock docker compose exec -T ospos php spark presales:notify >> /root/presales-notify-staging.log 2>&1
