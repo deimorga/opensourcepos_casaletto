@@ -98,7 +98,7 @@ resto de la 2b, para dejar la configuración de los dos ambientes probada de pun
 
 | Variable | Producción (Resend) | Staging (Mailpit) |
 |---|---|---|
-| `PLATFORM_SMTP_HOST` | `smtp.resend.com` | `mailpit` |
+| `PLATFORM_SMTP_HOST` | `smtp.resend.com` | `mailpit-casaletto-staging` |
 | `PLATFORM_SMTP_PORT` | `587` | `1025` |
 | `PLATFORM_SMTP_CRYPTO` | `tls` (STARTTLS) | vacío |
 | `PLATFORM_SMTP_USER` | `resend` | vacío: CodeIgniter no hace AUTH |
@@ -111,7 +111,7 @@ clave falta, se toma vacía: el contenedor arranca igual y el correo falla con u
 La caja no depende del correo.
 
 - **Staging nunca escribe a clientes reales**, y no por una regla del código. Su servidor de correo es
-  **Mailpit** (`axllent/mailpit`, servicio del compose de staging): recibe por SMTP solo dentro de
+  **Mailpit** (`axllent/mailpit`, servicio del compose de staging): recibe por SMTP en el puerto 1025 de
   `app_net`, guarda cada mensaje y no entrega ninguno, porque no tiene relevo configurado
   (`MP_SMTP_RELAY_*`). Así se descartó la redirección por variable que proponía la primera versión de
   este documento. Los correos se leen en `https://mailpit.staging.ospos-saas.micronuba.net`, con
@@ -119,6 +119,12 @@ La caja no depende del correo.
   reales. Sin esa variable, `docker compose` falla al interpolar y el despliegue se detiene antes de
   tocar nada, en vez de publicar la bandeja abierta. El router tiene prioridad 30 sobre el comodín de
   los negocios de staging (10), y `mailpit` es un slug reservado.
+- **El nombre de red de Mailpit es `mailpit-casaletto-staging`, y no `mailpit`.** El contenedor
+  también está en `micronuba_public`, la red que comparten todos los proyectos del VPS, porque
+  Traefik lo publica desde ahí, y Docker anuncia el nombre del servicio en cada red. El 2026-10-26,
+  con el servicio llamado `mailpit`, ese nombre resolvía también al Mailpit de inventory-saas, y el
+  primer correo de prueba terminó en esa bandeja: `platform:mail-test` dijo «Enviado» y la nuestra
+  estaba vacía. Por eso, en esa prueba hay que mirar la bandeja, no solo el «Enviado».
 - `Email_lib::platform(): ?Email_lib`, un constructor alterno que lee esas variables. Sin host o sin un
   remitente válido devuelve `null`: los avisos quedarán en `skipped_no_transport`, sin error. El
   constructor de siempre, el del negocio, **no cambia** (S6: las cotizaciones siguen como están).

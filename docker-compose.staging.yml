@@ -13,7 +13,7 @@
 #       MYSQL_PASSWORD=...
 #       MYSQL_DB_NAME=ospos
 #       ENCRYPTION_KEY=hex2bin:...
-#       MAILPIT_UI_AUTH=usuario:contraseña   (bandeja de Mailpit, ver servicio mailpit)
+#       MAILPIT_UI_AUTH=usuario:contraseña   (bandeja de Mailpit, ver servicio mailpit-casaletto-staging)
 #     docker compose lo carga automáticamente para sustituir las ${VARIABLES}
 #     de abajo -- no hay secretos en este archivo.
 
@@ -142,7 +142,10 @@ services:
             # de staging trae clientes reales copiados de los negocios, así que ningún correo de
             # prueba puede salir a internet. Sin usuario ni cifrado: Mailpit no los pide y la red
             # app_net no sale del servidor. Producción usa Resend (docker-compose.prod.yml).
-            - PLATFORM_SMTP_HOST=mailpit
+            # El nombre largo NO es estética: este contenedor también está en micronuba_public, que
+            # comparten todos los proyectos del VPS, y «mailpit» a secas resolvía además al Mailpit de
+            # inventory-saas. El 2026-10-26 el primer correo de prueba fue a parar a esa bandeja.
+            - PLATFORM_SMTP_HOST=mailpit-casaletto-staging
             - PLATFORM_SMTP_PORT=1025
             - PLATFORM_SMTP_CRYPTO=
             - PLATFORM_SMTP_USER=
@@ -220,7 +223,11 @@ services:
     # (MAILPIT_UI_AUTH en el .env): los correos llevan nombres, teléfonos y montos de clientes reales
     # copiados de los negocios. Sin esa variable el despliegue falla a propósito antes de tocar nada,
     # en vez de publicar la bandeja abierta.
-    mailpit:
+    #
+    # El servicio se llama igual que su contenedor, y no «mailpit»: Docker da el nombre del servicio
+    # como nombre de red en CADA red del contenedor, y en micronuba_public hay otros Mailpit (ver
+    # PLATFORM_SMTP_HOST arriba). Un nombre único evita robarles correo y que ellos nos lo roben.
+    mailpit-casaletto-staging:
         image: axllent/mailpit:v1.31.4
         container_name: mailpit-casaletto-staging
         restart: always
