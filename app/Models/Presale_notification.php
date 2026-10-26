@@ -322,36 +322,20 @@ class Presale_notification extends Model
     }
 
     /**
-     * The instalments the payments do not fully cover, each with what is still missing of it. Payments
-     * cover instalments in due-date order, exactly as Presale::derive() accumulates them for next_due.
+     * The instalments the payments do not fully cover, each with what is still missing of it. The
+     * accumulation is Presale::coverage()'s, the one derive() and the portfolio read: one rule for
+     * "this instalment is paid".
      *
      * @param list<array<string, mixed>> $installments
      *
-     * @return list<array<string, mixed>> the same rows, plus `missing`
+     * @return list<array<string, mixed>> the rows Presale::coverage() returns, only those with something missing
      */
     public static function uncovered(array $installments, string $paid): array
     {
-        usort($installments, static fn (array $a, array $b): int => [$a['due_date'], (int) ($a['installment_id'] ?? 0)] <=> [$b['due_date'], (int) ($b['installment_id'] ?? 0)]);
-
-        $cumulative = '0.00';
-        $result     = [];
-
-        foreach ($installments as $installment) {
-            $amount     = bcadd((string) $installment['amount'], '0', 2);
-            $before     = $cumulative;
-            $cumulative = bcadd($cumulative, $amount, 2);
-
-            if (bccomp($paid, $cumulative, 2) >= 0) {
-                continue;
-            }
-
-            // What this instalment still lacks: all of it, or what the payments left of it.
-            $covered                = bccomp($paid, $before, 2) > 0 ? bcsub($paid, $before, 2) : '0.00';
-            $installment['missing'] = bcsub($amount, $covered, 2);
-            $result[]               = $installment;
-        }
-
-        return $result;
+        return array_values(array_filter(
+            Presale::coverage($paid, $installments),
+            static fn (array $installment): bool => bccomp((string) $installment['missing'], '0', 2) > 0,
+        ));
     }
 
     /**
