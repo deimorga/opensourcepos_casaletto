@@ -454,6 +454,13 @@ corrige a su gusto antes de guardar:
 
 El texto sugerido no menciona ningún negocio. Lo que se imprime es lo que cada negocio guarde.
 
+**Hallazgo del 2026-10-27: las condiciones se imprimían cortadas.** El sistema guardaba solo los
+primeros 500 caracteres, y el texto sugerido tiene cerca de 1.050. Por eso los comprobantes terminaban
+a mitad de la condición 5 («…con un peso aproximado. E») y no traían la 6 ni la 7. Pasaba desde la
+primera preventa, sin ningún aviso al guardar. Ya está corregido: ahora se guardan hasta 4.000
+caracteres. Pero **lo que se cortó no vuelve solo**: cada negocio que use preventas tiene que entrar a
+Configuración → Preventas, revisar las condiciones (o pulsar «Usar texto sugerido») y guardar de nuevo.
+
 ---
 
 ### 4.15 Lo que corrigió la primera certificación en staging (2026-10-07)

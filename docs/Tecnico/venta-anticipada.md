@@ -213,6 +213,12 @@ memoria «Timezone real de OSPOS»).
 - `AddPresales`: las 8 tablas.
 - `AddPresalesConfigKeys`: `presales_enable = '0'`, `presales_prefix = 'PV-'` y `presales_terms = ''`
   (texto de condiciones de los comprobantes). Nunca sobrescribe un valor existente.
+- `WidenAppConfigValue` (2026-10-27): `app_config.value` pasa de `VARCHAR(500)` a `TEXT`. Las condiciones
+  se guardaban cortadas en el carácter 500 desde la primera entrega. La pantalla acepta 4.000 y el texto
+  sugerido tiene unos 1.050, pero la conexión de la aplicación no corre en modo estricto, así que MariaDB
+  truncaba en silencio en vez de rechazar. Se encontró al certificar el PDF de los avisos por correo. La
+  migración no recupera lo cortado: cada negocio vuelve a guardar sus condiciones. El `down()` solo
+  vuelve a 500 si ningún valor es más largo.
 - `AddPresalesModule`: módulo `presales`, sort 72 (después de Ventas, que es 70, y antes de Comandas,
   que es 75), permisos `presales` y `presales_manage`. **Sin conceder ningún permiso.**
 - Icono: una línea `copy-menubar` en `gulpfile.js` para `presales.svg`; si falta, falla
