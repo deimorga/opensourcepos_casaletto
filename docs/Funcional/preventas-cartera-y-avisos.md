@@ -1,8 +1,8 @@
 # Alcance funcional — Preventas: cartera y avisos por correo al cliente
 
-> **Estado (2026-10-26):** **la Cartera (§3), los avisos por correo (§4) y los recordatorios están
-> construidos** y se certifican en el ambiente de pruebas, donde los correos llegan a una bandeja de
-> pruebas y no a los clientes. Todavía no están en producción. Es la segunda entrega del módulo
+> **Estado (2026-10-27):** **la Cartera (§3), los avisos por correo (§4) y los recordatorios están
+> construidos y certificados en el ambiente de pruebas** (resultado en §9). Todavía no están en
+> producción. Es la segunda entrega del módulo
 > Preventas, que está en producción desde el 2026-10-14 y que Casaletto ya usa para vender su
 > temporada navideña. Decisiones del dueño en §6; lo que falta confirmar, en §7.
 >
@@ -238,3 +238,23 @@ En staging, en dos negocios con configuración distinta, como la primera entrega
 8. **Que no llegue a spam:** esto solo se puede probar en producción, donde el correo sale de verdad:
    con `platform:mail-test` a una cuenta de Gmail y una de Outlook, revisar que llegue a la bandeja de
    entrada.
+
+**Resultado en staging (2026-10-27, Casaletto staging, recorrido en el navegador).** Pasaron las
+pruebas 1 a 7. Los correos se leyeron en la bandeja de pruebas:
+
+| Prueba | Resultado |
+|---|---|
+| Cartera | Vendido $78.000, recaudado $45.000, por cobrar $33.000 y vencido $3.000: iguales a la suma a mano. La cuota del día no contó como vencida |
+| Registro, abono, cancelación y entrega | Llegó cada correo con su PDF, el nombre del negocio como remitente y «responder a» el correo del negocio. Las cifras coinciden con la pantalla |
+| Cliente sin correo | La preventa se registró y la página avisó. Al agregarle el correo, «Reenviar» lo envió a la dirección nueva |
+| Servidor de correo caído | Con el servidor de pruebas apagado, el abono se registró igual. El correo esperó y salió solo en el reintento del minuto siguiente |
+| Recordatorios | Salió uno «por vencer» (cuota a 2 días) y uno «vencida» (cuota de ayer). Ninguno se repitió en las corridas siguientes |
+| Casilla apagada | El abono se registró y no se encoló ningún correo |
+
+Hallazgo de la prueba: **las condiciones de la preventa se imprimían cortadas** en los comprobantes de
+todos los negocios. Está corregido y explicado en `venta-anticipada.md` §4.14. Cada negocio tiene que
+volver a guardar sus condiciones.
+
+Observación: una preventa con una cuota a 2 días recibe el recordatorio el mismo día del registro, justo
+después del correo de registro. Es lo que dice la regla («2 días antes»). Si molesta, se puede cambiar
+para que no se recuerde una cuota pactada hace menos de 2 días.
