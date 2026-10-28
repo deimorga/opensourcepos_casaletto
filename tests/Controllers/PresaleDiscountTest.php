@@ -264,6 +264,8 @@ final class PresaleDiscountTest extends CIUnitTestCase
         $this->assertTrue($json['success']);
         $this->assertSame(to_currency('75000'), $json['total']);
         $this->assertSame(esc(lang('Presales.discount_amount', [to_currency('25000')])), $json['discount']);
+        $this->assertSame(to_currency('100000'), $json['gross'], 'The subtotal before the discount, shown above it.');
+        $this->assertSame('-' . to_currency('25000'), $json['discount_cell'], 'The discount as a negative amount in the column.');
         $this->assertNull($json['plan'], 'A row with a date and no amount yet is not an error.');
     }
 

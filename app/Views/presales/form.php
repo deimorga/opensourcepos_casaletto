@@ -96,45 +96,47 @@ $json_flags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON
             </tr>
         </thead>
         <tbody></tbody>
+        <?php /* Subtotal, the cashier's discount and the total, in the same column as the lines, top to
+           bottom, so the figure the cashier reads last is what the customer pays (owner's request of
+           2026-10-27). The discount (venta-anticipada.md §4.16) is on top of the campaign price, chosen
+           from a closed list, and marked when the brand pays it back. Every figure comes from
+           presales/preview. */ ?>
         <tfoot>
             <tr>
-                <td colspan="3">
+                <td colspan="2">
                     <button type="button" class="btn btn-default btn-sm" id="presale_add_line">
                         <span class="glyphicon glyphicon-plus">&nbsp;</span><?= esc(lang('Presales.add_product')) ?>
                     </button>
                 </td>
+                <th style="text-align: right;"><?= esc(lang('Presales.gross_total')) ?></th>
+                <td style="text-align: right;" id="presale_gross" aria-live="polite"></td>
+                <td></td>
+            </tr>
+            <tr id="presale_discount_block">
+                <td colspan="2" class="form-inline">
+                    <label for="presale_discount"><?= esc(lang('Presales.discount')) ?></label>
+                    <select name="discount_percent" id="presale_discount" class="form-control input-sm">
+                        <?php foreach ($discounts as $percent): ?>
+                            <option value="<?= (int) $percent ?>"><?= (int) $percent ?>%</option>
+                        <?php endforeach; ?>
+                    </select>
+                    <label class="checkbox-inline">
+                        <input type="checkbox" name="discount_reimbursable" id="presale_discount_reimbursable" value="1" disabled>
+                        <?= esc(lang('Presales.discount_reimbursable')) ?>
+                    </label>
+                </td>
+                <th style="text-align: right;"><?= esc(lang('Presales.discount')) ?></th>
+                <td style="text-align: right;" class="text-danger" id="presale_discount_amount" aria-live="polite"></td>
+                <td></td>
+            </tr>
+            <tr>
+                <td colspan="2"></td>
+                <th style="text-align: right;"><?= esc(lang('Presales.total')) ?></th>
                 <td style="text-align: right;"><strong id="presale_total" aria-live="polite"></strong></td>
                 <td></td>
             </tr>
         </tfoot>
     </table>
-
-    <?php /* The cashier's discount on the whole presale (venta-anticipada.md §4.16): on top of the campaign
-       price, chosen from a closed list, and marked when the brand pays it back. The figures come from
-       presales/preview like the rest. */ ?>
-    <fieldset id="presale_discount_block">
-        <div class="form-group form-group-sm">
-            <?= form_label(lang('Presales.discount'), 'presale_discount', ['class' => 'control-label col-xs-3']) ?>
-            <div class="col-xs-2">
-                <select name="discount_percent" id="presale_discount" class="form-control input-sm">
-                    <?php foreach ($discounts as $percent): ?>
-                        <option value="<?= (int) $percent ?>"><?= (int) $percent ?>%</option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <div class="col-xs-3">
-                <div class="checkbox">
-                    <label>
-                        <input type="checkbox" name="discount_reimbursable" id="presale_discount_reimbursable" value="1" disabled>
-                        <?= esc(lang('Presales.discount_reimbursable')) ?>
-                    </label>
-                </div>
-            </div>
-            <div class="col-xs-4">
-                <p class="form-control-static" id="presale_discount_amount" aria-live="polite"></p>
-            </div>
-        </div>
-    </fieldset>
 
     <h4><?= esc(lang('Presales.installments')) ?> <small id="presale_minimum"></small></h4>
     <table class="table table-condensed" id="presale_plan">
@@ -333,15 +335,15 @@ $(document).ready(function() {
         preview_timer = setTimeout(function() {
             $.post('<?= site_url('presales/preview') ?>', $('#presale_form').serialize(), function(response) {
                 if (!response.success) {
-                    $('#presale_total').text('');
+                    $('#presale_total, #presale_gross, #presale_discount_amount').text('');
                     $('#presale_plan_message').html(response.message || '').removeClass('text-success').addClass('text-danger');
                     return;
                 }
 
                 $('#presale_total').text(response.total);
                 $('#presale_minimum').html(response.minimum || '');
-                // Escaped by the server.
-                $('#presale_discount_amount').html(response.discount || '');
+                $('#presale_gross').text(response.gross || '');
+                $('#presale_discount_amount').text(response.discount_cell || '');
 
                 $('#presale_lines tbody tr').each(function(position) {
                     $(this).find('.presale-amount').text(response.lines[position] || '');

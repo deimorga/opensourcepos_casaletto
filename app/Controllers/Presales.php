@@ -306,10 +306,12 @@ class Presales extends Secure_Controller
             'total'    => to_currency($total),
             'gross'    => to_currency($gross['charge']),
             'discount' => bccomp($discounted, '0', 2) > 0 ? esc(lang('Presales.discount_amount', [to_currency($discounted)])) : '',
-            'taxes'    => to_currency($charge['taxes']),
-            'lines'    => $amounts,
-            'plan'     => $plan,
-            'minimum'  => esc(lang('Presales.minimum_initial', [to_currency(Presale::minimum_initial($total, (string) $campaign['min_initial_percent']))])),
+            // The discount as the form's column shows it, a negative amount; put on screen as text.
+            'discount_cell' => bccomp($discounted, '0', 2) > 0 ? '-' . to_currency($discounted) : to_currency('0'),
+            'taxes'         => to_currency($charge['taxes']),
+            'lines'         => $amounts,
+            'plan'          => $plan,
+            'minimum'       => esc(lang('Presales.minimum_initial', [to_currency(Presale::minimum_initial($total, (string) $campaign['min_initial_percent']))])),
         ]);
     }
 
