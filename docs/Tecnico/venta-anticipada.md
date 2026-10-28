@@ -1,5 +1,10 @@
 # Venta anticipada (Preventas) — diseño técnico
 
+> **Actualización (2026-10-27):** el descuento del vendedor sobre el total y el reporte de la marca (T24,
+> funcional §4.16) y la columna de configuración ampliada a `TEXT` (condiciones sin corte) están en
+> producción desde el 2026-10-27 22:37 (`aca401538`). La segunda entrega (cartera y avisos) se describe en
+> `preventas-cartera-y-avisos.md`.
+>
 > **Estado (2026-10-14, 09:10):** **en producción**, commit `e0554cfab` (run 38577073219 de
 > `deploy-production.yml`, autorizado en horario de venta). Respaldo previo
 > `/root/backups/prod-20261014-090728-fbd822908`; vuelta atrás `casaletto-ospos:rollback-prod-20261014-090728-fbd822908`

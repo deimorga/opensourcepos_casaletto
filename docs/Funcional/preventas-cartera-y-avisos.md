@@ -1,8 +1,9 @@
 # Alcance funcional — Preventas: cartera y avisos por correo al cliente
 
-> **Estado (2026-10-27):** **la Cartera (§3), los avisos por correo (§4) y los recordatorios están
-> construidos y certificados en el ambiente de pruebas** (resultado en §9). Todavía no están en
-> producción. Es la segunda entrega del módulo
+> **Estado (2026-10-28):** **en producción desde el 2026-10-27**: la Cartera (§3), los avisos por correo
+> (§4) y los recordatorios, después de certificarlos en el ambiente de pruebas (§9). El correo de prueba
+> llegó a la bandeja de entrada, no a spam. **Casaletto ya tiene los avisos encendidos**; los demás
+> negocios los tienen apagados hasta que los enciendan. Es la segunda entrega del módulo
 > Preventas, que está en producción desde el 2026-10-14 y que Casaletto ya usa para vender su
 > temporada navideña. Decisiones del dueño en §6; lo que falta confirmar, en §7.
 >

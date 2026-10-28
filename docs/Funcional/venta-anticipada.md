@@ -1,5 +1,9 @@
 # Alcance funcional — Venta anticipada (Preventas): se paga por cuotas, se entrega al final
 
+> **Actualización (2026-10-27):** el **descuento sobre el total** con la marca de «Reembolsable por la
+> marca» y el reporte **«Descuentos de la marca»** (§4.16) están en producción, y las condiciones ya no se
+> imprimen cortadas (§4.14: cada negocio debe volver a guardarlas una vez).
+>
 > **Estado (2026-10-14, 09:10):** **en producción** en todos los negocios, **apagado** salvo que el negocio
 > lo encienda (Configuración → Preventas). El dueño autorizó la salida el 2026-10-14 en horario de venta,
 > después de nuestra certificación en staging (informe: `venta-anticipada-certificacion-staging.md`).

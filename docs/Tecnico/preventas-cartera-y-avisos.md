@@ -1,9 +1,10 @@
 # Preventas: cartera y avisos por correo — diseño técnico
 
-> **Estado (2026-10-26):** **2a · Cartera (§3.4), 2b · avisos y 2c · recordatorios (§4.9)
-> construidos** e integrados en `develop`. **Certificados en staging el 2026-10-27** (funcional §9:
-> los seis tipos de correo, reintento con el servidor caído, sin correo y Reenviar, casilla apagada y
-> cartera). Sin desplegar a producción.
+> **Estado (2026-10-28):** **en producción.** Cartera (§3.4), avisos y recordatorios (§4.9) desde el
+> 2026-10-27 22:37 (`aca401538`), certificados antes en staging (funcional §9). El envío lo hace el
+> worker `presales-notifier` desde el 2026-10-27 23:25 (`e83d35c8c`), con latido, healthcheck y techo de
+> recursos desde el 2026-10-28 09:45 (`1ccbd6bbf`). Resend comprobado en producción con
+> `platform:mail-test` (entregado en la bandeja de entrada). Casaletto tiene los avisos encendidos.
 > Segunda entrega del módulo Preventas, que está en
 > producción desde el 2026-10-14 (`e0554cfab`). Decisiones de negocio en
 > `docs/Funcional/preventas-cartera-y-avisos.md` §6 (A1-A5) y supuestos en su §7 (S1-S6). Las

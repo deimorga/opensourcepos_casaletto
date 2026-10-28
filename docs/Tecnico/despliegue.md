@@ -131,8 +131,12 @@ cd /root/POS_Casaletto && git fetch -q origin develop && bash <(git show origin/
 **Comprobar el correo** después del despliegue (diseño en `preventas-cartera-y-avisos.md` §4.1):
 
 ```
-docker compose exec -T ospos php spark platform:mail-test deimorga@gmail.com
+docker compose exec -T -u www-data ospos php spark platform:mail-test deimorga@gmail.com
 ```
+
+**`-u www-data` en todo comando manual** (`docker compose exec`): sin él, el comando corre como root y,
+si es el primero del día en escribir `writable/logs/log-<fecha>.log`, el archivo queda de root y Apache
+(`www-data`) no puede escribir en él el resto del día. Pasó en staging el 2026-10-27.
 
 - Staging: el correo no sale. Aparece en `https://mailpit.staging.ospos-saas.micronuba.net`.
 - Producción: llega a la bandeja y figura en Resend → Emails. En producción es un correo real, pero no
