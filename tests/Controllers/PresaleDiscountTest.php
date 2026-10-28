@@ -253,9 +253,10 @@ final class PresaleDiscountTest extends CIUnitTestCase
     public function testThePreviewShowsTheDiscountedTotalAndTheDiscount(): void
     {
         $json = $this->json($this->postReq('presales/preview', [
-            'campaign_id'      => $this->campaign_id,
-            'customer_id'      => $this->customer_id,
-            'lines'            => [['item_id' => $this->item_id, 'quantity' => '1']],
+            // Strings, as a browser posts them: the request layer checks the encoding of every value.
+            'campaign_id'      => (string) $this->campaign_id,
+            'customer_id'      => (string) $this->customer_id,
+            'lines'            => [['item_id' => (string) $this->item_id, 'quantity' => '1']],
             'discount_percent' => '25',
             'installments'     => [['due_date' => to_date(strtotime($this->day(0))), 'amount' => '']],
         ]));
