@@ -13,7 +13,14 @@
 # manda SIGTERM al proceso 1, que es este shell, y el shell atiende la señal cuando `php` termina.
 # docker-compose le da 90 segundos (stop_grace_period). Cortar un envío a la mitad podría mandar un
 # correo dos veces.
+#
+# EL LATIDO: tras cada corrida que termina bien se toca HEARTBEAT, y el healthcheck del compose marca el
+# contenedor «unhealthy» si tiene más de 3 minutos. Sin eso, un comando que fallara cada minuto dejaría
+# el contenedor «running» y las preventas sin avisos sin que nadie lo viera (revisión de infra,
+# 2026-10-28).
 set -u
+
+HEARTBEAT=/tmp/presales-notifier.heartbeat
 
 stop=0
 trap 'stop=1' TERM INT
@@ -21,7 +28,11 @@ trap 'stop=1' TERM INT
 echo "[presales-notifier] arrancado; corre presales:notify cada minuto."
 
 while [ "$stop" = 0 ]; do
-    php /app/spark presales:notify --no-header || echo "[presales-notifier] la corrida terminó con error; se reintenta en un minuto."
+    if php /app/spark presales:notify --no-header; then
+        touch "$HEARTBEAT"
+    else
+        echo "[presales-notifier] la corrida terminó con error; se reintenta en un minuto."
+    fi
 
     # La espera va de a un segundo para que una parada no tenga que aguardar el minuto entero.
     waited=0

@@ -153,6 +153,12 @@ solo en `app_net` y como `www-data`.
   vive en los contenedores y en el repositorio, para poder migrar de servidor o de nube con el compose y
   el `.env` de cada ambiente. Una tarea en el host sería infraestructura escondida. La primera versión del
   2026-10-26 usaba crontab y se retiró sin llegar a instalarse.
+- **Latido y salud** (revisión de infra, 2026-10-28): tras cada corrida buena el script toca
+  `/tmp/presales-notifier.heartbeat`, y el healthcheck marca el contenedor `unhealthy` si tiene más de 3
+  minutos. Un comando que fallara cada minuto ya no pasa por «running» sano. Verlo:
+  `docker compose ps presales-notifier` (columna de estado).
+- **Techo de recursos:** el worker 256 MB y medio núcleo; Mailpit de staging 128 MB y medio núcleo. Una fuga
+  queda en su techo y no degrada a los demás proyectos del VPS.
 - Al detenerlo, la corrida en curso termina antes de salir (`stop_grace_period: 90s`): cortar un envío a
   la mitad podría mandar un correo dos veces.
 - Registros: `docker compose logs presales-notifier` (rotados por Docker, 3 archivos de 10 MB). Una corrida

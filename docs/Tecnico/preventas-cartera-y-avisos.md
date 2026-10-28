@@ -158,7 +158,9 @@ La caja no depende del correo.
   este documento. Los correos se leen en `https://mailpit.staging.ospos-saas.micronuba.net`, con
   usuario y contraseña (`MAILPIT_UI_AUTH` en el `.env` de staging), porque llevan datos de clientes
   reales. Sin esa variable, `docker compose` falla al interpolar y el despliegue se detiene antes de
-  tocar nada, en vez de publicar la bandeja abierta. El router tiene prioridad 30 sobre el comodín de
+  tocar nada, en vez de publicar la bandeja abierta. El router y el servicio de Traefik se llaman
+  `pos-casaletto-mailpit-staging`: la regla del gateway del VPS exige el prefijo del proyecto (desde el
+  2026-10-28; antes `mailpit-staging`). El router tiene prioridad 30 sobre el comodín de
   los negocios de staging (10), y `mailpit` es un slug reservado.
 - **El nombre de red de Mailpit es `mailpit-casaletto-staging`, y no `mailpit`.** El contenedor
   también está en `micronuba_public`, la red que comparten todos los proyectos del VPS, porque

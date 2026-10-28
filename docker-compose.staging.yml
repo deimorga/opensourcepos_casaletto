@@ -231,6 +231,9 @@ services:
         image: axllent/mailpit:v1.31.4
         container_name: mailpit-casaletto-staging
         restart: always
+        # Techo propio en el VPS compartido (revisión de infra, 2026-10-28).
+        mem_limit: 128m
+        cpus: 0.5
         networks:
             - app_net
             - micronuba_public
@@ -244,16 +247,16 @@ services:
             - TZ=America/Bogota
         labels:
             - "traefik.enable=true"
-            - "traefik.http.routers.mailpit-staging.rule=Host(`mailpit.staging.ospos-saas.micronuba.net`)"
-            - "traefik.http.routers.mailpit-staging.entrypoints=websecure"
+            - "traefik.http.routers.pos-casaletto-mailpit-staging.rule=Host(`mailpit.staging.ospos-saas.micronuba.net`)"
+            - "traefik.http.routers.pos-casaletto-mailpit-staging.entrypoints=websecure"
             # Host() literal: HTTP-01 basta, como el router legacy de staging.
-            - "traefik.http.routers.mailpit-staging.tls.certresolver=le"
+            - "traefik.http.routers.pos-casaletto-mailpit-staging.tls.certresolver=le"
             # FUNCIONAL, no higiene: «mailpit» también encaja en la regex del router comodín de los
             # negocios de staging (prioridad 10). Sin una prioridad mayor, la bandeja la serviría
             # OSPOS. Por lo mismo, «mailpit» es un slug reservado (TenantProvisioner::RESERVED_SLUGS).
-            - "traefik.http.routers.mailpit-staging.priority=30"
-            - "traefik.http.routers.mailpit-staging.service=mailpit-staging"
-            - "traefik.http.services.mailpit-staging.loadbalancer.server.port=8025"
+            - "traefik.http.routers.pos-casaletto-mailpit-staging.priority=30"
+            - "traefik.http.routers.pos-casaletto-mailpit-staging.service=pos-casaletto-mailpit-staging"
+            - "traefik.http.services.pos-casaletto-mailpit-staging.loadbalancer.server.port=8025"
             - "traefik.docker.network=micronuba_public"
 
     # El worker de los correos de preventas (docker/presales-notifier.sh, preventas-cartera-y-avisos.md
@@ -278,6 +281,16 @@ services:
         environment:
             - SKIP_MIGRATIONS=1
         stop_grace_period: 90s
+        # Sano mientras haya una corrida buena en los últimos 3 minutos (docker/presales-notifier.sh).
+        healthcheck:
+            test: ["CMD-SHELL", "test -n \"$$(find /tmp/presales-notifier.heartbeat -mmin -3 2>/dev/null)\""]
+            interval: 60s
+            timeout: 5s
+            start_period: 120s
+            retries: 2
+        # Techo propio: una fuga o un PDF desbocado no degrada a los demás proyectos del VPS.
+        mem_limit: 256m
+        cpus: 0.5
         logging:
             driver: json-file
             options:

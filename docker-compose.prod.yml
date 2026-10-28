@@ -249,6 +249,16 @@ services:
         environment:
             - SKIP_MIGRATIONS=1
         stop_grace_period: 90s
+        # Sano mientras haya una corrida buena en los últimos 3 minutos (docker/presales-notifier.sh).
+        healthcheck:
+            test: ["CMD-SHELL", "test -n \"$$(find /tmp/presales-notifier.heartbeat -mmin -3 2>/dev/null)\""]
+            interval: 60s
+            timeout: 5s
+            start_period: 120s
+            retries: 2
+        # Techo propio: una fuga o un PDF desbocado no degrada a los demás proyectos del VPS.
+        mem_limit: 256m
+        cpus: 0.5
         logging:
             driver: json-file
             options:
