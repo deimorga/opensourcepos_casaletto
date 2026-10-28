@@ -256,6 +256,34 @@ services:
             - "traefik.http.services.mailpit-staging.loadbalancer.server.port=8025"
             - "traefik.docker.network=micronuba_public"
 
+    # El worker de los correos de preventas (docker/presales-notifier.sh, preventas-cartera-y-avisos.md
+    # §4.5): la misma imagen y la misma configuración que la aplicación, sin Apache, sin migraciones y
+    # sin Traefik. Un servicio del compose y no una tarea en el servidor, para que todo el sistema viaje
+    # con el repositorio. scripts/deploy.sh lo recrea junto con la aplicación, así nunca corre código
+    # de una versión distinta a la del esquema.
+    #
+    # www-data y no root: escribe la caché de configuración, el registro del día y el PDF temporal, y un
+    # archivo de root en esos sitios dejaría a Apache sin poder escribirlos.
+    presales-notifier:
+        extends:
+            service: ospos
+        build: !reset null
+        labels: !reset []
+        networks: !override
+            - app_net
+        depends_on:
+            - mysql
+        user: www-data
+        command: ["sh", "/app/docker/presales-notifier.sh"]
+        environment:
+            - SKIP_MIGRATIONS=1
+        stop_grace_period: 90s
+        logging:
+            driver: json-file
+            options:
+                max-size: "10m"
+                max-file: "3"
+
 networks:
     micronuba_public:
         external: true

@@ -134,6 +134,8 @@ pestaña.
 
 ### 4.4 Si el correo falla
 
+- **Los correos salen solos, cada minuto**, desde un proceso propio del sistema que se instala con cada
+  actualización. No hay que configurar nada en el servidor (desde el 2026-10-27).
 - **El correo nunca frena la caja.** La preventa o el abono se guardan primero. El correo sale unos
   segundos después, por su cuenta. Si el servidor de correo está caído, el negocio sigue vendiendo.
 - Si un correo no sale, el sistema **lo reintenta solo** durante un rato.

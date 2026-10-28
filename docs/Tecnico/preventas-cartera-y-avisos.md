@@ -246,15 +246,11 @@ encola con `skipped_no_email` y la respuesta JSON del controlador lleva el aviso
    último intento.
 4. Una fila en `sending` con más de 10 minutos se considera caída y vuelve a `pending`.
 
-**Programación:** una línea en el crontab del **host**, porque el contenedor solo corre Apache:
-
-```
-* * * * * cd /root/POS_Casaletto && docker compose exec -T ospos php spark presales:notify >> /root/deploy-logs/presales-notify.log 2>&1
-```
-
-Igual que `platform:support-employee`, queda **fuera del entrypoint**: si el comando falla, no puede
-tumbar la caja. Se versiona en `docker/cron/` y `despliegue.md` documenta cómo instalarlo en cada VPS.
-Como el log crece, se rota con `logrotate`.
+**Programación:** el servicio **`presales-notifier`** de cada docker-compose lo corre cada minuto
+(`docker/presales-notifier.sh`), con la misma imagen y configuración que la aplicación, sin Apache ni
+migraciones. **No es una línea de crontab del servidor** (decisión del dueño, 2026-10-27): todo lo que
+corre vive en los contenedores, para poder migrar de nube con el repositorio y el `.env`. `deploy.sh`
+lo recrea junto con la aplicación. Detalles de operación en `despliegue.md` §7.
 
 ### 4.6 Contenido
 
@@ -296,7 +292,7 @@ hubo, y el botón **«Reenviar»** (`Presales::postResendNotification($id)`, POS
 migración `20261026000000_AddPresaleNotifications`, `Presale_notification` (bandeja),
 `Presale_notifier` (contenido y envío), `Presale_documents` (datos de los comprobantes, compartidos
 con la pantalla), `php spark presales:notify`, vistas `presales/email_*.php` y
-`presales/receipt_delivered.php`, línea de cron en `docker/cron/presales-notify`. Pruebas en
+`presales/receipt_delivered.php`, worker `presales-notifier` (`docker/presales-notifier.sh`). Pruebas en
 `tests/Controllers/PresaleNotificationsTest.php`.
 
 Diferencias con el diseño de arriba, y por qué:
@@ -320,7 +316,7 @@ Diferencias con el diseño de arriba, y por qué:
   a esa página, así que un `$.notify()` se perdía. **En la entrega no hay aviso en la caja:** la caja
   imprime su propio recibo y no se tocó para esto. La pestaña «Correos» lo muestra igual.
 - **Los recordatorios se encolan en cada corrida desde las 9:00**, no una vez al día: la unicidad (K6)
-  vuelve inofensivo repetirlo. Si el cron estuvo caído todo el día, el recordatorio de «vencida ayer»
+  vuelve inofensivo repetirlo. Si el worker estuvo caído todo el día, el recordatorio de «vencida ayer»
   de ese día no sale: la cuota sigue en la cartera y en la lista de atrasados.
 - **Logo por CID:** `send_as()` recibe la ruta del logo, lo adjunta `inline` y cambia `cid:logo` en el
   cuerpo por el CID real.
@@ -341,12 +337,12 @@ Diferencias con el diseño de arriba, y por qué:
    - `php spark platform:mail-test` en cada ambiente: en staging el correo aparece en Mailpit; en
      producción llega a la bandeja y aparece en Resend → Emails;
    - se despliega con `deploy.sh`: la migración crea la tabla y las claves en todos los esquemas;
-   - se instala la línea de cron;
+   - el worker `presales-notifier` sale con el despliegue (antes era una línea de cron, retirada el 2026-10-27);
    - se enciende `presales_notify_email` solo en Casaletto, cuando el dueño lo pida.
-3. **2c Recordatorios:** el mismo comando y la misma línea de cron, con la parte de recordatorios.
+3. **2c Recordatorios:** el mismo comando y el mismo worker, con la parte de recordatorios.
 
 **Vuelta atrás:** apagar `presales_notify_email` detiene los avisos de ese negocio sin desplegar nada.
-Quitar la línea de cron detiene todos los envíos. La regla de AGENTS.md sigue valiendo: una imagen
+Detener el worker (`docker compose stop presales-notifier`) detiene todos los envíos. La regla de AGENTS.md sigue valiendo: una imagen
 anterior a la migración solo junto con su respaldo.
 
 ---
@@ -358,5 +354,5 @@ anterior a la migración solo junto con su respaldo.
 | Resend se cae o suspende la cuenta | Los avisos esperan en la bandeja y se reintentan; la caja no se entera. El transporte es SMTP estándar: cambiar de proveedor es cambiar las variables |
 | Los correos llegan a spam | `From` alineado con el dominio que firma (K2), DKIM `default` presente; prueba en Gmail y Outlook (funcional §9.8). Más adelante, subir DMARC de `p=none` a `quarantine` |
 | Límite de envíos | El plan Pro de Resend (50.000 al mes) se comparte con PLAGIE. Preventas suma cientos al mes. Lote de 50 por minuto, por debajo del límite de peticiones por segundo |
-| El cron se queda sin instalar en un VPS | `despliegue.md` lo trae como paso y la pestaña «Correos» muestra los `pending` viejos. Se puede agregar una alerta si hay `pending` con más de 30 minutos |
+| El worker se detiene | `restart: always` lo levanta, `deploy.sh` lo recrea en cada despliegue y la pestaña «Correos» muestra los `pending` viejos. Se puede agregar una alerta si hay `pending` con más de 30 minutos |
 | Un error del comando no se ve | Log propio rotado. El comando sale con código distinto de 0 si un negocio falla, sin detener a los demás |

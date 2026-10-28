@@ -138,28 +138,26 @@ docker compose exec -T ospos php spark platform:mail-test deimorga@gmail.com
 - Producción: llega a la bandeja y figura en Resend → Emails. En producción es un correo real, pero no
   una transacción: no toca ventas ni caja, así que la regla de solo lectura no lo impide.
 
-## 7. Tarea programada del correo de preventas
+## 7. El worker del correo de preventas
 
 Los avisos de preventas no salen en la petición de la caja: se encolan y los envía
-`php spark presales:notify`, que corre **cada minuto desde el crontab del host** (el contenedor solo
-corre Apache). Diseño en `preventas-cartera-y-avisos.md` §4.5. Las líneas están versionadas en
-`docker/cron/presales-notify`, una por ambiente, con `flock` para que dos corridas no se monten.
+`php spark presales:notify` (diseño en `preventas-cartera-y-avisos.md` §4.5). Lo corre cada minuto el
+servicio **`presales-notifier`** de cada docker-compose (`docker/presales-notifier.sh`): la misma imagen
+y la misma configuración que la aplicación, sin Apache, sin migraciones (`SKIP_MIGRATIONS=1`), sin Traefik,
+solo en `app_net` y como `www-data`.
 
-Instalar o actualizar **dentro de la carpeta del ambiente**, después del despliegue que trae el
-comando (reemplaza solo la línea de ese ambiente; la del otro queda como esté):
-
-```
-cd /root/POS_Casaletto_staging   # o /root/POS_Casaletto para producción
-crontab -l 2>/dev/null | grep -v "cd $PWD &&" > /tmp/c && grep "cd $PWD &&" docker/cron/presales-notify >> /tmp/c \
-  && crontab /tmp/c && crontab -l | grep presales
-cp docker/cron/presales-notify.logrotate /etc/logrotate.d/presales-notify
-```
-
-- Registros: `/root/presales-notify-prod.log` y `/root/presales-notify-staging.log`. Una corrida sin
-  nada que enviar no escribe nada; una con envíos escribe una línea por negocio.
-- **Deliberadamente fuera del entrypoint y de `deploy.sh`**, como `platform:support-employee`: un fallo
-  del correo no puede tumbar la caja ni un despliegue.
-- Con el cron sin instalar, los avisos esperan en la bandeja como «En cola» y se ven así en la pestaña
-  «Correos» de cada preventa. Nada se pierde; sale todo al instalarlo.
-- Apagar todos los envíos: quitar las líneas del crontab. Apagar un negocio: su casilla «Avisar al
-  cliente por correo».
+- **No hay nada que instalar en el servidor.** `deploy.sh` lo recrea junto con la aplicación
+  (`switch_worker`), al desplegar y al volver atrás: nunca corre código de otra versión que el esquema.
+  Si no arranca, avisa y no tumba el despliegue. `restart: always` lo levanta si se cae.
+- **Por qué un servicio y no una línea de crontab** (decisión del dueño, 2026-10-27): todo lo que corre
+  vive en los contenedores y en el repositorio, para poder migrar de servidor o de nube con el compose y
+  el `.env` de cada ambiente. Una tarea en el host sería infraestructura escondida. La primera versión del
+  2026-10-26 usaba crontab y se retiró sin llegar a instalarse.
+- Al detenerlo, la corrida en curso termina antes de salir (`stop_grace_period: 90s`): cortar un envío a
+  la mitad podría mandar un correo dos veces.
+- Registros: `docker compose logs presales-notifier` (rotados por Docker, 3 archivos de 10 MB). Una corrida
+  sin nada que enviar no escribe nada; una con envíos escribe una línea por negocio.
+- Con el worker detenido, los avisos esperan en la bandeja como «En cola», visibles en la pestaña «Correos»
+  de cada preventa. Nada se pierde.
+- Apagar todos los envíos: `docker compose stop presales-notifier` (vuelve en el siguiente despliegue).
+  Apagar un negocio: su casilla «Avisar al cliente por correo».

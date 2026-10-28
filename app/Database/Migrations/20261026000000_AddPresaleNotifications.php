@@ -16,7 +16,7 @@ use Throwable;
  * Apache with mod_php cannot answer the till and keep working: an SMTP server that takes its ten
  * seconds to time out would freeze the cashier for ten seconds (K3). The till writes a row here, in
  * the same transaction as the fact it reports (K7), and `php spark presales:notify`, run every minute
- * by the host's cron, does the sending.
+ * by the presales-notifier worker of each docker-compose, does the sending.
  *
  * WHY UNIQUE (presale_id, kind, ref_id)
  *

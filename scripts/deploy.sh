@@ -278,6 +278,18 @@ verify() {
 switch_app() {
     dc up -d --no-build mysql
     dc up -d --no-build --no-deps --force-recreate ospos
+    switch_worker
+}
+
+# El worker de los correos (servicio presales-notifier, docker/presales-notifier.sh) corre la misma
+# imagen que la aplicación: se recrea con ella al desplegar y al volver atrás, para que nunca corra
+# código de otra versión que la del esquema. Un fallo aquí avisa y no tumba nada: la caja no depende
+# del correo, y los correos esperan en la bandeja hasta que el worker vuelva.
+switch_worker() {
+    if dc config --services | grep -qx presales-notifier; then
+        dc up -d --no-build --no-deps --force-recreate presales-notifier \
+            || say "AVISO: el worker presales-notifier no arrancó; los correos esperan en la bandeja."
+    fi
 }
 
 SWITCHED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -323,11 +335,11 @@ if ! dc exec -T ospos php spark platform:support-employee; then
     say "AVISO: platform:support-employee falló; correrlo a mano."
 fi
 
-# Los servicios que no son la aplicación ni la base (hoy, solo Mailpit en staging). switch_app
+# Los servicios que no son la aplicación, la base ni el worker (hoy, solo Mailpit en staging). switch_app
 # los deja fuera a propósito; sin este paso, uno nuevo en el compose no llegaba a crearse
 # nunca (2026-10-26: la bandeja de staging respondía 404 tras un despliegue «exitoso»). La
 # caja no depende de ellos: si uno falla, se avisa y el despliegue sigue sano.
-EXTRAS="$(dc config --services | grep -vxE 'ospos|mysql' || true)"
+EXTRAS="$(dc config --services | grep -vxE 'ospos|mysql|presales-notifier' || true)"
 if [ -n "$EXTRAS" ]; then
     # shellcheck disable=SC2086 # una palabra por servicio
     if dc up -d --no-build --no-deps $EXTRAS; then

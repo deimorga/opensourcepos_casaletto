@@ -20,12 +20,11 @@ use Throwable;
  * 9:00 hora del negocio, encola los recordatorios de cuota del día
  * (docs/Tecnico/preventas-cartera-y-avisos.md §4.5).
  *
- * LO CORRE EL CRON DEL HOST, CADA MINUTO
+ * LO CORRE EL WORKER, CADA MINUTO
  *
- *     * * * * * cd /root/POS_Casaletto && docker compose exec -T ospos php spark presales:notify ...
- *
- * (línea completa en docker/cron/presales-notify). No va en el arranque del contenedor, por la misma
- * razón que platform:support-employee: un fallo del correo no puede tumbar la caja.
+ * El servicio presales-notifier de cada docker-compose (docker/presales-notifier.sh), con la misma
+ * imagen que la aplicación. No es una tarea del servidor: todo lo que corre vive en los contenedores.
+ * Tampoco va en el arranque de la aplicación: un fallo del correo no puede tumbar la caja.
  *
  * UN PROCESO POR NEGOCIO
  *
@@ -51,7 +50,7 @@ class PresalesNotify extends BaseCommand
 
     protected $group       = 'Platform';
     protected $name        = 'presales:notify';
-    protected $description = 'Envía los correos de preventas pendientes y encola los recordatorios de cuota. Lo corre el cron cada minuto.';
+    protected $description = 'Envía los correos de preventas pendientes y encola los recordatorios de cuota. Lo corre el worker presales-notifier cada minuto.';
     protected $usage       = 'presales:notify [slug]';
     protected $arguments   = [
         'slug' => 'Opcional: solo ese negocio. Sin él, todos los negocios activos del registro.',
