@@ -54,6 +54,9 @@
         <a class="btn btn-default btn-sm pull-right" href="<?= site_url('presales/portfolio') ?>">
             <span class="glyphicon glyphicon-usd">&nbsp;</span><?= esc(lang('Presale_reports.portfolio')) ?>
         </a>
+        <a class="btn btn-default btn-sm pull-right" href="<?= site_url('presales/brandDiscounts') ?>">
+            <span class="glyphicon glyphicon-tags">&nbsp;</span><?= esc(lang('Presale_reports.brand_discounts')) ?>
+        </a>
         <a class="btn btn-default btn-sm pull-right" href="<?= site_url('presales/campaigns') ?>">
             <span class="glyphicon glyphicon-calendar">&nbsp;</span><?= esc(lang('Presales.campaigns')) ?>
         </a>

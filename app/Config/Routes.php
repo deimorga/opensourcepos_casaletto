@@ -66,6 +66,10 @@ $routes->get('presales/committed/csv', 'PresaleReports::getCommittedCsv');
 $routes->get('presales/portfolio', 'PresaleReports::getPortfolio');
 $routes->get('presales/portfolio/csv', 'PresaleReports::getPortfolioCsv');
 // presales: portfolio (entrega 2a) END
+// presales: brand discounts (2026-10-27) BEGIN
+$routes->get('presales/brandDiscounts', 'PresaleReports::getBrandDiscounts');
+$routes->get('presales/brandDiscounts/csv', 'PresaleReports::getBrandDiscountsCsv');
+// presales: brand discounts (2026-10-27) END
 
 // presales: campaigns (lane A) BEGIN
 // Fixed addresses first; the ones with ids follow. view/save take (:segment) because a new campaign
@@ -108,6 +112,7 @@ $routes->get('presales/cancelReceipt/(:num)', 'Presales::getCancelReceipt/$1');
 // presales: customer e-mails (delivery 2b) BEGIN
 $routes->get('presales/deliveryReceipt/(:num)', 'Presales::getDeliveryReceipt/$1');
 $routes->post('presales/(:num)/resendNotification/(:num)', 'Presales::postResendNotification/$1/$2');
+$routes->post('presales/(:num)/changeDiscount', 'Presales::postChangeDiscount/$1');
 // presales: customer e-mails (delivery 2b) END
 
 $routes->get('/', 'Login::index');

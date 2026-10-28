@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Database;
 
+use App\Database\Migrations\Migration_AddPresaleDiscount;
 use App\Database\Migrations\Migration_AddPresales;
 use App\Database\Migrations\Migration_AddPresalesConfigKeys;
 use App\Database\Migrations\Migration_AddPresalesModule;
@@ -100,14 +101,16 @@ final class PresalesMigrationTest extends CIUnitTestCase
         $this->assertWritable('presale_campaigns', 'campaign_id', Migration_AddPresales::WRITABLE_COLUMNS_CAMPAIGNS);
         $this->assertWritable('presale_campaign_items', null, Migration_AddPresales::WRITABLE_COLUMNS_CAMPAIGN_ITEMS);
         $this->assertWritable('presale_campaign_dates', 'date_id', Migration_AddPresales::WRITABLE_COLUMNS_CAMPAIGN_DATES);
-        $this->assertWritable('presales', 'presale_id', Migration_AddPresales::WRITABLE_COLUMNS_PRESALES);
+        // The seller's discount on the whole presale came in a migration of its own (2026-10-27).
+        $presales = array_merge(Migration_AddPresales::WRITABLE_COLUMNS_PRESALES, Migration_AddPresaleDiscount::ADDED_COLUMNS);
+        $this->assertWritable('presales', 'presale_id', $presales);
         $this->assertWritable('presale_items', null, Migration_AddPresales::WRITABLE_COLUMNS_ITEMS);
         $this->assertWritable('presale_installments', 'installment_id', Migration_AddPresales::WRITABLE_COLUMNS_INSTALLMENTS);
         $this->assertWritable('presale_payments', 'payment_id', Migration_AddPresales::WRITABLE_COLUMNS_PAYMENTS);
         $this->assertWritable('presale_events', 'event_id', Migration_AddPresales::WRITABLE_COLUMNS_EVENTS);
 
         $this->assertSameColumns(Migration_AddPresales::WRITABLE_COLUMNS_CAMPAIGNS, $this->allowedFields(Presale_campaign::class));
-        $this->assertSameColumns(Migration_AddPresales::WRITABLE_COLUMNS_PRESALES, $this->allowedFields(Presale::class));
+        $this->assertSameColumns($presales, $this->allowedFields(Presale::class));
         $this->assertSameColumns(Migration_AddPresales::WRITABLE_COLUMNS_PAYMENTS, $this->allowedFields(Presale_payment::class));
         $this->assertSameColumns(Migration_AddPresales::WRITABLE_COLUMNS_EVENTS, $this->allowedFields(Presale_event::class));
     }

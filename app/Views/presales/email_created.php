@@ -26,6 +26,10 @@ $r  = $td . ' text-align: right; white-space: nowrap;';
             <td style="<?= $r ?>"><?= esc(to_currency(bcmul((string) $line['quantity'], (string) $line['unit_price'], 2))) ?></td>
         </tr>
     <?php endforeach; ?>
+    <?php if ((float) ($presale['discount_percent'] ?? 0) > 0): ?>
+        <tr><td style="<?= $td ?>"><?= esc(lang('Presales.gross_total')) ?></td><td style="<?= $r ?>"><?= esc(to_currency((string) $presale['gross_total'])) ?></td></tr>
+        <tr><td style="<?= $td ?>"><?= esc(lang('Presales.discount')) ?> <?= esc(rtrim(rtrim((string) $presale['discount_percent'], '0'), '.')) ?>%</td><td style="<?= $r ?>">-<?= esc(to_currency(bcsub((string) $presale['gross_total'], (string) $presale['total'], 2))) ?></td></tr>
+    <?php endif; ?>
     <tr><td style="<?= $td ?> font-weight: bold;"><?= esc(lang('Presales.total')) ?></td><td style="<?= $r ?> font-weight: bold;"><?= esc(to_currency((string) $presale['total'])) ?></td></tr>
     <tr><td style="<?= $td ?>"><?= esc(lang('Presales.paid')) ?></td><td style="<?= $r ?>"><?= esc(to_currency((string) $presale['paid'])) ?></td></tr>
     <tr><td style="<?= $td ?> font-weight: bold;"><?= esc(lang('Presales.balance')) ?></td><td style="<?= $r ?> font-weight: bold;"><?= esc(to_currency((string) $presale['balance'])) ?></td></tr>

@@ -483,6 +483,43 @@ en el comprobante.
 El 2026-10-08, en la certificación del equipo, se corrigió el calendario de las cuotas: al elegir un día
 escribía también la hora y la preventa no se dejaba registrar. Ahora escribe solo la fecha.
 
+### 4.16 Descuento sobre el total y descuentos que reembolsa la marca (2026-10-27)
+
+**Por qué:** la marca matriz lanzó la promoción «Anticipa tu compra y ahorra un 5 %» para los productos
+de Casaletto, y **la marca le devuelve ese descuento al negocio**. El 27/10 se registró una preventa en
+producción sin el descuento porque el formulario no tenía dónde ponerlo. Además, el negocio da a veces
+descuentos propios que la marca no paga.
+
+**Cómo funciona:**
+
+- Al registrar la preventa, debajo de los productos, el vendedor elige el **descuento**: 0 %, 5 %, 10 %
+  … hasta 40 %. Se aplica **sobre el total**, encima del precio de campaña (el descuento de la campaña y
+  el de cada producto siguen como estaban).
+- Si hay descuento, se marca la casilla **«Reembolsable por la marca»** cuando la marca lo paga. Sin
+  descuento la casilla no se puede marcar.
+- El formulario muestra el descuento en pesos y el total ya descontado. El plan de cuotas tiene que sumar
+  ese total.
+- El comprobante, el correo de registro y el detalle muestran el subtotal sin descuento, la línea
+  «Descuento X %» y el total.
+- La entrega por la caja cobra exactamente el total con descuento.
+
+**Cambiarlo después:** solo un **administrador** (quien tiene el permiso «Gestionar preventas»), desde el
+detalle de una preventa abierta, con el botón **«Cambiar descuento»**. El total se recalcula:
+
+- si baja, la diferencia se descuenta de las **últimas cuotas** (una que quede en cero desaparece);
+- si sube, se suma a la última cuota;
+- no puede quedar por debajo de lo que el cliente ya abonó;
+- no se puede mientras la entrega esté abierta en la caja;
+- queda en el historial de la preventa, con el antes y el después.
+
+Así se corrige la preventa que salió sin descuento.
+
+**Reporte para la marca:** en Preventas, el botón **«Descuentos de la marca»** (solo administradores)
+lista las preventas con descuento reembolsable, **abiertas y entregadas** (las canceladas no cuentan), con
+lo que se descontó en pesos, y arriba **cuánto debe la marca**, separado en entregadas y abiertas. Se
+descarga en CSV para enviarlo a la marca al cerrar la temporada. El descuento en pesos es lo que el
+cliente dejó de pagar, impuestos incluidos.
+
 ## 5. Lo que este requerimiento NO hace
 
 - **No es fiado.** El producto no sale antes de estar pagado. El crédito con entrega inmediata
@@ -499,6 +536,7 @@ escribía también la hora y la preventa no se dejaba registrar. Ahora escribe s
 - **No hay preventas por lotes ni importación masiva.** Una a una (D9).
 - **No admite entregas parciales.** Una preventa se entrega completa (D6).
 - **No toca las órdenes de trabajo, las cotizaciones ni las ventas suspendidas.** Siguen igual.
+
 
 ---
 
@@ -535,6 +573,7 @@ escribía también la hora y la preventa no se dejaba registrar. Ahora escribe s
 | **D27** | **Kit: el precio de campaña es el del kit completo**; los componentes van en cero (§4.2) | 2026-10-07 |
 | **D28** | **Peso menor con tope:** devolver más del porcentaje configurado del total (15 % por defecto, 0 = sin tope) exige el permiso «Gestionar preventas», y queda quién lo autorizó (§4.8) | 2026-10-07 |
 | **D29** | **No se entrega sin turno de caja abierto**, ni al mandar a la caja ni al completar (§4.8) | 2026-10-07 |
+| **D30** | **Descuento sobre el total de la preventa**, elegido por el vendedor al registrar: de 0 % a 40 %, de 5 en 5, encima del precio de campaña. Se marca si **lo reembolsa la marca**. Solo un administrador lo cambia después. El reporte a la marca cuenta las preventas abiertas y entregadas, no las canceladas (§4.16) | 2026-10-27 |
 
 ### 6.1 Primera ronda de preguntas, resuelta el 2026-10-07
 

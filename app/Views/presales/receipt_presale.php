@@ -50,6 +50,10 @@ $terms             = trim((string) ($config['presales_terms'] ?? ''));
                 <td class="r"><?= esc(to_currency(bcmul((string) $line['quantity'], (string) $line['unit_price'], 2))) ?></td>
             </tr>
         <?php endforeach; ?>
+        <?php if ((float) ($presale['discount_percent'] ?? 0) > 0): ?>
+            <tr class="sep"><td><?= esc(lang('Presales.gross_total')) ?></td><td class="r"><?= esc(to_currency((string) $presale['gross_total'])) ?></td></tr>
+            <tr><td><?= esc(lang('Presales.discount')) ?> <?= esc(rtrim(rtrim((string) $presale['discount_percent'], '0'), '.')) ?>%</td><td class="r" id="presale_discount">-<?= esc(to_currency(bcsub((string) $presale['gross_total'], (string) $presale['total'], 2))) ?></td></tr>
+        <?php endif; ?>
         <tr class="sep"><th><?= esc(lang('Presales.total')) ?></th><th class="r"><?= esc(to_currency((string) $presale['total'])) ?></th></tr>
     </table>
 

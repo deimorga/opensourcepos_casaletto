@@ -14,7 +14,8 @@ use NumberFormatter;
 /**
  * Reports of the presales module: what each campaign has committed, which is the season's shopping
  * list (docs/Funcional/venta-anticipada.md section 4.11), and the portfolio, what the open presales
- * still owe and who is late (docs/Funcional/preventas-cartera-y-avisos.md section 3).
+ * still owe and who is late (docs/Funcional/preventas-cartera-y-avisos.md section 3), and the discounts
+ * the brand pays back (venta-anticipada.md section 4.16).
  *
  * Behind the `presales` module grant and the business's switch, like the rest of the module; the
  * portfolio also needs presales_manage. Read only. A separate controller from Presales so the lanes
@@ -253,6 +254,79 @@ class PresaleReports extends Secure_Controller
         $text = (string) $value;
 
         return $text !== '' && in_array($text[0], ['=', '+', '-', '@', "\t", "\r"], true) ? "'" . $text : $text;
+    }
+
+    /**
+     * The discounts the brand pays back (venta-anticipada.md §4.16): per campaign or all of them, open
+     * and delivered presales, with the total the brand owes. Needs presales_manage, like the portfolio:
+     * it is the business's money.
+     */
+    public function getBrandDiscounts(): RedirectResponse|string
+    {
+        if (! Presales::is_enabled()) {
+            return view('presales/disabled');
+        }
+
+        if (! Presales::can_manage($this->employee)) {
+            return redirect()->to('no_access/presales/presales_manage');
+        }
+
+        $campaigns   = $this->campaigns->get_all();
+        $campaign_id = $this->chosen_campaign($campaigns);
+        $data        = $this->report->brand_discounts($campaign_id);
+
+        $data['rows'] = $this->with_numbers($data['rows']);
+
+        return view('presales/brand_discounts', [
+            'campaigns'   => $campaigns,
+            'campaign_id' => $campaign_id,
+            'report'      => $data,
+        ], ['saveData' => false]);
+    }
+
+    /**
+     * The same report as a CSV, to send to the brand.
+     */
+    public function getBrandDiscountsCsv(): ResponseInterface
+    {
+        if (! Presales::is_enabled()) {
+            return redirect()->to('presales');
+        }
+
+        if (! Presales::can_manage($this->employee)) {
+            return redirect()->to('no_access/presales/presales_manage');
+        }
+
+        $campaign_id = $this->chosen_campaign($this->campaigns->get_all());
+        $data        = $this->report->brand_discounts($campaign_id);
+
+        $lines = [[
+            lang('Presale_reports.number'), lang('Presale_reports.created_at'), lang('Presale_reports.customer'),
+            lang('Presale_reports.campaign'), lang('Presale_reports.state'), lang('Presale_reports.sold_by'),
+            lang('Presale_reports.discount_percent'), lang('Presale_reports.gross_total'), lang('Presale_reports.total'),
+            lang('Presale_reports.discount_amount'),
+        ]];
+
+        foreach ($this->with_numbers($data['rows']) as $row) {
+            $lines[] = [
+                $row['number'],
+                to_date((int) strtotime($row['created_at'])),
+                trim($row['first_name'] . ' ' . $row['last_name']),
+                $row['campaign_name'],
+                lang('Presale_reports.status_' . $row['status']),
+                trim($row['employee_first_name'] . ' ' . $row['employee_last_name']),
+                rtrim(rtrim((string) $row['discount_percent'], '0'), '.'),
+                $this->money_cell((string) $row['gross_total']),
+                $this->money_cell((string) $row['total']),
+                $this->money_cell($row['discount']),
+            ];
+        }
+
+        $lines[] = ['', '', '', '', '', '', lang('Presale_reports.total'), $this->money_cell($data['totals']['gross']), $this->money_cell($data['totals']['total']), $this->money_cell($data['totals']['discount'])];
+
+        $suffix = $campaign_id === null ? 'todas' : (string) $campaign_id;
+
+        return $this->response->download('preventas_descuentos_marca_' . $suffix . '.csv', self::csv($lines));
     }
 
     /**

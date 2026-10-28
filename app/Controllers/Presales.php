@@ -168,6 +168,7 @@ class Presales extends Secure_Controller
             'can_add_customer' => $this->employee->has_grant('customers', $person_id),
             'has_open_shift'   => model(Cashup::class)->get_open_cashup_id() !== null,
             'today'            => date(config(OSPOS::class)->settings['dateformat']),
+            'discounts'        => Presale::discount_options(),
         ], ['saveData' => false]);
     }
 
@@ -255,15 +256,24 @@ class Presales extends Secure_Controller
         }
 
         $customer_id = (int) $this->request->getPost('customer_id');
-        $charge      = $this->presale->register_charge($priced, $customer_id > 0 ? $customer_id : NEW_ENTRY);
+        $customer_id = $customer_id > 0 ? $customer_id : NEW_ENTRY;
+        $discount    = Presale::discount_or_null($this->request->getPost('discount_percent'));
 
-        if ($charge === null) {
+        if ($discount === null) {
+            return $this->response->setJSON(['success' => false, 'message' => esc(lang('Presales.discount_invalid'))]);
+        }
+
+        $gross  = $this->presale->register_charge($priced, $customer_id);
+        $charge = $this->presale->register_charge(Presale::apply_discount($priced, $discount), $customer_id);
+
+        if ($charge === null || $gross === null) {
             return $this->response->setJSON(['success' => false, 'message' => esc(lang('Presales.total_unavailable'))]);
         }
 
         $total = $charge['charge'];
 
-        $installments = $this->read_installments();
+        // A row with a date and no amount yet is a row the cashier is still filling in, not an error.
+        $installments = $this->read_installments(true);
         $plan         = null;
 
         if (is_array($installments) && $installments !== []) {
@@ -289,13 +299,17 @@ class Presales extends Secure_Controller
             $plan = ['sum' => '', 'matches' => false, 'message' => esc($installments)];
         }
 
+        $discounted = bcsub($gross['charge'], $total, 2);
+
         return $this->response->setJSON([
-            'success' => true,
-            'total'   => to_currency($total),
-            'taxes'   => to_currency($charge['taxes']),
-            'lines'   => $amounts,
-            'plan'    => $plan,
-            'minimum' => esc(lang('Presales.minimum_initial', [to_currency(Presale::minimum_initial($total, (string) $campaign['min_initial_percent']))])),
+            'success'  => true,
+            'total'    => to_currency($total),
+            'gross'    => to_currency($gross['charge']),
+            'discount' => bccomp($discounted, '0', 2) > 0 ? esc(lang('Presales.discount_amount', [to_currency($discounted)])) : '',
+            'taxes'    => to_currency($charge['taxes']),
+            'lines'    => $amounts,
+            'plan'     => $plan,
+            'minimum'  => esc(lang('Presales.minimum_initial', [to_currency(Presale::minimum_initial($total, (string) $campaign['min_initial_percent']))])),
         ]);
     }
 
@@ -332,14 +346,16 @@ class Presales extends Secure_Controller
         $employee_id = (int) $this->employee->get_logged_in_employee_info()->person_id;
 
         $result = $this->presale->create([
-            'campaign_id'      => (int) $this->request->getPost('campaign_id'),
-            'customer_id'      => (int) $this->request->getPost('customer_id'),
-            'delivery_date_id' => (int) $this->request->getPost('delivery_date_id'),
-            'location_id'      => $this->sale_location($employee_id),
-            'comment'          => (string) $this->request->getPost('comment'),
-            'lines'            => $lines,
-            'installments'     => $installments,
-            'payment'          => [
+            'campaign_id'           => (int) $this->request->getPost('campaign_id'),
+            'customer_id'           => (int) $this->request->getPost('customer_id'),
+            'delivery_date_id'      => (int) $this->request->getPost('delivery_date_id'),
+            'location_id'           => $this->sale_location($employee_id),
+            'comment'               => (string) $this->request->getPost('comment'),
+            'lines'                 => $lines,
+            'installments'          => $installments,
+            'discount_percent'      => (string) $this->request->getPost('discount_percent'),
+            'discount_reimbursable' => $this->request->getPost('discount_reimbursable') !== null,
+            'payment'               => [
                 'payment_type_code' => (string) $this->request->getPost('payment_type_code'),
                 'amount'            => $amount,
                 'reference_code'    => (string) $this->request->getPost('reference_code'),
@@ -408,6 +424,7 @@ class Presales extends Secure_Controller
             'has_open_shift' => model(Cashup::class)->get_open_cashup_id() !== null,
             'can_manage'     => self::can_manage($this->employee),
             'notifications'  => model(Presale_notification::class)->get_for($presale_id),
+            'discounts'      => Presale::discount_options(),
             'notify_on'      => Presale_notification::is_on(),
         ], ['saveData' => false]);
     }
@@ -655,6 +672,36 @@ class Presales extends Secure_Controller
     }
 
     /**
+     * Changes the cashier's discount of an open presale and whether the brand pays it back. Only an
+     * administrator (presales_manage), checked here and not only by hiding the form (owner's decision
+     * of 2026-10-27). Every rule -- the allowed percentages, the plan, what has been paid, a delivery
+     * open in the register -- is Presale::change_discount()'s.
+     */
+    public function postChangeDiscount(int $presale_id): ResponseInterface
+    {
+        if (! self::is_enabled()) {
+            return $this->refuse(lang('Presales.disabled'))->setStatusCode(403);
+        }
+
+        if (! self::can_manage($this->employee)) {
+            return $this->refuse(lang('Presales.discount_forbidden'))->setStatusCode(403);
+        }
+
+        $result = $this->presale->change_discount(
+            $presale_id,
+            (string) $this->request->getPost('discount_percent'),
+            $this->request->getPost('discount_reimbursable') !== null,
+            (int) $this->employee->get_logged_in_employee_info()->person_id,
+        );
+
+        if (is_string($result)) {
+            return $this->refuse(lang($result));
+        }
+
+        return $this->response->setJSON(['success' => true, 'id' => $presale_id, 'message' => esc(lang('Presales.discount_changed'))]);
+    }
+
+    /**
      * The notice the document right after registering, paying or cancelling shows when the customer
      * could not be e-mailed (A4). The action that redirects here adds `sin_correo=1`; the notice is
      * on screen only, never on the paper.
@@ -795,7 +842,7 @@ class Presales extends Secure_Controller
      *
      * @return list<array{due_date: string, amount: string}>|string
      */
-    private function read_installments(): array|string
+    private function read_installments(bool $skip_unfinished = false): array|string
     {
         $plan = [];
 
@@ -808,6 +855,10 @@ class Presales extends Secure_Controller
             $typed_amount = trim((string) ($row['amount'] ?? ''));
 
             if ($typed_date === '' && $typed_amount === '') {
+                continue;
+            }
+
+            if ($skip_unfinished && $typed_amount === '') {
                 continue;
             }
 

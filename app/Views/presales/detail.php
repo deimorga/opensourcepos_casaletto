@@ -36,6 +36,7 @@
  * @var bool                       $can_manage
  * @var list<array<string, mixed>> $notifications  Presale_notification::get_for()
  * @var bool                       $notify_on
+ * @var list<int>                  $discounts      Presale::discount_options()
  */
 
 use App\Models\Presale;
@@ -47,6 +48,8 @@ $is_open       = $presale['status'] === Presale::STATUS_OPEN;
 $has_debt      = bccomp((string) $presale['balance'], '0', 2) > 0;
 $is_paid       = $presale['state'] === Presale::STATE_PAID;
 $customer_name = trim(($customer->first_name ?? '') . ' ' . ($customer->last_name ?? ''));
+$discount      = (float) ($presale['discount_percent'] ?? 0);
+$discounted    = bcsub((string) ($presale['gross_total'] ?? $presale['total']), (string) $presale['total'], 2);
 ?>
 
 <div id="presale_detail">
@@ -77,6 +80,13 @@ $customer_name = trim(($customer->first_name ?? '') . ' ' . ($customer->last_nam
         </div>
         <div class="col-xs-6">
             <table class="table table-condensed" style="margin-bottom: 10px;">
+                <?php if ($discount > 0): ?>
+                    <tr><th><?= esc(lang('Presales.gross_total')) ?></th><td style="text-align: right;"><?= esc(to_currency((string) $presale['gross_total'])) ?></td></tr>
+                    <tr id="presale_discount_row">
+                        <th><?= esc(lang('Presales.discount')) ?> <?= esc(rtrim(rtrim((string) $presale['discount_percent'], '0'), '.')) ?>%</th>
+                        <td style="text-align: right;">-<?= esc(to_currency($discounted)) ?><?php if ((int) $presale['discount_reimbursable'] === 1): ?><br><span class="label label-info"><?= esc(lang('Presales.discount_reimbursable')) ?></span><?php endif; ?></td>
+                    </tr>
+                <?php endif; ?>
                 <tr><th><?= esc(lang('Presales.total')) ?></th><td style="text-align: right;"><?= esc(to_currency((string) $presale['total'])) ?></td></tr>
                 <tr><th><?= esc(lang('Presales.paid')) ?></th><td style="text-align: right;"><?= esc(to_currency($presale['paid'])) ?></td></tr>
                 <?php if ($is_open): ?>
@@ -106,6 +116,9 @@ $customer_name = trim(($customer->first_name ?? '') . ' ' . ($customer->last_nam
         <?php endif; ?>
 
         <?php if ($is_open && $can_manage): ?>
+            <button type="button" class="btn btn-default btn-sm" id="presale_change_discount" aria-expanded="false" aria-controls="presale_discount_block">
+                <span class="glyphicon glyphicon-tag">&nbsp;</span><?= esc(lang('Presales.discount_change')) ?>
+            </button>
             <button type="button" class="btn btn-danger btn-sm" id="presale_cancel" aria-expanded="false" aria-controls="presale_cancel_block">
                 <span class="glyphicon glyphicon-remove">&nbsp;</span><?= esc(lang('Presales.cancel')) ?>
             </button>
@@ -125,6 +138,23 @@ $customer_name = trim(($customer->first_name ?? '') . ' ' . ($customer->last_nam
     </div>
 
     <?php if ($is_open && $can_manage): ?>
+        <div class="panel panel-default" id="presale_discount_block" role="region" aria-labelledby="presale_discount_title" style="display: none;">
+            <div class="panel-heading"><strong id="presale_discount_title"><?= esc(lang('Presales.discount_change')) ?> <?= esc($presale['number']) ?></strong></div>
+            <div class="panel-body form-inline">
+                <label for="presale_discount_percent"><?= esc(lang('Presales.discount')) ?></label>
+                <select id="presale_discount_percent" class="form-control input-sm">
+                    <?php foreach ($discounts ?? [] as $percent): ?>
+                        <option value="<?= (int) $percent ?>"<?= abs($discount - $percent) < 0.001 ? ' selected' : '' ?>><?= (int) $percent ?>%</option>
+                    <?php endforeach; ?>
+                </select>
+                <label class="checkbox-inline">
+                    <input type="checkbox" id="presale_discount_reimbursable"<?= (int) ($presale['discount_reimbursable'] ?? 0) === 1 ? ' checked' : '' ?>> <?= esc(lang('Presales.discount_reimbursable')) ?>
+                </label>
+                <button type="button" class="btn btn-primary btn-sm" id="presale_discount_save"><?= esc(lang('Presales.discount_save')) ?></button>
+                <p class="help-block small"><?= esc(lang('Presales.discount_change_help')) ?></p>
+            </div>
+        </div>
+
         <div class="panel panel-danger" id="presale_cancel_block" role="region" aria-labelledby="presale_cancel_title" style="display: none;">
             <div class="panel-heading"><strong id="presale_cancel_title"><?= esc(lang('Presales.cancel')) ?> <?= esc($presale['number']) ?></strong></div>
             <div class="panel-body form-horizontal">
@@ -363,6 +393,39 @@ $customer_name = trim(($customer->first_name ?? '') . ' ' . ($customer->last_nam
     $('#presale_tabs a[data-toggle="tab"]').on('shown.bs.tab', function() {
         $('#presale_tabs a[role="tab"]').attr('aria-selected', 'false');
         $('#presale_tabs li.active a[role="tab"]').attr('aria-selected', 'true');
+    });
+
+    $('#presale_change_discount').on('click', function() {
+        var opening = !$('#presale_discount_block').is(':visible');
+
+        $('#presale_discount_block').toggle(opening);
+        $(this).attr('aria-expanded', opening ? 'true' : 'false');
+    });
+
+    $('#presale_discount_save').on('click', function() {
+        var $button = $(this).prop('disabled', true);
+        var data = { discount_percent: $('#presale_discount_percent').val() };
+
+        if ($('#presale_discount_reimbursable').is(':checked')) {
+            data.discount_reimbursable = 1;
+        }
+
+        $.post('<?= site_url('presales/' . $id . '/changeDiscount') ?>', data, function(response) {
+            $button.prop('disabled', false);
+            // Escaped by the server.
+            $.notify(response.message, { type: response.success ? 'success' : 'danger' });
+
+            if (response.success) {
+                // The total, the plan and the history all changed: the list and this detail are read again.
+                window.setTimeout(function() { location.reload(); }, 800);
+            }
+        }, 'json').fail(function(xhr) {
+            $button.prop('disabled', false);
+
+            if (xhr.responseJSON && xhr.responseJSON.message) {
+                $.notify(xhr.responseJSON.message, { type: 'danger' });
+            }
+        });
     });
 
     $('#presale_emails').on('click', '.presale-resend', function() {

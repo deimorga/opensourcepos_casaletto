@@ -41,8 +41,16 @@ class Presale extends Model
      */
     public const STATE_UP_TO_DATE = 'up_to_date';
 
-    public const STATE_LATE   = 'late';
-    public const STATE_PAID   = 'paid';
+    public const STATE_LATE = 'late';
+    public const STATE_PAID = 'paid';
+
+    /**
+     * The discount the cashier gives on a whole presale (docs/Funcional/venta-anticipada.md §4.16):
+     * from 0 to DISCOUNT_MAX, in steps of DISCOUNT_STEP. Anything else is refused on the server.
+     */
+    public const DISCOUNT_STEP = 5;
+
+    public const DISCOUNT_MAX = 40;
     private const MONEY_SCALE = 2;
 
     protected $table            = 'presales';
@@ -51,7 +59,8 @@ class Presale extends Model
     protected $useSoftDeletes   = false;
 
     /**
-     * Must match Migration_AddPresales::WRITABLE_COLUMNS_PRESALES; a test compares them.
+     * Must match Migration_AddPresales::WRITABLE_COLUMNS_PRESALES plus
+     * Migration_AddPresaleDiscount::ADDED_COLUMNS; a test compares them.
      */
     protected $allowedFields = [
         'campaign_id',
@@ -70,6 +79,9 @@ class Presale extends Model
         'canceled_at',
         'canceled_by',
         'cancel_reason',
+        'discount_percent',
+        'discount_reimbursable',
+        'gross_total',
     ];
 
     // ---------------------------------------------------------------------------------------------
@@ -87,6 +99,7 @@ class Presale extends Model
      *   lines:        list of [item_id, quantity]        -- prices come from the campaign
      *   installments: list of [due_date (Y-m-d), amount] -- the plan agreed with the customer
      *   payment:      [payment_type_code, amount, reference_code?] -- the first instalment, taken now
+     *   discount_percent, discount_reimbursable -- the cashier's discount on the whole presale (§4.16)
      *
      * @param array<string, mixed> $input
      */
@@ -127,12 +140,22 @@ class Presale extends Model
             return $lines;
         }
 
+        $discount = self::discount_or_null($input['discount_percent'] ?? '0');
+
+        if ($discount === null) {
+            return 'Presales.discount_invalid';
+        }
+
+        $reimbursable = bccomp($discount, '0', self::MONEY_SCALE) > 0 && ! empty($input['discount_reimbursable']);
+        $gross        = $this->register_charge($lines, $customer_id);
+        $lines        = self::apply_discount($lines, $discount);
+
         // The total is what the register will charge at delivery for these lines and this customer --
         // taxes and rounding included, by the register's own rule (owner's decision of 2026-10-07).
         // Not the sum of the lines' amounts: the register does not round line by line.
         $charge = $this->register_charge($lines, $customer_id);
 
-        if ($charge === null) {
+        if ($charge === null || $gross === null) {
             return 'Presales.total_unavailable';
         }
 
@@ -181,16 +204,19 @@ class Presale extends Model
         $this->db->transBegin();
 
         $this->db->table($this->table)->insert([
-            'campaign_id'      => (int) $campaign['campaign_id'],
-            'customer_id'      => $customer_id,
-            'employee_id'      => $employee_id,
-            'location_id'      => (int) ($input['location_id'] ?? 0),
-            'created_at'       => $now,
-            'delivery_date_id' => (int) $date['date_id'],
-            'delivery_date'    => $date['delivery_date'],
-            'status'           => self::STATUS_OPEN,
-            'total'            => $total,
-            'comment'          => trim((string) ($input['comment'] ?? '')) ?: null,
+            'campaign_id'           => (int) $campaign['campaign_id'],
+            'customer_id'           => $customer_id,
+            'employee_id'           => $employee_id,
+            'location_id'           => (int) ($input['location_id'] ?? 0),
+            'created_at'            => $now,
+            'delivery_date_id'      => (int) $date['date_id'],
+            'delivery_date'         => $date['delivery_date'],
+            'status'                => self::STATUS_OPEN,
+            'total'                 => $total,
+            'comment'               => trim((string) ($input['comment'] ?? '')) ?: null,
+            'discount_percent'      => $discount,
+            'discount_reimbursable' => $reimbursable ? 1 : 0,
+            'gross_total'           => $gross['charge'],
         ]);
 
         $presale_id = (int) $this->db->insertID();
@@ -203,8 +229,8 @@ class Presale extends Model
                 'description'   => null,
                 'quantity'      => $line['quantity'],
                 'unit_price'    => $line['unit_price'],
-                'discount'      => 0,
-                'discount_type' => 0,
+                'discount'      => $line['discount'],
+                'discount_type' => PERCENT,
                 'print_option'  => $line['print_option'],
                 'item_type'     => $line['item_type'],
             ]);
@@ -230,7 +256,7 @@ class Presale extends Model
         ]);
 
         $events = model(Presale_event::class);
-        $events->log($presale_id, Presale_event::CREATED, $employee_id, ['total' => $total, 'taxes' => $charge['taxes'], 'lines' => count($lines), 'installments' => count($installments)]);
+        $events->log($presale_id, Presale_event::CREATED, $employee_id, ['total' => $total, 'taxes' => $charge['taxes'], 'lines' => count($lines), 'installments' => count($installments), 'discount_percent' => $discount, 'discount_reimbursable' => $reimbursable, 'gross_total' => $gross['charge']]);
         $events->log($presale_id, Presale_event::PAYMENT, $employee_id, ['amount' => $amount, 'payment_type_code' => $code, 'cashup_id' => $cashup_id]);
 
         // The customer's e-mail, in this same transaction (K7): it exists if and only if the presale does.
@@ -543,6 +569,178 @@ class Presale extends Model
         }
 
         return bcadd($floor, '0', self::MONEY_SCALE);
+    }
+
+    /**
+     * The discounts a cashier may choose: 0, 5, 10 ... 40.
+     *
+     * @return list<int>
+     */
+    public static function discount_options(): array
+    {
+        return range(0, self::DISCOUNT_MAX, self::DISCOUNT_STEP);
+    }
+
+    /**
+     * Priced lines with the cashier's discount as each line's own percentage (presale_items.discount).
+     * The register applies that column line by line, at registration through register_charge() and at
+     * delivery through Presale_register::load(), so the delivery charges what was agreed.
+     *
+     * @param list<array<string, mixed>> $lines
+     *
+     * @return list<array<string, mixed>>
+     */
+    public static function apply_discount(array $lines, string $percent): array
+    {
+        return array_map(static fn (array $line): array => ['discount' => $percent, 'discount_type' => PERCENT] + $line, $lines);
+    }
+
+    /**
+     * A discount percentage as stored ("5.00"), or null when it is not one of discount_options().
+     */
+    public static function discount_or_null(mixed $value): ?string
+    {
+        $value = trim((string) $value);
+
+        if ($value === '') {
+            return '0.00';
+        }
+
+        if (! is_numeric($value)) {
+            return null;
+        }
+
+        $percent = bcadd($value, '0', self::MONEY_SCALE);
+
+        foreach (self::discount_options() as $option) {
+            if (bccomp($percent, (string) $option, self::MONEY_SCALE) === 0) {
+                return $percent;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Changes the cashier's discount of an open presale (owner's decision of 2026-10-27: only an
+     * administrator, i.e. presales_manage, which the controller checks). Returns true, or a language
+     * key; nothing is written when it is refused.
+     *
+     * The total is worked out again by the register's rule with the new percentage on every line, and
+     * the plan follows it: a lower total comes off the last instalments first (an instalment left at
+     * zero is removed), a higher one goes on the last. The new total cannot fall below what has been
+     * paid. Refused while the delivery is open in the register: that tab was loaded with the old prices.
+     */
+    public function change_discount(int $presale_id, mixed $percent, bool $reimbursable, int $employee_id): bool|string
+    {
+        $discount = self::discount_or_null($percent);
+
+        if ($discount === null) {
+            return 'Presales.discount_invalid';
+        }
+
+        $reimbursable = $reimbursable && bccomp($discount, '0', self::MONEY_SCALE) > 0;
+
+        $this->db->transBegin();
+
+        $presale = $this->lock($presale_id);
+
+        if ($presale === null || $presale['status'] !== self::STATUS_OPEN) {
+            $this->db->transRollback();
+
+            return 'Presales.not_open';
+        }
+
+        if ($presale['sale_id'] !== null && $this->delivery_tab_is_open((int) $presale['sale_id'])) {
+            $this->db->transRollback();
+
+            return 'Presales.discount_open_in_register';
+        }
+
+        $lines = $this->get_lines($presale_id);
+        $gross = $this->register_charge(self::apply_discount($lines, '0'), (int) $presale['customer_id']);
+        $net   = $this->register_charge(self::apply_discount($lines, $discount), (int) $presale['customer_id']);
+
+        if ($gross === null || $net === null) {
+            $this->db->transRollback();
+
+            return 'Presales.total_unavailable';
+        }
+
+        $old_total = bcadd((string) $presale['total'], '0', self::MONEY_SCALE);
+        $new_total = $net['charge'];
+        $paid      = model(Presale_payment::class)->get_paid($presale_id);
+
+        if (bccomp($new_total, $paid, self::MONEY_SCALE) < 0) {
+            $this->db->transRollback();
+
+            return 'Presales.discount_below_paid';
+        }
+
+        $this->db->table('presale_items')->where('presale_id', $presale_id)->update(['discount' => $discount, 'discount_type' => PERCENT]);
+
+        $this->reshape_plan($presale_id, bcsub($new_total, $old_total, self::MONEY_SCALE));
+
+        $this->db->table($this->table)->where('presale_id', $presale_id)->update([
+            'total'                 => $new_total,
+            'discount_percent'      => $discount,
+            'discount_reimbursable' => $reimbursable ? 1 : 0,
+            'gross_total'           => $gross['charge'],
+        ]);
+
+        model(Presale_event::class)->log($presale_id, Presale_event::DISCOUNT_CHANGED, $employee_id, [
+            'before' => ['discount_percent' => (string) $presale['discount_percent'], 'discount_reimbursable' => (bool) $presale['discount_reimbursable'], 'total' => $old_total],
+            'after'  => ['discount_percent' => $discount, 'discount_reimbursable' => $reimbursable, 'total' => $new_total],
+        ]);
+
+        if ($this->db->transStatus() === false) {
+            $this->db->transRollback();
+
+            return 'Presales.save_failed';
+        }
+
+        $this->db->transCommit();
+
+        return true;
+    }
+
+    /**
+     * Moves the plan by $delta so it adds up to the new total: a negative delta comes off the last
+     * instalments first and removes any left at zero; a positive one goes on the last instalment.
+     */
+    private function reshape_plan(int $presale_id, string $delta): void
+    {
+        if (bccomp($delta, '0', self::MONEY_SCALE) === 0) {
+            return;
+        }
+
+        $installments = array_reverse($this->get_installments($presale_id));
+
+        if (bccomp($delta, '0', self::MONEY_SCALE) > 0) {
+            $last = $installments[0];
+            $this->db->table('presale_installments')->where('installment_id', $last['installment_id'])->update(['amount' => bcadd((string) $last['amount'], $delta, self::MONEY_SCALE)]);
+
+            return;
+        }
+
+        $left = bcmul($delta, '-1', self::MONEY_SCALE);
+
+        foreach ($installments as $installment) {
+            if (bccomp($left, '0', self::MONEY_SCALE) <= 0) {
+                break;
+            }
+
+            $amount = bcadd((string) $installment['amount'], '0', self::MONEY_SCALE);
+            $cut    = bccomp($amount, $left, self::MONEY_SCALE) <= 0 ? $amount : $left;
+            $rest   = bcsub($amount, $cut, self::MONEY_SCALE);
+            $left   = bcsub($left, $cut, self::MONEY_SCALE);
+
+            if (bccomp($rest, '0', self::MONEY_SCALE) === 0) {
+                $this->db->table('presale_installments')->where('installment_id', $installment['installment_id'])->delete();
+            } else {
+                $this->db->table('presale_installments')->where('installment_id', $installment['installment_id'])->update(['amount' => $rest]);
+            }
+        }
     }
 
     // ---------------------------------------------------------------------------------------------

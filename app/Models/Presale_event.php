@@ -17,6 +17,11 @@ class Presale_event extends Model
     public const DELIVERED = 'delivered';
     public const CANCELED  = 'canceled';
 
+    /**
+     * An administrator changed the cashier's discount of an open presale (venta-anticipada.md §4.16).
+     */
+    public const DISCOUNT_CHANGED = 'discount_changed';
+
     protected $table            = 'presale_events';
     protected $primaryKey       = 'event_id';
     protected $useAutoIncrement = true;

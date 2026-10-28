@@ -15,6 +15,9 @@ use CodeIgniter\Model;
  * §3). Every figure of one presale comes from Presale::derive() and Presale::coverage(): this class
  * only adds them up, so "an instalment due today is not overdue" is written in one place.
  *
+ * brand_discounts(): the cashier's discounts the brand pays back, for the report the business sends
+ * the brand at the end of the season.
+ *
  * Kit lines are stored as their components (docs/Tecnico/venta-anticipada.md), so counting the rows of
  * presale_items is already "what has to be bought". Delivered and canceled presales are not
  * commitments any more and are left out.
@@ -225,6 +228,52 @@ class Presale_report extends Model
         usort($upcoming['rows'], static fn (array $a, array $b): int => strcmp($a['due_date'], $b['due_date']) ?: ($a['presale_id'] <=> $b['presale_id']));
 
         return ['totals' => $totals, 'aging' => $aging, 'upcoming' => $upcoming, 'late' => $late, 'rows' => $rows];
+    }
+
+    /**
+     * What the brand owes back: the cashier's discounts marked reimbursable (venta-anticipada.md
+     * §4.16), on the presales that are open or delivered -- a canceled presale gave no discount
+     * (owner's decision of 2026-10-27). The discount in money is gross_total - total: what the customer
+     * did not pay, taxes included, by the register's own rule.
+     *
+     * @return array{rows: list<array<string, mixed>>, totals: array{count: int, gross: string, total: string, discount: string, delivered: string, open: string}}
+     */
+    public function brand_discounts(?int $campaign_id = null): array
+    {
+        $builder = $this->db->table('presales AS p')
+            ->select('p.presale_id, p.status, p.created_at, p.delivered_at, p.discount_percent, p.gross_total, p.total, p.employee_id')
+            ->select('people.first_name, people.last_name, c.name AS campaign_name')
+            ->select('emp.first_name AS employee_first_name, emp.last_name AS employee_last_name')
+            ->join('people', 'people.person_id = p.customer_id', 'left')
+            ->join('people AS emp', 'emp.person_id = p.employee_id', 'left')
+            ->join('presale_campaigns AS c', 'c.campaign_id = p.campaign_id', 'left')
+            ->whereIn('p.status', [Presale::STATUS_OPEN, Presale::STATUS_DELIVERED])
+            ->where('p.discount_reimbursable', 1)
+            ->where('p.discount_percent >', 0)
+            ->orderBy('p.created_at', 'asc')
+            ->orderBy('p.presale_id', 'asc');
+
+        if ($campaign_id !== null) {
+            $builder->where('p.campaign_id', $campaign_id);
+        }
+
+        $totals = ['count' => 0, 'gross' => '0.00', 'total' => '0.00', 'discount' => '0.00', 'delivered' => '0.00', 'open' => '0.00'];
+        $rows   = [];
+
+        foreach ($builder->get()->getResultArray() as $row) {
+            $gross           = bcadd((string) ($row['gross_total'] ?? $row['total']), '0', 2);
+            $row['discount'] = bcsub($gross, (string) $row['total'], 2);
+            $rows[]          = $row;
+
+            $totals['count']++;
+            $totals['gross']    = bcadd($totals['gross'], $gross, 2);
+            $totals['total']    = bcadd($totals['total'], (string) $row['total'], 2);
+            $totals['discount'] = bcadd($totals['discount'], $row['discount'], 2);
+            $bucket             = $row['status'] === Presale::STATUS_DELIVERED ? 'delivered' : 'open';
+            $totals[$bucket]    = bcadd($totals[$bucket], $row['discount'], 2);
+        }
+
+        return ['rows' => $rows, 'totals' => $totals];
     }
 
     /**

@@ -219,4 +219,18 @@ return [
     'refund_payment_type'               => 'Refund payment type',
     'refunded'                          => 'Given back to the customer',
     'terms_template'                    => "PRESALE CONDITIONS\n1. This document reserves the products and prices shown here for the stated delivery date.\n2. The products are delivered only once the total has been paid.\n3. The customer agrees to pay the instalments on the agreed dates. Payments may be made before each date and for any amount, up to the balance.\n4. Late instalments carry no interest or charges.\n5. Products sold by weight are agreed at an approximate weight. The final amount is adjusted to the actual weight on delivery day, and the difference is paid or returned that same day.\n6. If the customer cancels the presale, any refund of what was paid will be agreed between the customer and the business, and recorded on the cancellation document.\n7. To make a payment or collect the products, show this document or your presale number.",
+    // Discount on the whole presale and the brand report (venta-anticipada.md §4.16, 2026-10-27)
+    'discount'                  => 'Discount',
+    'discount_reimbursable'     => 'Reimbursed by the brand',
+    'discount_amount'           => 'Discount: {0}',
+    'discount_invalid'          => 'The discount must be 0% to 40%, in steps of 5.',
+    'discount_change'           => 'Change discount',
+    'discount_save'             => 'Save discount',
+    'discount_change_help'      => 'The total changes and the difference comes off the last instalments. It cannot fall below what has been paid.',
+    'discount_changed'          => 'Discount updated.',
+    'discount_forbidden'        => 'Only an administrator (Manage presales permission) can change the discount.',
+    'discount_below_paid'       => 'With that discount the total would fall below what the customer has already paid.',
+    'discount_open_in_register' => 'This presale\'s delivery is open in the register. Take it back to presales before changing the discount.',
+    'gross_total'               => 'Subtotal before discount',
+    'event_discount_changed'    => 'Discount changed',
 ];

@@ -219,4 +219,18 @@ return [
     'refund_payment_type'               => 'Medio de la devolución',
     'refunded'                          => 'Devuelto al cliente',
     'terms_template'                    => "CONDICIONES DE LA PREVENTA\n1. Este comprobante reserva los productos y los precios aquí indicados para la fecha de entrega señalada.\n2. Los productos se entregan únicamente cuando el valor total esté pagado.\n3. El cliente se compromete a pagar las cuotas en las fechas acordadas. Puede abonar antes de cada fecha y por cualquier valor, hasta completar el saldo.\n4. Los atrasos en las cuotas no generan intereses ni recargos.\n5. Los productos que se venden por peso se pactan con un peso aproximado. El valor final se ajusta al peso real el día de la entrega, y la diferencia se paga o se devuelve ese mismo día.\n6. Si el cliente cancela la preventa, la devolución de lo abonado se acordará entre el cliente y el negocio, y quedará registrada en el comprobante de cancelación.\n7. Para abonar y para reclamar los productos, presente este comprobante o su número de preventa.",
+    // Discount on the whole presale and the brand report (venta-anticipada.md §4.16, 2026-10-27)
+    'discount'                  => 'Descuento',
+    'discount_reimbursable'     => 'Reembolsable por la marca',
+    'discount_amount'           => 'Descuento: {0}',
+    'discount_invalid'          => 'El descuento debe ser de 0% a 40%, de 5 en 5.',
+    'discount_change'           => 'Cambiar descuento',
+    'discount_save'             => 'Guardar descuento',
+    'discount_change_help'      => 'El total cambia y la diferencia se ajusta en las últimas cuotas. No puede quedar por debajo de lo ya abonado.',
+    'discount_changed'          => 'Descuento actualizado.',
+    'discount_forbidden'        => 'Solo un administrador (permiso Gestionar preventas) puede cambiar el descuento.',
+    'discount_below_paid'       => 'Con ese descuento el total quedaría por debajo de lo que el cliente ya abonó.',
+    'discount_open_in_register' => 'La entrega de esta preventa está abierta en la caja. Devuélvala a preventas antes de cambiar el descuento.',
+    'gross_total'               => 'Subtotal sin descuento',
+    'event_discount_changed'    => 'Descuento cambiado',
 ];
