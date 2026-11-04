@@ -263,6 +263,10 @@ Se muestra cuántos días lleva atrasada y cuánto falta para ponerse al día.
   después cambia el precio de la campaña o del catálogo, esa preventa no cambia.
 - **Ajustar el precio o las cantidades de una preventa ya registrada** queda para después de la
   salida (§7). Mientras tanto, si hay que cambiar algo se cancela y se registra de nuevo.
+- *(2026-11-04)* Si el cliente cambia un producto **y ya se lo llevó**, cancelar y registrar de nuevo
+  no sirve: la fecha de entrega ya pasó. En ese caso lo corrige soporte, a pedido del dueño: la
+  preventa queda con el producto que se entregó y entregada en la fecha real, y en su historial
+  aparece «Productos cambiados» con el motivo. Primer caso: PV-000001 de Casaletto.
 
 ### 4.8 Entregar, desde la pantalla de caja
 

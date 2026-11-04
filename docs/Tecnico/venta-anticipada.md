@@ -862,6 +862,15 @@ kg salía «3»); y `Config.saved_successfully` estaba en inglés en es-MX.
     restaurarlo, con el patrón `TOUCHED_KEYS` de `ConfigOrderTicketsTest.php:34-71`.
 12. **Sesión en las pruebas de controlador.** Hay que rearmar `$_SESSION` antes de cada petición
     (`OrderTicketsControllerTest.php:831-850`); si no, `Secure_Controller` hace `exit()` en silencio.
+13. **Cambiar productos de una preventa registrada no tiene pantalla** (queda en «Gestionar», §7 del
+    funcional). Mientras tanto, si el pedido ya se entregó y solo falta registrarlo, soporte lo corrige
+    en la base en una transacción: líneas, `gross_total`/`total`, el plan desde la última cuota, un
+    evento `items_changed` (detalle `before`/`after` y motivo en `reason`) y la entrega con la misma
+    forma que deja la caja (`sales` + `sales_items` + pago `presale` por lo abonado, `payment_time`
+    a +5 h, `inventory` «POS <sale_id>», `item_quantities`, `presales` entregada, evento `delivered`
+    y aviso `delivered`). Primer caso: PV-000001 de Casaletto, 2026-11-04, entregada el 1/11 como
+    venta 1924 en el turno 113 (pavo artesanal cambiado por pernil artesanal; con el cambio, lo
+    abonado cubría el total exacto).
 
 ---
 

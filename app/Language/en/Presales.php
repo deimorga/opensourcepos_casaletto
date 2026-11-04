@@ -233,4 +233,5 @@ return [
     'discount_open_in_register' => 'This presale\'s delivery is open in the register. Take it back to presales before changing the discount.',
     'gross_total'               => 'Subtotal before discount',
     'event_discount_changed'    => 'Discount changed',
+    'event_items_changed'       => 'Items changed',
 ];

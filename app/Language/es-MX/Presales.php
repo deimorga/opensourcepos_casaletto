@@ -233,4 +233,5 @@ return [
     'discount_open_in_register' => 'La entrega de esta preventa está abierta en la caja. Devuélvala a preventas antes de cambiar el descuento.',
     'gross_total'               => 'Subtotal sin descuento',
     'event_discount_changed'    => 'Descuento cambiado',
+    'event_items_changed'       => 'Productos cambiados',
 ];
