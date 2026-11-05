@@ -409,7 +409,7 @@ class Presales extends Secure_Controller
         $summary = $this->presale->get_summary($presale_id, $today);
 
         if ($summary === null || $summary['status'] !== Presale::STATUS_OPEN) {
-            return view('presales/disabled', ['message' => lang($summary === null ? 'Presales.not_found' : 'Presales.not_open')], ['saveData' => false]);
+            return view('presales/disabled', ['presale_unavailable' => lang($summary === null ? 'Presales.not_found' : 'Presales.not_open')], ['saveData' => false]);
         }
 
         $campaign = model(Presale_campaign::class)->get_info((int) $summary['campaign_id']);

@@ -115,7 +115,7 @@ $discounted    = bcsub((string) ($presale['gross_total'] ?? $presale['total']), 
             <?= form_close() ?>
         <?php endif; ?>
 
-        <?php // Any cashier of the module, with a reason (owner's decision of 2026-11-04, funcional §4.17). ?>
+        <?php /* Any cashier of the module, with a reason (owner's decision of 2026-11-04, funcional §4.17). */ ?>
         <?php if ($is_open): ?>
             <a class="btn btn-default btn-sm" id="presale_modify" href="<?= site_url('presales/edit/' . $id) ?>">
                 <span class="glyphicon glyphicon-pencil">&nbsp;</span><?= esc(lang('Presales.modify')) ?>
