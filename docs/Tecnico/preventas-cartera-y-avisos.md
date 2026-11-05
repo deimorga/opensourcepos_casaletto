@@ -207,7 +207,7 @@ Tabla `presale_notifications`, en el esquema de cada negocio, misma migración:
 |---|---|---|
 | `notification_id` | INT PK | |
 | `presale_id` | INT | |
-| `kind` | VARCHAR(24) | `created`, `payment`, `canceled`, `delivered`, `reminder_before`, `reminder_late` |
+| `kind` | VARCHAR(24) | `created`, `payment`, `canceled`, `delivered`, `reminder_before`, `reminder_late`; `modified` desde el 2026-11-04 (ref = `event_id` del cambio, mismo comprobante que `created`) |
 | `ref_id` | INT | `payment_id`, `sale_id` o `installment_id`; `0` en `created` y `canceled` |
 | `to_email` | VARCHAR(255) NULL | Se copia al encolar; al reenviar se vuelve a leer de la ficha del cliente |
 | `status` | VARCHAR(24) | `pending`, `sending`, `sent`, `failed`, `skipped_no_email`, `skipped_no_transport` |

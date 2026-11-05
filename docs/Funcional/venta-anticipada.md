@@ -261,8 +261,8 @@ Se muestra cuántos días lleva atrasada y cuánto falta para ponerse al día.
 
 - El precio de cada producto **queda congelado el día de la preventa**, tomado de la campaña. Si
   después cambia el precio de la campaña o del catálogo, esa preventa no cambia.
-- **Ajustar el precio o las cantidades de una preventa ya registrada** queda para después de la
-  salida (§7). Mientras tanto, si hay que cambiar algo se cancela y se registra de nuevo.
+- Lo que el cliente cambie después —productos, cantidades, cliente, fecha o cuotas— se hace con
+  **«Modificar»** (§4.17, desde el 2026-11-04). Los productos que ya tenía conservan su precio pactado.
 - *(2026-11-04)* Si el cliente cambia un producto **y ya se lo llevó**, cancelar y registrar de nuevo
   no sirve: la fecha de entrega ya pasó. En ese caso lo corrige soporte, a pedido del dueño: la
   preventa queda con el producto que se entregó y entregada en la fecha real, y en su historial
@@ -528,6 +528,54 @@ lo que se descontó en pesos, y arriba **cuánto debe la marca**, separado en en
 descarga en CSV para enviarlo a la marca al cerrar la temporada. El descuento en pesos es lo que el
 cliente dejó de pagar, impuestos incluidos.
 
+### 4.17 Modificar una preventa (2026-11-04)
+
+Si el cliente cambia de idea, la preventa se modifica en lugar de cancelarla y registrarla de nuevo:
+conserva su número, lo pagado y el historial.
+
+**Dónde:** en el detalle de una preventa abierta, botón **«Modificar»**. Se abre el mismo formulario del
+registro, ya lleno.
+
+**Qué se puede cambiar:**
+
+- **Productos y cantidades:** cambiar un producto por otro, agregar, quitar o cambiar cantidades.
+- **Cliente:** pasar la preventa a otro cliente registrado.
+- **Fecha de entrega:** otra de las fechas de la campaña, de hoy en adelante. Si la fecha que tenía ya
+  pasó, se puede dejar la misma: así se corrige una preventa que se entregó tarde.
+- **Plan de cuotas:** las fechas y los montos, que tienen que sumar el nuevo total.
+- **El comentario.**
+
+La campaña no cambia. El descuento del vendedor tampoco: se cambia aparte, con «Cambiar descuento» (§4.16).
+
+**Precios:**
+
+- Un producto que la preventa **ya tenía** conserva el **precio pactado**, aunque la campaña haya cambiado
+  después. En la lista aparece marcado «precio pactado».
+- Un producto **nuevo** entra al **precio de la campaña de hoy**. Tiene que estar en la campaña: si no
+  está, el encargado lo agrega primero a la campaña.
+- El descuento del vendedor se aplica también a los productos nuevos.
+
+**La plata:**
+
+- Si el nuevo total es **mayor**, la diferencia queda como saldo y se reparte en el plan de cuotas.
+- Si el nuevo total queda **por debajo de lo ya abonado**, la diferencia **se le devuelve al cliente en ese
+  momento**, como en la cancelación (§4.10): se elige el medio de pago, sale del turno abierto y, si es en
+  efectivo, resta del esperado del turno. Sin turno abierto no se puede.
+- Una cuota con fecha anterior a hoy solo se acepta si ya está pagada: un cambio no puede dejar una
+  deuda vencida.
+
+**Quién:** cualquier vendedor que pueda registrar preventas. Siempre con un **motivo del cambio**, que es
+obligatorio y queda en el historial de la preventa junto con quién lo hizo y cómo estaba antes.
+
+**Al guardar:** se imprime el comprobante actualizado y, si el negocio tiene los avisos encendidos y el
+cliente tiene correo, se le envía con el asunto «Preventa … modificada».
+
+**No se puede modificar** una preventa entregada o cancelada, ni una cuya entrega esté abierta en la caja:
+primero se devuelve a preventas desde la caja.
+
+**Antes de esta pantalla** (2026-11-04), el primer caso, PV-000001 de Casaletto, se corrigió a mano en la
+base: aparece en su historial como «Productos cambiados».
+
 ## 5. Lo que este requerimiento NO hace
 
 - **No es fiado.** El producto no sale antes de estar pagado. El crédito con entrega inmediata
@@ -581,6 +629,7 @@ cliente dejó de pagar, impuestos incluidos.
 | **D27** | **Kit: el precio de campaña es el del kit completo**; los componentes van en cero (§4.2) | 2026-10-07 |
 | **D28** | **Peso menor con tope:** devolver más del porcentaje configurado del total (15 % por defecto, 0 = sin tope) exige el permiso «Gestionar preventas», y queda quién lo autorizó (§4.8) | 2026-10-07 |
 | **D29** | **No se entrega sin turno de caja abierto**, ni al mandar a la caja ni al completar (§4.8) | 2026-10-07 |
+| **D31** | **Modificar una preventa abierta:** productos y cantidades, cliente, fecha de entrega y plan. Lo hace **cualquier vendedor, con un motivo obligatorio**. Lo que ya estaba conserva su precio pactado; lo nuevo entra al precio de campaña de hoy, con el mismo descuento. Si el total baja de lo abonado, la diferencia se devuelve en ese momento (§4.17) | 2026-11-04 |
 | **D30** | **Descuento sobre el total de la preventa**, elegido por el vendedor al registrar: de 0 % a 40 %, de 5 en 5, encima del precio de campaña. Se marca si **lo reembolsa la marca**. Solo un administrador lo cambia después. El reporte a la marca cuenta las preventas abiertas y entregadas, no las canceladas (§4.16) | 2026-10-27 |
 
 ### 6.1 Primera ronda de preguntas, resuelta el 2026-10-07
@@ -665,11 +714,11 @@ Detalle en `preventas-cartera-y-avisos.md`:
   `ospos@micronuba.net` y con los datos del negocio.
 - Recordatorio de cuota por correo.
 
-### Después — Gestionar — **por construir**
+### Después — Gestionar — **modificar una preventa: construido el 2026-11-04**
 
-- Ajustar precio o cantidades de una preventa registrada, con motivo y registro de quién lo hizo.
-- Mover la fecha de entrega y rehacer el plan de cuotas, con motivo.
-- Cupo de unidades por producto, si se pide.
+- Cambiar productos y cantidades, cliente, fecha de entrega y plan de cuotas de una preventa abierta,
+  con motivo y registro de quién lo hizo (§4.17).
+- Cupo de unidades por producto, si se pide: **por construir**.
 
 ### Más adelante, si se pide
 

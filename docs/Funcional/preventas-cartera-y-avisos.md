@@ -114,6 +114,7 @@ marcando sin penalidad, como en la primera entrega (D4 de `venta-anticipada.md`)
 | **Cada abono** | Valor abonado, medio de pago, fecha, total pagado hasta hoy, saldo y próxima cuota | Comprobante del abono en PDF |
 | **Cancelación** | Motivo, lo pagado, lo devuelto y por qué medio | Comprobante de cancelación en PDF |
 | **Entrega** | Productos entregados, diferencia por peso cobrada o devuelta si la hubo | Comprobante de entrega en PDF (nuevo: también se imprime desde el detalle de la preventa) |
+| **Modificación** *(2026-11-04)* | Lo mismo que el registro, como quedó la preventa después del cambio (venta-anticipada.md §4.17) | Comprobante de la preventa actualizado, en PDF |
 | **Recordatorio de cuota** | Que una cuota está por vencer o venció, cuánto, cuándo, y el saldo total | Sin adjunto (supuesto S2, §7) |
 
 **Recordatorios** (supuestos S1 y S3, §7):

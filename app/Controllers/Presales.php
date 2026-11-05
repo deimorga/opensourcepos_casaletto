@@ -57,6 +57,11 @@ class Presales extends Secure_Controller
      */
     private const DRAWER_CANCEL = 'cancel';
 
+    /**
+     * Same, after a cash refund made by a modification. See postUpdate().
+     */
+    private const DRAWER_MODIFY = 'modify';
+
     protected Presale $presale;
 
     public function __construct()
@@ -232,9 +237,15 @@ class Presales extends Secure_Controller
             return $this->response->setJSON(['success' => true, 'total' => to_currency('0'), 'lines' => [], 'plan' => null, 'minimum' => null]);
         }
 
+        // A modification (§4.17) prices what the presale already had at the agreed price and keeps the
+        // presale's own discount; a registration takes the campaign's prices and the discount chosen.
+        $modifying = $this->modifying_presale((int) $campaign['campaign_id']);
+
         // The campaign's products, read once for every pricing below.
-        $campaign_items = model(Presale_campaign::class)->get_items_by_id((int) $campaign['campaign_id']);
-        $priced         = $this->presale->price_lines((int) $campaign['campaign_id'], $lines, $campaign_items);
+        $campaign_items = $modifying === null
+            ? model(Presale_campaign::class)->get_items_by_id((int) $campaign['campaign_id'])
+            : $this->presale->items_for_modification((int) $modifying['presale_id'], (int) $campaign['campaign_id']);
+        $priced = $this->presale->price_lines((int) $campaign['campaign_id'], $lines, $campaign_items);
 
         if (is_string($priced)) {
             return $this->response->setJSON(['success' => false, 'message' => esc(lang($priced))]);
@@ -257,7 +268,7 @@ class Presales extends Secure_Controller
 
         $customer_id = (int) $this->request->getPost('customer_id');
         $customer_id = $customer_id > 0 ? $customer_id : NEW_ENTRY;
-        $discount    = Presale::discount_or_null($this->request->getPost('discount_percent'));
+        $discount    = $modifying === null ? Presale::discount_or_null($this->request->getPost('discount_percent')) : bcadd((string) $modifying['discount_percent'], '0', 2);
 
         if ($discount === null) {
             return $this->response->setJSON(['success' => false, 'message' => esc(lang('Presales.discount_invalid'))]);
@@ -300,8 +311,9 @@ class Presales extends Secure_Controller
         }
 
         $discounted = bcsub($gross['charge'], $total, 2);
+        $money      = $modifying === null ? [] : $this->modification_money((int) $modifying['presale_id'], $total);
 
-        return $this->response->setJSON([
+        return $this->response->setJSON($money + [
             'success'  => true,
             'total'    => to_currency($total),
             'gross'    => to_currency($gross['charge']),
@@ -376,6 +388,158 @@ class Presales extends Secure_Controller
             'message'     => esc(lang('Presales.registered', [$this->presale->number($result)])),
             'receipt_url' => site_url('presales/receipt/' . $result) . '?print=1' . self::no_email_flag($result, Presale_notification::KIND_CREATED, 0),
         ]);
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Modifying
+    // ---------------------------------------------------------------------------------------------
+
+    /**
+     * The form to change an open presale (funcional §4.17): the registration form, filled in, with the
+     * campaign fixed, the reason instead of the first instalment, and a refund when the new total
+     * falls below what was paid. Any cashier of the module; the rules are Presale::modify()'s.
+     */
+    public function getEdit(int $presale_id): string
+    {
+        if (! self::is_enabled()) {
+            return view('presales/disabled');
+        }
+
+        $today   = date('Y-m-d');
+        $summary = $this->presale->get_summary($presale_id, $today);
+
+        if ($summary === null || $summary['status'] !== Presale::STATUS_OPEN) {
+            return view('presales/disabled', ['message' => lang($summary === null ? 'Presales.not_found' : 'Presales.not_open')], ['saveData' => false]);
+        }
+
+        $campaign = model(Presale_campaign::class)->get_info((int) $summary['campaign_id']);
+        $customer = model(Customer::class)->get_info((int) $summary['customer_id']);
+        $person   = (int) $this->employee->get_logged_in_employee_info()->person_id;
+
+        helper('payment_type');
+
+        $lines = array_map(static fn (array $line): array => [
+            'item_id'  => (int) $line['item_id'],
+            'quantity' => to_quantity_decimals((string) $line['quantity']),
+        ], $this->presale->chosen_lines($presale_id));
+
+        $installments = array_map(static fn (array $installment): array => [
+            'due_date' => to_date(strtotime((string) $installment['due_date'])),
+            'amount'   => to_currency_no_money((string) $installment['amount']),
+        ], $this->presale->get_installments($presale_id));
+
+        return view('presales/form', [
+            'campaigns'        => [$this->form_campaign($campaign, $this->presale->items_for_modification($presale_id, (int) $summary['campaign_id']), $today, (int) $summary['delivery_date_id'])],
+            'payment_types'    => self::payment_options(),
+            'can_add_customer' => $this->employee->has_grant('customers', $person),
+            'has_open_shift'   => model(Cashup::class)->get_open_cashup_id() !== null,
+            'today'            => date(config(OSPOS::class)->settings['dateformat']),
+            'discounts'        => Presale::discount_options(),
+            'modify'           => [
+                'presale_id'       => $presale_id,
+                'number'           => $summary['number'],
+                'customer_id'      => (int) $summary['customer_id'],
+                'customer_label'   => trim(($customer->first_name ?? '') . ' ' . ($customer->last_name ?? '')),
+                'delivery_date_id' => (int) $summary['delivery_date_id'],
+                'discount_percent' => (int) $summary['discount_percent'],
+                'comment'          => (string) ($summary['comment'] ?? ''),
+                'lines'            => $lines,
+                'installments'     => $installments,
+            ],
+        ], ['saveData' => false]);
+    }
+
+    /**
+     * Saves a change to an open presale. The reason, the prices, the plan, the refund and the lock are
+     * Presale::modify()'s. Answers with the updated presale document, which is also what the customer
+     * is e-mailed.
+     */
+    public function postUpdate(int $presale_id): ResponseInterface
+    {
+        if (! self::is_enabled()) {
+            return $this->refuse(lang('Presales.disabled'));
+        }
+
+        $lines = $this->read_lines();
+
+        if (is_string($lines)) {
+            return $this->refuse($lines);
+        }
+
+        $installments = $this->read_installments();
+
+        if (is_string($installments)) {
+            return $this->refuse($installments);
+        }
+
+        $refund_code = (string) $this->request->getPost('refund_payment_type_code');
+
+        $result = $this->presale->modify($presale_id, [
+            'customer_id'      => (int) $this->request->getPost('customer_id'),
+            'delivery_date_id' => (int) $this->request->getPost('delivery_date_id'),
+            'comment'          => (string) $this->request->getPost('comment'),
+            'reason'           => (string) $this->request->getPost('reason'),
+            'lines'            => $lines,
+            'installments'     => $installments,
+            'refund'           => [
+                'payment_type_code' => $refund_code,
+                'reference_code'    => (string) $this->request->getPost('refund_reference_code'),
+            ],
+        ], (int) $this->employee->get_logged_in_employee_info()->person_id, date('Y-m-d'));
+
+        if (is_string($result)) {
+            return $this->refuse(lang($result));
+        }
+
+        if ($refund_code === 'cash') {
+            $this->arm_drawer($presale_id, null, self::DRAWER_MODIFY);
+        }
+
+        return $this->response->setJSON([
+            'success'     => true,
+            'id'          => $presale_id,
+            'message'     => esc(lang('Presales.modified', [$this->presale->number($presale_id)])),
+            'receipt_url' => site_url('presales/receipt/' . $presale_id) . '?print=1' . self::no_email_flag($presale_id, Presale_notification::KIND_MODIFIED, $result),
+        ]);
+    }
+
+    /**
+     * The open presale the form is changing, when it posts one of this campaign; null for a
+     * registration.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function modifying_presale(int $campaign_id): ?array
+    {
+        $presale_id = (int) $this->request->getPost('presale_id');
+
+        if ($presale_id <= 0) {
+            return null;
+        }
+
+        $presale = $this->presale->get_info($presale_id);
+
+        return $presale !== null && $presale['status'] === Presale::STATUS_OPEN && (int) $presale['campaign_id'] === $campaign_id ? $presale : null;
+    }
+
+    /**
+     * What a new total means for the money of a presale being changed: what was paid, what is left to
+     * pay and the refund a lower total requires, for the modification form.
+     *
+     * @return array{paid: string, balance: string, refund: string, has_refund: bool}
+     */
+    private function modification_money(int $presale_id, string $total): array
+    {
+        $paid       = model(Presale_payment::class)->get_paid($presale_id);
+        $difference = bcsub($total, $paid, 2);
+        $refund     = bccomp($difference, '0', 2) < 0 ? bcmul($difference, '-1', 2) : '0.00';
+
+        return [
+            'paid'       => to_currency($paid),
+            'balance'    => to_currency(bccomp($difference, '0', 2) > 0 ? $difference : '0.00'),
+            'refund'     => to_currency($refund),
+            'has_refund' => bccomp($refund, '0', 2) > 0,
+        ];
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -605,7 +769,7 @@ class Presales extends Secure_Controller
 
         return view('presales/receipt_presale', $data + [
             'print'       => $this->request->getGet('print') === '1',
-            'open_drawer' => $this->take_drawer($presale_id, null),
+            'open_drawer' => $this->take_drawer($presale_id, null) || $this->take_cancel_drawer($presale_id, self::refunds_of($presale_id), self::DRAWER_MODIFY),
             'notice'      => $this->mail_notice(),
         ], ['saveData' => false]);
     }
@@ -907,58 +1071,74 @@ class Presales extends Secure_Controller
         $result    = [];
 
         foreach ($campaigns->get_selling($today) as $campaign) {
-            $campaign_id    = (int) $campaign['campaign_id'];
-            $campaign_items = $campaigns->get_items_by_id($campaign_id);
-            $items          = [];
-
-            foreach ($campaign_items as $item) {
-                if ((int) $item['item_deleted'] === 1) {
-                    continue;
-                }
-
-                $unit = $this->presale->price_lines($campaign_id, [['item_id' => (int) $item['item_id'], 'quantity' => '1']], $campaign_items);
-
-                // A kit that cannot be expanded is not offered: registering it would be refused anyway.
-                if (is_string($unit)) {
-                    continue;
-                }
-
-                $price = '0.00';
-
-                foreach ($unit as $part) {
-                    $price = bcadd($price, $part['amount'], 2);
-                }
-
-                $items[] = [
-                    'item_id'   => (int) $item['item_id'],
-                    'name'      => (string) $item['name'],
-                    'number'    => (string) ($item['item_number'] ?? ''),
-                    'price'     => to_currency($price),
-                    'is_weight' => Item::unit_of_measure_is_weight($item['unit_of_measure'] ?? null),
-                    'is_kit'    => (int) $item['item_type'] === ITEM_KIT,
-                ];
-            }
-
-            $dates = [];
-
-            foreach ($campaigns->get_dates($campaign_id) as $date) {
-                // A day that has gone is not offered: Presale::create() refuses it.
-                if ((string) $date['delivery_date'] < $today) {
-                    continue;
-                }
-
-                $dates[] = ['date_id' => (int) $date['date_id'], 'label' => to_date(strtotime((string) $date['delivery_date']))];
-            }
-
-            $result[] = [
-                'campaign_id' => $campaign_id,
-                'name'        => (string) $campaign['name'],
-                'items'       => $items,
-                'dates'       => $dates,
-            ];
+            $result[] = $this->form_campaign($campaign, $campaigns->get_items_by_id((int) $campaign['campaign_id']), $today);
         }
 
         return $result;
+    }
+
+    /**
+     * One campaign as the form needs it: its products with the price a unit costs (a kit's components
+     * included) and its delivery dates from today on. A modification passes the products priced as
+     * agreed (Presale::items_for_modification()) and the date the presale has, kept even if it has gone.
+     *
+     * @param array<string, mixed>             $campaign
+     * @param array<int, array<string, mixed>> $campaign_items
+     *
+     * @return array<string, mixed>
+     */
+    private function form_campaign(array $campaign, array $campaign_items, string $today, ?int $keep_date_id = null): array
+    {
+        $campaign_id = (int) $campaign['campaign_id'];
+        $items       = [];
+
+        foreach ($campaign_items as $item) {
+            if ((int) $item['item_deleted'] === 1) {
+                continue;
+            }
+
+            $unit = $this->presale->price_lines($campaign_id, [['item_id' => (int) $item['item_id'], 'quantity' => '1']], $campaign_items);
+
+            // A kit that cannot be expanded is not offered: registering it would be refused anyway.
+            if (is_string($unit)) {
+                continue;
+            }
+
+            $price = '0.00';
+
+            foreach ($unit as $part) {
+                $price = bcadd($price, $part['amount'], 2);
+            }
+
+            $items[] = [
+                'item_id'   => (int) $item['item_id'],
+                'name'      => (string) $item['name'],
+                'number'    => (string) ($item['item_number'] ?? ''),
+                'price'     => to_currency($price),
+                'is_weight' => Item::unit_of_measure_is_weight($item['unit_of_measure'] ?? null),
+                'is_kit'    => (int) $item['item_type'] === ITEM_KIT,
+                'agreed'    => ! empty($item['agreed']),
+            ];
+        }
+
+        $dates = [];
+
+        foreach (model(Presale_campaign::class)->get_dates($campaign_id) as $date) {
+            // A day that has gone is not offered: Presale::create() refuses it. A modification keeps
+            // the presale's own, which Presale::modify() accepts.
+            if ((string) $date['delivery_date'] < $today && (int) $date['date_id'] !== $keep_date_id) {
+                continue;
+            }
+
+            $dates[] = ['date_id' => (int) $date['date_id'], 'label' => to_date(strtotime((string) $date['delivery_date']))];
+        }
+
+        return [
+            'campaign_id' => $campaign_id,
+            'name'        => (string) $campaign['name'],
+            'items'       => $items,
+            'dates'       => $dates,
+        ];
     }
 
     /**
@@ -1166,14 +1346,15 @@ class Presales extends Secure_Controller
     }
 
     /**
-     * Whether this cancellation document is the one right after a CASH refund, and the business wants
-     * the drawer opened for cash. Same one-shot mark as the instalments' (arm_drawer()).
+     * Whether this document is the one right after a CASH refund -- of a cancellation, or of a
+     * modification ($what) -- and the business wants the drawer opened for cash. Same one-shot mark as
+     * the instalments' (arm_drawer()).
      *
      * @param list<array<string, mixed>> $refunds
      */
-    private function take_cancel_drawer(int $presale_id, array $refunds): bool
+    private function take_cancel_drawer(int $presale_id, array $refunds, string $what = self::DRAWER_CANCEL): bool
     {
-        if ($this->session->getFlashdata(self::DRAWER_FLASH) !== $presale_id . ':' . self::DRAWER_CANCEL) {
+        if ($this->session->getFlashdata(self::DRAWER_FLASH) !== $presale_id . ':' . $what) {
             return false;
         }
 
@@ -1184,6 +1365,19 @@ class Presales extends Secure_Controller
         }
 
         return (new Sale_lib())->should_open_cash_drawer([['payment_type' => lang('Sales.cash')]]);
+    }
+
+    /**
+     * The refunds of a presale, oldest first: the last one is what a modification just gave back.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function refunds_of(int $presale_id): array
+    {
+        return array_values(array_filter(
+            model(Presale_payment::class)->get_for($presale_id),
+            static fn (array $payment): bool => $payment['kind'] === Presale_payment::KIND_REFUND,
+        ));
     }
 
     /**

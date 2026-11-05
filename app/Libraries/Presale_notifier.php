@@ -141,6 +141,8 @@ class Presale_notifier
 
         switch ($kind) {
             case Presale_notification::KIND_CREATED:
+            case Presale_notification::KIND_MODIFIED:
+                // A change sends the presale as it stands now: the same document, said again.
                 $data     = $this->documents->presale($presale_id, $today);
                 $document = 'receipt_presale';
                 break;

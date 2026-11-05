@@ -19,8 +19,17 @@
  * @var string                     $today
  * @var list<int>                  $discounts      Presale::discount_options(): 0, 5 ... 40
  * @var array                      $config
+ * @var array<string, mixed>|null  $modify         Presales::getEdit(): the presale being changed (§4.17)
+ *
+ * CHANGING A PRESALE
+ *
+ * With $modify the same form changes an open presale: the campaign is fixed, everything else comes
+ * filled in, the seller discount is shown but changed only from the detail (an administrator's
+ * action), and the first instalment gives way to the reason -- required -- and, when the new total
+ * falls below what was paid, the refund. Products the presale already had show their agreed price.
  */
 $json_flags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE;
+$modify ??= null;
 ?>
 
 <?= view('partial/header', [], ['saveData' => false]) ?>
@@ -29,19 +38,26 @@ $json_flags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON
     <a class="btn btn-default btn-sm pull-right" href="<?= site_url('presales') ?>">
         <span class="glyphicon glyphicon-list">&nbsp;</span><?= esc(lang('Presales.back')) ?>
     </a>
-    <h3 style="margin-top: 0;"><?= esc(lang('Presales.new')) ?></h3>
+    <h3 style="margin-top: 0;"><?= esc($modify === null ? lang('Presales.new') : lang('Presales.modify_title', [$modify['number']])) ?></h3>
 </div>
 
 <?php if ($campaigns === []): ?>
     <div class="alert alert-info" role="status"><?= esc(lang('Presales.no_campaign_selling')) ?></div>
 <?php else: ?>
 
-<?php if (! $has_open_shift): ?>
+<?php if (! $has_open_shift && $modify === null): ?>
     <div class="alert alert-warning" role="alert"><?= esc(lang('Presales.no_open_cashup_warning')) ?></div>
 <?php endif; ?>
 
-<?= form_open('presales/save', ['id' => 'presale_form', 'class' => 'form-horizontal', 'autocomplete' => 'off']) ?>
+<?php if ($modify !== null): ?>
+    <div class="alert alert-info" role="status"><?= esc(lang('Presales.modify_help')) ?></div>
+<?php endif; ?>
+
+<?= form_open($modify === null ? 'presales/save' : 'presales/' . (int) $modify['presale_id'] . '/update', ['id' => 'presale_form', 'class' => 'form-horizontal', 'autocomplete' => 'off']) ?>
     <input type="hidden" name="customer_id" id="presale_customer_id" value="">
+    <?php if ($modify !== null): ?>
+        <input type="hidden" name="presale_id" value="<?= (int) $modify['presale_id'] ?>">
+    <?php endif; ?>
 
     <fieldset>
         <div class="form-group form-group-sm">
@@ -115,15 +131,20 @@ $json_flags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON
             <tr id="presale_discount_block">
                 <td colspan="2" class="form-inline">
                     <label for="presale_discount"><?= esc(lang('Presales.discount')) ?></label>
-                    <select name="discount_percent" id="presale_discount" class="form-control input-sm">
-                        <?php foreach ($discounts as $percent): ?>
-                            <option value="<?= (int) $percent ?>"><?= (int) $percent ?>%</option>
-                        <?php endforeach; ?>
-                    </select>
-                    <label class="checkbox-inline">
-                        <input type="checkbox" name="discount_reimbursable" id="presale_discount_reimbursable" value="1" disabled>
-                        <?= esc(lang('Presales.discount_reimbursable')) ?>
-                    </label>
+                    <?php if ($modify === null): ?>
+                        <select name="discount_percent" id="presale_discount" class="form-control input-sm">
+                            <?php foreach ($discounts as $percent): ?>
+                                <option value="<?= (int) $percent ?>"><?= (int) $percent ?>%</option>
+                            <?php endforeach; ?>
+                        </select>
+                        <label class="checkbox-inline">
+                            <input type="checkbox" name="discount_reimbursable" id="presale_discount_reimbursable" value="1" disabled>
+                            <?= esc(lang('Presales.discount_reimbursable')) ?>
+                        </label>
+                    <?php else: ?>
+                        <strong><?= (int) $modify['discount_percent'] ?>%</strong>
+                        <span class="help-inline text-muted"><?= esc(lang('Presales.modify_discount_note')) ?></span>
+                    <?php endif; ?>
                 </td>
                 <th style="text-align: right;"><?= esc(lang('Presales.discount')) ?></th>
                 <td style="text-align: right;" class="text-danger" id="presale_discount_amount" aria-live="polite"></td>
@@ -161,6 +182,7 @@ $json_flags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON
         </tfoot>
     </table>
 
+    <?php if ($modify === null): ?>
     <h4><?= esc(lang('Presales.initial_payment')) ?></h4>
     <fieldset>
         <div class="form-group form-group-sm">
@@ -181,16 +203,56 @@ $json_flags = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON
                 <input type="text" name="reference_code" id="presale_reference" class="form-control input-sm" maxlength="60">
             </div>
         </div>
+    <?php endif; ?>
+    <?php if ($modify !== null): ?>
+    <h4><?= esc(lang('Presales.modify_money')) ?></h4>
+    <fieldset>
+        <div class="form-group form-group-sm">
+            <span class="control-label col-xs-3"><?= esc(lang('Presales.paid')) ?></span>
+            <div class="col-xs-6"><p class="form-control-static" id="presale_paid" aria-live="polite"></p></div>
+        </div>
+        <div class="form-group form-group-sm">
+            <span class="control-label col-xs-3"><?= esc(lang('Presales.balance')) ?></span>
+            <div class="col-xs-6"><p class="form-control-static" id="presale_balance" aria-live="polite"></p></div>
+        </div>
+        <div id="presale_refund_block" hidden>
+            <div class="form-group form-group-sm">
+                <span class="control-label col-xs-3"><?= esc(lang('Presales.modify_refund')) ?></span>
+                <div class="col-xs-6"><p class="form-control-static text-danger"><strong id="presale_refund" aria-live="polite"></strong></p></div>
+            </div>
+            <div class="form-group form-group-sm">
+                <?= form_label(lang('Presales.payment_type'), 'presale_refund_type', ['class' => 'required control-label col-xs-3']) ?>
+                <div class="col-xs-4">
+                    <?= form_dropdown('refund_payment_type_code', esc($payment_types), 'cash', ['id' => 'presale_refund_type', 'class' => 'form-control input-sm']) ?>
+                </div>
+            </div>
+            <div class="form-group form-group-sm">
+                <?= form_label(lang('Presales.reference'), 'presale_refund_reference', ['class' => 'control-label col-xs-3']) ?>
+                <div class="col-xs-4">
+                    <input type="text" name="refund_reference_code" id="presale_refund_reference" class="form-control input-sm" maxlength="60">
+                </div>
+            </div>
+            <?php if (! $has_open_shift): ?>
+                <div class="alert alert-warning" role="alert"><?= esc(lang('Presales.no_open_cashup_warning')) ?></div>
+            <?php endif; ?>
+        </div>
+        <div class="form-group form-group-sm">
+            <?= form_label(lang('Presales.modify_reason'), 'presale_reason', ['class' => 'required control-label col-xs-3']) ?>
+            <div class="col-xs-6">
+                <textarea name="reason" id="presale_reason" class="form-control input-sm" rows="2" required></textarea>
+            </div>
+        </div>
+    <?php endif; ?>
         <div class="form-group form-group-sm">
             <?= form_label(lang('Presales.comment'), 'presale_comment', ['class' => 'control-label col-xs-3']) ?>
             <div class="col-xs-6">
-                <textarea name="comment" id="presale_comment" class="form-control input-sm" rows="2"></textarea>
+                <textarea name="comment" id="presale_comment" class="form-control input-sm" rows="2"><?= esc((string) ($modify['comment'] ?? '')) ?></textarea>
             </div>
         </div>
         <div class="form-group form-group-sm">
             <div class="col-xs-offset-3 col-xs-6">
                 <button type="submit" class="btn btn-primary btn-sm" id="presale_submit">
-                    <span class="glyphicon glyphicon-ok">&nbsp;</span><?= esc(lang('Presales.register')) ?>
+                    <span class="glyphicon glyphicon-ok">&nbsp;</span><?= esc(lang($modify === null ? 'Presales.register' : 'Presales.modify_save')) ?>
                 </button>
             </div>
         </div>
@@ -203,6 +265,7 @@ $(document).ready(function() {
 
     var campaigns = <?= json_encode($campaigns, $json_flags) ?>;
     var today = <?= json_encode($today, $json_flags) ?>;
+    var modify = <?= json_encode($modify, $json_flags) ?>;
     var text = <?= json_encode([
         'remove'              => lang('Presales.remove'),
         'kit'                 => lang('Presales.kit'),
@@ -212,6 +275,7 @@ $(document).ready(function() {
         'quantity'            => lang('Presales.quantity'),
         'due_date'            => lang('Presales.due_date'),
         'amount'              => lang('Presales.amount'),
+        'agreed'              => lang('Presales.agreed_price'),
     ], $json_flags) ?>;
 
     <?= view('partial/datepicker_locale', ['format' => dateformat_bootstrap($config['dateformat'])], ['saveData' => false]) ?>
@@ -230,7 +294,7 @@ $(document).ready(function() {
             .append('<span class="glyphicon glyphicon-trash" aria-hidden="true"></span>');
     };
 
-    var add_line = function() {
+    var add_line = function(item_id, quantity) {
         var campaign = current();
         if (!campaign) { return; }
 
@@ -240,11 +304,14 @@ $(document).ready(function() {
             .attr('aria-label', text.product);
 
         campaign.items.forEach(function(item) {
-            var label = item.name + (item.number ? ' (' + item.number + ')' : '') + (item.is_kit ? ' · ' + text.kit : '');
+            var label = item.name + (item.number ? ' (' + item.number + ')' : '') + (item.is_kit ? ' · ' + text.kit : '') + (item.agreed ? ' · ' + text.agreed : '');
             $select.append($('<option>').val(item.item_id).text(label));
         });
 
-        var $quantity = $('<input type="text" class="form-control input-sm presale-quantity" value="1">')
+        if (item_id) { $select.val(item_id); }
+
+        var $quantity = $('<input type="text" class="form-control input-sm presale-quantity">')
+            .val(quantity || '1')
             .attr('name', 'lines[' + index + '][quantity]')
             .attr('aria-label', text.quantity);
 
@@ -325,6 +392,12 @@ $(document).ready(function() {
             $dates.append($('<option>').val(date.date_id).text(date.label));
         });
 
+        if (modify) {
+            $dates.val(modify.delivery_date_id);
+            modify.lines.forEach(function(line) { add_line(line.item_id, line.quantity); });
+            return;
+        }
+
         add_line();
     };
 
@@ -345,6 +418,13 @@ $(document).ready(function() {
                 $('#presale_gross').text(response.gross || '');
                 $('#presale_discount_amount').text(response.discount_cell || '');
 
+                if (modify) {
+                    $('#presale_paid').text(response.paid || '');
+                    $('#presale_balance').text(response.balance || '');
+                    $('#presale_refund').text(response.refund || '');
+                    $('#presale_refund_block').prop('hidden', !response.has_refund);
+                }
+
                 $('#presale_lines tbody tr').each(function(position) {
                     $(this).find('.presale-amount').text(response.lines[position] || '');
                 });
@@ -359,7 +439,7 @@ $(document).ready(function() {
     };
 
     $('#presale_campaign').on('change', load_campaign);
-    $('#presale_add_line').on('click', add_line);
+    $('#presale_add_line').on('click', function() { add_line(); });
     $('#presale_add_installment').on('click', function() { add_installment('', ''); });
 
     $('#presale_lines').on('change', '.presale-item', function() {
@@ -460,8 +540,15 @@ $(document).ready(function() {
         });
     });
 
-    load_campaign();
-    add_installment(today, '');
+    if (modify) {
+        choose_customer(modify.customer_id, modify.customer_label);
+        load_campaign();
+        modify.installments.forEach(function(installment) { add_installment(installment.due_date, installment.amount); });
+        preview();
+    } else {
+        load_campaign();
+        add_installment(today, '');
+    }
 });
 </script>
 

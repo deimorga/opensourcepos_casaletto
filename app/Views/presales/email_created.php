@@ -1,7 +1,7 @@
 <?php
 /**
- * E-mail: the presale was registered (funcional §4.2). The detail in the body, the presale document
- * attached (A5).
+ * E-mail: the presale was registered (funcional §4.2), or changed (§4.17, through email_modified.php).
+ * The detail in the body, the presale document attached (A5).
  *
  * @var array<string, mixed>       $presale  Presale::get_summary()
  * @var object                     $customer
@@ -10,14 +10,17 @@
  * @var list<array<string, mixed>> $installments
  * @var array                      $config
  * @var bool                       $has_logo
+ * @var string                     $mail_kind created | modified: which heading, intro and closing line
  */
 $td = 'padding: 4px 0; border-bottom: 1px solid #f0f0f0;';
 $r  = $td . ' text-align: right; white-space: nowrap;';
+
+$mail_kind ??= 'created';
 ?>
-<?= view('presales/email_head', ['config' => $config, 'has_logo' => $has_logo, 'heading' => lang('Presales.mail_heading_created', [$presale['number']])], ['saveData' => false]) ?>
+<?= view('presales/email_head', ['config' => $config, 'has_logo' => $has_logo, 'heading' => lang('Presales.mail_heading_' . $mail_kind, [$presale['number']])], ['saveData' => false]) ?>
 
 <p style="margin: 0 0 12px;"><?= esc(lang('Presales.mail_greeting', [trim((string) ($customer->first_name ?? ''))])) ?></p>
-<p style="margin: 0 0 16px;"><?= esc(lang('Presales.mail_intro_created', [$presale['number'], $campaign_name])) ?></p>
+<p style="margin: 0 0 16px;"><?= esc(lang('Presales.mail_intro_' . $mail_kind, [$presale['number'], $campaign_name])) ?></p>
 
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size: 14px; margin-bottom: 16px;">
     <?php foreach ($lines as $line): ?>
@@ -46,6 +49,6 @@ $r  = $td . ' text-align: right; white-space: nowrap;';
     <?php endforeach; ?>
 </table>
 
-<p style="margin: 0;"><?= esc(lang('Presales.mail_attached_created')) ?></p>
+<p style="margin: 0;"><?= esc(lang('Presales.mail_attached_' . $mail_kind)) ?></p>
 
 <?= view('presales/email_foot', ['config' => $config], ['saveData' => false]) ?>

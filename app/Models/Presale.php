@@ -744,6 +744,411 @@ class Presale extends Model
     }
 
     // ---------------------------------------------------------------------------------------------
+    // Modifying
+    // ---------------------------------------------------------------------------------------------
+
+    /**
+     * Changes an open presale: its products and quantities, its customer, its delivery date, its plan
+     * and its comment (owner's decisions of 2026-11-04, docs/Funcional/venta-anticipada.md §4.17).
+     * Returns the event_id of the change in the history, or a language key; nothing is written when it
+     * is refused.
+     *
+     * - Any cashier of the module may do it, always with a reason, which goes to the history.
+     * - A product the presale already had keeps the price agreed for it (D8); a product added now
+     *   takes the campaign's price of today. Every line takes the presale's seller discount, which is
+     *   changed only through change_discount().
+     * - If the new total falls below what has been paid, the difference is refunded now, like a
+     *   cancellation (D10): in one payment type, out of the shift that is open.
+     * - The plan is the whole plan, as the cashier leaves it: it adds up to the new total, and an
+     *   instalment due before today is accepted only if the payments already cover it -- a change
+     *   cannot create a debt that was due yesterday.
+     * - The delivery date is one of the campaign's; a date that has gone is accepted only if it is the
+     *   one the presale already had (a presale delivered late is still corrected).
+     * - Refused while the delivery is open in the register: that tab was loaded with the old lines.
+     *
+     * $input:
+     *   customer_id, delivery_date_id, comment, reason
+     *   lines:        list of [item_id, quantity]
+     *   installments: list of [due_date (Y-m-d), amount]
+     *   refund:       [payment_type_code, reference_code?] -- used only when the total falls below what was paid
+     *
+     * @param array<string, mixed> $input
+     */
+    public function modify(int $presale_id, array $input, int $employee_id, string $today): int|string
+    {
+        $reason = trim((string) ($input['reason'] ?? ''));
+
+        if ($reason === '') {
+            return 'Presales.modify_reason_required';
+        }
+
+        $customer_id = (int) ($input['customer_id'] ?? 0);
+
+        if (! $this->customer_exists($customer_id)) {
+            return 'Presales.customer_required';
+        }
+
+        $this->db->transBegin();
+
+        $presale = $this->lock($presale_id);
+
+        if ($presale === null || $presale['status'] !== self::STATUS_OPEN) {
+            $this->db->transRollback();
+
+            return 'Presales.not_open';
+        }
+
+        if ($presale['sale_id'] !== null && $this->delivery_tab_is_open((int) $presale['sale_id'])) {
+            $this->db->transRollback();
+
+            return 'Presales.modify_open_in_register';
+        }
+
+        $refusal = null;
+        $plan    = $this->modified_plan($presale, $input, $customer_id, $today, $refusal);
+
+        if ($plan === null) {
+            $this->db->transRollback();
+
+            return (string) $refusal;
+        }
+
+        $paid       = model(Presale_payment::class)->get_paid($presale_id);
+        $new_total  = $plan['total'];
+        $refund     = bccomp($new_total, $paid, self::MONEY_SCALE) < 0 ? bcsub($paid, $new_total, self::MONEY_SCALE) : '0.00';
+        $refund_row = null;
+
+        if (bccomp($refund, '0', self::MONEY_SCALE) > 0) {
+            $code = (string) ($input['refund']['payment_type_code'] ?? '');
+
+            if (! in_array($code, Presale_payment::PAYMENT_CODES, true)) {
+                $this->db->transRollback();
+
+                return 'Presales.modify_refund_type_required';
+            }
+
+            $cashup_id = model(Cashup::class)->get_open_cashup_id();
+
+            if ($cashup_id === null) {
+                $this->db->transRollback();
+
+                return 'Presales.no_open_cashup';
+            }
+
+            $refund_row = [
+                'presale_id'        => $presale_id,
+                'kind'              => Presale_payment::KIND_REFUND,
+                'payment_type_code' => $code,
+                'amount'            => $refund,
+                'payment_time'      => date('Y-m-d H:i:s'),
+                'employee_id'       => $employee_id,
+                'cashup_id'         => $cashup_id,
+                'reference_code'    => self::reference($input['refund']['reference_code'] ?? null),
+            ];
+        }
+
+        // What the history keeps of the presale as it was.
+        $before = [
+            'customer_id'   => (int) $presale['customer_id'],
+            'delivery_date' => (string) $presale['delivery_date'],
+            'gross_total'   => bcadd((string) $presale['gross_total'], '0', self::MONEY_SCALE),
+            'total'         => bcadd((string) $presale['total'], '0', self::MONEY_SCALE),
+            'lines'         => self::history_lines($this->get_lines($presale_id)),
+            'installments'  => self::history_plan($this->get_installments($presale_id)),
+        ];
+
+        $this->db->table('presale_items')->where('presale_id', $presale_id)->delete();
+
+        foreach ($plan['lines'] as $number => $line) {
+            $this->db->table('presale_items')->insert([
+                'presale_id'    => $presale_id,
+                'line'          => $number + 1,
+                'item_id'       => $line['item_id'],
+                'description'   => null,
+                'quantity'      => $line['quantity'],
+                'unit_price'    => $line['unit_price'],
+                'discount'      => $line['discount'],
+                'discount_type' => PERCENT,
+                'print_option'  => $line['print_option'],
+                'item_type'     => $line['item_type'],
+            ]);
+        }
+
+        $this->db->table('presale_installments')->where('presale_id', $presale_id)->delete();
+
+        foreach ($plan['installments'] as $installment) {
+            $this->db->table('presale_installments')->insert([
+                'presale_id' => $presale_id,
+                'due_date'   => $installment['due_date'],
+                'amount'     => $installment['amount'],
+            ]);
+        }
+
+        if ($refund_row !== null) {
+            $this->db->table('presale_payments')->insert($refund_row);
+        }
+
+        $this->db->table($this->table)->where('presale_id', $presale_id)->update([
+            'customer_id'      => $customer_id,
+            'delivery_date_id' => $plan['date_id'],
+            'delivery_date'    => $plan['delivery_date'],
+            'total'            => $new_total,
+            'gross_total'      => $plan['gross_total'],
+            'comment'          => trim((string) ($input['comment'] ?? '')) ?: null,
+        ]);
+
+        $events = model(Presale_event::class);
+        $events->log($presale_id, Presale_event::MODIFIED, $employee_id, [
+            'before' => $before,
+            'after'  => [
+                'customer_id'   => $customer_id,
+                'delivery_date' => $plan['delivery_date'],
+                'gross_total'   => $plan['gross_total'],
+                'total'         => $new_total,
+                'lines'         => self::history_lines($plan['lines']),
+                'installments'  => self::history_plan($plan['installments']),
+            ],
+            'paid'                     => $paid,
+            'refunded'                 => $refund,
+            'refund_payment_type_code' => $refund_row['payment_type_code'] ?? null,
+        ], $reason);
+
+        $event_id = (int) $this->db->insertID();
+
+        // The customer is told with the updated presale document, in this same transaction (K7). One
+        // e-mail per change: the event is what makes it unique.
+        model(Presale_notification::class)->enqueue($presale_id, Presale_notification::KIND_MODIFIED, $event_id, $employee_id);
+
+        if ($this->db->transStatus() === false) {
+            $this->db->transRollback();
+
+            return 'Presales.save_failed';
+        }
+
+        $this->db->transCommit();
+
+        return $event_id;
+    }
+
+    /**
+     * What the presale would become with $input: priced lines, totals, delivery date and the checked
+     * plan. Null when it is refused, with the language key in $refusal. Reads only.
+     *
+     * @param array<string, mixed> $presale the presale row
+     * @param array<string, mixed> $input   as modify() takes it
+     *
+     * @return array{lines: list<array<string, mixed>>, gross_total: string, total: string, taxes: string, date_id: int, delivery_date: string, installments: list<array{due_date: string, amount: string}>}|null
+     */
+    private function modified_plan(array $presale, array $input, int $customer_id, string $today, ?string &$refusal): ?array
+    {
+        $campaigns   = model(Presale_campaign::class);
+        $campaign_id = (int) $presale['campaign_id'];
+
+        $date_id = (int) ($input['delivery_date_id'] ?? 0);
+        $date    = $campaigns->get_date($campaign_id, $date_id);
+
+        if ($date === null) {
+            $refusal = 'Presales.date_not_in_campaign';
+
+            return null;
+        }
+
+        if ($date['delivery_date'] < $today && $date_id !== (int) $presale['delivery_date_id']) {
+            $refusal = 'Presales.delivery_date_past';
+
+            return null;
+        }
+
+        $lines = $this->price_lines($campaign_id, $input['lines'] ?? [], $this->items_for_modification((int) $presale['presale_id'], $campaign_id));
+
+        if (is_string($lines)) {
+            $refusal = $lines;
+
+            return null;
+        }
+
+        $discount = bcadd((string) $presale['discount_percent'], '0', self::MONEY_SCALE);
+        $gross    = $this->register_charge($lines, $customer_id);
+        $lines    = self::apply_discount($lines, $discount);
+        $charge   = $this->register_charge($lines, $customer_id);
+
+        if ($charge === null || $gross === null) {
+            $refusal = 'Presales.total_unavailable';
+
+            return null;
+        }
+
+        $total = $charge['charge'];
+
+        if (bccomp($total, '0', self::MONEY_SCALE) <= 0) {
+            $refusal = 'Presales.total_must_be_positive';
+
+            return null;
+        }
+
+        $paid = model(Presale_payment::class)->get_paid((int) $presale['presale_id']);
+        $owed = bccomp($total, $paid, self::MONEY_SCALE) < 0 ? $total : $paid;
+
+        $installments = self::check_modified_plan($input['installments'] ?? [], $total, $owed, max($date['delivery_date'], $today), $today);
+
+        if (is_string($installments)) {
+            $refusal = $installments;
+
+            return null;
+        }
+
+        return [
+            'lines'         => $lines,
+            'gross_total'   => $gross['charge'],
+            'total'         => $total,
+            'taxes'         => $charge['taxes'],
+            'date_id'       => (int) $date['date_id'],
+            'delivery_date' => (string) $date['delivery_date'],
+            'installments'  => $installments,
+        ];
+    }
+
+    /**
+     * The campaign's products, as price_lines() reads them, with every product the presale already
+     * has priced as agreed: its stored unit price replaces the campaign's of today, and a product the
+     * campaign no longer sells is still accepted for this presale. Only the lines a cashier chose
+     * count -- a kit's own line or a priced product -- never a kit's components, which are at 0.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function items_for_modification(int $presale_id, int $campaign_id): array
+    {
+        $items = model(Presale_campaign::class)->get_items_by_id($campaign_id);
+
+        foreach ($this->chosen_lines($presale_id) as $line) {
+            $item_id = (int) $line['item_id'];
+
+            if (isset($items[$item_id])) {
+                $items[$item_id]['effective_price'] = (string) $line['unit_price'];
+                $items[$item_id]['agreed']          = true;
+
+                continue;
+            }
+
+            $row = $this->db->table('items')
+                ->select('item_id, name, item_number, unit_price AS catalogue_price, unit_of_measure, item_type, deleted AS item_deleted')
+                ->where('item_id', $item_id)
+                ->get()->getRowArray();
+
+            if ($row !== null) {
+                $items[$item_id] = $row + ['effective_price' => (string) $line['unit_price'], 'agreed' => true];
+            }
+        }
+
+        return $items;
+    }
+
+    /**
+     * The lines a cashier chose when registering, without a kit's components: what the modification
+     * form starts from. A component is always stored at 0 after its kit's line (kit_components()); a
+     * chosen product is priced, or is a kit.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function chosen_lines(int $presale_id): array
+    {
+        $chosen = [];
+
+        foreach ($this->get_lines($presale_id) as $line) {
+            if ((int) $line['item_type'] === ITEM_KIT || bccomp((string) $line['unit_price'], '0', self::MONEY_SCALE) > 0) {
+                $chosen[] = $line;
+            }
+        }
+
+        return $chosen;
+    }
+
+    /**
+     * Checks the plan of a modification and returns it sorted by date, or a language key.
+     *
+     * - at least one instalment, every date valid, every amount positive;
+     * - the amounts add up exactly to the new total;
+     * - none after $last_date (the delivery date, or today when that date has gone);
+     * - instalments due before today add up to no more than $owed (what is paid, capped at the total):
+     *   a date that has gone is only acceptable for money that has already come in.
+     *
+     * @return list<array{due_date: string, amount: string}>|string
+     */
+    private static function check_modified_plan(array $requested, string $total, string $owed, string $last_date, string $today): array|string
+    {
+        if ($requested === []) {
+            return 'Presales.installments_required';
+        }
+
+        $plan = [];
+        $sum  = '0.00';
+        $past = '0.00';
+
+        foreach ($requested as $request) {
+            $due_date = (string) ($request['due_date'] ?? '');
+            $amount   = self::money_or_null($request['amount'] ?? null);
+
+            if (! Presale_campaign::is_date($due_date)) {
+                return 'Presales.date_invalid';
+            }
+
+            if ($amount === null || bccomp($amount, '0', self::MONEY_SCALE) <= 0) {
+                return 'Presales.installment_amount_invalid';
+            }
+
+            if ($due_date > $last_date) {
+                return 'Presales.installment_after_delivery';
+            }
+
+            if ($due_date < $today) {
+                $past = bcadd($past, $amount, self::MONEY_SCALE);
+            }
+
+            $plan[] = ['due_date' => $due_date, 'amount' => $amount];
+            $sum    = bcadd($sum, $amount, self::MONEY_SCALE);
+        }
+
+        if (bccomp($sum, $total, self::MONEY_SCALE) !== 0) {
+            return 'Presales.installments_must_add_up';
+        }
+
+        if (bccomp($past, $owed, self::MONEY_SCALE) > 0) {
+            return 'Presales.modify_past_installment_unpaid';
+        }
+
+        usort($plan, static fn (array $a, array $b): int => strcmp($a['due_date'], $b['due_date']));
+
+        return $plan;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $lines
+     *
+     * @return list<array{item_id: int, quantity: string, unit_price: string}>
+     */
+    private static function history_lines(array $lines): array
+    {
+        return array_map(static fn (array $line): array => [
+            'item_id'    => (int) $line['item_id'],
+            'quantity'   => bcadd((string) $line['quantity'], '0', 3),
+            'unit_price' => bcadd((string) $line['unit_price'], '0', self::MONEY_SCALE),
+        ], $lines);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $installments
+     *
+     * @return list<array{due_date: string, amount: string}>
+     */
+    private static function history_plan(array $installments): array
+    {
+        return array_map(static fn (array $installment): array => [
+            'due_date' => (string) $installment['due_date'],
+            'amount'   => bcadd((string) $installment['amount'], '0', self::MONEY_SCALE),
+        ], $installments);
+    }
+
+    // ---------------------------------------------------------------------------------------------
     // Money after registration
     // ---------------------------------------------------------------------------------------------
 

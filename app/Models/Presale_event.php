@@ -22,6 +22,13 @@ class Presale_event extends Model
      */
     public const DISCOUNT_CHANGED = 'discount_changed';
 
+    /**
+     * A cashier changed the products, customer, delivery date or plan of an open presale, with a
+     * reason (venta-anticipada.md §4.17). `items_changed` is the one data correction made by hand
+     * before this existed (2026-11-04); it is only read, never written.
+     */
+    public const MODIFIED = 'modified';
+
     protected $table            = 'presale_events';
     protected $primaryKey       = 'event_id';
     protected $useAutoIncrement = true;

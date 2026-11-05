@@ -113,6 +113,9 @@ $routes->get('presales/cancelReceipt/(:num)', 'Presales::getCancelReceipt/$1');
 $routes->get('presales/deliveryReceipt/(:num)', 'Presales::getDeliveryReceipt/$1');
 $routes->post('presales/(:num)/resendNotification/(:num)', 'Presales::postResendNotification/$1/$2');
 $routes->post('presales/(:num)/changeDiscount', 'Presales::postChangeDiscount/$1');
+// Changing an open presale: products, customer, delivery date and plan, with a reason (§4.17).
+$routes->get('presales/edit/(:num)', 'Presales::getEdit/$1');
+$routes->post('presales/(:num)/update', 'Presales::postUpdate/$1');
 // presales: customer e-mails (delivery 2b) END
 
 $routes->get('/', 'Login::index');

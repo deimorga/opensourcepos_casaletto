@@ -28,6 +28,7 @@ class Presale_notification extends Model
     public const KIND_DELIVERED              = 'delivered';
     public const KIND_REMINDER_BEFORE        = 'reminder_before';
     public const KIND_REMINDER_LATE          = 'reminder_late';
+    public const KIND_MODIFIED               = 'modified';
     public const STATUS_PENDING              = 'pending';
     public const STATUS_SENDING              = 'sending';
     public const STATUS_SENT                 = 'sent';
