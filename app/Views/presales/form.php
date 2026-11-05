@@ -414,7 +414,8 @@ $(document).ready(function() {
                 }
 
                 $('#presale_total').text(response.total);
-                $('#presale_minimum').html(response.minimum || '');
+                // The campaign's minimum first instalment applies when registering, not to a change.
+                $('#presale_minimum').html(modify ? '' : (response.minimum || ''));
                 $('#presale_gross').text(response.gross || '');
                 $('#presale_discount_amount').text(response.discount_cell || '');
 
