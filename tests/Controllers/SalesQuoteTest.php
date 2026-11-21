@@ -36,6 +36,7 @@ final class SalesQuoteTest extends CIUnitTestCase
 
     private string $itemNumber = 'TEST-QUOTE-ITEM';
     private int $customerId;
+    private int $shiftId;
 
     protected function setUp(): void
     {
@@ -70,9 +71,21 @@ final class SalesQuoteTest extends CIUnitTestCase
         $this->customerId = (int) $db->insertID();
         $db->table('customers')->insert(['person_id' => $this->customerId, 'taxable' => 1, 'discount' => 0, 'discount_type' => 0, 'deleted' => 0, 'consent' => 1, 'employee_id' => 1]);
 
+        // testASaleThatIsNotAQuoteIsNotShownAsOne charges a real sale.
+        $this->shiftId = $this->openShift();
+
         $_SESSION = ['person_id' => 1, 'menu_group' => 'home'];
         $this->withSession($_SESSION);
         $this->getReq('sales');
+    }
+
+    protected function tearDown(): void
+    {
+        // The shared test database outlives this class: a shift left open here would be the one every
+        // later test finds instead of its own.
+        $this->db->table('cash_up')->where('cashup_id', $this->shiftId ?? 0)->delete();
+
+        parent::tearDown();
     }
 
     public function testAQuoteIsSavedAsAQuoteWithItsDocument(): void
@@ -143,6 +156,32 @@ final class SalesQuoteTest extends CIUnitTestCase
 
         $this->getReq('sales/quote/' . $saleId)->assertSee(lang('Sales.quote_not_found'));
         $this->getReq('sales/quotePdf/' . $saleId)->assertSee(lang('Sales.quote_not_found'));
+    }
+
+    /**
+     * An open cash-up: since 2026-11-20 the register charges nothing without one (Sales::postComplete()).
+     */
+    private function openShift(): int
+    {
+        $this->db->table('cash_up')->insert([
+            'status'               => 'open',
+            'open_date'            => date('Y-m-d H:i:s', strtotime('-1 hour')),
+            'close_date'           => null,
+            'open_amount_cash'     => '0.00',
+            'transfer_amount_cash' => '0.00',
+            'note'                 => 0,
+            'closed_amount_cash'   => '0.00',
+            'closed_amount_card'   => '0.00',
+            'closed_amount_check'  => '0.00',
+            'closed_amount_due'    => '0.00',
+            'closed_amount_total'  => '0.00',
+            'description'          => 'register test fixture',
+            'open_employee_id'     => 1,
+            'close_employee_id'    => 1,
+            'deleted'              => 0,
+        ]);
+
+        return (int) $this->db->insertID();
     }
 
     private function makeQuote(): TestResponse

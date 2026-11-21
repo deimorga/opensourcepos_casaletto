@@ -171,11 +171,14 @@ como venta sin turno. No se inventa una atribución.
 
 **Desde el 2026-11-20 la caja no completa nada que reciba plata sin turno abierto.** `Sales::postComplete()`
 lo rechaza antes de escribir (`Sales.no_open_cashup`) salvo en modo cotización u orden de trabajo, que no
-cobran; la pestaña abierta se conserva. `_reload()` pasa `register_without_shift` y `sales/register.php`
+cobran; la pestaña abierta se conserva. La entrega de una preventa no pasa por este chequeo: tiene el suyo
+desde el 2026-10-07 (T23 de venta-anticipada), con su propio mensaje. `_reload()` pasa `register_without_shift` y `sales/register.php`
 muestra el aviso con enlace a Turnos desde que se abre la caja. El `NULL` de arriba queda solo para el
 histórico y para lo que no pase por la caja. Motivo: el 20/11 Casaletto vendió 13 ventas sin turno; se
 corrigieron a mano (asignadas al turno 133, apertura movida a las 12:00). Las pruebas que cobran
-(`SalesControllerTest`, `OrderTicketsRegisterTest`) abren un turno en `setUp()`.
+(`SalesControllerTest`, `OrderTicketsRegisterTest`, `SalesQuoteTest`) abren un turno en `setUp()` y lo
+borran en `tearDown()`: la base de pruebas es compartida, y un turno abierto que sobrevive es el que
+encuentran las pruebas de otros archivos (pasó en el primer CI de este cambio).
 
 ## 6. Conciliación en el cierre
 

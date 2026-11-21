@@ -48,6 +48,7 @@ final class OrderTicketsRegisterTest extends CIUnitTestCase
     private int $itemB;
     private int $itemC;
     private string $numberB = 'OT-REG-ITEM-B';
+    private int $shiftId;
 
     protected function setUp(): void
     {
@@ -68,9 +69,18 @@ final class OrderTicketsRegisterTest extends CIUnitTestCase
         $this->itemB = $this->createItem($this->numberB, 'OT Plato B');
         $this->itemC = $this->createItem('OT-REG-ITEM-C', 'OT Plato C');
 
-        $this->openShift();
+        $this->shiftId = $this->openShift();
 
         $this->loginAsCashier();
+    }
+
+    protected function tearDown(): void
+    {
+        // The shared test database outlives this class: a shift left open here would be the one every
+        // later test finds instead of its own.
+        $this->db->table('cash_up')->where('cashup_id', $this->shiftId ?? 0)->delete();
+
+        parent::tearDown();
     }
 
     // ---------------------------------------------------------------------------------------------

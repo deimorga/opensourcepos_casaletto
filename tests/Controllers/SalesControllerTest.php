@@ -74,6 +74,15 @@ class SalesControllerTest extends CIUnitTestCase
         $this->loginAsAdmin();
     }
 
+    protected function tearDown(): void
+    {
+        // The shared test database outlives this class: a shift left open here would be the one every
+        // later test finds instead of its own.
+        $this->db->table('cash_up')->where('cashup_id', $this->shiftId ?? 0)->delete();
+
+        parent::tearDown();
+    }
+
     // No sale without an open shift (owner's decision of 2026-11-20)
 
     public function testWithoutAnOpenShiftTheRegisterSaysSoAndChargesNothing(): void
