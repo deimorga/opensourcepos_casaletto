@@ -1374,6 +1374,15 @@ class Sales extends Secure_Controller
             return $this->_reload(['warning' => lang('Order_tickets.register_changed_before_charge', [$order_ticket['name']])]);
         }
 
+        // No money is taken outside a shift (owner's decision of 2026-11-20): a sale, a return or an
+        // invoice completed without an open cash-up is sealed with no shift, and the close of that day
+        // never sees it -- Casaletto sold a whole afternoon that way. A quote and a work order take no
+        // money and go on as before; so does an open tab, which is only stored, not completed.
+        if (!$this->sale_lib->is_quote_mode() && !$this->sale_lib->is_work_order_mode()
+            && model(Cashup::class)->get_open_cashup_id() === null) {
+            return $this->_reload(['error' => lang('Sales.no_open_cashup')]);
+        }
+
         // A presale delivery (Presale_register). Checked again further down, once the totals are known.
         // A presale payment in a cart that is NOT a delivery is money nobody took -- refused before
         // anything is written.
@@ -2664,6 +2673,10 @@ class Sales extends Secure_Controller
 
         $data['cart'] = $this->sale_lib->get_cart();
         $customer_info = $this->_load_customer_data($this->sale_lib->get_customer(), $data, true);
+
+        // Said from the moment the till opens, not only when the cashier tries to charge (postComplete()
+        // refuses it then). A name of its own: the renderer keeps view data for the whole request.
+        $data['register_without_shift'] = model(Cashup::class)->get_open_cashup_id() === null;
 
         $data['modes'] = $this->sale_lib->get_register_mode_options();
 

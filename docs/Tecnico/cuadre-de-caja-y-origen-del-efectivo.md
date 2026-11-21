@@ -169,6 +169,14 @@ para el turno que esté vivo cuando se cierre."*
 **Si no hay ningún turno abierto**, la venta se guarda con `cashup_id = NULL` y aparece en el reporte
 como venta sin turno. No se inventa una atribución.
 
+**Desde el 2026-11-20 la caja no completa nada que reciba plata sin turno abierto.** `Sales::postComplete()`
+lo rechaza antes de escribir (`Sales.no_open_cashup`) salvo en modo cotización u orden de trabajo, que no
+cobran; la pestaña abierta se conserva. `_reload()` pasa `register_without_shift` y `sales/register.php`
+muestra el aviso con enlace a Turnos desde que se abre la caja. El `NULL` de arriba queda solo para el
+histórico y para lo que no pase por la caja. Motivo: el 20/11 Casaletto vendió 13 ventas sin turno; se
+corrigieron a mano (asignadas al turno 133, apertura movida a las 12:00). Las pruebas que cobran
+(`SalesControllerTest`, `OrderTicketsRegisterTest`) abren un turno en `setUp()`.
+
 ## 6. Conciliación en el cierre
 
 ### 6.1 Lo que se agrega
@@ -302,7 +310,8 @@ hasta que las ventas de ese día —el único con dos turnos— queden separadas
 - Un administrador guarda sin elegir origen → **se rechaza**.
 - Un gasto por transferencia → `cash_source` queda `NULL`, no `register`.
 - Abrir un turno con otro abierto → se rechaza.
-- Una venta completada se sella con el turno abierto; sin turno abierto queda en `NULL`.
+- Una venta completada se sella con el turno abierto. Sin turno abierto, desde el 2026-11-20, la caja no
+  la completa y muestra el aviso (`SalesControllerTest::testWithoutAnOpenShiftTheRegisterSaysSoAndChargesNothing`).
 - Una recogida con `collected_by` no administrador → se rechaza.
 - El esperado en cajón cambia al agregar una recogida, y el descuadre se mueve en consecuencia.
 - Una recogida registrada con hora de ayer cae en el turno de ayer, no en el de hoy.

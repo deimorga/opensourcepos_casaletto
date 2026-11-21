@@ -32,6 +32,7 @@ class SalesControllerTest extends CIUnitTestCase
     private int $tableB;
     private string $itemNumberA = 'TEST-TAB-ITEM-A';
     private string $itemNumberB = 'TEST-TAB-ITEM-B';
+    private int $shiftId;
 
     protected function setUp(): void
     {
@@ -68,7 +69,66 @@ class SalesControllerTest extends CIUnitTestCase
         $this->createTestItem($this->itemNumberA, 'Test Tab Item A');
         $this->createTestItem($this->itemNumberB, 'Test Tab Item B');
 
+        $this->shiftId = $this->openShift();
+
         $this->loginAsAdmin();
+    }
+
+    // No sale without an open shift (owner's decision of 2026-11-20)
+
+    public function testWithoutAnOpenShiftTheRegisterSaysSoAndChargesNothing(): void
+    {
+        $this->db->table('cash_up')->where('cashup_id', $this->shiftId)->update(['status' => 'closed']);
+
+        $this->openTableWithItem($this->tableA, $this->itemNumberA);
+        $saleId = model(Sale::class)->get_open_sale_by_table($this->tableA);
+
+        $this->getReq('sales')->assertSee('id="register_without_shift"', null);
+
+        $this->postReq('sales/addPayment', ['payment_type' => 'Cash', 'amount_tendered' => '10.00']);
+        $this->postReq('sales/complete', [])->assertSee(lang('Sales.no_open_cashup'));
+
+        $this->assertSame(0, $this->db->table('sales')->where('sale_status', COMPLETED)->countAllResults(), 'Nothing is completed outside a shift.');
+        $this->assertSame($saleId, model(Sale::class)->get_open_sale_by_table($this->tableA), 'The tab stays open, with its cart, for when the shift is opened.');
+    }
+
+    public function testWithAnOpenShiftTheSaleIsSealedWithIt(): void
+    {
+        $this->getReq('sales')->assertDontSee('id="register_without_shift"', null);
+
+        $this->openTableWithItem($this->tableA, $this->itemNumberA);
+        $saleId = model(Sale::class)->get_open_sale_by_table($this->tableA);
+
+        $this->postReq('sales/addPayment', ['payment_type' => 'Cash', 'amount_tendered' => '10.00']);
+        $this->postReq('sales/complete', []);
+
+        $this->assertSame($this->shiftId, model(Sale::class)->get_cashup_id((int) $saleId));
+    }
+
+    /**
+     * An open cash-up: since 2026-11-20 the register charges nothing without one (Sales::postComplete()).
+     */
+    private function openShift(): int
+    {
+        $this->db->table('cash_up')->insert([
+            'status'               => 'open',
+            'open_date'            => date('Y-m-d H:i:s', strtotime('-1 hour')),
+            'close_date'           => null,
+            'open_amount_cash'     => '0.00',
+            'transfer_amount_cash' => '0.00',
+            'note'                 => 0,
+            'closed_amount_cash'   => '0.00',
+            'closed_amount_card'   => '0.00',
+            'closed_amount_check'  => '0.00',
+            'closed_amount_due'    => '0.00',
+            'closed_amount_total'  => '0.00',
+            'description'          => 'register test fixture',
+            'open_employee_id'     => 1,
+            'close_employee_id'    => 1,
+            'deleted'              => 0,
+        ]);
+
+        return (int) $this->db->insertID();
     }
 
     private function createTestItem(string $itemNumber, string $name): void

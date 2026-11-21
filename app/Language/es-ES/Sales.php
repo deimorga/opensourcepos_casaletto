@@ -281,4 +281,8 @@ return [
     "open_tab_moved"                     => "La venta en curso quedó guardada en la mesa «{0}».",
     "open_tab_unsaved_switch"            => "«{0}» tiene productos que no están guardados en ninguna mesa, y «{1}» ya tiene los suyos. Primero cobre o anule esta venta, o guárdela con «{2}».",
     "open_tab_unsaved_mode"              => "La venta en curso no es una venta normal: finalícela o anúlela antes de pasarla a una mesa.",
+    // No sale without an open shift (2026-11-20)
+    "no_open_cashup"        => "No hay un turno de caja abierto. Abra el turno en Turnos para poder cobrar.",
+    "no_open_cashup_banner" => "No hay un turno de caja abierto: no se puede cobrar hasta abrirlo.",
+    "open_cashup_link"      => "Abrir el turno en Turnos",
 ];

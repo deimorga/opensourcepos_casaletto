@@ -277,4 +277,8 @@ return [
     "open_tab_moved"                     => "The sale in progress is now saved in table «{0}».",
     "open_tab_unsaved_switch"            => "«{0}» has products that are not saved in any table, and «{1}» already has its own. Charge or cancel this sale first, or keep it with «{2}».",
     "open_tab_unsaved_mode"              => "The sale in progress is not a regular sale: complete or cancel it before moving to a table.",
+    // No sale without an open shift (2026-11-20)
+    "no_open_cashup"        => "No cash-up shift is open. Open one in Cash Ups to take payments.",
+    "no_open_cashup_banner" => "No cash-up shift is open: nothing can be charged until one is.",
+    "open_cashup_link"      => "Open a shift in Cash Ups",
 ];

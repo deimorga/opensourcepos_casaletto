@@ -154,6 +154,20 @@ recalcula nunca.
 **Que haya dos turnos en un mismo día deja de ser un problema** — lo que importa es que no haya dos
 abiertos a la vez.
 
+**Sin turno abierto no se cobra** *(decisión del dueño, 2026-11-20)*. El 20/11 Casaletto olvidó abrir el
+turno y vendió toda la tarde: 13 ventas quedaron sin turno y el cierre no las veía. Desde entonces:
+
+- La pantalla de **Ventas** muestra un aviso amarillo, «No hay un turno de caja abierto: no se puede
+  cobrar hasta abrirlo», con un enlace a **Turnos** para abrirlo.
+- **Cobrar** una venta, una devolución o una factura se rechaza con el mensaje «No hay un turno de caja
+  abierto. Abra el turno en Turnos para poder cobrar». No se pierde nada: la mesa o la cuenta queda
+  abierta con sus productos, y se cobra en cuanto se abre el turno.
+- Sí se puede, sin turno: tomar pedidos en mesas y comandas, hacer **cotizaciones** y **órdenes de
+  trabajo**, que no reciben plata.
+
+Aplica a todos los negocios. Antes del cambio se revisó que ninguno vendía sin turno: desde octubre,
+Casaletto tenía 2 ventas así y Paraíso 9, la última el 19/10.
+
 **Consecuencia para el histórico:** las 792 ventas existentes no tienen turno. Se pueden asignar
 hacia atrás por la ventana horaria donde sea inequívoco, pero **en el solape del 13 al 15 de agosto
 no lo es**. Ahí se dejan sin turno y se reportan, en vez de adivinar.

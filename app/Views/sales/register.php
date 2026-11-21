@@ -41,6 +41,7 @@
  * @var array $weight_entry
  * @var array $order_ticket_changes set by Sales::_sync_order_ticket() when the tab is an order ticket's
  * @var array|null $presale_delivery set by Sales::_sync_presale_delivery() when the cart is a presale's delivery
+ * @var bool $register_without_shift no cash-up is open: nothing can be charged until one is (Sales::postComplete())
  */
 
 use App\Libraries\Presale_register;
@@ -67,6 +68,15 @@ if (isset($success)) {
 }
 
 helper('url');
+
+// No shift open: said before the cashier builds a cart, with the way to open one. Charging is refused
+// by the server (Sales::postComplete()) whatever this banner says.
+if (!empty($register_without_shift)) { ?>
+    <div class="alert alert-warning" id="register_without_shift" role="alert">
+        <span class="glyphicon glyphicon-warning-sign" aria-hidden="true">&nbsp;</span><strong><?= esc(lang('Sales.no_open_cashup_banner')) ?></strong>
+        <a class="alert-link" href="<?= site_url('cashups') ?>"><?= esc(lang('Sales.open_cashup_link')) ?></a>
+    </div>
+<?php }
 
 // A presale delivery (Sales::_sync_presale_delivery()): what was agreed cannot be changed here, so the
 // controls the server refuses on it are not drawn. The server refuses them anyway; hiding them only

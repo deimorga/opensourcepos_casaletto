@@ -68,6 +68,8 @@ final class OrderTicketsRegisterTest extends CIUnitTestCase
         $this->itemB = $this->createItem($this->numberB, 'OT Plato B');
         $this->itemC = $this->createItem('OT-REG-ITEM-C', 'OT Plato C');
 
+        $this->openShift();
+
         $this->loginAsCashier();
     }
 
@@ -344,6 +346,32 @@ final class OrderTicketsRegisterTest extends CIUnitTestCase
     private function saleStatus(int $sale): int
     {
         return (int) $this->db->table('sales')->where('sale_id', $sale)->get()->getRow()->sale_status;
+    }
+
+    /**
+     * An open cash-up: since 2026-11-20 the register charges nothing without one (Sales::postComplete()).
+     */
+    private function openShift(): int
+    {
+        $this->db->table('cash_up')->insert([
+            'status'               => 'open',
+            'open_date'            => date('Y-m-d H:i:s', strtotime('-1 hour')),
+            'close_date'           => null,
+            'open_amount_cash'     => '0.00',
+            'transfer_amount_cash' => '0.00',
+            'note'                 => 0,
+            'closed_amount_cash'   => '0.00',
+            'closed_amount_card'   => '0.00',
+            'closed_amount_check'  => '0.00',
+            'closed_amount_due'    => '0.00',
+            'closed_amount_total'  => '0.00',
+            'description'          => 'register test fixture',
+            'open_employee_id'     => 1,
+            'close_employee_id'    => 1,
+            'deleted'              => 0,
+        ]);
+
+        return (int) $this->db->insertID();
     }
 
     private function createItem(string $number, string $name, int $type = ITEM, int $stock = HAS_STOCK): int
